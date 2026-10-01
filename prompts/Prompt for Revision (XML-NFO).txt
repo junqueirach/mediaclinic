@@ -1,0 +1,217 @@
+
+# ✅ **FPROMPT FOR CLAUDE — ADD COMPATIBILITY MODE (NFO/XML) + HELP REWRITE + SETTINGS SAFETY**
+
+You are an expert Python/Tkinter architect.  
+You will update the MediaClinic application to support **user‑selectable compatibility modes** for `.nfo` and `.xml` ecosystems.
+
+This change affects scanning, metadata extraction, writing, UI columns, Help menu text, and all routines that depend on NFO/XML availability.
+
+You MUST follow all existing architecture rules (settings_model, settings_context, settings_controller, settings_dialog, mediaclinic.py, CLAUDE_RULES.md, column registry, threading rules, indentation preservation).
+
+---
+
+# 1. GLOBAL SAFETY RULES (MANDATORY — NEVER VIOLATE)
+
+These rules exist because the Settings menu is fragile and past revisions caused:
+
+- disappearing tabs  
+- UI freeze  
+- recursion loops  
+- unresponsive dialog  
+- broken notebook  
+- broken save chain  
+
+You MUST obey these rules:
+
+### 1.1 NEVER modify:
+- the tab registry structure  
+- the order of existing tabs  
+- the notebook creation logic  
+- the snapshot logic  
+- the save chain  
+- the SettingsContext structure (except adding the two new booleans)  
+- any existing tab builder names  
+
+### 1.2 When adding the new Compatibility tab:
+- Add it **ONLY** through the `_TAB_REGISTRY`  
+- Use a **new builder method**: `_build_compatibility_tab`  
+- Do NOT modify existing builder methods  
+- Do NOT rename any builder method  
+- Do NOT reorder existing tabs  
+- Do NOT remove any tab  
+- Do NOT change the notebook style  
+- Do NOT change padding or fonts of existing tabs  
+
+### 1.3 All new code must be marked:
+`### NEW v0.17.0 — Compatibility Mode ###`
+
+### 1.4 All UI changes must:
+- preserve dark theme  
+- preserve spacing  
+- preserve fonts  
+- preserve scroll behavior  
+- preserve window size  
+
+### 1.5 All scanning and metadata routines must remain asynchronous.
+
+### 1.6 All XML/NFO writes must preserve indentation.
+
+### 1.7 NEVER break the column registry.
+
+### 1.8 NEVER break the Help menu structure.
+
+### 1.9 NEVER hallucinate functions or modules.
+
+### 1.10 NEVER remove existing functionality.
+
+---
+
+# 2. NEW FEATURE — COMPATIBILITY MODE
+
+MediaClinic currently supports both `.nfo` and `.xml` metadata systems simultaneously.  
+We must now allow the user to choose:
+
+- **NFO Compatibility** (Kodi / Jellyfin / Plex local agents)  
+- **XML Compatibility** (WMC, Emby Classic, MyMovies, WDTV, Zappiti, Dune, Zidoo)
+
+Both checkboxes ON → application behaves exactly as today.
+
+User may disable one or the other.
+
+---
+
+# 3. NEW SETTINGS TAB — “Compatibility”
+
+Create a new tab in SettingsDialog:
+
+**Tab name:** `Compatibility`
+
+Inside this tab, add two checkboxes:
+
+### 3.1 Checkbox A — “Enable NFO Compatibility”
+Default: **checked**
+
+Description text:
+
+```
+Modern Streamers (.nfo):
+Kodi / OSMC / LibreELEC
+Jellyfin
+Plex (local asset agents)
+```
+
+### 3.2 Checkbox B — “Enable XML Compatibility”
+Default: **checked**
+
+Description text:
+
+```
+Legacy & Hardware Managers (.xml):
+Windows Media Center (WMC)
+Emby / Media Browser (Classic)
+My Movies (Collection Management)
+WDTV Live / Hub
+Mede8er / Dune HD / Zappiti / Zidoo
+```
+
+### 3.3 Behavior
+- If **both** are checked → app runs exactly as today.  
+- If **only NFO** is checked → ignore XML files entirely.  
+- If **only XML** is checked → ignore NFO files entirely.  
+- If **none** are checked → show error popup and prevent saving.
+
+---
+
+# 4. SETTINGS MODEL / SCHEMA UPDATE
+
+Add two new boolean settings:
+
+```
+"compat_nfo": true
+"compat_xml": true
+```
+
+These must be added to:
+
+- settings_schema.json  
+- DEFAULT_SETTINGS in settings_model.py  
+- settings_controller load/save logic  
+- SettingsContext injection  
+- SettingsDialog UI  
+
+---
+
+# 5. APPLICATION‑WIDE BEHAVIOR CHANGES
+
+Every routine that currently handles both NFO and XML must now respect the compatibility mode.
+
+### 5.1 Scanning
+- If NFO disabled → do not search for `.nfo` files  
+- If XML disabled → do not search for `.xml` files  
+- If only one is enabled → do not mark the other as missing  
+- If both enabled → current behavior  
+
+### 5.2 Column Visibility
+If NFO disabled:
+- Hide NFO column  
+- Hide NFO status column  
+- Hide NFO‑related tooltips  
+- Skip NFO validation logic  
+
+If XML disabled:
+- Hide XML column  
+- Hide XML status column  
+- Hide XML‑related tooltips  
+- Skip XML validation logic  
+
+### 5.3 Improvements Engine
+Skip checks related to disabled formats.
+
+### 5.4 Right‑Click Menu
+All metadata write operations must respect compatibility mode.
+
+### 5.5 Backup System
+Only back up files for enabled formats.
+
+### 5.6 Save/Load Scan Results
+Scan results must include compatibility flags.
+
+---
+
+# 6. HELP MENU — REWRITE ALL TEXTS
+
+All Help sections that currently say:
+
+- “Kodi / Emby / Jellyfin only”  
+- “NFO‑based systems only”  
+- “XML‑based systems only”  
+- “This tool is designed for Kodi/Emby/Jellyfin”  
+
+must be rewritten to reflect the new dual‑ecosystem compatibility:
+
+```
+MediaClinic supports both modern NFO-based ecosystems (Kodi, Jellyfin, Plex local agents)
+and legacy XML-based ecosystems (WMC, Emby Classic, MyMovies, WDTV, Zappiti, Dune, Zidoo).
+Compatibility can be configured in Settings → Compatibility.
+```
+
+Claude must update **every Help tab** accordingly.
+
+---
+
+# 7. EXECUTION PROTOCOL (MANDATORY)
+
+Claude must follow these phases:
+
+### PHASE A — Read all code  
+### PHASE B — Ask clarifying questions  
+### PHASE C — Write a full implementation plan  
+### PHASE D — Wait for my approval  
+### PHASE E — Implement in multiple phases  
+### PHASE F — Simulate tests before output  
+### PHASE G — Output full updated files (raw code blocks only)
+
+---
+
+# 8. FINAL RULE  
+If ANY part of this request is unclear, ambiguous, or contradictory, Claude must STOP and ask questions before writing code.
