@@ -1,0 +1,41 @@
+KEYBOARD SHORTCUTS  (v0.11.0)
+NAVIGATION
+  Page Up / Down  - move 20 rows at a time
+  Home / End      - jump to first / last row
+  Shift + Up/Down - extend multi-row selection
+
+SCAN ACTIONS
+  F5              - Scan (start or re-scan current folder)
+  Ctrl+L          - Clear All scan results (with confirmation)
+
+FILE ACTIONS
+  Ctrl+O          - Open Folder of selected movie in Explorer
+  Ctrl+E          - Open NFO in editor (or launch editor if none selected)
+
+VALIDATION
+  Ctrl+R          - Update (no FFprobe) selected row
+                    Checks images, NFO, XML, genres - fast, no video analysis
+                    FFprobe data (quality, subs, lang) is PRESERVED.
+  Ctrl+Shift+R    - Update (with FFprobe) selected row
+                    Full re-validation including video resolution and subtitles
+
+APPLICATION
+  F1              - Open this Help window (works globally, even in dialogs)
+  Ctrl+H          - Open this Help window (main window only)
+  Ctrl+S          - Open Settings dialog
+
+DEVELOPER TOOLS
+  Ctrl+I          - Refresh All Icons
+                    Forces the UI to redraw all status icons in the table
+                    Useful if emoji colors appear faded or incorrect
+
+TIPS
+  - F1 works from anywhere in the app, including inside dialogs
+  - Ctrl+R is safe to use frequently - it skips video analysis
+    and preserves your previous FFprobe results (quality, subs, lang)
+  - Use Ctrl+Shift+R only when you need updated resolution or subtitle data
+  - Ctrl+I is a developer/debugging tool; not needed in normal use
+
+MENU BAR ORDER (v0.11.0)
+  Settings  →  Tools  →  Help
+  The Help menu is now last, consistent with standard application layout.

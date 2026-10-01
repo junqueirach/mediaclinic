@@ -1,0 +1,79 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Table & Columns  (v0.13.1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COLUMN REFERENCE
+  Movie Name      - Movie title extracted from NFO/XML. Double-click opens folder.
+
+  Year            - Production year from NFO <year> or XML <ProductionYear>.
+
+  Genres          - Genre list from NFO <genre> tags, e.g. "Drama/Thriller".
+                    ⬤ All genres match standard list
+                    ◐ Capitalisation or synonym issues (can be auto-fixed)
+                    ○ No <genre> tags found in NFO
+
+  Poster / Size   — poster.jpg presence and file size.
+                    ⬤ OK  ◐ Proportion warning  ○/✕ Error/Missing
+                    Expected: 2:3 portrait ratio (≈0.67).
+
+  Folder / Size   — folder.jpg presence and file size. Should be an
+                    identical copy of poster.jpg for KODI compatibility.
+
+  Fanart / Size   — fanart.jpg presence and file size.
+                    Expected: 16:9 landscape ratio (≈1.78).
+
+  Backdrops       — Count of backdrop.jpg, backdrop1.jpg … files found.
+                    Shows "—" when none exist. Not an error column.
+
+  .nfo            — Unified status column (v0.10.4):
+                    ⬤ = present and valid XML
+                    ○ = file missing
+                    ✕ = present but has parse errors
+                    Double-click → show errors (if any) then open in editor
+
+  .xml            — Unified status column (v0.10.4):
+                    Same symbol logic as .nfo above.
+
+  Language        — Language tag read from movie.xml <Language> element.
+
+  Video / Video Size — Video file format (MKV, MP4 …) and size on disk.
+                    ○ = no video file found in the subfolder.
+
+  Quality         — Video resolution class determined by FFprobe:
+                    4K UHD / 1440p / 1080p / 720p / 576p/DVD / 480p / SD
+                    Shows "—" when FFprobe is disabled or no video exists.
+                    FFprobe results are retained across re-validations that
+                    do not use FFprobe — they are only cleared when you
+                    explicitly run Update (with FFprobe).
+
+  Lang OK?        — Checks for a configured target language in:
+                    FFprobe audio streams, embedded subtitles, external
+                    subtitle files, XML tags, NFO tags.
+                    Y = found  /  N = not found  /  — = no video
+                    Configure target language in Settings → Language OK?
+
+  Subtitles       — Summary of embedded (Int:) and external (Ext:) tracks.
+
+SORTING
+  Choose a sort order from the dropdown — the table updates instantly.
+  Available sorts include movie name, year, genres, image sizes, video
+  size, quality, language, backdrops, health, and Lang OK? status.
+  The "Update Sort" button re-sorts without re-scanning.
+
+COLUMN TOOLTIPS
+  Hover over any column header for a description of what it means.
+  Hover over any cell for detailed file information (size, dimensions,
+  ratio, error summary, subtitle track list, etc.).
+
+COLUMN WIDTH
+  • Double-click a column header → auto-size that column.
+  • Click "⟺ Auto-size Columns" → auto-size all columns at once.
+
+EXPORT CSV
+  The "Export CSV" button saves the entire table to a .csv file,
+  including all metadata, error counts, subtitle tracks, and quality.
+
+KEYBOARD NAVIGATION
+  Page Up / Down  — move 20 rows at a time
+  Home / End      — jump to first / last row
+  Shift + ↑ / ↓  — extend the selection to multiple rows

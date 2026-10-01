@@ -1,0 +1,95 @@
+  Metadata & MediaClinic
+  Version 0.14.0
+
+  Created by:  Luiz Junqueira & Claude AI
+  Contact:     USEReira.ch@gmail.com
+
+  ────────────────────────────────────────────────
+
+  Built to keep KODI media libraries clean,
+  complete, and metadata-perfect.
+
+  ────────────────────────────────────────────────
+
+  VERSION HISTORY
+
+  v0.13.1 - Browser change no longer triggers rescan prompt
+           (also fixed tag_pairs false-positive change detection),
+           Normalize Genres splits merged tags ('Family/Fantasy' →
+           'Family' + 'Fantasy') on /, \, |, ,, ;,
+           Keyboard jump-to-letter: press A–Z or 0–9 in the table
+           to jump to the next movie starting with that character.
+
+  v0.13.0 - Browser tab: selected radio button visually highlighted
+           (filled icon, accent color, row tint, '(selected)' suffix),
+           Rescan popup centered on parent window with proper padding,
+           Status bar always recalculates errors/warnings after every scan,
+           About section now has vertical scrollbar,
+           NFO/XML error popup now includes Open File button,
+           Settings save no longer freezes UI (removed wait_window),
+           'Bkdrps' column and Help renamed to 'Backdrops',
+           Right-click menu: Re-validate renamed to Update.
+
+  v0.12.0 - Poster/Folder 3:4 acceptance toggle in Image Sizes settings,
+           Proportion description text updated dynamically,
+           Poster/Folder/Fanart columns merged (icon + quality label),
+           Backup Folder Maintenance section in new Settings Backup tab,
+           Settings dialog tab labels fixed (full visible text),
+           New User Interface tab and Backup tab,
+           Alternating row colors updated for better contrast,
+           Rating column between Genres and Poster.
+
+  v0.11.0 - XML genre indentation fix (mirrors original tabs),
+           Automatic silent backup of NFO/XML before any write,
+           FFprobe data persists across no-FFprobe re-validates,
+           Help menu moved to last (Settings / Tools / Help),
+           F1 global shortcut for Help,
+           VidSize column renamed to Video Size.
+
+  v0.10.5 - Sort: Genre (A-Z) and Genre (Z-A) added,
+           Fix: write_genres_to_nfo/xml preserves indentation,
+           Fix: classify_genres false-positive fix,
+           New: User Interface tab in Settings.
+
+  v0.10.4 - Larger status symbols, Re-validate (with FFMPEG),
+           NFO+XML columns unified.
+
+  v0.10.1 - Phase B architecture refactoring:
+           COLUMN_MODEL (centralized column definitions),
+           DBLCLICK_ACTIONS dispatch table,
+           SettingsDialog extracted to settings_dialog.py,
+           Series mode scanning placeholders.
+
+  v0.10.0 - Settings tab fix, Movie Name + Year columns,
+           Genre moved to 2nd column, Clear All button,
+           keyboard shortcuts, rotating log, Series tab stub,
+           Refresh Icons, richer status bar, alternating rows,
+           re-validate rename, Help shortcuts tab.
+
+  v0.9.0  - Ratings Sync (TMDb + OMDb), Genre column,
+           Normalize Genres, fallback XML parser,
+           Improvements report includes errors,
+           API Keys settings, Browser selection,
+           Image size settings, Tools auto-fill,
+           Backdrop count setting, Scraper clarified,
+           Sort auto-update, Notepad++ -lxml fix,
+           NFO/XML click behaviour, header tooltips,
+           status symbols, OpenSubtitles integration,
+           Re-validate FFmpeg, Genres tab in Settings,
+           Help fully rewritten.
+
+  v0.8.0 - Settings menu, Improvements engine,
+           IMDB/TMDb links, Copy Movie Name,
+           Auto-size columns, FFprobe checkbox,
+           Language column, phased scan,
+           Backdrop progress with ETA, Shift+select.
+
+  v0.7.0 - Quality column, PT OK?, persistent sessions,
+           FFmpeg validation, extraction improvements.
+
+  v0.6.x - Original release.
+
+  ────────────────────────────────────────────────
+
+  Feedback and bug reports welcome at:
+  USEReira.ch@gmail.com

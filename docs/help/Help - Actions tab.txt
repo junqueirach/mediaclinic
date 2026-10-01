@@ -1,0 +1,105 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Actions — Double-click & Right-click
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DOUBLE-CLICK ACTIONS
+  Column          What happens
+  --------------- --------------------------------------------------
+  Movie Name      Opens the movie folder in Explorer (double-click)
+  Year            Production year - no double-click action
+  Poster/Size     Opens poster.jpg with default image viewer
+  Folder/Size     Opens folder.jpg with default image viewer
+  Fanart/Size     Opens fanart.jpg with default image viewer
+  Backdrops       Opens first backdrop.jpg (if any exist)
+  .nfo            Opens NFO in configured editor — always
+  OK? (NFO)       Shows XML error dialog if errors; else opens editor
+  .xml            Opens movie.xml in configured editor — always
+  OK? (XML)       Shows XML error dialog if errors; else opens editor
+  Language        Opens movie.xml in configured editor
+  Video/Size      Plays the video with default media player
+  Quality         Plays the video with default media player
+  Subtitles       Opens the Subtitle Detail dialog
+  Genres          Opens NFO in configured editor
+
+RIGHT-CLICK MENU — Single movie
+  📂 Open subfolder        - open in Explorer
+  🖼  poster / folder / fanart - open image file
+  🎬 Play video            - open with default player
+  🎞️ Extract Backdrop(s)   - extract frames via FFmpeg (configurable count)
+  💬 Subtitles…            - detailed embedded + external subtitle list
+  📝 Open .nfo / movie.xml  - open in configured text editor
+  [!] NFO / XML errors     - show parse error list with line numbers
+  🌐 Open on IMDB          - open IMDb title page (reads ID from NFO/XML)
+  🌐 Open on TMDb          - open TMDb movie page
+  🌐 Open on OpenSubtitles - search OpenSubtitles using title + year
+  📋 Copy Movie Name       - silent copy; picker shown if NFO/XML differ
+  🎬 Open in Scraper       - launch configured scraper with movie folder
+  🔍 Run Improvements Check - health-check popup with Copy/Save options
+  ⭐ Sync Ratings           - fetch updated rating/votes from TMDb + IMDb
+  🎬 Normalize Genres      - fix capitalisation, synonyms, duplicates
+  🔄 Update (no FFprobe)    - fast re-scan (no video analysis)
+  🔬 Update (with FFprobe)  - full re-scan including video resolution
+
+RIGHT-CLICK MENU — Multiple selected rows (Shift+click or Shift+↑↓)
+  All single-movie options above, plus:
+  🔍 Run Improvements Check (N movies) - batch health check
+  ⭐ Sync Ratings (N movies)           - batch ratings sync
+  🎬 Normalize Genres (N movies)       - batch genre normalisation
+  🎞️ Extract Backdrop(s) (N movies)    - batch frame extraction
+
+TOOLS MENU (menu bar)
+  🎬 Normalize Genres — All Movies    - normalize all movies (asks confirmation)
+  ⭐ Sync Ratings — Selected Movies   - quick access to ratings sync for selection
+
+SCAN BUTTONS
+  Browse…        - pick root media folder
+  Scan           - full scan of selected folder
+  Update Scan    - re-scan same folder (keeps folder selection)
+  Cancel         - abort scan in progress; partial results are kept
+  Extract Frames - extract backdrop frames (right-click for more options)
+  Export CSV     - save table to .csv file
+  FFprobe ☑     - uncheck to skip FFprobe (much faster; no quality/subs data)
+  ↺ Update Sort  - re-sort table in memory
+  ⟺ Auto-size Columns - fit all columns to content
+
+IMPROVEMENTS HEALTH CHECK (right-click → Run Improvements Check)
+  Runs six configurable checks and shows a popup report:
+  1. Large XML / NFO files (above configured KB threshold)
+  2. NFO ↔ XML data mismatches (compares all configured tag pairs)
+  3. FFprobe vs NFO/XML metadata (resolution, duration, codec)
+  4. poster.jpg ≠ folder.jpg (different dimensions or file size)
+  5. Image proportion or size issues (also listed as warnings in table)
+  6. Insufficient backdrop frames (below configured minimum)
+  The report also appends any scan errors (XML parse errors) in red.
+  Use the Copy and Save buttons to preserve the report.
+
+BACKDROP EXTRACTION (right-click → Extract Backdrop(s))
+  Opens a dialog showing:
+  • The video filename being processed
+  • A spinner to set how many frames to extract (default from Settings)
+  • A per-frame timeout spinner
+  • Animated progress bar with ETA
+  Frames are saved as backdrop.jpg, backdrop1.jpg, backdrop2.jpg … in
+  the movie folder. Existing backdrops are not overwritten — new ones
+  are numbered from where the existing sequence ends.
+
+RATINGS SYNC (right-click → Sync Ratings)
+  Requires API keys in Settings → API Keys.
+  For each selected movie the app:
+  1. Reads IMDb ID (for OMDb) and TMDb ID from NFO/XML (with fallback parser)
+  2. Fetches rating and vote count from TMDb and/or OMDb in a background thread
+  3. If BOTH sources return data → shows a comparison dialog; you choose
+     which to use, with an "Apply to All" option for batch runs
+  4. If ONLY ONE source returns data → uses it automatically
+  5. If NEITHER returns data → asks you to enter values manually
+  6. Writes chosen rating and votes to all matching tags in NFO and XML
+
+NORMALIZE GENRES (right-click → Normalize Genres)
+  Reads all <genre> tags from NFO, applies normalisation:
+  • Trims leading/trailing whitespace
+  • Fixes capitalisation (e.g. "drama" → "Drama")
+  • Maps synonyms to standard names (e.g. "Sci-Fi" → "Science Fiction")
+  • Removes duplicate genres (preserves order)
+  Writes back to NFO (<genre> tags) and XML (<Genres><Genre> block).
+  The standard genre list is based on TMDb and is editable in Settings → Genres.
+

@@ -1,0 +1,101 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Tools & API Reference
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+FFMPEG & FFPROBE
+  FFmpeg is a free, open-source multimedia framework used by this
+  app for two purposes:
+
+  ffprobe  reads video stream metadata — resolution, codec, duration,
+           audio languages, and embedded subtitle tracks. This powers
+           the Quality column, Lang OK? column, and subtitle summary.
+
+  ffmpeg   extracts individual JPEG frames from a video at evenly
+           spaced timestamps. This powers the "Extract Backdrop(s)"
+           feature.
+
+  Without FFmpeg:
+  • Quality column shows "—"
+  • Embedded subtitle tracks are not listed
+  • The Extract Frames button is disabled
+
+  How to install FFmpeg on Windows:
+  1. Go to https://ffmpeg.org/download.html
+  2. Under "Windows builds" click gyan.dev or BtbN
+  3. Download ffmpeg-release-essentials.zip
+  4. Extract to a permanent folder, e.g. C:\Tools\ffmpeg\
+  5. Inside the "bin" subfolder you'll find ffmpeg.exe + ffprobe.exe
+  6. In Settings → Tools, enter the path to that "bin" folder
+  7. Click "Test FFmpeg" — both should show green ✓
+
+  The "FFprobe" checkbox in the main toolbar lets you disable FFprobe
+  for a scan. This makes scanning very fast — useful when you only
+  want to check images and metadata. Quality and lang detection only
+  use XML/NFO data when FFprobe is off.
+
+NOTEPAD++ TEXT EDITOR
+  Notepad++ is auto-detected when you open Settings → Tools.
+  It is launched with:
+    notepad++.exe "C:\path\to\file.nfo" -lxml
+  The file path must come BEFORE -lxml. Placing -lxml before the
+  path causes Notepad++ to interpret the path as a new filename and
+  show a "Create new file?" dialog — this bug is fixed in v9.0.
+  If Notepad++ is not available, the file opens in the OS default
+  application (usually Notepad on Windows).
+
+TMDB API — THE MOVIE DATABASE
+  Used by: Ratings Sync (fetch rating + votes)
+  Free API key — no payment, no subscription.
+  How to get your key:
+  1. Create a free account at https://www.themoviedb.org
+  2. After login, go to Settings → API (left sidebar)
+  3. Click "Request an API Key" → choose Developer
+  4. Fill in the brief application form
+  5. Your key (v3 auth) appears immediately on the same page
+  6. Paste it into Settings → API Keys → TMDb API Key
+  7. Click "Validate" to confirm it works
+
+  Your key is stored only in settings.json on your own machine.
+  It is transmitted only to api.themoviedb.org when you use
+  Ratings Sync. It is never stored on any server or shared.
+
+OMDB API — IMDB DATA VIA OMDB
+  Used by: Ratings Sync (fetch IMDb rating + vote count)
+  Free tier: 1,000 requests per day.
+  How to get your key:
+  1. Go to https://www.omdbapi.com/apikey.aspx
+  2. Select "FREE" (1,000 daily requests)
+  3. Enter your email address and submit
+  4. Check your inbox and click the activation link
+  5. Your key will be shown — paste it into Settings → API Keys
+  6. Click "Validate" to confirm it works
+
+  Same privacy guarantee as TMDb — key stored locally only, sent
+  only to www.omdbapi.com during Ratings Sync.
+
+COMPATIBLE MEDIA SCRAPERS
+  The "Video Scraper" setting in Settings → Tools allows you to
+  launch an external scraper application with the movie folder path
+  passed as an argument. Compatible scrapers include:
+
+  tinyMediaManager  https://www.tinymediamanager.org/
+    Leading open-source scraper. Supports KODI NFO + Emby XML output.
+    Command: tinyMediaManager.exe "C:\Movies\MovieName"
+
+  Ember Media Manager  https://www.embermm.com/
+    Windows-only, excellent artwork scraper for KODI libraries.
+
+  MediaElch  https://www.kvibes.de/mediaelch/
+    Cross-platform, supports KODI NFO format natively.
+
+  Set the executable path in Settings → Tools → Scraper. The app
+  passes the full movie folder path as the first argument.
+
+OPENSUBTITLES
+  Right-click → Open on OpenSubtitles.org builds a search URL
+  from the movie title and year extracted from NFO or XML:
+    https://www.opensubtitles.org/en/search2/sublanguageid-all/
+    moviename-{title}/movieyear-{year}
+  If no year is found, falls back to title-only search.
+  Opens in your configured default browser.
+

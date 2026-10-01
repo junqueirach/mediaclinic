@@ -1,0 +1,134 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Settings Reference
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Open Settings from: menu bar → Settings → All Settings…
+(or choose a specific sub-menu to jump straight to that tab)
+
+─────────────────────────────────────────────────────────────
+🔧  TOOLS TAB
+─────────────────────────────────────────────────────────────
+Text Editor
+  Path to the editor used when opening NFO and XML files.
+  Notepad++ is auto-detected on open. If Notepad++ is found, files
+  are opened with:  notepad++.exe "path\file.ext" -lxml
+  (file path comes first — this avoids the "create new file?" bug).
+  If not set, falls back to the OS default application.
+
+FFmpeg / FFprobe
+  Path to the folder containing ffmpeg.exe and ffprobe.exe.
+  Leave blank to use the system PATH. Auto-detects on open.
+  Use "Test FFmpeg" to verify both executables are working.
+
+Backdrop Extraction
+  Default frame count (1–50, default 10). This value pre-fills the
+  spinner in the extraction dialog. It is also saved when you change
+  the spinner in the dialog itself.
+
+Video Scraper / Metadata Source
+  Choose the metadata source for ratings sync and future operations:
+    TMDb (recommended) — The Movie Database, free API
+    IMDb via OMDb API  — IMDb data via the OMDb wrapper, free tier
+  Note: online metadata fetching is in development — ratings sync
+  is available now; full scraping will be enabled in a future update.
+  The scraper executable field allows you to launch an external
+  scraper (e.g. tinyMediaManager) with the movie folder as argument.
+
+─────────────────────────────────────────────────────────────
+🔑  API KEYS TAB
+─────────────────────────────────────────────────────────────
+TMDb API Key
+  Required for ratings sync using The Movie Database.
+  Free — no subscription. Steps to get your key:
+  1. Create a free account at themoviedb.org
+  2. Go to Settings → API (left sidebar after login)
+  3. Click "Request an API Key" → choose Developer
+  4. Fill in the short form — key is issued immediately
+  5. Copy the "API Key (v3 auth)" here
+  Click "Validate" to test your key before saving.
+  Click the blue link to go directly to the TMDb API page.
+  Your key is stored locally in settings.json and never transmitted
+  to any third party.
+
+OMDb API Key (IMDb data)
+  Required for fetching IMDb ratings via the OMDb API.
+  Free tier: 1,000 requests per day. Steps:
+  1. Go to omdbapi.com/apikey.aspx
+  2. Choose FREE tier, enter your email
+  3. Activate the key from the email you receive
+  4. Paste the key here and click "Validate"
+
+─────────────────────────────────────────────────────────────
+🌐  BROWSER TAB
+─────────────────────────────────────────────────────────────
+  Choose which browser opens when you click external links
+  (IMDB, TMDb, OpenSubtitles, API key pages).
+  The app auto-detects Chrome, Firefox, Edge, Brave, Opera, Vivaldi
+  from standard Windows install locations. Select one or choose
+  "System Default" to let Windows decide. You can also type or
+  browse to any browser executable manually.
+
+─────────────────────────────────────────────────────────────
+🌍  LANGUAGE OK? TAB
+─────────────────────────────────────────────────────────────
+  Choose the target language for the "Lang OK?" column.
+  The column header updates to show the selected ISO code (e.g. "PT OK?").
+  Checked sources (in priority order):
+  1. FFprobe audio stream language tags
+  2. Embedded subtitle tracks (via FFprobe)
+  3. External subtitle files (language inferred from filename suffix)
+  4. XML <LanguageCode> and <Language> tags
+  5. NFO <language> tag inside <streamdetails>
+  30 languages available including Chinese, Spanish, English,
+  Portuguese, French, German, Japanese, and more.
+
+─────────────────────────────────────────────────────────────
+🔍  IMPROVEMENTS TAB
+─────────────────────────────────────────────────────────────
+  Toggle which checks run when you use "Run Improvements Check":
+  2.1  Large XML/NFO  — flag files above the configured KB threshold
+  2.2  NFO↔XML Mismatch — compare tag values across both files
+  2.3  FFprobe vs Metadata — compare actual video properties vs stored
+  2.4  Poster ≠ Folder — flag when poster.jpg and folder.jpg differ
+  2.5  Proportions & Size — flag wrong image ratios or small files
+  2.6  Insufficient Backdrops — flag when count is below minimum
+
+  Thresholds:
+  • Max NFO size before flagging as "Large" (default 50 KB)
+  • Max XML size before flagging as "Large" (default 25 KB)
+  • Minimum backdrop count required (default 5)
+
+─────────────────────────────────────────────────────────────
+🖼  IMAGE SIZES TAB
+─────────────────────────────────────────────────────────────
+  Set minimum file sizes (in KB) for each image type.
+  Files below the minimum are flagged as errors (✕).
+  Set to 0 to skip the size check for that image type.
+  Defaults: poster.jpg 100 KB · folder.jpg 100 KB · fanart.jpg 200 KB
+
+  Note: Wrong proportions are always a warning (◐), not an error,
+  regardless of size settings:
+  • poster.jpg / folder.jpg — expected 2:3 portrait (ratio ≈ 0.67)
+  • fanart.jpg              — expected 16:9 landscape (ratio ≈ 1.78)
+
+─────────────────────────────────────────────────────────────
+🎬  GENRES TAB
+─────────────────────────────────────────────────────────────
+  The standard genre list used by "Normalize Genres".
+  Based on TMDb's official genre list (18 genres).
+  Add your own custom genres — one per line. They will be treated
+  as valid during normalisation checks and will not be flagged.
+  Blank lines are removed automatically on save.
+  Click "Reset to TMDb defaults" to restore the original 18 genres.
+
+─────────────────────────────────────────────────────────────
+🏷  NFO-XML TAGS TAB
+─────────────────────────────────────────────────────────────
+  Defines the tag comparison pairs used in Improvements check 2.2
+  (NFO ↔ XML mismatch). One pair per line, tab-separated:
+    nfo_tag  xml_tag  Label  tolerance%
+  Dot notation for nested tags:
+    fileinfo.streamdetails.video.width   MediaInfo.Video.Width   Width  0
+  Tolerance% allows numeric values to differ by that percentage
+  without triggering a mismatch (useful for duration, channels).
+  Click "Reset to defaults" to restore the built-in 34 pairs.

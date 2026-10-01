@@ -1,0 +1,60 @@
+ Metadata & MediaClinic  v0.13.1  -  Getting Started
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WHAT IS THIS APP?
+  Metadata & MediaClinic is a KODI media library auditor and repair
+  tool. It scans a folder of movie subfolders, checks every piece of
+  artwork and metadata, and gives you a colour-coded health table so
+  you can see at a glance what is missing or broken — and fix it.
+
+  One subfolder = one movie. Each subfolder should contain:
+    • poster.jpg     — portrait cover art (2:3 ratio)
+    • folder.jpg     — identical copy of poster.jpg for KODI
+    • fanart.jpg     — wide background art (16:9 ratio)
+    • backdrop.jpg, backdrop1.jpg …  — scene frames
+    • MovieName.nfo  — KODI metadata in XML format
+    • movie.xml      — Emby/Jellyfin metadata in XML format
+    • MovieName.mkv  (or .mp4, .avi, etc.)
+
+FIRST RUN
+  1. Click  Browse…  and select your root media folder.
+  2. Click  Scan.
+     The table fills in phases — subfolders first, then images,
+     then metadata, then video (with FFprobe if enabled).
+  3. Each row shows the health of one movie:
+       [GREEN row]  — all key files present and valid
+       [YELLOW row] — one or more files missing or warnings present
+       [RED row]    — a file has a structural error
+  4. Your last scan is saved automatically and restored on startup.
+
+QUICK-START CHECKLIST
+  □  Set your FFmpeg path in Settings → Tools  (enables video analysis
+     and backdrop extraction)
+  □  Add your TMDb and/or OMDb API keys in Settings → API Keys
+     (enables online ratings sync)
+  □  Configure your preferred browser in Settings → Browser
+  □  Set the "Lang OK?" language target in Settings → Language OK?
+     (default: PT — Portuguese)
+  □  Run a scan, sort by "Health (errors 1st)" to triage problems
+
+ROW COLOURS AT A GLANCE
+  [GREEN] All OK     — poster, folder, fanart, NFO, XML all present & valid,
+                  exactly one video file
+  [YELLOW] Warning  — something is missing but no hard errors; also shown
+                  when image proportions are off (non-blocking)
+  [RED] Error        — XML/NFO parse error, empty or corrupt image file,
+                  or image below minimum size threshold
+
+STATUS ICONS
+  ⬤  OK / valid / present
+  ◐  Warning — proportion mismatch or minor issue (non-blocking)
+  ○/✕  Error or missing (action required)
+
+AUTOMATIC BACKUPS
+  Whenever the application modifies a .nfo or .xml file, it creates a
+  backup copy automatically before writing. Backups are stored in the
+  "backup" subfolder next to the application script, in timestamped
+  subfolders named:
+    backup_MovieName_YYYY-MM-DD_HH-MM-SS
+  No popup is shown — backups are silent. Check the application log
+  (logs/app.log) for a record of every backup created.
