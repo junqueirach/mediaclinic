@@ -2,7 +2,9 @@
 
 **A library health tool for Kodi: scan your movie folders, find broken or incomplete metadata and artwork, and fix them.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Python](https://img.shields.io/badge/Python-3.9%2B-blue) ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Python](https://img.shields.io/badge/Python-3.9%2B-blue) ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey) [![CI](https://github.com/junqueirach/mediaclinic/actions/workflows/ci.yml/badge.svg)](https://github.com/junqueirach/mediaclinic/actions/workflows/ci.yml)
+
+<p align="center"><img src="docs/screenshots/mediaclinic.png" alt="MediaClinic screenshot" width="900"></p>
 
 ## What it does
 
@@ -41,6 +43,10 @@ This project is the clearest example of working with an AI under a written contr
 Built with **Claude (Anthropic)** as the coding partner. I wrote the requirements and the revision prompts, tested every build on real data, and decided what to fix next. The `archive/versions/` folder keeps every earlier release so the iteration history is visible.
 
 **Security note:** the app stores any API keys you enter in a local settings file outside this repository. `.gitignore` excludes config and settings files so keys are never committed.
+
+## Contributing and security
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Bug reports and ideas are welcome through the issue templates.
 
 ## Licence
 
