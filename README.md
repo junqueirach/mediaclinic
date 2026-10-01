@@ -6,6 +6,10 @@
 
 <p align="center"><img src="docs/screenshots/mediaclinic.png" alt="MediaClinic screenshot" width="900"></p>
 
+## How it works
+
+<p align="center"><img src="docs/screenshots/how-it-works.png" alt="How it works" width="900"></p>
+
 ## What it does
 
 MediaClinic reads a media library and shows one table with the state of every title:
