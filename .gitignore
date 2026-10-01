@@ -1,0 +1,30 @@
+# Secrets and local settings - never commit
+*config*.json
+settings.json
+.env
+*.key
+*.pem
+secrets*
+# Local data and outputs
+*_Data/
+*Data/
+logs/
+backup/
+output/
+Saves/
+temp/
+# Models, environments, caches
+tools/
+envs/
+venv/
+.venv/
+models/
+__pycache__/
+*.pyc
+# Media and corpus files (copyright / privacy)
+*.mp3
+*.mp4
+*.mkv
+*.srt
+*.vtt
+*.wav
