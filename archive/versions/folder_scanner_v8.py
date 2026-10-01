@@ -1,0 +1,3226 @@
+# =============================================================================
+# Metadata & MediaClinic
+# Version: 0.8.0
+# Author:  Luiz Junqueira & Claude AI
+# Contact: USEReira.ch@gmail.com
+#
+# CHANGELOG
+# ---------
+# v0.8.0  (current)
+#   - Settings menu: text editor selection (auto-detects Notepad++), FFmpeg
+#     path, scraper path, NFO/XML tag comparison pairs, image thresholds,
+#     backdrop minimum, language-OK target, improvement checks toggle
+#   - Improvements health-check (right-click): large XML, NFO/XML mismatch,
+#     FFprobe vs metadata, poster/folder size diff, image proportions/size,
+#     backdrop count — selectable per check, popup with copy/save
+#   - Right-click: Open IMDB, Open TMDb, Copy Movie Name
+#   - Wrap checkbox replaced with "Auto-size Columns" button
+#   - Sort "Update" button (re-sort in memory without rescan)
+#   - FFmpeg checkbox under scan buttons — skips ffprobe when unchecked
+#   - "Language OK?" column target configurable in Settings (30 world languages)
+#   - PT OK? now also reads XML LanguageCode, Audio/Language and NFO video/language
+#   - NFO/XML open in Notepad++ with -l xml; falls back to Notepad/xdg-open
+#   - Image error messages now describe exactly what is wrong
+#   - & / &amp; errors completely suppressed (KODI-safe)
+#   - Quality detection bug fixed (handles None ffprobe result gracefully)
+#   - Image proportion/size errors described precisely in tooltip
+#   - Backdrop extraction: smooth 1% progress animation with ETA
+#   - Shift+Arrow multi-selection; batch Improvements / Extract on selection
+#   - Phased scan: subfolders → images → nfo/xml → video+ffprobe;
+#     table updates each phase; progress saved to settings.json incrementally
+#   - Help rewritten with full detail on all features
+# v0.7.0
+#   - Quality column, PT OK?, persistent sessions, extraction improvements
+# v0.6.x
+#   - Previous release (folder_scanner_v6)
+# =============================================================================
+
+import os
+import csv
+import json
+import re
+import struct
+import subprocess
+import threading
+import time
+import webbrowser
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import xml.etree.ElementTree as ET
+import shutil
+import tkinter.font as tk_font
+
+# ── App identity ──────────────────────────────────────────────────────────────
+APP_NAME    = "Metadata & MediaClinic"
+APP_VERSION = "0.8.0"
+APP_AUTHOR  = "Luiz Junqueira & Claude AI"
+APP_EMAIL   = "USEReira.ch@gmail.com"
+
+# ── File extensions ───────────────────────────────────────────────────────────
+VIDEO_EXTENSIONS    = {'.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.flv',
+                       '.ts', '.m2ts', '.mpg', '.mpeg', '.divx', '.ogm', '.webm'}
+SUBTITLE_EXTENSIONS = {'.srt', '.sub', '.ssa', '.ass', '.vtt', '.idx', '.sup'}
+
+# ── 30 most-used world languages (ISO 639-1 + common label) ──────────────────
+WORLD_LANGUAGES = [
+    ("ZH", "Chinese"),    ("ES", "Spanish"),    ("EN", "English"),
+    ("HI", "Hindi"),      ("AR", "Arabic"),     ("PT", "Portuguese"),
+    ("BN", "Bengali"),    ("RU", "Russian"),    ("JA", "Japanese"),
+    ("PA", "Punjabi"),    ("DE", "German"),     ("KO", "Korean"),
+    ("FR", "French"),     ("TE", "Telugu"),     ("MR", "Marathi"),
+    ("TR", "Turkish"),    ("TA", "Tamil"),      ("VI", "Vietnamese"),
+    ("IT", "Italian"),    ("UR", "Urdu"),       ("FA", "Persian"),
+    ("PL", "Polish"),     ("NL", "Dutch"),      ("UK", "Ukrainian"),
+    ("MS", "Malay"),      ("SV", "Swedish"),    ("DA", "Danish"),
+    ("FI", "Finnish"),    ("NO", "Norwegian"),  ("EL", "Greek"),
+]
+
+# Build language lookup sets for each ISO code
+# e.g. "PT" → {'por','pt','pt-br','pt-pt','portuguese','portugues','ptbr','ptpt','pt_br','pt_pt'}
+_LANG_ALIASES = {
+    "ZH": {"zho","zh","chi","chinese","mandarin","cantonese","zh-cn","zh-tw","zhs","zht"},
+    "ES": {"spa","es","esp","spanish","español","espanol"},
+    "EN": {"eng","en","english"},
+    "HI": {"hin","hi","hindi"},
+    "AR": {"ara","ar","arabic"},
+    "PT": {"por","pt","pt-br","pt-pt","portuguese","portugues","pt_br","pt_pt","ptbr","ptpt"},
+    "BN": {"ben","bn","bengali"},
+    "RU": {"rus","ru","russian"},
+    "JA": {"jpn","ja","jp","japanese"},
+    "PA": {"pan","pa","punjabi"},
+    "DE": {"ger","deu","de","german","deutsch"},
+    "KO": {"kor","ko","korean"},
+    "FR": {"fre","fra","fr","french","français","francais"},
+    "TE": {"tel","te","telugu"},
+    "MR": {"mar","mr","marathi"},
+    "TR": {"tur","tr","turkish"},
+    "TA": {"tam","ta","tamil"},
+    "VI": {"vie","vi","vietnamese"},
+    "IT": {"ita","it","italian","italiano"},
+    "UR": {"urd","ur","urdu"},
+    "FA": {"fas","per","fa","persian","farsi"},
+    "PL": {"pol","pl","polish"},
+    "NL": {"nld","dut","nl","dutch","nederlands"},
+    "UK": {"ukr","uk","ukrainian"},
+    "MS": {"msa","ms","malay","malaysian"},
+    "SV": {"swe","sv","swedish","svenska"},
+    "DA": {"dan","da","danish","dansk"},
+    "FI": {"fin","fi","finnish","suomi"},
+    "NO": {"nor","no","norwegian","norsk"},
+    "EL": {"ell","gre","el","greek"},
+}
+
+def is_target_lang(tag, iso_code):
+    """Return True if the language tag matches the given ISO-639-1 code."""
+    return tag.strip().lower() in _LANG_ALIASES.get(iso_code.upper(), set())
+
+# ── Column indices ────────────────────────────────────────────────────────────
+COL_SUBFOLDER =  0
+COL_POSTER    =  1;  COL_POSTER_SZ =  2
+COL_FOLDER    =  3;  COL_FOLDER_SZ =  4
+COL_FANART    =  5;  COL_FANART_SZ =  6
+COL_BACKDROPS =  7
+COL_NFO       =  8;  COL_NFO_OK   =  9
+COL_XML       = 10;  COL_XML_OK   = 11
+COL_LANGUAGE  = 12
+COL_VID_EXT   = 13;  COL_VID_SIZE = 14;  COL_QUALITY = 15
+COL_LANG_OK   = 16
+COL_SUBS      = 17
+
+STATUS_OK      = "✅"
+STATUS_MISSING = "❌"
+STATUS_ERROR   = "⚠️"
+
+# ── Default NFO→XML tag comparison pairs ─────────────────────────────────────
+DEFAULT_TAG_PAIRS = [
+    # (nfo_path, xml_path, label, numeric_tolerance_pct)
+    # nfo_path: dot-separated path from root, e.g. "title" or "fileinfo.streamdetails.video.width"
+    # xml_path: dot-separated path from root
+    ("title",                               "LocalTitle",                  "Title",            0),
+    ("originaltitle",                       "OriginalTitle",               "Original Title",   0),
+    ("year",                                "ProductionYear",              "Year",             0),
+    ("releasedate",                         "ReleaseDate",                 "Release Date",     0),
+    ("releasedate",                         "PremiereDate",                "Premiere Date",    0),
+    ("votes",                               "Votes",                       "Votes",            5),
+    ("rating",                              "IMDBrating",                  "Rating (IMDB)",    5),
+    ("rating",                              "Rating",                      "Rating",           5),
+    ("id",                                  "IMDB_ID",                     "IMDB ID",          0),
+    ("id",                                  "IMDB",                        "IMDB",             0),
+    ("imdbid",                              "IMDB_ID",                     "IMDb ID",          0),
+    ("imdbid",                              "IMDB",                        "IMDb",             0),
+    ("tmdbid",                              "TMDbId",                      "TMDb ID",          0),
+    ("tmdbid",                              "TMDB",                        "TMDb",             0),
+    ("tmdbid",                              "TMDB_ID",                     "TMDb ID2",         0),
+    ("country",                             "Country",                     "Country",          0),
+    ("runtime",                             "RunningTime",                 "Runtime",          5),
+    ("runtime",                             "Runtime",                     "Runtime2",         5),
+    ("plot",                                "Overview",                    "Plot/Overview",    0),
+    ("plot",                                "Synopsis",                    "Plot/Synopsis",    0),
+    ("plot",                                "Plot",                        "Plot",             0),
+    ("plot",                                "Description",                 "Plot/Desc",        0),
+    ("outline",                             "Outline",                     "Outline",          0),
+    ("genre",                               "Genres.Genre",                "Genre",            0),
+    ("studio",                              "Studios.Studio",              "Studio",           0),
+    ("director",                            "Director",                    "Director",         0),
+    ("fileinfo.streamdetails.audio.channels",    "MediaInfo.Audio.Channels",   "Audio Channels",   5),
+    ("fileinfo.streamdetails.audio.codec",       "MediaInfo.Audio.Codec",      "Audio Codec",      0),
+    ("fileinfo.streamdetails.video.codec",       "MediaInfo.Video.Codec",      "Video Codec",      0),
+    ("fileinfo.streamdetails.video.durationinseconds", "MediaInfo.Video.DurationSeconds", "Duration", 5),
+    ("fileinfo.streamdetails.video.language",    "MediaInfo.Audio.Language",   "Video Language",   0),
+    ("fileinfo.streamdetails.video.scantype",    "MediaInfo.Video.ScanType",   "Scan Type",        0),
+    ("fileinfo.streamdetails.video.height",      "MediaInfo.Video.Height",     "Video Height",     0),
+    ("fileinfo.streamdetails.video.width",       "MediaInfo.Video.Width",      "Video Width",      0),
+]
+
+# ── XML standalone ↔ MediaInfo cross-check pairs ─────────────────────────────
+# (standalone_xpath, mediainfo_xpath, label, tolerance_pct)
+XML_INTERNAL_PAIRS = [
+    ("VideoHeight",     "MediaInfo.Video.Height",        "VideoHeight vs MediaInfo",   0),
+    ("VideoWidth",      "MediaInfo.Video.Width",         "VideoWidth vs MediaInfo",    0),
+    ("VideoCodec",      "MediaInfo.Video.Codec",         "VideoCodec vs MediaInfo",    0),
+    ("AudioChannels",   "MediaInfo.Audio.Channels",      "AudioChannels vs MediaInfo", 5),
+    ("AudioCodec",      "MediaInfo.Audio.Codec",         "AudioCodec vs MediaInfo",    0),
+    ("Runtime",         "MediaInfo.Video.Duration",      "Runtime vs MediaInfo",       5),
+    ("RunningTime",     "MediaInfo.Video.Duration",      "RunningTime vs MediaInfo",   5),
+]
+
+# ── Persistent storage ────────────────────────────────────────────────────────
+def _get_config_dir():
+    if os.name == "nt":
+        base = os.environ.get("APPDATA", os.path.expanduser("~"))
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config"))
+    d = os.path.join(base, "MediaMetadataClinic")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+CONFIG_PATH = os.path.join(_get_config_dir(), "settings.json")
+
+_DEFAULT_SETTINGS = {
+    "ffmpeg_path":        "",
+    "text_editor":        "",          # path to preferred text editor exe
+    "scraper_path":       "",          # path to video scraper exe
+    "last_folder":        "",
+    "last_results":       [],
+    "sort_option":        "Subfolder (A→Z)",
+    "extract_timeout":    60,
+    "use_ffprobe":        True,        # ffprobe checkbox
+    "lang_ok_code":       "PT",        # language for "OK?" column
+    # Improvement thresholds
+    "improve_checks": {
+        "large_xml":      True,
+        "nfo_xml_diff":   True,
+        "ffprobe_diff":   True,
+        "poster_folder":  True,
+        "proportions":    True,
+        "backdrops":      True,
+    },
+    "max_nfo_kb":         50,
+    "max_xml_kb":         25,
+    "min_backdrops":      5,
+    "tag_pairs":          None,        # None = use DEFAULT_TAG_PAIRS
+}
+
+def _load_settings():
+    try:
+        if os.path.isfile(CONFIG_PATH):
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            merged = dict(_DEFAULT_SETTINGS)
+            # Deep merge improve_checks
+            if "improve_checks" in data:
+                ic = dict(_DEFAULT_SETTINGS["improve_checks"])
+                ic.update(data["improve_checks"])
+                data["improve_checks"] = ic
+            merged.update(data)
+            return merged
+    except Exception:
+        pass
+    return dict(_DEFAULT_SETTINGS)
+
+def _save_settings(s):
+    try:
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(s, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+# ── FFmpeg discovery & validation ─────────────────────────────────────────────
+def _find_ffmpeg_ffprobe(custom_dir=""):
+    exe = lambda d, n: (os.path.join(d, n + ".exe") if os.name == "nt"
+                        else os.path.join(d, n))
+    if custom_dir and os.path.isdir(custom_dir):
+        ff = exe(custom_dir, "ffmpeg");  fp = exe(custom_dir, "ffprobe")
+        if not os.path.isfile(ff): ff = os.path.join(custom_dir, "ffmpeg")
+        if not os.path.isfile(fp): fp = os.path.join(custom_dir, "ffprobe")
+        if os.path.isfile(ff) and os.path.isfile(fp):
+            return ff, fp
+    return shutil.which("ffmpeg"), shutil.which("ffprobe")
+
+def _test_ffmpeg(ff_path, fp_path):
+    def _run(path):
+        if not path or not os.path.isfile(path):
+            return False, "Executable not found"
+        try:
+            r = subprocess.run(
+                [path, "-version"], capture_output=True, text=True, timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if r.returncode == 0 and ("ffmpeg" in r.stdout.lower() or
+                                       "ffprobe" in r.stdout.lower()):
+                return True, "OK"
+            return False, f"Unexpected output (exit {r.returncode})"
+        except subprocess.TimeoutExpired:
+            return False, "Timed out"
+        except Exception as e:
+            return False, str(e)
+    ff_ok, ff_msg = _run(ff_path)
+    fp_ok, fp_msg = _run(fp_path)
+    return ff_ok, fp_ok, ff_msg, fp_msg
+
+SETTINGS = _load_settings()
+FFMPEG_PATH, FFPROBE_PATH = _find_ffmpeg_ffprobe(SETTINGS.get("ffmpeg_path", ""))
+
+def refresh_ffmpeg_paths():
+    global FFMPEG_PATH, FFPROBE_PATH
+    FFMPEG_PATH, FFPROBE_PATH = _find_ffmpeg_ffprobe(SETTINGS.get("ffmpeg_path", ""))
+
+# ── Text editor opener ────────────────────────────────────────────────────────
+def _find_notepadpp():
+    """Try common Notepad++ install locations on Windows."""
+    candidates = [
+        r"C:\Program Files\Notepad++\notepad++.exe",
+        r"C:\Program Files (x86)\Notepad++\notepad++.exe",
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Notepad++", "notepad++.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES", ""), "Notepad++", "notepad++.exe"),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return shutil.which("notepad++")
+
+def open_in_editor(filepath):
+    """
+    Open a file in the configured text editor.
+    For NFO/XML files, attempt Notepad++ with -l xml.
+    Falls back to Notepad (Windows) or xdg-open (Linux/Mac).
+    """
+    editor = SETTINGS.get("text_editor", "").strip()
+    ext = os.path.splitext(filepath)[1].lower()
+    is_markup = ext in (".xml", ".nfo")
+
+    if editor and os.path.isfile(editor):
+        try:
+            cmd = [editor, filepath]
+            if is_markup and "notepad++" in editor.lower():
+                cmd = [editor, "-l", "xml", filepath]
+            subprocess.Popen(cmd,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            return
+        except Exception:
+            pass
+
+    # Auto-detect Notepad++
+    if os.name == "nt" and is_markup:
+        npp = _find_notepadpp()
+        if npp:
+            try:
+                subprocess.Popen([npp, "-l", "xml", filepath],
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                return
+            except Exception:
+                pass
+
+    # Fallback
+    try:
+        if os.name == "nt":
+            os.startfile(filepath)
+        else:
+            try:   subprocess.Popen(["xdg-open", filepath])
+            except FileNotFoundError: subprocess.Popen(["open", filepath])
+    except Exception as e:
+        messagebox.showerror("Cannot open", str(e))
+
+def os_open(path):
+    """Open any file/folder with default OS handler."""
+    try:
+        if os.name == "nt":
+            os.startfile(path)
+        else:
+            try:   subprocess.Popen(["xdg-open", path])
+            except FileNotFoundError: subprocess.Popen(["open", path])
+    except Exception as e:
+        messagebox.showerror("Cannot open", str(e))
+
+def open_with_scraper(folder_path):
+    """Launch the configured scraper with the movie folder as argument."""
+    scraper = SETTINGS.get("scraper_path", "").strip()
+    if not scraper or not os.path.isfile(scraper):
+        messagebox.showwarning("Scraper Not Set",
+                               "No scraper configured.\n"
+                               "Go to Settings → Scraper to select your scraper executable.")
+        return
+    try:
+        subprocess.Popen([scraper, folder_path],
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except Exception as e:
+        messagebox.showerror("Cannot launch scraper", str(e))
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Utility helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def format_size(size_bytes):
+    if size_bytes < 1024:        return f"{size_bytes} B"
+    elif size_bytes < 1024**2:   return f"{size_bytes/1024:.1f} KB"
+    elif size_bytes < 1024**3:   return f"{size_bytes/(1024**2):.1f} MB"
+    else:                        return f"{size_bytes/(1024**3):.2f} GB"
+
+def get_jpeg_dimensions(filepath):
+    try:
+        with open(filepath, "rb") as f:
+            if f.read(2) != b'\xff\xd8': return None, None
+            while True:
+                marker = f.read(2)
+                if len(marker) < 2 or marker[0] != 0xFF: return None, None
+                m = marker[1]
+                while m == 0xFF:
+                    b = f.read(1)
+                    if len(b) < 1: return None, None
+                    m = b[0]
+                if m in (0xC0,0xC1,0xC2,0xC3,0xC5,0xC6,0xC7,0xC9,0xCA,0xCB,0xCD,0xCE,0xCF):
+                    f.read(3); hw = f.read(4)
+                    if len(hw) < 4: return None, None
+                    return struct.unpack(">H", hw[2:4])[0], struct.unpack(">H", hw[0:2])[0]
+                elif m in (0xD9, 0xDA): return None, None
+                else:
+                    d = f.read(2)
+                    if len(d) < 2: return None, None
+                    f.seek(struct.unpack(">H", d)[0] - 2, 1)
+    except Exception: return None, None
+
+def get_png_dimensions(filepath):
+    try:
+        with open(filepath, "rb") as f:
+            if f.read(8)[:4] != b'\x89PNG': return None, None
+            f.read(4)
+            if f.read(4) != b'IHDR': return None, None
+            d = f.read(8)
+            if len(d) < 8: return None, None
+            return struct.unpack(">I", d[0:4])[0], struct.unpack(">I", d[4:8])[0]
+    except Exception: return None, None
+
+def get_image_dimensions(filepath):
+    ext = os.path.splitext(filepath)[1].lower()
+    w, h = (get_jpeg_dimensions(filepath) if ext in ('.jpg', '.jpeg')
+            else get_png_dimensions(filepath) if ext == '.png' else (None, None))
+    return f"{w}×{h}" if w and h and (w > 0 or h > 0) else None
+
+def get_image_wh(filepath):
+    """Return (width, height) integers or (None, None)."""
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext in ('.jpg', '.jpeg'):
+        return get_jpeg_dimensions(filepath)
+    if ext == '.png':
+        return get_png_dimensions(filepath)
+    return None, None
+
+def is_valid_jpeg(filepath):
+    try:
+        if os.path.getsize(filepath) == 0: return False
+        with open(filepath, "rb") as f: return f.read(2) == b'\xff\xd8'
+    except Exception: return False
+
+def classify_quality(width, height):
+    if width is None or height is None:
+        return "—"
+    if not width or not height:
+        return "—"
+    long_side  = max(width, height)
+    short_side = min(width, height)
+    # For HD: use long_side (width) — 1920x1040 long=1920 → 1080p ✓
+    # For SD: use short_side (height in landscape) — 720x576 short=576 → 576p ✓
+    if long_side  >= 3840: return "4K UHD"
+    if long_side  >= 2560: return "1440p"
+    if long_side  >= 1920: return "1080p"
+    if long_side  >= 1280: return "720p"
+    if short_side >= 576:  return "576p/DVD"
+    if short_side >= 480:  return "480p"
+    if short_side >= 360:  return "360p"
+    if short_side >= 240:  return "240p"
+    return "SD"
+
+def _quality_sort_key(label):
+    order = {"4K UHD":0,"1440p":1,"1080p":2,"720p":3,
+             "576p/DVD":4,"480p":5,"360p":6,"240p":7,"SD":8,"—":9}
+    return order.get(label, 9)
+
+# ── Image health check ────────────────────────────────────────────────────────
+def check_image_health(filepath, image_type):
+    """
+    Returns (status, description) where status is STATUS_OK / STATUS_ERROR.
+    image_type: 'poster', 'folder', or 'fanart'
+    """
+    if not os.path.isfile(filepath):
+        return STATUS_MISSING, "File missing"
+
+    size_bytes = os.path.getsize(filepath)
+    if size_bytes == 0:
+        return STATUS_ERROR, "File is empty (0 bytes)"
+
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext in ('.jpg', '.jpeg') and not is_valid_jpeg(filepath):
+        return STATUS_ERROR, "Invalid JPEG header — file may be corrupt"
+
+    w, h = get_image_wh(filepath)
+    issues = []
+
+    if image_type in ('poster', 'folder'):
+        # Expected: 2:3 portrait, > 100 KB
+        if size_bytes < 100 * 1024:
+            issues.append(f"File size {size_bytes//1024} KB is below 100 KB minimum")
+        if w and h:
+            ratio = w / h
+            if not (0.60 <= ratio <= 0.72):   # 2:3 = 0.667, allow ±8%
+                issues.append(f"Proportions {w}×{h} ({ratio:.2f}) — expected 2:3 portrait (≈0.67)")
+    elif image_type == 'fanart':
+        # Expected: 16:9 landscape, > 200 KB
+        if size_bytes < 200 * 1024:
+            issues.append(f"File size {size_bytes//1024} KB is below 200 KB minimum")
+        if w and h:
+            ratio = w / h
+            if not (1.70 <= ratio <= 1.85):   # 16:9 = 1.778, allow ±5%
+                issues.append(f"Proportions {w}×{h} ({ratio:.2f}) — expected 16:9 landscape (≈1.78)")
+
+    if issues:
+        return STATUS_ERROR, "; ".join(issues)
+    return STATUS_OK, ""
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Backdrop helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def count_backdrops(sub_path):
+    count = 0; paths = []
+    p = os.path.join(sub_path, "backdrop.jpg")
+    if os.path.isfile(p): count += 1; paths.append(p)
+    for i in range(1, 200):
+        p = os.path.join(sub_path, f"backdrop{i}.jpg")
+        if os.path.isfile(p): count += 1; paths.append(p)
+        else: break
+    return count, paths
+
+def next_backdrop_number(sub_path):
+    if not os.path.isfile(os.path.join(sub_path, "backdrop.jpg")):
+        return 0
+    for i in range(1, 200):
+        if not os.path.isfile(os.path.join(sub_path, f"backdrop{i}.jpg")):
+            return i
+    return 1
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Video / subtitle / language helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_video_files(sub_path):
+    videos = []
+    try:
+        for f in os.scandir(sub_path):
+            if f.is_file() and os.path.splitext(f.name)[1].lower() in VIDEO_EXTENSIONS:
+                videos.append(f)
+    except PermissionError: pass
+    if not videos:
+        return {"video_count":0,"video_files":[],"video_ext":"—",
+                "video_path":None,"video_bytes":0,"video_size":"—",
+                "video_width":None,"video_height":None,"video_quality":"—"}
+    videos.sort(key=lambda e: e.stat().st_size, reverse=True)
+    main = videos[0]; ext = os.path.splitext(main.name)[1].lower()
+    # Quality determined later when ffprobe runs (phased scan)
+    return {"video_count":len(videos),"video_files":[v.name for v in videos],
+            "video_ext":ext.lstrip('.').upper(),"video_path":main.path,
+            "video_bytes":main.stat().st_size,"video_size":format_size(main.stat().st_size),
+            "video_width":None,"video_height":None,"video_quality":"—"}
+
+def _get_video_resolution(video_path):
+    """Return (width, height) of first video stream, or (None, None)."""
+    if not FFPROBE_PATH or not SETTINGS.get("use_ffprobe", True):
+        return None, None
+    try:
+        r = subprocess.run(
+            [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
+             "-show_streams", "-select_streams", "v:0", video_path],
+            capture_output=True, text=True, timeout=20,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode == 0 and r.stdout.strip():
+            streams = json.loads(r.stdout).get("streams", [])
+            if streams:
+                w = streams[0].get("width"); h = streams[0].get("height")
+                if w and h: return int(w), int(h)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
+        pass
+    return None, None
+
+def _get_ffprobe_full(video_path):
+    """Return full ffprobe JSON dict (format + streams), or {}."""
+    if not FFPROBE_PATH or not SETTINGS.get("use_ffprobe", True):
+        return {}
+    try:
+        r = subprocess.run(
+            [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
+             "-show_streams", "-show_format", video_path],
+            capture_output=True, text=True, timeout=30,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode == 0 and r.stdout.strip():
+            return json.loads(r.stdout)
+    except Exception:
+        pass
+    return {}
+
+def scan_subtitles(sub_path, video_path):
+    result = {"subs_internal":[],"subs_external":[],"subs_summary":"—"}
+    try:
+        for f in os.scandir(sub_path):
+            if f.is_file() and os.path.splitext(f.name)[1].lower() in SUBTITLE_EXTENSIONS:
+                parts = os.path.splitext(f.name)[0].rsplit('.', 1)
+                lang = parts[-1] if len(parts) > 1 and len(parts[-1]) <= 20 else "unknown"
+                result["subs_external"].append({"lang": lang, "file": f.name})
+    except PermissionError: pass
+    if video_path and FFPROBE_PATH and SETTINGS.get("use_ffprobe", True):
+        try:
+            proc = subprocess.run(
+                [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
+                 "-show_streams", "-select_streams", "s", video_path],
+                capture_output=True, text=True, timeout=20,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if proc.returncode == 0 and proc.stdout.strip():
+                for stream in json.loads(proc.stdout).get("streams", []):
+                    tags = stream.get("tags", {})
+                    result["subs_internal"].append({
+                        "lang":  tags.get("language") or tags.get("LANGUAGE") or "und",
+                        "title": tags.get("title")    or tags.get("TITLE")    or ""})
+        except Exception: pass
+    parts = []
+    if result["subs_internal"]:
+        parts.append(f"Int: {', '.join(s['lang'] for s in result['subs_internal'])}")
+    if result["subs_external"]:
+        parts.append(f"Ext: {', '.join(s['lang'] for s in result['subs_external'])}")
+    result["subs_summary"] = " | ".join(parts) if parts else ("None" if video_path else "—")
+    return result
+
+def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path, iso_code="PT"):
+    """
+    Y  — target language audio OR subtitle is present (ffprobe + XML + NFO)
+    N  — video present but no target language found
+    —  — no video file
+    """
+    if not video_path:
+        return "—"
+
+    # 1. FFprobe audio streams
+    if FFPROBE_PATH and SETTINGS.get("use_ffprobe", True):
+        try:
+            r = subprocess.run(
+                [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
+                 "-show_streams", "-select_streams", "a", video_path],
+                capture_output=True, text=True, timeout=20,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if r.returncode == 0 and r.stdout.strip():
+                for stream in json.loads(r.stdout).get("streams", []):
+                    tags = stream.get("tags", {})
+                    lang = tags.get("language") or tags.get("LANGUAGE") or ""
+                    if is_target_lang(lang, iso_code):
+                        return "Y"
+        except Exception: pass
+
+    # 2. Internal subtitles (ffprobe)
+    for s in subs_internal:
+        if is_target_lang(s.get("lang", ""), iso_code):
+            return "Y"
+
+    # 3. External subtitle files
+    for s in subs_external:
+        if is_target_lang(s.get("lang", ""), iso_code):
+            return "Y"
+
+    # 4. XML: LanguageCode tag
+    if xml_path and os.path.isfile(xml_path):
+        try:
+            with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            for m in re.finditer(r'<LanguageCode>([^<]+)</LanguageCode>', content, re.IGNORECASE):
+                if is_target_lang(m.group(1).strip(), iso_code): return "Y"
+            # XML Audio/Language
+            for m in re.finditer(r'<Language>([^<]+)</Language>', content, re.IGNORECASE):
+                if is_target_lang(m.group(1).strip(), iso_code): return "Y"
+        except Exception: pass
+
+    # 5. NFO: streamdetails/video/language
+    if nfo_path and os.path.isfile(nfo_path):
+        try:
+            with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            for m in re.finditer(r'<language>([^<]+)</language>', content, re.IGNORECASE):
+                if is_target_lang(m.group(1).strip(), iso_code): return "Y"
+        except Exception: pass
+
+    return "N"
+
+def extract_language_from_xml(filepath):
+    if not filepath or not os.path.isfile(filepath): return "—"
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        m = re.search(r'<Language>([^<]+)</Language>', content)
+        if m:
+            lang = m.group(1).strip()
+            return lang if lang else "Unknown"
+        if '<Language></Language>' in content or '<Language />' in content:
+            return "Unknown"
+        return "—"
+    except Exception: return "—"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# XML / NFO parsing helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _is_url_only_nfo(content):
+    s = content.strip()
+    return '\n' not in s and s.startswith(('http://', 'https://'))
+
+def validate_xml_file(filepath, is_nfo=False):
+    """Validate XML/NFO structure. Returns list of error dicts."""
+    errors = []
+    if not os.path.isfile(filepath): return errors
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+    except Exception as e:
+        return [{"line":0,"col":0,"message":f"Cannot read: {e}"}]
+    if not content.strip(): return [{"line":1,"col":0,"message":"File is empty"}]
+    if is_nfo and _is_url_only_nfo(content): return errors
+    if content.startswith('\ufeff'): content = content[1:]
+
+    # Strip & / &amp; for parse — do NOT report as error (KODI-safe)
+    parse_content = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
+
+    try:
+        ET.fromstring(parse_content)
+    except ET.ParseError as e:
+        line, col = e.position if hasattr(e, 'position') else (0, 0)
+        raw_msg = str(e)
+        src_lines = content.splitlines()
+        if 0 < line <= len(src_lines):
+            offending = src_lines[line - 1]
+            if "mismatched tag" in raw_msg:
+                raw_msg = (f"Mismatched tag at line {line} — "
+                           "likely caused by a broken tag earlier in the file")
+        # Filter out & errors entirely
+        if "undefined entity" not in raw_msg.lower():
+            errors.append({"line":line,"col":col,"message":raw_msg})
+
+    lines = content.splitlines()
+    for ln, lt in enumerate(lines, 1):
+        sl = lt.strip()
+        if sl.startswith('<?') or sl.startswith('<!--'): continue
+        for b in re.findall(r'<([A-Za-z_][\w.\-]*)(?=[^>]*(?:<|$))', lt):
+            seg = lt[lt.index(f"<{b}"):]
+            at = seg[1:]; nlt = at.find('<'); ngt = at.find('>')
+            if ngt == -1 or (nlt != -1 and nlt < ngt):
+                ml = False
+                if ngt == -1:
+                    for pk in range(ln, min(ln+5, len(lines))):
+                        pl = lines[pk]
+                        if '>' in pl:
+                            gp = pl.index('>'); lp = pl.find('<')
+                            if lp == -1 or gp < lp: ml = True
+                            break
+                        if '<' in pl: break
+                if not ml and not any(e["line"] == ln for e in errors):
+                    errors.append({"line":ln,"col":lt.index(f"<{b}")+1,
+                                   "message":f"Malformed tag '<{b}…' — missing '>'"})
+        stripped = lt.rstrip()
+        if re.search(r'</[A-Za-z_][\w.\-]*\s*$', stripped) and not stripped.endswith('>'):
+            if not any(e["line"] == ln for e in errors):
+                errors.append({"line":ln,"col":len(stripped),
+                               "message":"Closing tag missing '>'"})
+    seen = set(); unique = []
+    for e in errors:
+        k = (e["line"], e["message"][:60])
+        if k not in seen: seen.add(k); unique.append(e)
+    unique.sort(key=lambda e: (e["line"], e["col"]))
+    return unique
+
+def _parse_xml_to_dict(filepath):
+    """
+    Parse an XML/NFO file into a flat+nested dict for tag comparison.
+    Returns {} on failure.
+    """
+    if not filepath or not os.path.isfile(filepath): return {}
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        if content.startswith('\ufeff'): content = content[1:]
+        # Normalise & so ET doesn't choke
+        content = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
+        root = ET.fromstring(content)
+        return root
+    except Exception:
+        return None
+
+def _xpath_get(root, dotpath):
+    """
+    Get values from an ET Element using dot-separated path.
+    Returns list of non-empty string values found.
+    Returns [] if nothing found.
+    """
+    if root is None: return []
+    parts = dotpath.split('.')
+    def _recurse(el, remaining):
+        if not remaining:
+            txt = (el.text or "").strip()
+            return [txt] if txt else []
+        tag = remaining[0]
+        results = []
+        for child in el:
+            if child.tag.lower() == tag.lower():
+                results.extend(_recurse(child, remaining[1:]))
+        return results
+    return _recurse(root, parts)
+
+def _get_nfo_id_by_moviedb(root, moviedb_val):
+    """Return <id moviedb='X'> value from NFO root."""
+    if root is None: return []
+    results = []
+    for el in root.iter('id'):
+        if el.get('moviedb', '').lower() == moviedb_val.lower():
+            txt = (el.text or "").strip()
+            if txt: results.append(txt)
+    return results
+
+def _norm_val(v):
+    """Normalise a value for comparison: lowercase, strip spaces."""
+    return str(v).strip().lower()
+
+def _norm_numeric(v):
+    """Extract numeric float from string, or None."""
+    try:
+        # Handle "5.1" channels → 6 mapping
+        if str(v).strip() == "5.1": return 6.0
+        if str(v).strip() == "7.1": return 8.0
+        if str(v).strip() == "2.0": return 2.0
+        return float(re.sub(r'[^\d.]', '', str(v)))
+    except Exception: return None
+
+def _vals_match(vals_a, vals_b, tol_pct=0):
+    """
+    Return True if any value in vals_a matches any value in vals_b.
+    Numeric comparison uses tol_pct tolerance.
+    Text comparison is case-insensitive.
+    """
+    if not vals_a or not vals_b: return True   # missing → skip check
+    for a in vals_a:
+        for b in vals_b:
+            if tol_pct > 0:
+                na = _norm_numeric(a); nb = _norm_numeric(b)
+                if na is not None and nb is not None and nb != 0:
+                    if abs(na - nb) / nb * 100 <= tol_pct:
+                        return True
+                    continue
+            if _norm_val(a) == _norm_val(b):
+                return True
+    return False
+
+def get_movie_ids_from_xml(xml_path):
+    """Extract IMDB and TMDb IDs from movie.xml. Returns (imdb_id, tmdb_id)."""
+    if not xml_path or not os.path.isfile(xml_path):
+        return None, None
+    try:
+        with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        if content.startswith('\ufeff'): content = content[1:]
+        content = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
+        root = ET.fromstring(content)
+    except Exception:
+        return None, None
+
+    imdb_tags = ['IMDB', 'IMDbId', 'IMDB_ID']
+    tmdb_tags = ['TMDbId', 'TMDB', 'TMDB_ID']
+    imdb_id = None; tmdb_id = None
+    for tag in imdb_tags:
+        el = root.find(tag)
+        if el is not None and el.text and el.text.strip():
+            imdb_id = el.text.strip(); break
+    for tag in tmdb_tags:
+        el = root.find(tag)
+        if el is not None and el.text and el.text.strip():
+            tmdb_id = el.text.strip(); break
+    return imdb_id, tmdb_id
+
+def get_movie_titles_from_files(nfo_path, xml_path):
+    """
+    Return list of unique non-empty movie titles found in NFO and XML.
+    NFO: <title>, <originaltitle>
+    XML: <LocalTitle>, <OriginalTitle>
+    """
+    titles = []
+
+    def _extract_text(filepath, tags):
+        if not filepath or not os.path.isfile(filepath): return
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+            if content.startswith('\ufeff'): content = content[1:]
+            content_clean = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
+            root = ET.fromstring(content_clean)
+            for tag in tags:
+                el = root.find(tag)
+                if el is not None:
+                    txt = (el.text or "").strip()
+                    if txt and txt not in titles:
+                        titles.append(txt)
+        except Exception: pass
+
+    _extract_text(nfo_path,  ['title', 'originaltitle'])
+    _extract_text(xml_path,  ['LocalTitle', 'OriginalTitle'])
+    return titles
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Scanning
+# ══════════════════════════════════════════════════════════════════════════════
+
+def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None):
+    """Full scan of a single subfolder. Returns result dict."""
+    if use_ffprobe is None:
+        use_ffprobe = SETTINGS.get("use_ffprobe", True)
+
+    poster_path = os.path.join(sub_path, "poster.jpg")
+    fanart_path = os.path.join(sub_path, "fanart.jpg")
+    folder_path = os.path.join(sub_path, "folder.jpg")
+
+    pe  = os.path.isfile(poster_path)
+    fe  = os.path.isfile(fanart_path)
+    fle = os.path.isfile(folder_path)
+    pb  = os.path.getsize(poster_path)  if pe  else 0
+    fb  = os.path.getsize(fanart_path)  if fe  else 0
+    flb = os.path.getsize(folder_path)  if fle else 0
+    pd  = get_image_dimensions(poster_path) if pe  else None
+    fd  = get_image_dimensions(fanart_path) if fe  else None
+    fld = get_image_dimensions(folder_path) if fle else None
+
+    # Detailed health check for images
+    ps_status, ps_desc   = check_image_health(poster_path, 'poster') if pe else (STATUS_MISSING, "")
+    fs_status, fs_desc   = check_image_health(fanart_path, 'fanart') if fe else (STATUS_MISSING, "")
+    fls_status, fls_desc = check_image_health(folder_path, 'folder') if fle else (STATUS_MISSING, "")
+
+    pc  = ps_status  == STATUS_ERROR
+    fc  = fs_status  == STATUS_ERROR
+    flc = fls_status == STATUS_ERROR
+
+    bc, bp = count_backdrops(sub_path)
+
+    nfo_path = os.path.join(sub_path, sub_name + ".nfo")
+    ne  = os.path.isfile(nfo_path)
+    nb  = os.path.getsize(nfo_path) if ne else 0
+    nerr = validate_xml_file(nfo_path, is_nfo=True) if ne else []
+
+    xml_path = os.path.join(sub_path, "movie.xml")
+    xe  = os.path.isfile(xml_path)
+    xb  = os.path.getsize(xml_path) if xe else 0
+    xerr = validate_xml_file(xml_path, is_nfo=False) if xe else []
+    lang = extract_language_from_xml(xml_path) if xe else "—"
+
+    ns = (STATUS_ERROR if nerr else STATUS_OK) if ne else STATUS_MISSING
+    xs = (STATUS_ERROR if xerr else STATUS_OK) if xe else STATUS_MISSING
+
+    vi = scan_video_files(sub_path)
+
+    # ffprobe for resolution (if enabled)
+    if use_ffprobe and vi["video_path"] and FFPROBE_PATH:
+        w, h = _get_video_resolution(vi["video_path"])
+        vi["video_width"]   = w
+        vi["video_height"]  = h
+        vi["video_quality"] = classify_quality(w, h)
+
+    si = scan_subtitles(sub_path, vi["video_path"])
+
+    iso = SETTINGS.get("lang_ok_code", "PT")
+    lang_ok = compute_lang_ok(vi["video_path"], si["subs_internal"], si["subs_external"],
+                               nfo_path if ne else None,
+                               xml_path if xe else None,
+                               iso_code=iso)
+
+    vs = (STATUS_MISSING if vi["video_count"] == 0
+          else STATUS_ERROR if vi["video_count"] > 1 else STATUS_OK)
+
+    has_err = (ns == STATUS_ERROR or xs == STATUS_ERROR or pc or fc or flc)
+    health  = ("red"    if has_err
+               else "green" if (pe and fe and fle and
+                                 ns == STATUS_OK and xs == STATUS_OK and
+                                 vi["video_count"] == 1)
+               else "yellow")
+
+    return {
+        "subfolder": sub_name, "subfolder_path": sub_path,
+        "poster_exists": pe, "poster_path": poster_path,
+        "poster_bytes": pb, "poster_size": format_size(pb) if pe else "—",
+        "poster_dim": pd, "poster_corrupt": pc, "poster_desc": ps_desc,
+        "fanart_exists": fe, "fanart_path": fanart_path,
+        "fanart_bytes": fb, "fanart_size": format_size(fb) if fe else "—",
+        "fanart_dim": fd, "fanart_corrupt": fc, "fanart_desc": fs_desc,
+        "folder_exists": fle, "folder_path": folder_path,
+        "folder_bytes": flb, "folder_size": format_size(flb) if fle else "—",
+        "folder_dim": fld, "folder_corrupt": flc, "folder_desc": fls_desc,
+        "backdrop_count": bc, "backdrop_paths": bp,
+        "nfo_exists": ne, "nfo_path": nfo_path,
+        "nfo_bytes": nb, "nfo_size": format_size(nb) if ne else "—",
+        "nfo_status": ns, "nfo_errors": nerr,
+        "xml_exists": xe, "xml_path": xml_path,
+        "xml_bytes": xb, "xml_size": format_size(xb) if xe else "—",
+        "xml_status": xs, "xml_errors": xerr,
+        "language": lang,
+        "video_count": vi["video_count"], "video_files": vi["video_files"],
+        "video_ext": vi["video_ext"], "video_path": vi["video_path"],
+        "video_bytes": vi["video_bytes"], "video_size": vi["video_size"],
+        "video_width": vi["video_width"], "video_height": vi["video_height"],
+        "video_quality": vi["video_quality"], "video_status": vs,
+        "subs_internal": si["subs_internal"], "subs_external": si["subs_external"],
+        "subs_summary": si["subs_summary"],
+        "lang_ok": lang_ok,
+        "row_health": health,
+    }
+
+# ── JSON persistence helpers ───────────────────────────────────────────────────
+def _results_to_json(results):
+    return results
+
+def _results_from_json(data):
+    defaults = {
+        "video_width": None, "video_height": None, "video_quality": "—",
+        "lang_ok": "—", "pt_ok": "—", "backdrop_paths": [],
+        "folder_exists": False, "folder_path": "", "folder_bytes": 0,
+        "folder_size": "—", "folder_dim": None, "folder_corrupt": False,
+        "folder_desc": "", "poster_desc": "", "fanart_desc": "",
+    }
+    out = []
+    for r in data:
+        row = dict(defaults)
+        row.update(r)
+        # Migrate old pt_ok → lang_ok if needed
+        if "pt_ok" in row and "lang_ok" not in row:
+            row["lang_ok"] = row["pt_ok"]
+        out.append(row)
+    return out
+
+# ── Sort options ───────────────────────────────────────────────────────────────
+SORT_OPTIONS = {
+    "Subfolder (A→Z)":       (lambda r: r["subfolder"].lower(),   False),
+    "Subfolder (Z→A)":       (lambda r: r["subfolder"].lower(),   True),
+    "Poster size (lg→sm)":   (lambda r: r["poster_bytes"],        True),
+    "Poster size (sm→lg)":   (lambda r: r["poster_bytes"],        False),
+    "Fanart size (lg→sm)":   (lambda r: r["fanart_bytes"],        True),
+    "Fanart size (sm→lg)":   (lambda r: r["fanart_bytes"],        False),
+    "Video size (lg→sm)":    (lambda r: r["video_bytes"],         True),
+    "Video size (sm→lg)":    (lambda r: r["video_bytes"],         False),
+    "Language (A→Z)":        (lambda r: r["language"].lower(),    False),
+    "Language (Z→A)":        (lambda r: r["language"].lower(),    True),
+    "Quality (best first)":  (lambda r: _quality_sort_key(r.get("video_quality","—")), False),
+    "Quality (worst first)": (lambda r: _quality_sort_key(r.get("video_quality","—")), True),
+    "Lang OK? (Y first)":    (lambda r: r.get("lang_ok","—"),     False),
+    "Lang OK? (N first)":    (lambda r: r.get("lang_ok","—"),     True),
+    "Backdrops (most)":      (lambda r: r["backdrop_count"],      True),
+    "Backdrops (fewest)":    (lambda r: r["backdrop_count"],      False),
+    "Health (errors 1st)":   (lambda r: {"red":0,"yellow":1,"green":2}.get(r["row_health"],1), False),
+    "Health (OK 1st)":       (lambda r: {"green":0,"yellow":1,"red":2}.get(r["row_health"],1), False),
+}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Improvements engine
+# ══════════════════════════════════════════════════════════════════════════════
+
+def run_improvements(data_list, checks=None):
+    """
+    Run all enabled improvement checks on a list of row dicts.
+    Returns a list of (movie_name, [issue_string, ...]) tuples.
+    """
+    if checks is None:
+        checks = SETTINGS.get("improve_checks", _DEFAULT_SETTINGS["improve_checks"])
+
+    max_xml_kb  = SETTINGS.get("max_xml_kb",  25)
+    max_nfo_kb  = SETTINGS.get("max_nfo_kb",  50)
+    min_bk      = SETTINGS.get("min_backdrops", 5)
+    tag_pairs   = SETTINGS.get("tag_pairs") or DEFAULT_TAG_PAIRS
+
+    results = []
+    for d in data_list:
+        issues = []
+        name = d["subfolder"]
+
+        # ── 2.1  Large XML ────────────────────────────────────────────────────
+        if checks.get("large_xml", True):
+            if d["xml_exists"] and d["xml_bytes"] > max_xml_kb * 1024:
+                issues.append(
+                    f"[Large XML] movie.xml is {d['xml_bytes']//1024} KB "
+                    f"(threshold: {max_xml_kb} KB). "
+                    "Large XML files may contain stale or duplicate data — consider reviewing.")
+            if d["nfo_exists"] and d["nfo_bytes"] > max_nfo_kb * 1024:
+                issues.append(
+                    f"[Large NFO] {os.path.basename(d['nfo_path'])} is "
+                    f"{d['nfo_bytes']//1024} KB "
+                    f"(threshold: {max_nfo_kb} KB). Review for excess data.")
+
+        # ── 2.2  NFO ↔ XML mismatch ───────────────────────────────────────────
+        if checks.get("nfo_xml_diff", True) and d["nfo_exists"] and d["xml_exists"]:
+            nfo_root = _parse_xml_to_dict(d["nfo_path"])
+            xml_root = _parse_xml_to_dict(d["xml_path"])
+            if nfo_root is not None and xml_root is not None:
+                for nfo_path_str, xml_path_str, label, tol in tag_pairs:
+                    # Special handling for id with moviedb attribute
+                    if nfo_path_str.startswith("id") and "moviedb" in nfo_path_str:
+                        pass  # handled below
+                    # Get NFO values
+                    nfo_vals = _xpath_get(nfo_root, nfo_path_str)
+                    # Special: <id moviedb="imdb"> and <id moviedb="tmdb">
+                    if not nfo_vals and nfo_path_str == "id":
+                        nfo_vals = [v for el in nfo_root.iter('id')
+                                    if not el.get('moviedb')
+                                    for v in [(el.text or "").strip()] if v]
+                    # Get XML values
+                    xml_vals = _xpath_get(xml_root, xml_path_str)
+                    if not nfo_vals or not xml_vals: continue
+                    if not _vals_match(nfo_vals, xml_vals, tol):
+                        nv = ", ".join(nfo_vals[:3])
+                        xv = ", ".join(xml_vals[:3])
+                        issues.append(
+                            f"[NFO↔XML Mismatch] {label}: "
+                            f"NFO='{nv}' vs XML='{xv}'")
+
+                # Check XML standalone tags vs MediaInfo block
+                for standalone, mi_path, mi_label, mi_tol in XML_INTERNAL_PAIRS:
+                    sa_vals = _xpath_get(xml_root, standalone)
+                    mi_vals = _xpath_get(xml_root, mi_path)
+                    if not sa_vals or not mi_vals: continue
+                    if not _vals_match(sa_vals, mi_vals, mi_tol):
+                        sv = ", ".join(sa_vals[:2]); mv = ", ".join(mi_vals[:2])
+                        issues.append(
+                            f"[XML Internal] {mi_label}: "
+                            f"standalone='{sv}' vs MediaInfo='{mv}'")
+
+        # ── 2.3  FFprobe vs NFO/XML ───────────────────────────────────────────
+        if (checks.get("ffprobe_diff", True) and d.get("video_path") and
+                d["video_width"] and d["video_height"] and
+                FFPROBE_PATH and SETTINGS.get("use_ffprobe", True)):
+            probe = _get_ffprobe_full(d["video_path"])
+            if probe:
+                streams = probe.get("streams", [])
+                v_streams = [s for s in streams if s.get("codec_type") == "video"]
+                a_streams = [s for s in streams if s.get("codec_type") == "audio"]
+                fmt       = probe.get("format", {})
+
+                if v_streams:
+                    vst = v_streams[0]
+                    fp_w = vst.get("width"); fp_h = vst.get("height")
+                    fp_dur = float(fmt.get("duration", 0) or 0)
+                    fp_codec = (vst.get("codec_name") or "").lower()
+
+                    # Compare with NFO fileinfo
+                    if d["nfo_exists"]:
+                        nfo_root = _parse_xml_to_dict(d["nfo_path"])
+                        if nfo_root is not None:
+                            nfo_w = _xpath_get(nfo_root, "fileinfo.streamdetails.video.width")
+                            nfo_h = _xpath_get(nfo_root, "fileinfo.streamdetails.video.height")
+                            nfo_dur = _xpath_get(nfo_root, "fileinfo.streamdetails.video.durationinseconds")
+                            nfo_codec = _xpath_get(nfo_root, "fileinfo.streamdetails.video.codec")
+                            if fp_w and nfo_w:
+                                if not _vals_match(nfo_w, [str(fp_w)], 0):
+                                    issues.append(
+                                        f"[FFprobe vs NFO] Video width: "
+                                        f"FFprobe={fp_w} vs NFO={nfo_w[0]}")
+                            if fp_h and nfo_h:
+                                if not _vals_match(nfo_h, [str(fp_h)], 0):
+                                    issues.append(
+                                        f"[FFprobe vs NFO] Video height: "
+                                        f"FFprobe={fp_h} vs NFO={nfo_h[0]}")
+                            if fp_dur and nfo_dur:
+                                if not _vals_match(nfo_dur, [str(int(fp_dur))], 5):
+                                    issues.append(
+                                        f"[FFprobe vs NFO] Duration: "
+                                        f"FFprobe={int(fp_dur)}s vs NFO={nfo_dur[0]}s")
+                            if fp_codec and nfo_codec:
+                                if _norm_val(fp_codec) not in _norm_val(nfo_codec[0]) and \
+                                   _norm_val(nfo_codec[0]) not in _norm_val(fp_codec):
+                                    issues.append(
+                                        f"[FFprobe vs NFO] Video codec: "
+                                        f"FFprobe={fp_codec} vs NFO={nfo_codec[0]}")
+
+                    if d["xml_exists"] and v_streams:
+                        xml_root = _parse_xml_to_dict(d["xml_path"])
+                        if xml_root is not None:
+                            xml_w = _xpath_get(xml_root, "VideoWidth") or _xpath_get(xml_root, "MediaInfo.Video.Width")
+                            xml_h = _xpath_get(xml_root, "VideoHeight") or _xpath_get(xml_root, "MediaInfo.Video.Height")
+                            xml_dur = _xpath_get(xml_root, "MediaInfo.Video.DurationSeconds") or _xpath_get(xml_root, "VideoLengthSeconds")
+                            if fp_w and xml_w:
+                                if not _vals_match(xml_w, [str(fp_w)], 0):
+                                    issues.append(
+                                        f"[FFprobe vs XML] Video width: "
+                                        f"FFprobe={fp_w} vs XML={xml_w[0]}")
+                            if fp_h and xml_h:
+                                if not _vals_match(xml_h, [str(fp_h)], 0):
+                                    issues.append(
+                                        f"[FFprobe vs XML] Video height: "
+                                        f"FFprobe={fp_h} vs XML={xml_h[0]}")
+                            if fp_dur and xml_dur:
+                                if not _vals_match(xml_dur, [str(int(fp_dur))], 5):
+                                    issues.append(
+                                        f"[FFprobe vs XML] Duration: "
+                                        f"FFprobe={int(fp_dur)}s vs XML={xml_dur[0]}s")
+
+        # ── 2.4  poster.jpg vs folder.jpg different sizes ─────────────────────
+        if checks.get("poster_folder", True):
+            if d["poster_exists"] and d["folder_exists"]:
+                pw, ph = get_image_wh(d["poster_path"])
+                fw, fh = get_image_wh(d["folder_path"])
+                if pw and ph and fw and fh:
+                    if pw != fw or ph != fh:
+                        issues.append(
+                            f"[Image Size] poster.jpg ({pw}×{ph}) and "
+                            f"folder.jpg ({fw}×{fh}) have different dimensions — "
+                            "they should be identical copies.")
+                if abs(d["poster_bytes"] - d["folder_bytes"]) > 1024:
+                    issues.append(
+                        f"[Image Size] poster.jpg ({format_size(d['poster_bytes'])}) "
+                        f"and folder.jpg ({format_size(d['folder_bytes'])}) "
+                        "differ in file size — they may not be the same image.")
+
+        # ── 2.5  Proportions & file size ─────────────────────────────────────
+        if checks.get("proportions", True):
+            for img_type, exists, path, sz, desc in [
+                ("poster",  d["poster_exists"],  d["poster_path"],  d["poster_bytes"],  d.get("poster_desc","")),
+                ("folder",  d["folder_exists"],  d["folder_path"],  d["folder_bytes"],  d.get("folder_desc","")),
+                ("fanart",  d["fanart_exists"],  d["fanart_path"],  d["fanart_bytes"],  d.get("fanart_desc","")),
+            ]:
+                if exists and desc:
+                    issues.append(f"[Image Quality] {os.path.basename(path)}: {desc}")
+
+        # ── 2.6  Minimum backdrops ────────────────────────────────────────────
+        if checks.get("backdrops", True):
+            bc = d["backdrop_count"]
+            if bc < min_bk:
+                issues.append(
+                    f"[Backdrops] Only {bc} backdrop(s) found "
+                    f"(minimum recommended: {min_bk}). "
+                    "Use 'Extract 10 backdrop frames' to add more.")
+
+        if issues:
+            results.append((name, issues))
+
+    return results
+
+def format_improvements_report(results):
+    """Format improvements results as a readable text report."""
+    if not results:
+        return "✅  No improvements needed — all checks passed!\n"
+    lines = []
+    lines.append(f"Improvement Report — {len(results)} movie(s) with findings\n")
+    lines.append("=" * 60 + "\n")
+    for name, issues in results:
+        lines.append(f"\n📁  {name}\n")
+        lines.append("─" * 50 + "\n")
+        for iss in issues:
+            lines.append(f"  • {iss}\n")
+    lines.append("\n" + "=" * 60 + "\n")
+    lines.append(f"Total issues: {sum(len(v) for _, v in results)}\n")
+    return "".join(lines)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Frame extraction helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+def get_video_duration(video_path):
+    if not FFPROBE_PATH or not SETTINGS.get("use_ffprobe", True): return None
+    try:
+        r = subprocess.run(
+            [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
+             "-show_format", video_path],
+            capture_output=True, text=True, timeout=20,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode == 0:
+            return float(json.loads(r.stdout).get("format", {}).get("duration", 0))
+    except Exception: pass
+    return None
+
+def extract_single_frame(video_path, time_sec, output_path, timeout_sec=60):
+    if not FFMPEG_PATH: return False, "FFmpeg not found"
+    try:
+        r = subprocess.run(
+            [FFMPEG_PATH, "-y", "-ss", str(time_sec), "-i", video_path,
+             "-frames:v", "1", "-q:v", "1", output_path],
+            capture_output=True, text=True, timeout=timeout_sec,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if r.returncode == 0 and os.path.isfile(output_path) and os.path.getsize(output_path) > 0:
+            return True, ""
+        stderr_tail = (r.stderr or "")[-300:].strip()
+        return False, stderr_tail or f"FFmpeg exit {r.returncode}"
+    except subprocess.TimeoutExpired:
+        return False, f"Extraction timed out after {timeout_sec}s"
+    except Exception as e:
+        return False, str(e)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Dialogs
+# ══════════════════════════════════════════════════════════════════════════════
+
+class FrameExtractionDialog(tk.Toplevel):
+    """Progress dialog for extracting 10 frames — smooth 1% animation."""
+
+    def __init__(self, parent, video_path, sub_path, timeout_sec=60):
+        super().__init__(parent)
+        self.title("Extracting Frames…")
+        self.geometry("540x320")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+        self.resizable(False, False)
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+        self._video_path  = video_path
+        self._sub_path    = sub_path
+        self._timeout_sec = timeout_sec
+        self._cancelled   = False
+        self._extracted   = []
+        self._pct_target  = 0       # target for smooth animation
+        self._pct_current = 0       # current animated value
+
+        tk.Label(self, text="🎬  Extracting backdrop frames…",
+                 font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#cdd6f4"
+                 ).pack(pady=(16, 2))
+        tk.Label(self, text=os.path.basename(video_path),
+                 font=("Consolas", 9), bg="#1e1e2e", fg="#6c7086").pack(pady=(0, 8))
+
+        self.status_var = tk.StringVar(value="Preparing…")
+        tk.Label(self, textvariable=self.status_var, font=("Helvetica", 10),
+                 bg="#1e1e2e", fg="#a6adc8", wraplength=500).pack()
+
+        self.eta_var = tk.StringVar(value="")
+        tk.Label(self, textvariable=self.eta_var, font=("Helvetica", 9),
+                 bg="#1e1e2e", fg="#6c7086").pack()
+
+        pf = tk.Frame(self, bg="#1e1e2e"); pf.pack(fill="x", padx=30, pady=(8, 4))
+        self.pbar_canvas = tk.Canvas(pf, height=24, bg="#313244",
+                                     highlightthickness=0, relief="flat")
+        self.pbar_canvas.pack(fill="x")
+        self._draw_progress(0)
+
+        tf2 = tk.Frame(self, bg="#1e1e2e"); tf2.pack(pady=(4, 0))
+        tk.Label(tf2, text="Per-frame timeout (s):", font=("Helvetica", 9),
+                 bg="#1e1e2e", fg="#a6adc8").pack(side="left")
+        self._timeout_var = tk.IntVar(value=timeout_sec)
+        tk.Spinbox(tf2, from_=10, to=300, textvariable=self._timeout_var,
+                   width=5, font=("Helvetica", 9),
+                   bg="#313244", fg="#cdd6f4", buttonbackground="#45475a",
+                   relief="flat").pack(side="left", padx=(6, 0))
+
+        tk.Button(self, text="  Cancel  ", font=("Helvetica", 10, "bold"),
+                  bg="#f38ba8", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._on_cancel).pack(pady=(10, 16))
+
+        self.after(150, self._start)
+        self.after(50, self._animate_progress)
+
+    def _draw_progress(self, pct):
+        c = self.pbar_canvas; c.delete("all")
+        w = c.winfo_width() or 480; h = 24
+        c.create_rectangle(0, 0, w, h, fill="#313244", outline="")
+        fw = int(w * pct / 100)
+        if fw > 0:
+            c.create_rectangle(0, 0, fw, h, fill="#2d6e3f", outline="")
+        c.create_text(w//2, h//2, text=f"{int(pct)}%",
+                      fill="#cdd6f4", font=("Helvetica", 10, "bold"))
+
+    def _animate_progress(self):
+        """Smoothly animate progress bar at ~20fps."""
+        if self._pct_current < self._pct_target:
+            step = max(0.5, (self._pct_target - self._pct_current) * 0.15)
+            self._pct_current = min(self._pct_target, self._pct_current + step)
+            self._draw_progress(self._pct_current)
+        try:
+            self.after(50, self._animate_progress)
+        except Exception:
+            pass
+
+    def _on_cancel(self):
+        self._cancelled = True
+        self.status_var.set("Cancelling… (waiting for current frame)")
+
+    def _start(self):
+        threading.Thread(target=self._worker, daemon=True).start()
+
+    def _worker(self):
+        video   = self._video_path
+        sub     = self._sub_path
+        t_limit = max(10, self._timeout_var.get())
+
+        self.after(0, lambda: self.status_var.set("Reading video duration…"))
+        duration = get_video_duration(video)
+
+        if not duration or duration <= 0:
+            self._finish_error("Cannot read video duration",
+                "FFprobe could not read the video length.\n\n"
+                "Possible causes:\n• Corrupt or incomplete file\n"
+                "• Unsupported container format\n"
+                "• File still being downloaded\n\n"
+                "Try playing the file in VLC to confirm it works.")
+            return
+
+        if duration < 20:
+            self._finish_error("Video too short",
+                f"Video is only {duration:.0f}s — need at least 20s for extraction.")
+            return
+
+        if duration < 120:
+            start_sec = 2; end_sec = duration - 2
+        elif duration < 600:
+            start_sec = duration * 0.05; end_sec = duration * 0.95
+        else:
+            start_sec = 300; end_sec = duration - 300
+
+        if end_sec <= start_sec:
+            end_sec = duration * 0.9; start_sec = duration * 0.1
+
+        interval   = (end_sec - start_sec) / 9 if end_sec > start_sec else 1
+        timestamps = [start_sec + i * interval for i in range(10)]
+        start_num  = next_backdrop_number(sub)
+        extracted  = []; failed = []
+        frame_times = []
+
+        for i, ts in enumerate(timestamps):
+            if self._cancelled: break
+            num   = start_num + i
+            fname = ("backdrop.jpg" if num == 0 else f"backdrop{num}.jpg")
+            out_p = os.path.join(sub, fname)
+            mins  = int(ts // 60); secs_r = int(ts % 60)
+
+            # Set target to start of this frame's 10% block
+            base_pct = i * 10
+            self._pct_target = base_pct
+
+            self.after(0, lambda i=i, m=mins, s=secs_r, fn=fname:
+                       self.status_var.set(f"Frame {i+1}/10  at {m}:{s:02d}  →  {fn}"))
+
+            t0 = time.time()
+            ok, err_msg = extract_single_frame(video, ts, out_p, timeout_sec=t_limit)
+            elapsed = time.time() - t0
+            frame_times.append(elapsed)
+
+            # Update target to end of this frame's block
+            self._pct_target = (i + 1) * 10
+
+            if ok:
+                extracted.append((fname, out_p))
+            else:
+                failed.append((i+1, f"{mins}:{secs_r:02d}", fname, err_msg))
+
+            # ETA
+            if frame_times:
+                avg = sum(frame_times) / len(frame_times)
+                remaining = avg * (10 - i - 1)
+                if remaining > 60:
+                    eta = f"ETA: {int(remaining//60)}m {int(remaining%60)}s"
+                elif remaining > 0:
+                    eta = f"ETA: {int(remaining)}s"
+                else:
+                    eta = "Almost done…"
+                self.after(0, lambda e=eta: self.eta_var.set(e))
+
+        self._extracted = [p for _, p in extracted]
+        self._pct_target = 100
+
+        if self._cancelled:
+            for _, p in extracted:
+                try: os.remove(p)
+                except OSError: pass
+            self.after(0, lambda: (
+                self.status_var.set("Cancelled."),
+                messagebox.showinfo("Cancelled",
+                    "Extraction cancelled. Partial files removed.", parent=self),
+                self.destroy()))
+            return
+
+        n_ok = len(extracted); n_bad = len(failed)
+        if n_bad == 0:
+            msg = (f"✅  All 10 frames extracted!\n\n"
+                   f"Saved to: {sub}\n"
+                   f"backdrop.jpg / backdrop{start_num}.jpg → backdrop{start_num+n_ok-1}.jpg")
+            self.after(0, lambda: (messagebox.showinfo("Done", msg, parent=self), self.destroy()))
+        elif n_ok == 0:
+            detail = "\n".join(f"  Frame {fi} at {ts}: {em}" for fi,ts,_,em in failed[:5])
+            msg = (f"❌  No frames extracted.\n\nAll 10 failed:\n{detail}\n\n"
+                   "• Check the video codec is supported by your FFmpeg build\n"
+                   "• Increase the per-frame timeout for large files\n"
+                   "• Verify the file plays in VLC")
+            self.after(0, lambda: (messagebox.showerror("Failed", msg, parent=self), self.destroy()))
+        else:
+            detail = "\n".join(f"  Frame {fi} at {ts}: {em}" for fi,ts,_,em in failed[:3])
+            msg = (f"⚠️  {n_ok}/10 frames saved.\n\nFailed ({n_bad}):\n{detail}\n\n"
+                   "Saved frames are usable. Failed frames may be damaged sections.")
+            self.after(0, lambda: (messagebox.showwarning("Partial", msg, parent=self), self.destroy()))
+
+    def _finish_error(self, title, message):
+        self.after(0, lambda: (messagebox.showerror(title, message, parent=self), self.destroy()))
+
+
+class ImprovementsDialog(tk.Toplevel):
+    """Pop-up showing improvement findings with copy/save options."""
+
+    def __init__(self, parent, report_text, movie_count):
+        super().__init__(parent)
+        self.title(f"🔍  Improvements — {movie_count} movie(s)")
+        self.geometry("780x560")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+        self.resizable(True, True)
+
+        tk.Label(self, text="🔍  Improvement Findings",
+                 font=("Helvetica", 13, "bold"), bg="#1e1e2e", fg="#f9e2af"
+                 ).pack(anchor="w", padx=16, pady=(14, 2))
+
+        fr = tk.Frame(self, bg="#1e1e2e")
+        fr.pack(fill="both", expand=True, padx=16, pady=(4, 6))
+        self._txt = t = tk.Text(fr, wrap="word", bg="#313244", fg="#cdd6f4",
+                                font=("Consolas", 10), relief="flat", padx=10, pady=10)
+        sb = ttk.Scrollbar(fr, orient="vertical", command=t.yview)
+        t.configure(yscrollcommand=sb.set)
+        t.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+
+        # Colour tags
+        t.tag_configure("h",   foreground="#89b4fa", font=("Consolas",10,"bold"))
+        t.tag_configure("mv",  foreground="#a6e3a1", font=("Consolas",10,"bold"))
+        t.tag_configure("iss", foreground="#f9e2af")
+        t.tag_configure("ok",  foreground="#a6e3a1")
+        t.tag_configure("sep", foreground="#45475a")
+
+        self._raw = report_text
+        self._render(report_text)
+
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(4, 12))
+        tk.Button(bf, text="  📋 Copy to Clipboard  ",
+                  font=("Helvetica", 10, "bold"),
+                  bg="#89b4fa", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._copy).pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  💾 Save to .txt  ",
+                  font=("Helvetica", 10, "bold"),
+                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._save).pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  Close  ",
+                  font=("Helvetica", 10, "bold"),
+                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(side="left")
+
+    def _render(self, text):
+        t = self._txt
+        t.configure(state="normal"); t.delete("1.0", "end")
+        for line in text.splitlines():
+            if line.startswith("="):
+                t.insert("end", line + "\n", "sep")
+            elif line.startswith("─"):
+                t.insert("end", line + "\n", "sep")
+            elif line.startswith("📁"):
+                t.insert("end", line + "\n", "mv")
+            elif line.startswith("✅"):
+                t.insert("end", line + "\n", "ok")
+            elif "  •  " in line or line.strip().startswith("•"):
+                t.insert("end", line + "\n", "iss")
+            elif line.startswith("Improvement Report") or line.startswith("Total"):
+                t.insert("end", line + "\n", "h")
+            else:
+                t.insert("end", line + "\n")
+        t.configure(state="disabled")
+
+    def _copy(self):
+        self.clipboard_clear()
+        self.clipboard_append(self._raw)
+        messagebox.showinfo("Copied", "Report copied to clipboard.", parent=self)
+
+    def _save(self):
+        p = filedialog.asksaveasfilename(
+            parent=self, title="Save Report",
+            defaultextension=".txt",
+            filetypes=[("Text files","*.txt"),("All","*.*")],
+            initialfile="improvements_report.txt")
+        if not p: return
+        try:
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(self._raw)
+            messagebox.showinfo("Saved", f"Report saved to:\n{p}", parent=self)
+        except Exception as e:
+            messagebox.showerror("Save failed", str(e), parent=self)
+
+
+class SubtitleDialog(tk.Toplevel):
+    def __init__(self, parent, name, data):
+        super().__init__(parent)
+        self.title(f"Subtitles — {name}"); self.geometry("640x420")
+        self.configure(bg="#1e1e2e"); self.transient(parent); self.grab_set()
+        tk.Label(self, text=f"Subtitles — {name}", font=("Helvetica", 13, "bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=16, pady=(14, 2))
+        if data.get("video_path"):
+            tk.Label(self, text=f"Video: {os.path.basename(data['video_path'])}",
+                     font=("Consolas", 9), bg="#1e1e2e", fg="#6c7086").pack(anchor="w", padx=16)
+        fr = tk.Frame(self, bg="#1e1e2e"); fr.pack(fill="both", expand=True, padx=16, pady=(6,6))
+        t  = tk.Text(fr, wrap="word", bg="#313244", fg="#cdd6f4",
+                     font=("Consolas",10), relief="flat", padx=10, pady=10)
+        sb = ttk.Scrollbar(fr, orient="vertical", command=t.yview)
+        t.configure(yscrollcommand=sb.set)
+        t.pack(side="left", fill="both", expand=True); sb.pack(side="right", fill="y")
+        for tag, fg_c, bold in [("h","#89b4fa",True),("l","#a6e3a1",False),
+                                 ("d","#a6adc8",False),("s","#45475a",False),("n","#f38ba8",False)]:
+            kw = {"foreground": fg_c}
+            if bold: kw["font"] = ("Consolas", 10, "bold")
+            t.tag_configure(tag, **kw)
+        t.insert("end", "  EMBEDDED SUBTITLES  ", "h")
+        t.insert("end", f"  {'(via ffprobe)' if FFPROBE_PATH else '(ffprobe not found)'}\n",
+                 "d" if FFPROBE_PATH else "n")
+        if data.get("subs_internal"):
+            for i, s in enumerate(data["subs_internal"], 1):
+                tl = f'  "{s["title"]}"' if s.get("title") else ""
+                t.insert("end", f"    {i}. ", "d"); t.insert("end", s["lang"], "l")
+                t.insert("end", f"{tl}\n", "d")
+        elif FFPROBE_PATH:
+            t.insert("end", "    None found\n", "n")
+        t.insert("end", "\n  " + "─"*50 + "\n\n", "s")
+        t.insert("end", "  EXTERNAL FILES\n", "h")
+        if data.get("subs_external"):
+            for i, s in enumerate(data["subs_external"], 1):
+                t.insert("end", f"    {i}. ", "d"); t.insert("end", s["lang"], "l")
+                t.insert("end", f'  →  {s["file"]}\n', "d")
+        else:
+            t.insert("end", "    None found\n", "n")
+        t.configure(state="disabled")
+        tk.Button(self, text="  Close  ", font=("Helvetica", 10, "bold"),
+                  bg="#89b4fa", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(pady=(4,14))
+
+
+class ErrorDialog(tk.Toplevel):
+    def __init__(self, parent, title, filepath, errors):
+        super().__init__(parent)
+        self.title(title); self.geometry("740x440"); self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+        tk.Label(self, text=title, font=("Helvetica", 13, "bold"),
+                 bg="#1e1e2e", fg="#f38ba8").pack(anchor="w", padx=16, pady=(14,2))
+        tk.Label(self, text=filepath, font=("Consolas", 9), bg="#1e1e2e", fg="#6c7086",
+                 wraplength=700, justify="left").pack(anchor="w", padx=16, pady=(0,10))
+        fr = tk.Frame(self, bg="#1e1e2e"); fr.pack(fill="both", expand=True, padx=16, pady=(0,6))
+        t  = tk.Text(fr, wrap="word", bg="#313244", fg="#cdd6f4",
+                     font=("Consolas",10), relief="flat", padx=10, pady=10)
+        sb = ttk.Scrollbar(fr, orient="vertical", command=t.yview)
+        t.configure(yscrollcommand=sb.set)
+        t.pack(side="left", fill="both", expand=True); sb.pack(side="right", fill="y")
+        t.tag_configure("eh", foreground="#f38ba8", font=("Consolas",10,"bold"))
+        t.tag_configure("ed", foreground="#fab387")
+        t.tag_configure("sl", foreground="#a6adc8")
+        t.tag_configure("sp", foreground="#45475a")
+        sl = []
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                sl = f.readlines()
+        except Exception: pass
+        for i, e in enumerate(errors, 1):
+            loc = f"Line {e['line']}" + (f", Col {e['col']}" if e["col"] else "")
+            t.insert("end", f"  Error {i}:  ", "eh")
+            t.insert("end", f"{loc}\n", "ed")
+            t.insert("end", f"    {e['message']}\n", "ed")
+            if 0 < e["line"] <= len(sl):
+                t.insert("end", f"    → {sl[e['line']-1].rstrip()}\n", "sl")
+            if i < len(errors):
+                t.insert("end", "    " + "─"*60 + "\n", "sp")
+        t.configure(state="disabled")
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(4,14))
+        tk.Button(bf, text="  Open in editor  ", font=("Helvetica",10,"bold"),
+                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=lambda: open_in_editor(filepath)).pack(side="left", padx=(0,8))
+        tk.Button(bf, text="  Close  ", font=("Helvetica",10,"bold"),
+                  bg="#89b4fa", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(side="left")
+
+
+class CopyMovieNameDialog(tk.Toplevel):
+    """Show multiple movie name options and let user pick one to copy."""
+    def __init__(self, parent, titles):
+        super().__init__(parent)
+        self.title("Copy Movie Name")
+        self.geometry("480x280")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+
+        tk.Label(self, text="Multiple movie names found.\nSelect one to copy:",
+                 font=("Helvetica", 11), bg="#1e1e2e", fg="#cdd6f4",
+                 justify="center").pack(pady=(16, 8))
+
+        self._var = tk.StringVar(value=titles[0] if titles else "")
+        for t in titles:
+            tk.Radiobutton(self, text=t, variable=self._var, value=t,
+                           font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                           selectcolor="#313244", activebackground="#1e1e2e",
+                           activeforeground="#cdd6f4").pack(anchor="w", padx=30)
+
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(12,12))
+        tk.Button(bf, text="  Copy  ", font=("Helvetica",10,"bold"),
+                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._copy).pack(side="left", padx=(0,8))
+        tk.Button(bf, text="  Cancel  ", font=("Helvetica",10,"bold"),
+                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(side="left")
+
+    def _copy(self):
+        val = self._var.get()
+        if val:
+            self.clipboard_clear()
+            self.clipboard_append(val)
+        self.destroy()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Settings Dialog
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SettingsDialog(tk.Toplevel):
+    """Full settings dialog with tabs."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title(f"Settings — {APP_NAME}")
+        self.geometry("780x580")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+        self.resizable(True, True)
+        self._parent = parent
+
+        nb = ttk.Notebook(self)
+        nb.pack(fill="both", expand=True, padx=0, pady=0)
+        style = ttk.Style()
+        style.configure("TNotebook",     background="#1e1e2e", borderwidth=0)
+        style.configure("TNotebook.Tab", background="#313244", foreground="#cdd6f4",
+                        padding=[12,6], font=("Helvetica",10))
+        style.map("TNotebook.Tab",
+                  background=[("selected","#45475a")],
+                  foreground=[("selected","#89b4fa")])
+
+        self._build_tools_tab(nb)
+        self._build_language_tab(nb)
+        self._build_improvements_tab(nb)
+        self._build_tags_tab(nb)
+
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(6,12))
+        tk.Button(bf, text="  Save & Close  ", font=("Helvetica",10,"bold"),
+                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._save_close).pack(side="left", padx=(0,8))
+        tk.Button(bf, text="  Cancel  ", font=("Helvetica",10,"bold"),
+                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(side="left")
+
+    # ── Tools tab ─────────────────────────────────────────────────────────────
+    def _build_tools_tab(self, nb):
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text="🔧  Tools")
+
+        def _section(parent, label):
+            tk.Label(parent, text=label, font=("Helvetica",11,"bold"),
+                     bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=16, pady=(14,2))
+
+        def _row(parent):
+            r = tk.Frame(parent, bg="#1e1e2e"); r.pack(fill="x", padx=16, pady=2)
+            return r
+
+        def _browse_file(var, title, filetypes):
+            p = filedialog.askopenfilename(title=title, filetypes=filetypes)
+            if p: var.set(p)
+
+        def _test_editor(var):
+            path = var.get().strip()
+            if not path:
+                messagebox.showwarning("Not set", "No editor path set.", parent=self); return
+            if not os.path.isfile(path):
+                messagebox.showerror("Not found", f"File not found:\n{path}", parent=self); return
+            try:
+                subprocess.Popen([path],
+                                 creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+                messagebox.showinfo("Test", f"Editor launched:\n{path}", parent=self)
+            except Exception as e:
+                messagebox.showerror("Launch failed", str(e), parent=self)
+
+        # Text editor
+        _section(f, "Text Editor (for NFO / XML files)")
+        tk.Label(f, text="The editor is opened with -l xml when using Notepad++.\n"
+                 "If left blank, Notepad++ is auto-detected, then falls back to Notepad.",
+                 font=("Helvetica",9), bg="#1e1e2e", fg="#6c7086",
+                 justify="left").pack(anchor="w", padx=16)
+        self._editor_var = tk.StringVar(value=SETTINGS.get("text_editor",""))
+        r = _row(f)
+        tk.Entry(r, textvariable=self._editor_var, font=("Consolas",9),
+                 bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                 relief="flat", width=50).pack(side="left", fill="x", expand=True, ipady=4)
+        tk.Button(r, text="Browse…", font=("Helvetica",9), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2",
+                  command=lambda: _browse_file(self._editor_var, "Select text editor",
+                                               [("Executables","*.exe"),("All","*.*")])
+                  ).pack(side="left", padx=(6,0))
+        tk.Button(r, text="Test", font=("Helvetica",9), bg="#45475a", fg="#a6e3a1",
+                  relief="flat", cursor="hand2",
+                  command=lambda: _test_editor(self._editor_var)
+                  ).pack(side="left", padx=(4,0))
+
+        # FFmpeg
+        _section(f, "FFmpeg / FFprobe")
+        tk.Label(f, text="Point to the folder containing ffmpeg.exe and ffprobe.exe.\n"
+                 "Leave blank to use system PATH.",
+                 font=("Helvetica",9), bg="#1e1e2e", fg="#6c7086",
+                 justify="left").pack(anchor="w", padx=16)
+        self._ffmpeg_var = tk.StringVar(value=SETTINGS.get("ffmpeg_path",""))
+        r = _row(f)
+        tk.Entry(r, textvariable=self._ffmpeg_var, font=("Consolas",9),
+                 bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                 relief="flat", width=50).pack(side="left", fill="x", expand=True, ipady=4)
+        tk.Button(r, text="Browse…", font=("Helvetica",9), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2",
+                  command=lambda: self._ffmpeg_var.set(
+                      filedialog.askdirectory(title="FFmpeg folder") or self._ffmpeg_var.get())
+                  ).pack(side="left", padx=(6,0))
+        self._ff_status_lbl = tk.Label(r, text="", font=("Helvetica",9),
+                                       bg="#1e1e2e", fg="#a6adc8")
+        self._ff_status_lbl.pack(side="left", padx=(8,0))
+        tk.Button(r, text="Test FFmpeg", font=("Helvetica",9), bg="#45475a", fg="#f9e2af",
+                  relief="flat", cursor="hand2",
+                  command=self._test_ffmpeg_btn).pack(side="left", padx=(4,0))
+
+        # Scraper
+        _section(f, "Video Scraper")
+        tk.Label(f, text="Optional: path to a scraper executable "
+                 "(e.g. tinyMediaManager, Ember, MediaElch).\n"
+                 "The movie folder will be passed as the first argument when launched.",
+                 font=("Helvetica",9), bg="#1e1e2e", fg="#6c7086",
+                 justify="left").pack(anchor="w", padx=16)
+        self._scraper_var = tk.StringVar(value=SETTINGS.get("scraper_path",""))
+        r = _row(f)
+        tk.Entry(r, textvariable=self._scraper_var, font=("Consolas",9),
+                 bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                 relief="flat", width=50).pack(side="left", fill="x", expand=True, ipady=4)
+        tk.Button(r, text="Browse…", font=("Helvetica",9), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2",
+                  command=lambda: _browse_file(self._scraper_var, "Select scraper",
+                                               [("Executables","*.exe"),("All","*.*")])
+                  ).pack(side="left", padx=(6,0))
+
+    def _test_ffmpeg_btn(self):
+        path = self._ffmpeg_var.get().strip()
+        ff, fp = _find_ffmpeg_ffprobe(path)
+        ff_ok, fp_ok, ff_msg, fp_msg = _test_ffmpeg(ff, fp)
+        if ff_ok and fp_ok:
+            self._ff_status_lbl.configure(text="✓ Both OK", fg="#a6e3a1")
+        else:
+            msgs = []
+            if not ff_ok: msgs.append(f"ffmpeg: {ff_msg}")
+            if not fp_ok: msgs.append(f"ffprobe: {fp_msg}")
+            self._ff_status_lbl.configure(text="✗ " + " | ".join(msgs), fg="#f38ba8")
+
+    # ── Language tab ──────────────────────────────────────────────────────────
+    def _build_language_tab(self, nb):
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text="🌍  Language OK?")
+
+        tk.Label(f, text="Language OK? Column Target",
+                 font=("Helvetica",12,"bold"), bg="#1e1e2e", fg="#89b4fa"
+                 ).pack(anchor="w", padx=16, pady=(16,4))
+        tk.Label(f, text="Select the language for the 'Lang OK?' column.\n"
+                 "The column header and Y/N values will update automatically.\n"
+                 "Sources checked: FFprobe audio, internal subtitles, external subtitles,\n"
+                 "XML LanguageCode, XML Audio/Language, NFO video/language.",
+                 font=("Helvetica",10), bg="#1e1e2e", fg="#a6adc8",
+                 justify="left").pack(anchor="w", padx=16, pady=(0,12))
+
+        self._lang_var = tk.StringVar(value=SETTINGS.get("lang_ok_code","PT"))
+        lang_frame = tk.Frame(f, bg="#1e1e2e"); lang_frame.pack(padx=16, fill="x")
+        tk.Label(lang_frame, text="Language:", font=("Helvetica",10),
+                 bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        lang_options = [f"{iso} — {name}" for iso, name in WORLD_LANGUAGES]
+        self._lang_combo = ttk.Combobox(lang_frame, textvariable=self._lang_var,
+                                        values=[iso for iso,_ in WORLD_LANGUAGES],
+                                        state="readonly", width=8,
+                                        font=("Helvetica",11))
+        self._lang_combo.pack(side="left", padx=(8,16))
+        self._lang_desc = tk.Label(lang_frame, text="", font=("Helvetica",10),
+                                   bg="#1e1e2e", fg="#a6adc8")
+        self._lang_desc.pack(side="left")
+        self._lang_combo.bind("<<ComboboxSelected>>", self._update_lang_desc)
+        self._update_lang_desc()
+
+        tk.Label(f, text="\nAvailable languages:",
+                 font=("Helvetica",10,"bold"), bg="#1e1e2e", fg="#89b4fa"
+                 ).pack(anchor="w", padx=16)
+        grid_f = tk.Frame(f, bg="#1e1e2e"); grid_f.pack(padx=16, fill="x")
+        for i, (iso, name) in enumerate(WORLD_LANGUAGES):
+            r = i // 3; c = i % 3
+            tk.Label(grid_f, text=f"{iso} — {name}",
+                     font=("Consolas",9), bg="#1e1e2e", fg="#6c7086",
+                     anchor="w", width=22).grid(row=r, column=c, sticky="w", pady=1)
+
+    def _update_lang_desc(self, *_):
+        code = self._lang_var.get().upper()
+        for iso, name in WORLD_LANGUAGES:
+            if iso == code:
+                self._lang_desc.configure(text=f"→ {name}")
+                return
+        self._lang_desc.configure(text="")
+
+    # ── Improvements tab ──────────────────────────────────────────────────────
+    def _build_improvements_tab(self, nb):
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text="🔍  Improvements")
+
+        tk.Label(f, text="Improvement Checks",
+                 font=("Helvetica",12,"bold"), bg="#1e1e2e", fg="#89b4fa"
+                 ).pack(anchor="w", padx=16, pady=(16,6))
+
+        ic = SETTINGS.get("improve_checks", _DEFAULT_SETTINGS["improve_checks"])
+        self._ic_vars = {}
+
+        checks_def = [
+            ("large_xml",    "2.1  Large XML/NFO files (flag files above threshold)"),
+            ("nfo_xml_diff",  "2.2  NFO ↔ XML data mismatches"),
+            ("ffprobe_diff",  "2.3  FFprobe vs NFO/XML metadata differences"),
+            ("poster_folder", "2.4  poster.jpg and folder.jpg size differences"),
+            ("proportions",   "2.5  Image proportion and file size issues"),
+            ("backdrops",     "2.6  Insufficient backdrops"),
+        ]
+        for key, label in checks_def:
+            v = tk.BooleanVar(value=ic.get(key, True))
+            self._ic_vars[key] = v
+            tk.Checkbutton(f, text=label, variable=v,
+                           font=("Helvetica",10), bg="#1e1e2e", fg="#cdd6f4",
+                           selectcolor="#313244", activebackground="#1e1e2e",
+                           activeforeground="#cdd6f4").pack(anchor="w", padx=24, pady=2)
+
+        tk.Label(f, text="\nThresholds:", font=("Helvetica",11,"bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=16)
+
+        def _spin_row(parent, label, varname, default, from_, to_):
+            r = tk.Frame(parent, bg="#1e1e2e"); r.pack(anchor="w", padx=24, pady=2)
+            tk.Label(r, text=label, font=("Helvetica",10), bg="#1e1e2e", fg="#cdd6f4",
+                     width=36, anchor="w").pack(side="left")
+            v = tk.IntVar(value=SETTINGS.get(varname, default))
+            setattr(self, f"_{varname}_var", v)
+            tk.Spinbox(r, from_=from_, to=to_, textvariable=v, width=6,
+                       font=("Helvetica",10), bg="#313244", fg="#cdd6f4",
+                       buttonbackground="#45475a", relief="flat").pack(side="left")
+            return v
+
+        _spin_row(f, "Max NFO file size (KB) before flagging:",   "max_nfo_kb",  50,  1, 9999)
+        _spin_row(f, "Max XML file size (KB) before flagging:",   "max_xml_kb",  25,  1, 9999)
+        _spin_row(f, "Minimum backdrops required:",                "min_backdrops", 5, 1, 50)
+
+    # ── Tags tab ──────────────────────────────────────────────────────────────
+    def _build_tags_tab(self, nb):
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text="🏷  NFO-XML Tags")
+
+        tk.Label(f, text="NFO ↔ XML Tag Comparison Pairs",
+                 font=("Helvetica",12,"bold"), bg="#1e1e2e", fg="#89b4fa"
+                 ).pack(anchor="w", padx=16, pady=(16,4))
+        tk.Label(f, text="Format: NFO_tag  →  XML_tag  (one pair per line, tab or spaces separated)\n"
+                 "Use dot notation for nested tags: fileinfo.streamdetails.video.width\n"
+                 "Add optional tolerance% at end: fileinfo.streamdetails.video.durationinseconds  MediaInfo.Video.DurationSeconds  Duration  5",
+                 font=("Helvetica",9), bg="#1e1e2e", fg="#6c7086",
+                 justify="left").pack(anchor="w", padx=16, pady=(0,8))
+
+        fr = tk.Frame(f, bg="#1e1e2e"); fr.pack(fill="both", expand=True, padx=16, pady=(0,4))
+        self._tags_text = tk.Text(fr, wrap="none", bg="#313244", fg="#cdd6f4",
+                                  font=("Consolas",9), relief="flat", padx=8, pady=6)
+        sb_v = ttk.Scrollbar(fr, orient="vertical",   command=self._tags_text.yview)
+        sb_h = ttk.Scrollbar(fr, orient="horizontal", command=self._tags_text.xview)
+        self._tags_text.configure(yscrollcommand=sb_v.set, xscrollcommand=sb_h.set)
+        self._tags_text.grid(row=0, column=0, sticky="nsew")
+        sb_v.grid(row=0, column=1, sticky="ns")
+        sb_h.grid(row=1, column=0, sticky="ew")
+        fr.rowconfigure(0, weight=1); fr.columnconfigure(0, weight=1)
+
+        # Populate
+        pairs = SETTINGS.get("tag_pairs") or DEFAULT_TAG_PAIRS
+        lines = []
+        for nfo_p, xml_p, label, tol in pairs:
+            lines.append(f"{nfo_p}\t{xml_p}\t{label}\t{tol}")
+        self._tags_text.insert("1.0", "\n".join(lines))
+
+        br = tk.Frame(f, bg="#1e1e2e"); br.pack(fill="x", padx=16, pady=(0,4))
+        tk.Button(br, text="Reset to defaults", font=("Helvetica",9),
+                  bg="#45475a", fg="#f38ba8", relief="flat", cursor="hand2",
+                  command=self._reset_tags).pack(side="left")
+
+    def _reset_tags(self):
+        self._tags_text.delete("1.0", "end")
+        lines = []
+        for nfo_p, xml_p, label, tol in DEFAULT_TAG_PAIRS:
+            lines.append(f"{nfo_p}\t{xml_p}\t{label}\t{tol}")
+        self._tags_text.insert("1.0", "\n".join(lines))
+
+    def _parse_tags_text(self):
+        raw = self._tags_text.get("1.0", "end").strip()
+        pairs = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line or line.startswith('#'): continue
+            parts = re.split(r'\t|  +', line)
+            if len(parts) >= 2:
+                nfo_p = parts[0].strip()
+                xml_p = parts[1].strip()
+                label = parts[2].strip() if len(parts) > 2 else nfo_p
+                tol   = int(parts[3].strip()) if len(parts) > 3 else 0
+                pairs.append((nfo_p, xml_p, label, tol))
+        return pairs if pairs else None  # None = use defaults
+
+    # ── Save ──────────────────────────────────────────────────────────────────
+    def _save_close(self):
+        SETTINGS["text_editor"]   = self._editor_var.get().strip()
+        SETTINGS["ffmpeg_path"]   = self._ffmpeg_var.get().strip()
+        SETTINGS["scraper_path"]  = self._scraper_var.get().strip()
+        SETTINGS["lang_ok_code"]  = self._lang_var.get().upper()
+        SETTINGS["improve_checks"] = {k: v.get() for k, v in self._ic_vars.items()}
+        SETTINGS["max_nfo_kb"]    = self._max_nfo_kb_var.get()
+        SETTINGS["max_xml_kb"]    = self._max_xml_kb_var.get()
+        SETTINGS["min_backdrops"] = self._min_backdrops_var.get()
+        parsed_tags = self._parse_tags_text()
+        SETTINGS["tag_pairs"]     = parsed_tags  # None → use defaults
+
+        refresh_ffmpeg_paths()
+        _save_settings(SETTINGS)
+
+        # Tell parent to refresh column header and lang_ok values
+        if hasattr(self._parent, "_on_settings_changed"):
+            self._parent._on_settings_changed()
+        self.destroy()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Help Dialog
+# ══════════════════════════════════════════════════════════════════════════════
+
+class HelpDialog(tk.Toplevel):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title(f"Help — {APP_NAME}")
+        self.geometry("760x580")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+        self.resizable(True, True)
+
+        nb = ttk.Notebook(self)
+        nb.pack(fill="both", expand=True)
+        style = ttk.Style()
+        style.configure("TNotebook",     background="#1e1e2e", borderwidth=0)
+        style.configure("TNotebook.Tab", background="#313244", foreground="#cdd6f4",
+                        padding=[12,6], font=("Helvetica",10))
+        style.map("TNotebook.Tab",
+                  background=[("selected","#45475a")],
+                  foreground=[("selected","#89b4fa")])
+
+        self._add_tab(nb, "📖  System Help",  self._SYS)
+        self._add_tab(nb, "🔧  FFmpeg Help",  self._FF)
+        self._add_about_tab(nb)
+
+        tk.Button(self, text="  Close  ", font=("Helvetica",10,"bold"),
+                  bg="#89b4fa", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(pady=(6,12))
+
+    _SYS = """\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Metadata & MediaClinic  —  System Guide  v0.8
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WHAT DOES THIS APP DO?
+  Metadata & MediaClinic audits your KODI media library. It scans
+  a root folder (one subfolder = one movie) and checks every piece
+  of artwork and metadata, giving you a colour-coded health report.
+
+GETTING STARTED
+  1. Click Browse… and select your root media folder.
+  2. Click Scan. The table fills in as each phase completes:
+       Phase 1 — Subfolders listed
+       Phase 2 — Poster / folder.jpg / fanart images
+       Phase 3 — NFO and XML metadata files
+       Phase 4 — Video files + FFprobe (resolution, quality, subs)
+  3. Green row  = everything present and valid.
+     Yellow row = something is missing (not necessarily an error).
+     Red row    = a file has a structural error or bad image header.
+  4. Your last scan is saved automatically and reloaded on startup.
+
+COLUMNS EXPLAINED
+  Subfolder   — movie folder name
+  Poster / Size — poster.jpg status and file size
+  Folder / Size — folder.jpg status and file size
+  Fanart / Size — fanart.jpg status and file size
+  Bkdrps      — number of backdrop.jpg files found
+  .nfo / OK?  — NFO presence and XML validity
+  .xml / OK?  — movie.xml presence and XML validity
+  Language    — language read from XML <Language> tag
+  Video / Size — video file extension and size
+  Quality     — resolution class (4K / 1080p / 720p / etc.)
+  Lang OK?    — Y if target language audio or subtitle is found
+  Subtitles   — summary of embedded and external subtitle tracks
+
+INTERACTING WITH ROWS
+  Double-click   — opens the file for that column (image, video, NFO…)
+  Right-click    — context menu with all actions for that row
+  Shift+↑/↓     — extend selection to multiple rows
+  Page Up/Down   — navigate 20 rows at a time
+  Home / End     — jump to first / last row
+
+DOUBLE-CLICK ACTIONS
+  • Poster/Folder/Fanart columns  → opens the image
+  • NFO/XML column (no errors)    → opens file in text editor
+  • NFO/XML column (errors)       → shows error detail dialog
+  • Video column                  → plays the video
+  • Subtitles column              → opens subtitle detail dialog
+  • Subfolder column              → opens the folder in Explorer
+
+RIGHT-CLICK MENU
+  Open subfolder        — open in Explorer/Finder
+  poster / folder / fanart — open image file
+  Play video            — play with default player
+  Extract 10 backdrops  — extract frames via FFmpeg
+  Subtitles…            — detailed subtitle info
+  Open NFO / XML        — open in configured text editor
+  NFO/XML errors        — show error details
+  Open on IMDB          — open movie page on IMDB (reads XML for ID)
+  Open on TMDb          — open movie page on TheMovieDB
+  Copy Movie Name       — copies title to clipboard; shows picker if
+                          NFO and XML have different titles
+  Run Improvements      — health-check for this row (or all selected)
+  Open in Scraper       — launch scraper with this movie's folder
+  Re-validate           — re-scan this single row without full rescan
+
+SCAN OPTIONS
+  FFprobe checkbox      — uncheck to skip FFprobe (faster scan; leaves
+                          quality/resolution/subtitles blank)
+  Update Scan           — re-scan the same folder without browsing
+  Update Sort button    — re-sort in memory without rescanning
+
+AUTO-SIZE COLUMNS
+  Click "Auto-size Columns" to fit all columns to their content width.
+
+EXPORT CSV
+  Exports the full results table to a CSV file.
+
+IMPROVEMENTS (right-click)
+  Runs configurable health checks on selected movie(s):
+  • Large XML/NFO files
+  • NFO ↔ XML data mismatches
+  • FFprobe vs metadata differences
+  • poster.jpg ≠ folder.jpg
+  • Wrong image proportions or file size
+  • Too few backdrop files
+  Results appear in a popup with Copy and Save options.
+  Configure which checks run, and set thresholds, in Settings.
+
+SETTINGS (menu bar)
+  Tools         — text editor path, FFmpeg path, scraper path
+  Language OK?  — choose which language to check in the Lang OK? column
+  Improvements  — toggle checks on/off, set thresholds
+  NFO-XML Tags  — edit the tag comparison pairs used in check 2.2
+"""
+
+    _FF = """\
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  FFmpeg & Compatible Tools
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WHY DOES THIS APP USE FFMPEG?
+  FFmpeg is a free, open-source multimedia framework. This app
+  uses two of its tools:
+
+  ffprobe  — reads video metadata: resolution, codec, duration,
+             audio tracks, subtitle tracks.
+  ffmpeg   — extracts JPEG frames from video for backdrop images.
+
+WITHOUT FFMPEG:
+  • Video quality column shows "—"
+  • Embedded subtitle tracks not listed
+  • Extract Frames button is disabled
+
+HOW TO INSTALL FFMPEG ON WINDOWS:
+  1. Go to  https://ffmpeg.org/download.html
+  2. Under "Windows builds" click "gyan.dev" or "BtbN".
+  3. Download the "ffmpeg-release-essentials.zip".
+  4. Extract to a permanent folder, e.g.  C:\\Tools\\ffmpeg\\
+  5. Inside you'll find a "bin" subfolder with ffmpeg.exe +
+     ffprobe.exe.
+  6. In Settings → Tools, set the FFmpeg path to that "bin" folder.
+  7. Click "Test FFmpeg" — both should show green.
+
+FFPROBE CHECKBOX:
+  The "FFprobe" checkbox next to the Scan buttons lets you skip
+  FFprobe during scans. This is useful for large libraries where
+  you want a fast re-scan to check for new files without waiting
+  for every video to be analysed.
+  When unchecked, Quality shows "—" and Lang OK? only uses
+  XML/NFO sources.
+
+COMPATIBLE VIDEO SCRAPERS:
+  The app can launch a configured scraper with the movie folder
+  path as an argument. Compatible scrapers include:
+
+  • tinyMediaManager (https://www.tinymediamanager.org/)
+    — leading open-source scraper; supports NFO + XML output;
+      pass folder with: tinyMediaManager.exe "C:\\Movies\\MovieName"
+
+  • Ember Media Manager (https://www.embermm.com/)
+    — Windows-only; excellent artwork scraper for KODI libraries.
+
+  • MediaElch (https://www.kvibes.de/mediaelch/)
+    — cross-platform; supports KODI NFO format natively.
+
+  Set the scraper path in Settings → Tools. The app passes the
+  full movie folder path as the first argument.
+
+BACKDROP EXTRACTION:
+  When you right-click → Extract 10 backdrop frames, the app:
+  1. Reads video duration with ffprobe.
+  2. Spreads 10 timestamps evenly across the movie.
+  3. Calls ffmpeg to extract one JPEG frame per timestamp.
+  4. Saves as backdrop.jpg, backdrop1.jpg … backdrop9.jpg.
+  A smooth progress bar with ETA keeps you informed.
+  You can set the per-frame timeout in the extraction dialog.
+"""
+
+    def _add_tab(self, nb, label, text):
+        frame = tk.Frame(nb, bg="#1e1e2e"); nb.add(frame, text=label)
+        t = tk.Text(frame, wrap="word", bg="#313244", fg="#cdd6f4",
+                    font=("Helvetica",10), relief="flat", padx=14, pady=12,
+                    spacing1=2, spacing3=2)
+        sb = ttk.Scrollbar(frame, orient="vertical", command=t.yview)
+        t.configure(yscrollcommand=sb.set)
+        t.pack(side="left", fill="both", expand=True); sb.pack(side="right", fill="y")
+        t.insert("end", text); t.configure(state="disabled")
+
+    def _add_about_tab(self, nb):
+        frame = tk.Frame(nb, bg="#1e1e2e"); nb.add(frame, text="ℹ️  About")
+        about = (
+            f"  {APP_NAME}\n"
+            f"  Version {APP_VERSION}\n\n"
+            f"  Created by:  {APP_AUTHOR}\n"
+            f"  Contact:     {APP_EMAIL}\n\n"
+            "  ────────────────────────────────────────\n\n"
+            "  Built to keep KODI media libraries clean,\n"
+            "  complete, and metadata-perfect.\n\n"
+            "  ────────────────────────────────────────\n\n"
+            "  VERSION HISTORY\n\n"
+            "  v0.8.0  — Settings menu, Improvements health-check,\n"
+            "             IMDB/TMDb links, Copy Movie Name, Auto-size\n"
+            "             Columns, FFprobe checkbox, configurable\n"
+            "             language column, phased scan, smooth backdrop\n"
+            "             progress, Shift+select, image error details,\n"
+            "             & suppressed in validator, quality fix.\n\n"
+            "  v0.7.0  — Quality column, PT OK?, persistent sessions,\n"
+            "             ffmpeg validation, improved extraction, Help.\n\n"
+            "  v0.6.x  — Previous release (folder_scanner_v6).\n\n"
+            "  ────────────────────────────────────────\n\n"
+            "  Feedback and bug reports welcome at:\n"
+            f"  {APP_EMAIL}\n"
+        )
+        tk.Label(frame, text=about, font=("Helvetica",10),
+                 bg="#1e1e2e", fg="#cdd6f4", justify="left",
+                 anchor="nw", padx=24, pady=20).pack(fill="both", expand=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tooltip
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TreeviewTooltip:
+    def __init__(self, tree, fn):
+        self.tree = tree; self.fn = fn; self.tw = None; self._lc = (None, None)
+        tree.bind("<Motion>", self._m); tree.bind("<Leave>", self._h)
+
+    def _m(self, e):
+        i = self.tree.identify_row(e.y); c = self.tree.identify_column(e.x)
+        if not i or not c: self._h(); return
+        if (i, c) == self._lc: return
+        self._lc = (i, c); t = self.fn(i, int(c.lstrip("#")) - 1)
+        if t: self._s(e, t)
+        else: self._h()
+
+    def _s(self, e, t):
+        self._h()
+        self.tw = w = tk.Toplevel(self.tree); w.wm_overrideredirect(True)
+        w.wm_geometry(f"+{e.x_root+16}+{e.y_root+10}"); w.configure(bg="#45475a")
+        tk.Label(w, text=t, bg="#45475a", fg="#cdd6f4",
+                 font=("Consolas",9,"bold"), padx=8, pady=4,
+                 wraplength=420, justify="left").pack()
+
+    def _h(self, e=None):
+        if self.tw: self.tw.destroy(); self.tw = None
+        self._lc = (None, None)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Main Application
+# ══════════════════════════════════════════════════════════════════════════════
+
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title(f"🎬  {APP_NAME}  v{APP_VERSION}")
+        self.geometry("1600x760"); self.minsize(1200, 560)
+        self.configure(bg="#1e1e2e")
+        self._item_map    = {}
+        self._results     = []
+        self._folder      = None
+        self._scanning    = False
+        self._cancel_scan = False
+        self._use_ffprobe = tk.BooleanVar(value=SETTINGS.get("use_ffprobe", True))
+        self._build_ui()
+        self._update_extract_btn_state()
+        self.after(200, self._restore_last_session)
+
+    # ── Build UI ───────────────────────────────────────────────────────────────
+    def _build_ui(self):
+        # Menu bar
+        menubar = tk.Menu(self, bg="#313244", fg="#cdd6f4",
+                          activebackground="#585b70", activeforeground="#cdd6f4")
+        self.configure(menu=menubar)
+        settings_menu = tk.Menu(menubar, tearoff=0, bg="#313244", fg="#cdd6f4",
+                                activebackground="#585b70", activeforeground="#cdd6f4")
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+        settings_menu.add_command(label="⚙️  All Settings…",
+                                  command=lambda: SettingsDialog(self))
+        settings_menu.add_separator()
+        settings_menu.add_command(label="🔧  Tools (Editor / FFmpeg / Scraper)",
+                                  command=lambda: SettingsDialog(self))
+        settings_menu.add_command(label="🌍  Language OK?",
+                                  command=lambda: SettingsDialog(self))
+        settings_menu.add_command(label="🔍  Improvements",
+                                  command=lambda: SettingsDialog(self))
+        settings_menu.add_command(label="🏷  NFO-XML Tags",
+                                  command=lambda: SettingsDialog(self))
+
+        help_menu = tk.Menu(menubar, tearoff=0, bg="#313244", fg="#cdd6f4",
+                            activebackground="#585b70", activeforeground="#cdd6f4")
+        menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="📖  Help…", command=lambda: HelpDialog(self))
+
+        # ── Header row ────────────────────────────────────────────────────────
+        header = tk.Frame(self, bg="#1e1e2e")
+        header.pack(fill="x", padx=20, pady=(14,4))
+
+        tk.Label(header, text=f"🎬  {APP_NAME}",
+                 font=("Helvetica",17,"bold"),
+                 bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+
+        right_hdr = tk.Frame(header, bg="#1e1e2e"); right_hdr.pack(side="right")
+        self._ff_frame = tk.Frame(right_hdr, bg="#1e1e2e")
+        self._ff_frame.pack(side="left")
+        self._build_ffmpeg_status(self._ff_frame)
+
+        # ── Picker row ────────────────────────────────────────────────────────
+        picker = tk.Frame(self, bg="#1e1e2e"); picker.pack(fill="x", padx=20, pady=(0,6))
+        self.folder_var = tk.StringVar(value="No folder selected")
+        tk.Label(picker, textvariable=self.folder_var,
+                 font=("Helvetica",10), bg="#313244", fg="#a6adc8",
+                 anchor="w", padx=10, pady=6, relief="flat"
+                 ).pack(side="left", fill="x", expand=True, ipady=2)
+
+        btn_kw = dict(font=("Helvetica",10,"bold"), relief="flat", cursor="hand2")
+        tk.Button(picker, text="  Browse…  ", bg="#89b4fa", fg="#1e1e2e",
+                  command=self._browse, **btn_kw).pack(side="left", padx=(8,0))
+        self.scan_btn = tk.Button(picker, text="  Scan  ", bg="#a6e3a1", fg="#1e1e2e",
+                                  command=self._scan, **btn_kw)
+        self.scan_btn.pack(side="left", padx=(6,0))
+        self.update_btn = tk.Button(picker, text="  Update Scan  ", bg="#89dceb", fg="#1e1e2e",
+                                    command=self._update_scan, **btn_kw)
+        self.update_btn.pack(side="left", padx=(6,0))
+        self.cancel_btn = tk.Button(picker, text="  Cancel  ", bg="#f38ba8", fg="#1e1e2e",
+                                    command=self._cancel, **btn_kw)
+        self.extract_btn = tk.Button(picker, text="  Extract Frames  ", bg="#fab387",
+                                     fg="#1e1e2e", command=self._extract_frames, **btn_kw)
+        self.extract_btn.pack(side="left", padx=(6,0))
+        tk.Button(picker, text="  Export CSV  ", bg="#cba6f7", fg="#1e1e2e",
+                  command=self._export_csv, **btn_kw).pack(side="left", padx=(6,0))
+
+        # FFprobe checkbox
+        tk.Checkbutton(picker, text="FFprobe", variable=self._use_ffprobe,
+                       command=self._on_ffprobe_toggle,
+                       font=("Helvetica",9), bg="#1e1e2e", fg="#a6adc8",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(side="left", padx=(10,0))
+
+        # ── Sort row ──────────────────────────────────────────────────────────
+        sr = tk.Frame(self, bg="#1e1e2e"); sr.pack(fill="x", padx=20, pady=(0,2))
+        tk.Label(sr, text="Sort:", font=("Helvetica",10),
+                 bg="#1e1e2e", fg="#a6adc8").pack(side="left")
+        self.sort_var = tk.StringVar(value=SETTINGS.get("sort_option","Subfolder (A→Z)"))
+        self._sort_combo = ttk.Combobox(sr, textvariable=self.sort_var,
+                                        values=list(SORT_OPTIONS.keys()),
+                                        state="readonly", width=28, font=("Helvetica",10))
+        self._sort_combo.pack(side="left", padx=(6,0))
+        tk.Button(sr, text=" ↺ Update Sort ", font=("Helvetica",9,"bold"),
+                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=self._refresh_table).pack(side="left", padx=(6,0))
+        tk.Button(sr, text=" ⟺ Auto-size Columns ", font=("Helvetica",9,"bold"),
+                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=self._auto_size_all).pack(side="left", padx=(6,0))
+
+        # Legend
+        lg = tk.Frame(sr, bg="#1e1e2e"); lg.pack(side="right")
+        for c, lbl in [("#a6e3a1","All OK"),("#f9e2af","Missing"),("#f38ba8","Errors")]:
+            tk.Label(lg, text="■", font=("Helvetica",12), bg="#1e1e2e", fg=c
+                     ).pack(side="left", padx=(10,0))
+            tk.Label(lg, text=lbl, font=("Helvetica",9), bg="#1e1e2e", fg="#a6adc8"
+                     ).pack(side="left", padx=(2,0))
+
+        # ── Progress bar ──────────────────────────────────────────────────────
+        self.progress_frame = tk.Frame(self, bg="#1e1e2e")
+        self.progress_frame.pack(fill="x", padx=20, pady=(0,2))
+        self.pbar_canvas = tk.Canvas(self.progress_frame, height=22,
+                                     bg="#313244", highlightthickness=0)
+        self.pbar_label  = tk.Label(self.progress_frame, text="",
+                                    font=("Helvetica",9), bg="#1e1e2e", fg="#6c7086")
+
+        # ── Stats ──────────────────────────────────────────────────────────────
+        self.stats_var = tk.StringVar(value="")
+        tk.Label(self, textvariable=self.stats_var,
+                 font=("Helvetica",9), bg="#1e1e2e", fg="#6c7086"
+                 ).pack(anchor="w", padx=22)
+
+        # ── Table ──────────────────────────────────────────────────────────────
+        tf = tk.Frame(self, bg="#1e1e2e")
+        tf.pack(fill="both", expand=True, padx=20, pady=(4,16))
+
+        style = ttk.Style(self); style.theme_use("clam")
+        style.configure("Treeview", background="#313244", foreground="#cdd6f4",
+                        fieldbackground="#313244", rowheight=26,
+                        font=("Helvetica",10))
+        style.configure("Treeview.Heading", background="#45475a", foreground="#89b4fa",
+                        font=("Helvetica",10,"bold"), relief="flat")
+        style.map("Treeview",
+                  background=[("selected","#585b70")],
+                  foreground=[("selected","#cdd6f4")])
+
+        cols = ("subfolder","poster","poster_sz","folder","folder_sz",
+                "fanart","fanart_sz","backdrops","nfo","nfo_ok","xml","xml_ok",
+                "language","vid_ext","vid_size","quality","lang_ok","subs")
+        self.tree = ttk.Treeview(tf, columns=cols, show="headings",
+                                 selectmode="extended")   # extended for shift-select
+
+        iso = SETTINGS.get("lang_ok_code", "PT")
+        lang_ok_label = f"{iso} OK?"
+
+        col_defs = [
+            ("subfolder", "Subfolder",  240, "w",      True),
+            ("poster",    "Poster",      56, "center", False),
+            ("poster_sz", "Size",        72, "center", False),
+            ("folder",    "Folder",      56, "center", False),
+            ("folder_sz", "Size",        72, "center", False),
+            ("fanart",    "Fanart",      56, "center", False),
+            ("fanart_sz", "Size",        72, "center", False),
+            ("backdrops", "Bkdrps",      52, "center", False),
+            ("nfo",       ".nfo",        44, "center", False),
+            ("nfo_ok",    "OK?",         40, "center", False),
+            ("xml",       ".xml",        44, "center", False),
+            ("xml_ok",    "OK?",         40, "center", False),
+            ("language",  "Language",    82, "center", False),
+            ("vid_ext",   "Video",       52, "center", False),
+            ("vid_size",  "Vid Size",    74, "center", False),
+            ("quality",   "Quality",     74, "center", False),
+            ("lang_ok",   lang_ok_label, 58, "center", False),
+            ("subs",      "Subtitles",  180, "w",      True),
+        ]
+        for cid, h, w, a, s in col_defs:
+            self.tree.heading(cid, text=h,
+                              command=lambda c=cid: self._on_header_dblclick_guard(c))
+            self.tree.column(cid, width=w, anchor=a, stretch=s, minwidth=30)
+
+        for t in ["green","green_odd","yellow","yellow_odd","red","red_odd"]:
+            bg = {"green":"#1e3a2f","green_odd":"#243d33",
+                  "yellow":"#3a351e","yellow_odd":"#3d3824",
+                  "red":"#3a1e1e","red_odd":"#3d2424"}[t]
+            self.tree.tag_configure(t, background=bg)
+
+        vsb = ttk.Scrollbar(tf, orient="vertical",   command=self.tree.yview)
+        hsb = ttk.Scrollbar(tf, orient="horizontal",  command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        tf.rowconfigure(0, weight=1); tf.columnconfigure(0, weight=1)
+
+        self.tree.bind("<Double-1>",       self._dblclick)
+        self.tree.bind("<Button-3>",       self._rclick)
+        self.tree.bind("<Button-2>",       self._rclick)
+        # Keyboard navigation
+        for key in ("<Prior>","<Next>","<Home>","<End>"):
+            self.tree.bind(key, self._kb_navigate)
+        # Shift+Arrow multi-select
+        self.tree.bind("<Shift-Up>",   self._shift_up)
+        self.tree.bind("<Shift-Down>", self._shift_down)
+
+        self._ctx = tk.Menu(self, tearoff=0, bg="#313244", fg="#cdd6f4",
+                            activebackground="#585b70", activeforeground="#cdd6f4",
+                            font=("Helvetica",10))
+        TreeviewTooltip(self.tree, self._tooltip)
+
+        # Header double-click state tracker
+        self._hdr_click_time = {}
+
+    # ── Column header double-click (auto-size) ────────────────────────────────
+    def _on_header_dblclick_guard(self, col_id):
+        now = time.time()
+        last = self._hdr_click_time.get(col_id, 0)
+        if now - last < 0.35:
+            self._auto_size_col(col_id)
+        self._hdr_click_time[col_id] = now
+
+    def _auto_size_col(self, col_id):
+        font_obj = tk_font.Font(font=("Helvetica",10))
+        hdr  = self.tree.heading(col_id)["text"]
+        maxw = font_obj.measure(hdr) + 24
+        cols = list(self.tree["columns"])
+        for iid in self.tree.get_children():
+            vals = self.tree.item(iid, "values")
+            try:
+                idx  = cols.index(col_id)
+                cell = str(vals[idx]).split("\n")[0] if idx < len(vals) else ""
+                w    = font_obj.measure(cell) + 24
+                if w > maxw: maxw = w
+            except (ValueError, IndexError): pass
+        self.tree.column(col_id, width=min(maxw, 800))
+
+    def _auto_size_all(self):
+        for col_id in self.tree["columns"]:
+            self._auto_size_col(col_id)
+
+    # ── Keyboard navigation ───────────────────────────────────────────────────
+    def _kb_navigate(self, event):
+        children = self.tree.get_children()
+        if not children: return
+        sel = self.tree.selection()
+        if not sel:
+            first = children[0]
+            self.tree.selection_set(first); self.tree.see(first); return
+        cur_idx = list(children).index(sel[-1])
+        key = event.keysym
+        if key == "Prior":  new_idx = max(0, cur_idx - 20)
+        elif key == "Next": new_idx = min(len(children)-1, cur_idx+20)
+        elif key == "Home": new_idx = 0
+        elif key == "End":  new_idx = len(children)-1
+        else: return
+        target = children[new_idx]
+        self.tree.selection_set(target); self.tree.see(target)
+        return "break"
+
+    def _shift_up(self, event):
+        children = self.tree.get_children()
+        if not children: return
+        sel = self.tree.selection()
+        if not sel: return
+        cur_idx = list(children).index(sel[0])
+        if cur_idx > 0:
+            new = children[cur_idx - 1]
+            self.tree.selection_add(new); self.tree.see(new)
+        return "break"
+
+    def _shift_down(self, event):
+        children = self.tree.get_children()
+        if not children: return
+        sel = self.tree.selection()
+        if not sel: return
+        cur_idx = list(children).index(sel[-1])
+        if cur_idx < len(children)-1:
+            new = children[cur_idx + 1]
+            self.tree.selection_add(new); self.tree.see(new)
+        return "break"
+
+    # ── FFmpeg status bar ──────────────────────────────────────────────────────
+    def _build_ffmpeg_status(self, parent):
+        for w in parent.winfo_children(): w.destroy()
+        ff_ok, fp_ok, ff_msg, fp_msg = _test_ffmpeg(FFMPEG_PATH, FFPROBE_PATH)
+        if ff_ok and fp_ok:
+            lbl = tk.Label(parent, text="FFmpeg ✓", font=("Helvetica",9,"bold"),
+                           bg="#1e1e2e", fg="#a6e3a1", cursor="hand2")
+            lbl.pack(side="left")
+            self._ff_tip = None
+            ff_dir = os.path.dirname(FFMPEG_PATH)
+            def _show(e):
+                self._ff_tip = tw = tk.Toplevel(parent); tw.wm_overrideredirect(True)
+                tw.wm_geometry(f"+{e.x_root+10}+{e.y_root+15}"); tw.configure(bg="#45475a")
+                tk.Label(tw, text=f"Path: {ff_dir}\nClick to open Settings",
+                         bg="#45475a", fg="#cdd6f4", font=("Consolas",9), padx=8, pady=4).pack()
+            def _hide(e):
+                if self._ff_tip: self._ff_tip.destroy(); self._ff_tip = None
+            lbl.bind("<Enter>", _show); lbl.bind("<Leave>", _hide)
+            lbl.bind("<Button-1>", lambda e: SettingsDialog(self))
+        else:
+            if not ff_ok and not fp_ok:
+                status_text = "FFmpeg ✗"; fg = "#f38ba8"
+            elif not ff_ok:
+                status_text = "ffmpeg ✗"; fg = "#fab387"
+            else:
+                status_text = "ffprobe ✗"; fg = "#fab387"
+            tk.Label(parent, text=status_text, font=("Helvetica",9,"bold"),
+                     bg="#1e1e2e", fg=fg).pack(side="left", padx=(0,4))
+            tk.Button(parent, text="Set path", font=("Helvetica",8),
+                      bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                      command=lambda: SettingsDialog(self)).pack(side="left", padx=(0,4))
+            tk.Button(parent, text="Download", font=("Helvetica",8),
+                      bg="#45475a", fg="#89b4fa", relief="flat", cursor="hand2",
+                      command=lambda: webbrowser.open("https://ffmpeg.org/download.html")
+                      ).pack(side="left", padx=(0,4))
+
+    def _update_extract_btn_state(self):
+        ff_ok, fp_ok, _, _ = _test_ffmpeg(FFMPEG_PATH, FFPROBE_PATH)
+        if ff_ok and fp_ok:
+            self.extract_btn.configure(state="normal", bg="#fab387",
+                                       cursor="hand2", fg="#1e1e2e")
+        else:
+            self.extract_btn.configure(state="disabled", bg="#45475a",
+                                       cursor="", fg="#6c7086")
+
+    def _on_ffprobe_toggle(self):
+        SETTINGS["use_ffprobe"] = self._use_ffprobe.get()
+        _save_settings(SETTINGS)
+
+    # ── Settings changed callback ─────────────────────────────────────────────
+    def _on_settings_changed(self):
+        """Called by SettingsDialog on save — refresh column header + lang values."""
+        iso = SETTINGS.get("lang_ok_code", "PT")
+        self.tree.heading("lang_ok", text=f"{iso} OK?")
+        # Re-evaluate lang_ok for all results in memory
+        for r in self._results:
+            r["lang_ok"] = compute_lang_ok(
+                r.get("video_path"), r.get("subs_internal",[]),
+                r.get("subs_external",[]),
+                r.get("nfo_path") if r.get("nfo_exists") else None,
+                r.get("xml_path") if r.get("xml_exists") else None,
+                iso_code=iso)
+        self._refresh_table()
+        self._build_ffmpeg_status(self._ff_frame)
+        self._update_extract_btn_state()
+
+    # ── Tooltip ────────────────────────────────────────────────────────────────
+    def _tooltip(self, iid, ci):
+        d = self._item_map.get(iid)
+        if not d: return None
+        if ci == COL_POSTER_SZ and d["poster_exists"]:
+            tip = f"Dimensions: {d['poster_dim']}" if d["poster_dim"] else ""
+            if d.get("poster_desc"): tip += f"\n⚠️ {d['poster_desc']}"
+            return tip or None
+        if ci == COL_FOLDER_SZ and d["folder_exists"]:
+            tip = f"Dimensions: {d['folder_dim']}" if d["folder_dim"] else ""
+            if d.get("folder_desc"): tip += f"\n⚠️ {d['folder_desc']}"
+            return tip or None
+        if ci == COL_FANART_SZ and d["fanart_exists"]:
+            tip = f"Dimensions: {d['fanart_dim']}" if d["fanart_dim"] else ""
+            if d.get("fanart_desc"): tip += f"\n⚠️ {d['fanart_desc']}"
+            return tip or None
+        if ci == COL_QUALITY and d.get("video_width"):
+            return f"{d['video_width']}×{d['video_height']} px"
+        if ci == COL_LANG_OK:
+            v = d.get("lang_ok","—"); iso = SETTINGS.get("lang_ok_code","PT")
+            lang_name = next((n for c,n in WORLD_LANGUAGES if c==iso), iso)
+            if v == "Y":  return f"{lang_name} audio or subtitle found"
+            if v == "N":  return f"No {lang_name} audio or subtitle found"
+            return "No video — cannot determine"
+        return None
+
+    # ── Double-click ───────────────────────────────────────────────────────────
+    def _dblclick(self, e):
+        if self._scanning: return
+        region = self.tree.identify_region(e.x, e.y)
+        if region == "heading":
+            col_id = self.tree.identify_column(e.x)
+            if col_id:
+                cols = self.tree["columns"]
+                idx  = int(col_id.lstrip("#")) - 1
+                if 0 <= idx < len(cols):
+                    self._auto_size_col(cols[idx])
+            return
+        iid = self.tree.identify_row(e.y); cid = self.tree.identify_column(e.x)
+        if not iid or not cid: return
+        ci = int(cid.lstrip("#")) - 1; d = self._item_map.get(iid)
+        if not d: return
+        if ci in (COL_POSTER, COL_POSTER_SZ):
+            os_open(d["poster_path"]) if d["poster_exists"] else messagebox.showinfo("Missing","poster.jpg not found.")
+        elif ci in (COL_FOLDER, COL_FOLDER_SZ):
+            os_open(d["folder_path"]) if d["folder_exists"] else messagebox.showinfo("Missing","folder.jpg not found.")
+        elif ci in (COL_FANART, COL_FANART_SZ):
+            os_open(d["fanart_path"]) if d["fanart_exists"] else messagebox.showinfo("Missing","fanart.jpg not found.")
+        elif ci == COL_BACKDROPS:
+            os_open(d["backdrop_paths"][0]) if d["backdrop_count"] > 0 else messagebox.showinfo("Missing","No backdrops.")
+        elif ci in (COL_NFO, COL_NFO_OK):
+            if not d["nfo_exists"]: messagebox.showinfo("Missing", f"Expected: {os.path.basename(d['nfo_path'])}")
+            elif d["nfo_errors"]:   ErrorDialog(self, f"NFO Errors — {d['subfolder']}", d["nfo_path"], d["nfo_errors"])
+            else:                   open_in_editor(d["nfo_path"])
+        elif ci in (COL_XML, COL_XML_OK):
+            if not d["xml_exists"]: messagebox.showinfo("Missing","movie.xml not found.")
+            elif d["xml_errors"]:   ErrorDialog(self, f"XML Errors — {d['subfolder']}", d["xml_path"], d["xml_errors"])
+            else:                   open_in_editor(d["xml_path"])
+        elif ci == COL_LANGUAGE:
+            if d["xml_exists"]: open_in_editor(d["xml_path"])
+        elif ci in (COL_VID_EXT, COL_VID_SIZE, COL_QUALITY):
+            os_open(d["video_path"]) if d["video_path"] else messagebox.showinfo("Missing","No video.")
+        elif ci == COL_SUBS:
+            SubtitleDialog(self, d["subfolder"], d)
+        elif ci == COL_SUBFOLDER:
+            os_open(d["subfolder_path"])
+
+    # ── Right-click context menu ───────────────────────────────────────────────
+    def _rclick(self, e):
+        if self._scanning: return
+        iid = self.tree.identify_row(e.y)
+        if not iid: return
+        # If the clicked row is not in selection, replace selection
+        if iid not in self.tree.selection():
+            self.tree.selection_set(iid)
+        d = self._item_map.get(iid)
+        if not d: return
+        sel_iids = self.tree.selection()
+        sel_data = [self._item_map[i] for i in sel_iids if i in self._item_map]
+        multi    = len(sel_data) > 1
+
+        m = self._ctx; m.delete(0, "end")
+        if not multi:
+            m.add_command(label="📂  Open subfolder",
+                          command=lambda: os_open(d["subfolder_path"]))
+            m.add_separator()
+            for lb, ke, kp in [("🖼  poster","poster_exists","poster_path"),
+                                ("🖼  folder.jpg","folder_exists","folder_path"),
+                                ("🖼  fanart","fanart_exists","fanart_path")]:
+                if d[ke]:  m.add_command(label=lb, command=lambda p=d[kp]: os_open(p))
+                else:      m.add_command(label=lb+" (missing)", state="disabled")
+            if d["backdrop_count"]:
+                m.add_command(label=f"🖼  Backdrops ({d['backdrop_count']})",
+                              command=lambda: os_open(d["backdrop_paths"][0]))
+            m.add_separator()
+            if d["video_path"]:
+                m.add_command(label="🎬  Play video",
+                              command=lambda: os_open(d["video_path"]))
+                ff_ok, fp_ok, _, _ = _test_ffmpeg(FFMPEG_PATH, FFPROBE_PATH)
+                if ff_ok:
+                    m.add_command(label="🎞️  Extract 10 backdrop frames",
+                                  command=lambda: self._do_extract(d))
+            else:
+                m.add_command(label="🎬  Video (missing)", state="disabled")
+            if d.get("subs_internal") or d.get("subs_external"):
+                m.add_command(label="💬  Subtitles…",
+                              command=lambda: SubtitleDialog(self, d["subfolder"], d))
+            m.add_separator()
+            if d["nfo_exists"]:
+                m.add_command(label="📝  Open .nfo",
+                              command=lambda: open_in_editor(d["nfo_path"]))
+                if d["nfo_errors"]:
+                    m.add_command(label=f"⚠️  NFO errors ({len(d['nfo_errors'])})",
+                                  command=lambda: ErrorDialog(
+                                      self, f"NFO — {d['subfolder']}", d["nfo_path"], d["nfo_errors"]))
+            if d["xml_exists"]:
+                m.add_command(label="📝  Open movie.xml",
+                              command=lambda: open_in_editor(d["xml_path"]))
+                if d["xml_errors"]:
+                    m.add_command(label=f"⚠️  XML errors ({len(d['xml_errors'])})",
+                                  command=lambda: ErrorDialog(
+                                      self, f"XML — {d['subfolder']}", d["xml_path"], d["xml_errors"]))
+            m.add_separator()
+            # IMDB / TMDb
+            imdb_id, tmdb_id = get_movie_ids_from_xml(d.get("xml_path",""))
+            if imdb_id:
+                url = f"https://www.imdb.com/title/{imdb_id}"
+                m.add_command(label="🌐  Open on IMDB",
+                              command=lambda u=url: webbrowser.open(u))
+            else:
+                m.add_command(label="🌐  Open on IMDB (ID not found)", state="disabled")
+            if tmdb_id:
+                url = f"https://www.themoviedb.org/movie/{tmdb_id}"
+                m.add_command(label="🌐  Open on TMDb",
+                              command=lambda u=url: webbrowser.open(u))
+            else:
+                m.add_command(label="🌐  Open on TMDb (ID not found)", state="disabled")
+            m.add_separator()
+            m.add_command(label="📋  Copy Movie Name",
+                          command=lambda: self._copy_movie_name(d))
+            if SETTINGS.get("scraper_path",""):
+                m.add_command(label="🎬  Open in Scraper",
+                              command=lambda: open_with_scraper(d["subfolder_path"]))
+            m.add_separator()
+
+        # Multi-selection options
+        label_sel = f"🔍  Run Improvements ({len(sel_data)} movies)" if multi \
+                    else "🔍  Run Improvements"
+        m.add_command(label=label_sel,
+                      command=lambda dd=sel_data: self._run_improvements_on(dd))
+        if multi:
+            ff_ok, _, _, _ = _test_ffmpeg(FFMPEG_PATH, FFPROBE_PATH)
+            if ff_ok:
+                m.add_command(label=f"🎞️  Extract frames ({len(sel_data)} movies)",
+                              command=lambda dd=sel_data: self._extract_multi(dd))
+        if not multi:
+            m.add_command(label="🔄  Re-validate",
+                          command=lambda: self._reval(iid, d))
+        m.tk_popup(e.x_root, e.y_root)
+
+    def _copy_movie_name(self, d):
+        titles = get_movie_titles_from_files(
+            d.get("nfo_path") if d.get("nfo_exists") else None,
+            d.get("xml_path") if d.get("xml_exists") else None)
+        if not titles:
+            messagebox.showinfo("Copy Movie Name",
+                                "No title found in NFO or XML.", parent=self)
+            return
+        unique = list(dict.fromkeys(titles))  # preserve order, deduplicate
+        if len(unique) == 1:
+            self.clipboard_clear(); self.clipboard_append(unique[0])
+            # No popup needed — silent copy
+        else:
+            CopyMovieNameDialog(self, unique)
+
+    def _run_improvements_on(self, data_list):
+        checks = SETTINGS.get("improve_checks", _DEFAULT_SETTINGS["improve_checks"])
+        results = run_improvements(data_list, checks)
+        report  = format_improvements_report(results)
+        ImprovementsDialog(self, report, len(data_list))
+
+    def _extract_multi(self, data_list):
+        ff_ok, fp_ok, _, _ = _test_ffmpeg(FFMPEG_PATH, FFPROBE_PATH)
+        if not ff_ok:
+            messagebox.showerror("FFmpeg missing", "FFmpeg not available."); return
+        for d in data_list:
+            if d.get("video_path"):
+                timeout = SETTINGS.get("extract_timeout", 60)
+                dlg = FrameExtractionDialog(self, d["video_path"], d["subfolder_path"],
+                                            timeout_sec=timeout)
+                self.wait_window(dlg)
+
+    def _reval(self, iid, data):
+        sp, sn = data["subfolder_path"], data["subfolder"]
+        if not os.path.isdir(sp): messagebox.showerror("Error","Folder gone."); return
+        r = scan_one_subfolder(sp, sn)
+        self._item_map[iid] = r
+        for i, o in enumerate(self._results):
+            if o["subfolder_path"] == sp: self._results[i] = r; break
+        tag = r["row_health"] + ("_odd" if self.tree.index(iid) % 2 else "")
+        self.tree.item(iid, values=self._rv(r), tags=(tag,))
+        self._update_stats()
+
+    # ── Extract frames ─────────────────────────────────────────────────────────
+    def _extract_frames(self):
+        if self._scanning: return
+        sel = self.tree.selection()
+        if not sel: messagebox.showwarning("No selection","Select a row first."); return
+        d = self._item_map.get(sel[0])
+        if not d: return
+        self._do_extract(d)
+
+    def _do_extract(self, d):
+        ff_ok, fp_ok, _, _ = _test_ffmpeg(FFMPEG_PATH, FFPROBE_PATH)
+        if not ff_ok:
+            messagebox.showerror("FFmpeg missing",
+                                 "FFmpeg not available. Set path in Settings."); return
+        if not d.get("video_path"):
+            messagebox.showwarning("No video","No video file in this folder."); return
+        timeout = SETTINGS.get("extract_timeout", 60)
+        dlg = FrameExtractionDialog(self, d["video_path"], d["subfolder_path"],
+                                    timeout_sec=timeout)
+        self.wait_window(dlg)
+        SETTINGS["extract_timeout"] = dlg._timeout_var.get()
+        _save_settings(SETTINGS)
+        sel = self.tree.selection()
+        if sel and sel[0] in self._item_map:
+            self._reval(sel[0], self._item_map[sel[0]])
+
+    # ── Browse / Scan / Update / Cancel ───────────────────────────────────────
+    def _browse(self):
+        if self._scanning: return
+        p = filedialog.askdirectory(title="Select root folder")
+        if p:
+            self._folder = p; self.folder_var.set(p); self.stats_var.set("")
+            self._results = []; self._item_map.clear()
+            for r in self.tree.get_children(): self.tree.delete(r)
+
+    def _update_scan(self):
+        if self._scanning: return
+        folder = self._folder or SETTINGS.get("last_folder", "")
+        if not folder or not os.path.isdir(folder):
+            messagebox.showwarning("No folder","No folder to update. Browse first."); return
+        self._folder = folder; self.folder_var.set(folder)
+        self._start_scan(folder)
+
+    def _scan(self):
+        if self._scanning: return
+        if not self._folder:
+            messagebox.showwarning("No folder","Select a folder first."); return
+        self._start_scan(self._folder)
+
+    def _cancel(self):
+        self._cancel_scan = True
+        self.pbar_label.configure(text="Cancelling…")
+
+    def _draw_scan_progress(self, pct, text):
+        c = self.pbar_canvas; c.delete("all")
+        w = c.winfo_width() or 400; h = 22
+        c.create_rectangle(0, 0, w, h, fill="#313244", outline="")
+        fw = int(w * pct / 100)
+        if fw > 0:
+            c.create_rectangle(0, 0, fw, h, fill="#2d6e3f", outline="")
+        c.create_text(w//2, h//2, text=f"{pct}%",
+                      fill="#cdd6f4", font=("Helvetica",10,"bold"))
+        self.pbar_label.configure(text=text)
+
+    def _start_scan(self, folder):
+        try:
+            entries = sorted([e for e in os.scandir(folder) if e.is_dir()],
+                             key=lambda e: e.name.lower())
+        except PermissionError:
+            messagebox.showerror("Error", f"Cannot access: {folder}"); return
+        if not entries:
+            messagebox.showinfo("Empty","No subfolders found."); return
+
+        self._results = []; self._item_map.clear()
+        for r in self.tree.get_children(): self.tree.delete(r)
+
+        self._scanning = True; self._cancel_scan = False
+        self.scan_btn.configure(state="disabled")
+        self.update_btn.configure(state="disabled")
+        self.cancel_btn.pack(side="left", padx=(6,0))
+        self.pbar_canvas.pack(side="left", fill="x", expand=True)
+        self.pbar_label.pack(side="left", padx=(8,0))
+        self._draw_scan_progress(0, "Starting…")
+
+        use_ff = self._use_ffprobe.get()
+        total  = len(entries)
+        t0     = [time.time()]
+
+        def _eta_str(done, total, elapsed):
+            if done == 0: return ""
+            avg = elapsed / done
+            rem = avg * (total - done)
+            if rem > 60: return f"{int(rem//60)}m {int(rem%60)}s remaining"
+            return f"{int(rem)}s remaining"
+
+        def _insert_or_update(r, idx):
+            """Insert a new row or update an existing one in the table."""
+            tag = r["row_health"] + ("_odd" if idx % 2 else "")
+            # Check if row already exists
+            for iid, rd in self._item_map.items():
+                if rd.get("subfolder_path") == r["subfolder_path"]:
+                    self._item_map[iid] = r
+                    self.tree.item(iid, values=self._rv(r), tags=(tag,))
+                    return
+            iid = self.tree.insert("", "end", values=self._rv(r), tags=(tag,))
+            self._item_map[iid] = r
+
+        def worker():
+            results_partial = []
+
+            # ── Phase 1: list subfolders ──────────────────────────────────────
+            self.after(0, lambda: self._draw_scan_progress(0, "Phase 1/4 — Listing subfolders…"))
+            stubs = []
+            for entry in entries:
+                stubs.append({
+                    "subfolder": entry.name, "subfolder_path": entry.path,
+                    "poster_exists":False,"poster_path":os.path.join(entry.path,"poster.jpg"),
+                    "poster_bytes":0,"poster_size":"—","poster_dim":None,"poster_corrupt":False,"poster_desc":"",
+                    "fanart_exists":False,"fanart_path":os.path.join(entry.path,"fanart.jpg"),
+                    "fanart_bytes":0,"fanart_size":"—","fanart_dim":None,"fanart_corrupt":False,"fanart_desc":"",
+                    "folder_exists":False,"folder_path":os.path.join(entry.path,"folder.jpg"),
+                    "folder_bytes":0,"folder_size":"—","folder_dim":None,"folder_corrupt":False,"folder_desc":"",
+                    "backdrop_count":0,"backdrop_paths":[],
+                    "nfo_exists":False,"nfo_path":os.path.join(entry.path,entry.name+".nfo"),
+                    "nfo_bytes":0,"nfo_size":"—","nfo_status":STATUS_MISSING,"nfo_errors":[],
+                    "xml_exists":False,"xml_path":os.path.join(entry.path,"movie.xml"),
+                    "xml_bytes":0,"xml_size":"—","xml_status":STATUS_MISSING,"xml_errors":[],
+                    "language":"—","video_count":0,"video_files":[],"video_ext":"—",
+                    "video_path":None,"video_bytes":0,"video_size":"—",
+                    "video_width":None,"video_height":None,"video_quality":"—","video_status":STATUS_MISSING,
+                    "subs_internal":[],"subs_external":[],"subs_summary":"—","lang_ok":"—",
+                    "row_health":"yellow",
+                })
+            results_partial = list(stubs)
+            self.after(0, lambda r=list(results_partial): self._phase_update(r, "Phase 1/4 complete — subfolders listed"))
+
+            if self._cancel_scan:
+                self.after(0, lambda: self._scan_done(results_partial)); return
+
+            # ── Phase 2: images ───────────────────────────────────────────────
+            for i, (entry, row) in enumerate(zip(entries, results_partial)):
+                if self._cancel_scan: break
+                pct = int((i+1)/total * 25)
+                eta = _eta_str(i+1, total, time.time()-t0[0])
+                self.after(0, lambda p=pct, e=eta: self._draw_scan_progress(
+                    p, f"Phase 2/4 — Images {p}%  {e}"))
+
+                sub = entry.path
+                for img, key, itype in [("poster.jpg","poster","poster"),
+                                         ("folder.jpg","folder","folder"),
+                                         ("fanart.jpg","fanart","fanart")]:
+                    p_img = os.path.join(sub, img)
+                    exists = os.path.isfile(p_img)
+                    row[f"{key}_exists"] = exists
+                    if exists:
+                        sz = os.path.getsize(p_img)
+                        row[f"{key}_bytes"] = sz
+                        row[f"{key}_size"]  = format_size(sz)
+                        row[f"{key}_dim"]   = get_image_dimensions(p_img)
+                        st, desc = check_image_health(p_img, itype)
+                        row[f"{key}_corrupt"] = (st == STATUS_ERROR)
+                        row[f"{key}_desc"]    = desc
+
+                bc, bp = count_backdrops(sub)
+                row["backdrop_count"] = bc; row["backdrop_paths"] = bp
+                row["row_health"] = _compute_health(row)
+                # incremental save every 10 rows
+                if i % 10 == 0:
+                    self.after(0, lambda r=list(results_partial):
+                               self._incremental_save(r))
+
+            self.after(0, lambda r=list(results_partial):
+                       self._phase_update(r, "Phase 2/4 complete — images scanned"))
+            if self._cancel_scan:
+                self.after(0, lambda: self._scan_done(results_partial)); return
+
+            # ── Phase 3: NFO / XML ─────────────────────────────────────────────
+            for i, (entry, row) in enumerate(zip(entries, results_partial)):
+                if self._cancel_scan: break
+                pct = 25 + int((i+1)/total * 25)
+                eta = _eta_str(i+1, total, time.time()-t0[0])
+                self.after(0, lambda p=pct, e=eta: self._draw_scan_progress(
+                    p, f"Phase 3/4 — Metadata {p}%  {e}"))
+
+                sub = entry.path; sn = entry.name
+                nfo_path = os.path.join(sub, sn+".nfo")
+                xml_path = os.path.join(sub, "movie.xml")
+                ne = os.path.isfile(nfo_path); xe = os.path.isfile(xml_path)
+                row["nfo_exists"] = ne; row["nfo_path"] = nfo_path
+                if ne:
+                    nb = os.path.getsize(nfo_path); nerr = validate_xml_file(nfo_path, True)
+                    row["nfo_bytes"] = nb; row["nfo_size"] = format_size(nb); row["nfo_errors"] = nerr
+                    row["nfo_status"] = (STATUS_ERROR if nerr else STATUS_OK)
+                row["xml_exists"] = xe; row["xml_path"] = xml_path
+                if xe:
+                    xb = os.path.getsize(xml_path); xerr = validate_xml_file(xml_path, False)
+                    row["xml_bytes"] = xb; row["xml_size"] = format_size(xb); row["xml_errors"] = xerr
+                    row["xml_status"] = (STATUS_ERROR if xerr else STATUS_OK)
+                    row["language"] = extract_language_from_xml(xml_path)
+                row["row_health"] = _compute_health(row)
+                if i % 10 == 0:
+                    self.after(0, lambda r=list(results_partial):
+                               self._incremental_save(r))
+
+            self.after(0, lambda r=list(results_partial):
+                       self._phase_update(r, "Phase 3/4 complete — metadata scanned"))
+            if self._cancel_scan:
+                self.after(0, lambda: self._scan_done(results_partial)); return
+
+            # ── Phase 4: video + ffprobe ───────────────────────────────────────
+            for i, (entry, row) in enumerate(zip(entries, results_partial)):
+                if self._cancel_scan: break
+                pct = 50 + int((i+1)/total * 50)
+                eta = _eta_str(i+1, total, time.time()-t0[0])
+                self.after(0, lambda p=pct, e=eta: self._draw_scan_progress(
+                    p, f"Phase 4/4 — Video{'+FFprobe' if use_ff else ''} {p}%  {e}"))
+
+                sub = entry.path
+                vi  = scan_video_files(sub)
+                if use_ff and vi["video_path"] and FFPROBE_PATH:
+                    w, h = _get_video_resolution(vi["video_path"])
+                    vi["video_width"] = w; vi["video_height"] = h
+                    vi["video_quality"] = classify_quality(w, h)
+                si = scan_subtitles(sub, vi["video_path"])
+                iso = SETTINGS.get("lang_ok_code","PT")
+                nfo_p = row["nfo_path"] if row["nfo_exists"] else None
+                xml_p = row["xml_path"] if row["xml_exists"] else None
+                lo = compute_lang_ok(vi["video_path"], si["subs_internal"],
+                                     si["subs_external"], nfo_p, xml_p, iso)
+                vs = (STATUS_MISSING if vi["video_count"]==0
+                      else STATUS_ERROR if vi["video_count"]>1 else STATUS_OK)
+                row.update({
+                    "video_count":vi["video_count"],"video_files":vi["video_files"],
+                    "video_ext":vi["video_ext"],"video_path":vi["video_path"],
+                    "video_bytes":vi["video_bytes"],"video_size":vi["video_size"],
+                    "video_width":vi["video_width"],"video_height":vi["video_height"],
+                    "video_quality":vi["video_quality"],"video_status":vs,
+                    "subs_internal":si["subs_internal"],"subs_external":si["subs_external"],
+                    "subs_summary":si["subs_summary"],"lang_ok":lo,
+                })
+                row["row_health"] = _compute_health(row)
+                if i % 5 == 0:
+                    self.after(0, lambda r=list(results_partial):
+                               self._incremental_save(r))
+
+            self.after(0, lambda: self._scan_done(list(results_partial)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _phase_update(self, results, msg):
+        """Bulk-refresh table after a scan phase completes."""
+        self._results = results
+        # Update all rows
+        existing_paths = {rd.get("subfolder_path"): iid for iid, rd in self._item_map.items()}
+        for idx, r in enumerate(results):
+            path = r["subfolder_path"]
+            tag  = r["row_health"] + ("_odd" if idx % 2 else "")
+            if path in existing_paths:
+                iid = existing_paths[path]
+                self._item_map[iid] = r
+                self.tree.item(iid, values=self._rv(r), tags=(tag,))
+            else:
+                iid = self.tree.insert("", "end", values=self._rv(r), tags=(tag,))
+                self._item_map[iid] = r
+        self._update_stats()
+        self.pbar_label.configure(text=msg)
+
+    def _incremental_save(self, results):
+        SETTINGS["last_folder"]  = self._folder
+        SETTINGS["last_results"] = _results_to_json(results)
+        _save_settings(SETTINGS)
+
+    def _scan_done(self, results):
+        self._scanning = False
+        self.scan_btn.configure(state="normal")
+        self.update_btn.configure(state="normal")
+        self.cancel_btn.pack_forget()
+        self.pbar_canvas.pack_forget()
+        self.pbar_label.pack_forget()
+        self._results = results
+        if not results:
+            self.stats_var.set("Cancelled or empty."); return
+        self._phase_update(results, "")
+        self._update_stats()
+        self._refresh_table()
+        SETTINGS["last_folder"]  = self._folder
+        SETTINGS["last_results"] = _results_to_json(results)
+        SETTINGS["sort_option"]  = self.sort_var.get()
+        _save_settings(SETTINGS)
+
+    def _restore_last_session(self):
+        last_folder  = SETTINGS.get("last_folder","")
+        last_results = SETTINGS.get("last_results",[])
+        if not last_folder or not last_results: return
+        if not os.path.isdir(last_folder): return
+        self._folder = last_folder
+        self.folder_var.set(last_folder)
+        self._results = _results_from_json(last_results)
+        self._update_stats(); self._refresh_table()
+
+    # ── Stats ──────────────────────────────────────────────────────────────────
+    def _update_stats(self):
+        t   = len(self._results)
+        pc  = sum(1 for r in self._results if r["poster_exists"])
+        fc  = sum(1 for r in self._results if r["folder_exists"])
+        ac  = sum(1 for r in self._results if r["fanart_exists"])
+        nc  = sum(1 for r in self._results if r["nfo_exists"])
+        ne  = sum(1 for r in self._results if r.get("nfo_errors"))
+        xc  = sum(1 for r in self._results if r["xml_exists"])
+        xe  = sum(1 for r in self._results if r.get("xml_errors"))
+        vc  = sum(1 for r in self._results if r["video_count"] == 1)
+        iso = SETTINGS.get("lang_ok_code","PT")
+        lk  = sum(1 for r in self._results if r.get("lang_ok") == "Y")
+        self.stats_var.set("  •  ".join([
+            f"{t} folders", f"poster:{pc}/{t}", f"folder:{fc}/{t}",
+            f"fanart:{ac}/{t}", f"nfo:{nc}/{t}({ne}err)",
+            f"xml:{xc}/{t}({xe}err)", f"video:{vc}/{t}",
+            f"{iso}-OK:{lk}/{t}"
+        ]))
+
+    # ── Row values ─────────────────────────────────────────────────────────────
+    def _rv(self, r):
+        def s(status): return status
+        def img_s(exists, corrupt):
+            return STATUS_MISSING if not exists else (STATUS_ERROR if corrupt else STATUS_OK)
+        return (
+            r["subfolder"],
+            img_s(r["poster_exists"], r["poster_corrupt"]),  r["poster_size"],
+            img_s(r["folder_exists"], r["folder_corrupt"]),  r["folder_size"],
+            img_s(r["fanart_exists"], r["fanart_corrupt"]),  r["fanart_size"],
+            str(r["backdrop_count"]) if r["backdrop_count"] > 0 else "—",
+            STATUS_OK if r["nfo_exists"] else STATUS_MISSING, r["nfo_status"],
+            STATUS_OK if r["xml_exists"] else STATUS_MISSING, r["xml_status"],
+            r["language"],
+            r["video_ext"] if r["video_count"] > 0 else "✗",
+            r["video_size"],
+            r.get("video_quality","—"),
+            r.get("lang_ok","—"),
+            r["subs_summary"],
+        )
+
+    # ── Refresh table ──────────────────────────────────────────────────────────
+    def _refresh_table(self):
+        if not self._results: return
+        for r in self.tree.get_children(): self.tree.delete(r)
+        self._item_map.clear()
+
+        sort_name = self.sort_var.get()
+        kf, rev   = SORT_OPTIONS.get(sort_name, SORT_OPTIONS["Subfolder (A→Z)"])
+
+        def sort_key(r):
+            return (kf(r), r["subfolder"].lower())
+
+        sorted_results = sorted(self._results, key=sort_key, reverse=rev)
+        for i, r in enumerate(sorted_results):
+            tag = r["row_health"] + ("_odd" if i % 2 else "")
+            iid = self.tree.insert("", "end", values=self._rv(r), tags=(tag,))
+            self._item_map[iid] = r
+
+    # ── Export CSV ─────────────────────────────────────────────────────────────
+    def _export_csv(self):
+        if self._scanning: return
+        if not self._results: messagebox.showinfo("Empty","Scan first."); return
+        p = filedialog.asksaveasfilename(
+            title="Export CSV", defaultextension=".csv",
+            filetypes=[("CSV","*.csv")], initialfile="scan_results.csv")
+        if not p: return
+        def _st(s): return "OK" if s==STATUS_OK else ("Error" if s==STATUS_ERROR else "Missing")
+        try:
+            with open(p, "w", newline="", encoding="utf-8-sig") as f:
+                w = csv.writer(f)
+                iso = SETTINGS.get("lang_ok_code","PT")
+                w.writerow(["Subfolder","Path","poster.jpg","Poster Size","Poster Dim",
+                             "folder.jpg","Folder Size","Folder Dim",
+                             "fanart.jpg","Fanart Size","Fanart Dim","Backdrops",
+                             ".nfo","NFO Valid","NFO Errors","movie.xml","XML Valid","XML Errors",
+                             "Language","Video Files","Video Ext","Video Size","Quality",
+                             f"{iso} OK?","Embedded Subs","External Subs","Health"])
+                for r in self._results:
+                    w.writerow([
+                        r["subfolder"], r["subfolder_path"],
+                        "Y" if r["poster_exists"] else "N", r["poster_size"], r["poster_dim"] or "—",
+                        "Y" if r["folder_exists"] else "N", r["folder_size"], r["folder_dim"] or "—",
+                        "Y" if r["fanart_exists"] else "N", r["fanart_size"], r["fanart_dim"] or "—",
+                        r["backdrop_count"],
+                        "Y" if r["nfo_exists"] else "N", _st(r["nfo_status"]),
+                        "; ".join(f"L{e['line']}:{e['message']}" for e in r["nfo_errors"]) or "",
+                        "Y" if r["xml_exists"] else "N", _st(r["xml_status"]),
+                        "; ".join(f"L{e['line']}:{e['message']}" for e in r["xml_errors"]) or "",
+                        r["language"], r["video_count"], r["video_ext"], r["video_size"],
+                        r.get("video_quality","—"), r.get("lang_ok","—"),
+                        ", ".join(s["lang"] for s in r["subs_internal"]) or "None",
+                        ", ".join(f'{s["lang"]}({s["file"]})' for s in r["subs_external"]) or "None",
+                        r["row_health"],
+                    ])
+            messagebox.showinfo("Exported", f"Saved {len(self._results)} rows to:\n{p}")
+        except Exception as e:
+            messagebox.showerror("Export failed", str(e))
+
+
+# ── Health helper (used during phased scan) ───────────────────────────────────
+def _compute_health(row):
+    has_err = (row.get("nfo_status") == STATUS_ERROR or
+               row.get("xml_status") == STATUS_ERROR or
+               row.get("poster_corrupt", False) or
+               row.get("fanart_corrupt", False) or
+               row.get("folder_corrupt", False))
+    all_ok  = (row.get("poster_exists") and row.get("fanart_exists") and
+               row.get("folder_exists") and
+               row.get("nfo_status") == STATUS_OK and
+               row.get("xml_status") == STATUS_OK and
+               row.get("video_count", 0) == 1)
+    if has_err:  return "red"
+    if all_ok:   return "green"
+    return "yellow"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Entry point
+# ══════════════════════════════════════════════════════════════════════════════
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()
