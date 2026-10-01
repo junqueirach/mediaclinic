@@ -30,7 +30,6 @@ Run it from the folder that contains the `settings_*.py` files. Settings are sav
 This project is the clearest example of working with an AI under a written contract:
 
 - [`docs/CLAUDE_RULES.md`](docs/CLAUDE_RULES.md) defines module boundaries, the save chain, naming rules and a safety checklist that every AI-edited change must respect
-- [`prompts/MASTER_CLAUDE_REVISION_PROMPT_v1.0.md`](prompts/MASTER_CLAUDE_REVISION_PROMPT_v1.0.md) is the briefing loaded before each revision
 - `settings_schema.json` plus `tests/settings_test_harness.py` check the settings subsystem after every change
 - The settings code is split into model, controller, context and dialog modules so the AI can edit one part without breaking another
 - About 11,700 lines of Python; 30 tracked versions in `archive/versions/`, starting from a 12 KB folder scanner
@@ -39,7 +38,7 @@ This project is the clearest example of working with an AI under a written contr
 
 ## How this was built
 
-Built with **Claude (Anthropic)** as the coding partner. I wrote the requirements and the revision prompts, tested every build on real data, and decided what to fix next. The `archive/versions/` folder keeps every earlier release so the iteration history is visible, and `prompts/` shows the briefs I gave Claude. See [ai-assisted-development](https://github.com/junqueirach/ai-assisted-development) for the method.
+Built with **Claude (Anthropic)** as the coding partner. I wrote the requirements and the revision prompts, tested every build on real data, and decided what to fix next. The `archive/versions/` folder keeps every earlier release so the iteration history is visible.
 
 **Security note:** the app stores any API keys you enter in a local settings file outside this repository. `.gitignore` excludes config and settings files so keys are never committed.
 
