@@ -152,6 +152,7 @@
 # =============================================================================
 
 import os
+import sys
 import csv
 import json
 import re
@@ -661,10 +662,14 @@ def _test_ffmpeg(ff_path, fp_path):
 SETTINGS = _load_settings()
 FFMPEG_PATH, FFPROBE_PATH = _find_ffmpeg_ffprobe(SETTINGS.get("ffmpeg_path", ""))
 
+# Folder next to the .exe when frozen (PyInstaller), else next to the script
+_APP_DIR = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+            else os.path.dirname(os.path.abspath(__file__)))
+
 ### NEW v0.10.0 — Rotating log setup ###
 def _setup_logging():
     """Configure rotating log file in logs/ subfolder next to the script."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    script_dir = _APP_DIR
     log_dir    = os.path.join(script_dir, "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, "app.log")
@@ -693,7 +698,7 @@ logger.info("=== Metadata & MediaClinic v0.13.1 started ===")
 #       suffix (_2, _3 …) is appended.  The mechanism is completely silent in
 #       the UI — only a log entry is written.
 
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_SCRIPT_DIR = _APP_DIR
 _BACKUP_ROOT = os.path.join(_SCRIPT_DIR, "backup")
 
 
