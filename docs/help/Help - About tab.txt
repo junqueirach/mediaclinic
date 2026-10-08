@@ -2,7 +2,7 @@
   Version 0.14.0
 
   Created by:  Luiz Junqueira & Claude AI
-  Contact:     USEReira.ch@gmail.com
+  Contact:     junqueira.ch@gmail.com
 
   ────────────────────────────────────────────────
 
@@ -92,4 +92,4 @@
   ────────────────────────────────────────────────
 
   Feedback and bug reports welcome at:
-  USEReira.ch@gmail.com
+  junqueira.ch@gmail.com

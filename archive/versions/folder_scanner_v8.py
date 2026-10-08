@@ -2,7 +2,7 @@
 # Metadata & MediaClinic
 # Version: 0.8.0
 # Author:  Luiz Junqueira & Claude AI
-# Contact: USEReira.ch@gmail.com
+# Contact: junqueira.ch@gmail.com
 #
 # CHANGELOG
 # ---------
@@ -54,7 +54,7 @@ import tkinter.font as tk_font
 APP_NAME    = "Metadata & MediaClinic"
 APP_VERSION = "0.8.0"
 APP_AUTHOR  = "Luiz Junqueira & Claude AI"
-APP_EMAIL   = "USEReira.ch@gmail.com"
+APP_EMAIL   = "junqueira.ch@gmail.com"
 
 # ── File extensions ───────────────────────────────────────────────────────────
 VIDEO_EXTENSIONS    = {'.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.flv',

@@ -2,7 +2,7 @@
 # Media and Metadata Clinic
 # Version: 0.7.0
 # Author:  Luiz Junqueira & Claude AI
-# Contact: USEReira.ch@gmail.com
+# Contact: junqueira.ch@gmail.com
 #
 # VERSION CONTROL GUIDE
 # ---------------------
@@ -49,7 +49,7 @@ import webbrowser
 APP_NAME    = "Media and Metadata Clinic"
 APP_VERSION = "0.7.0"
 APP_AUTHOR  = "Luiz Junqueira & Claude AI"
-APP_EMAIL   = "USEReira.ch@gmail.com"
+APP_EMAIL   = "junqueira.ch@gmail.com"
 
 # ── Video / subtitle extensions ───────────────────────────────────────────────
 VIDEO_EXTENSIONS    = {'.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.flv',
