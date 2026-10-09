@@ -1,7 +1,11 @@
 # =============================================================================
 # settings_dialog.py
 # Metadata & MediaClinic — Settings UI Module
-# Version: 0.13.1                                              ### NEW v0.13.1 ###
+# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
+# v0.18.3 — Health Rules tab: scroll-wheel binding scoped to the tab (no global
+#            leak after the dialog closes); new imdb/tmdb_id_partial rules;
+#            rating/votes rule labels corrected; legacy quality map imported
+#            from settings_controller (single copy).
 # v0.13.1 — Fix: changing only the browser no longer triggers a rescan prompt.
 #            Root cause was a tag_pairs false-positive in _rescan_changed: the
 #            snapshot captured str(self._s.get("tag_pairs","")) while the
@@ -32,7 +36,7 @@
 # DEPENDENCIES
 # ------------
 # This module imports shared globals from the main application at runtime.
-# It must reside in the same folder as folder_scanner.py.
+# It must reside in the same folder as the main mediaclinic script.
 # It does NOT use sys.path manipulation or package structure.
 #
 # SHARED GLOBALS REQUIRED FROM MAIN MODULE (injected via _inject_globals)
@@ -96,19 +100,7 @@ from settings_model import (                                         ### ADDED_B
 
 
 # ── Legacy quality tier name migration (v0.16.1) ─────────────────────────────
-# Maps old labels to new labels. Applied on settings load so comboboxes
-# never show empty/invalid values after upgrading from v0.16.0 or earlier.
-_LEGACY_QUALITY_MAP = {
-    "Ultra (4K)":         "4K",
-    "Retina/QHD":         "1440p",
-    "Retina/QHD (1440p)": "1440p",
-    "Standard (HD)":      "1080p",
-    "Full HD":            "1080p",
-    "Optimized":          "720p",
-    "HD Ready":           "720p",
-    "Thumbnail":          "360p",
-    "Below HD Ready":     "360p",
-}
+from settings_controller import _LEGACY_QUALITY_MAP                 ### MODIFIED v0.18.3 — single copy ###
 
 # ── Module-level globals (populated by _inject_globals at import time) ────────
 # These are set by the main module after import so that settings_dialog.py
@@ -1329,10 +1321,17 @@ class SettingsDialog(tk.Toplevel):
         f.bind("<Configure>", lambda e: canvas.configure(
             scrollregion=canvas.bbox("all")))
 
-        # Mousewheel scrolling
+        # Mousewheel scrolling — bound only while the pointer is over this
+        # tab, released on leave (the old global bind_all leaked after close).
+        ### MODIFIED v0.18.3 ###
         def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            try:
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except tk.TclError:
+                pass
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        f.bind("<Destroy>",    lambda e: canvas.unbind_all("<MouseWheel>"), add="+")
 
         hr_defaults = DEFAULT_SETTINGS.get("health_rules", {})
         hr_current  = self._s.get("health_rules", {})
@@ -1501,12 +1500,12 @@ class SettingsDialog(tk.Toplevel):
         _check_row("corrupt_poster",     "Corrupt poster image")
         _check_row("corrupt_fanart",     "Corrupt fanart image")
         _check_row("corrupt_folder",     "Corrupt folder image")
-        _check_row("missing_imdb_id",    "Missing IMDB ID")
-        _check_row("corrupt_imdb_id",    "IMDB ID conflict between NFO and XML")
-        _check_row("missing_tmdb_id",    "Missing TMDb ID")
-        _check_row("corrupt_tmdb_id",    "TMDb ID conflict between NFO and XML")
-        _check_row("rating_conflict",    "Rating conflict between NFO and XML")
-        _check_row("votes_conflict",     "Votes conflict between NFO and XML")
+        _check_row("missing_imdb_id",    "Missing IMDB ID (no tag, or all tags empty)")
+        _check_row("corrupt_imdb_id",    "IMDB ID conflict between tags, or tag empty in one file")
+        _check_row("missing_tmdb_id",    "Missing TMDb ID (no tag, or all tags empty)")
+        _check_row("corrupt_tmdb_id",    "TMDb ID conflict between tags, or tag empty in one file")
+        _check_row("rating_conflict",    "Rating conflict between NFO and XML (values differ)")
+        _check_row("votes_conflict",     "Votes conflict between NFO <votes> and XML <Votes>")
         _check_row("genre_missing",      "Missing genre information")
         _check_row("missing_movie_year", "Missing movie year in NFO/XML")
         _check_row("no_audio_tracks",    "No audio tracks detected")
@@ -1518,6 +1517,8 @@ class SettingsDialog(tk.Toplevel):
         _section("Warning Rules — mark movie as WARNING (yellow)  (default: OFF noted)")
 
         _check_row("multiple_video_files",   "Multiple video files in same folder  (default: OFF)")
+        _check_row("imdb_id_partial",        "IMDB ID present in one file only (NFO or XML)")   # NEW v0.18.3
+        _check_row("tmdb_id_partial",        "TMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
         _check_row("missing_poster",         "Missing poster")
         _check_row("missing_fanart",         "Missing fanart")
         _check_row("missing_folder",         "Missing folder image")
@@ -1536,12 +1537,12 @@ class SettingsDialog(tk.Toplevel):
         _check_spin_int_row("backdrop_too_small", "backdrop_min_avg_kb",
                             "Backdrop images suspiciously small (avg KB below):", 20, 1, 500, width=5)
         _check_row("missing_rating",     "Missing rating")
-        _check_row("rating_warning",     "Rating present in one file only")
+        _check_row("rating_warning",     "Rating tag unreadable (non-numeric value)")
         _check_spin_flt_row("suspicious_rating", "suspicious_rating_threshold",
                             "Suspicious rating value (below):", 1.0, 0.0, 10.0, incr=0.1, width=5)
         _check_row("genre_warning",          "Genre issues detected (non-standard genres)")
         _check_row("missing_votes",          "Missing votes count")
-        _check_row("votes_warning",          "Votes present in one file only")
+        _check_row("votes_warning",          "Votes tag unreadable (non-numeric value)")
         _check_row("lang_not_ok",            "Target language not found (Lang OK? column)")
         _check_row("missing_language_field", "Language field missing in XML")
         _check_row("nfo_xml_too_large",      "NFO or XML file too large (uses max KB from Improvements tab)")

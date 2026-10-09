@@ -28,3 +28,10 @@ __pycache__/
 *.srt
 *.vtt
 *.wav
+
+# Release artefacts (zip, checksum, notes) - attach to GitHub Releases instead
+release/
+last_results.json
+dist/
+build/
+*.spec

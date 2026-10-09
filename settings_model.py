@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_model.py
 # Metadata & MediaClinic — Pure Data Model
-# Version: 0.18.2                                              ### MODIFIED_BY_CLAUDE_v18.2 ###
+# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -91,6 +91,7 @@ DEFAULT_SETTINGS = {
     "rating_apply_all_movies": False,    ### NEW v0.15.0 ###
     "rating_use_more_votes":   False,    ### NEW v0.15.0 ###
     "column_widths":           {},       # ADDED_BY_CLAUDE_v18: persisted column widths keyed by column id
+    "export_prefs":            {},       # NEW v0.18.3: last choices of the Export Movie List dialog
     # v0.18.2 — Health Rules (configurable rule engine)        ### ADDED_BY_CLAUDE_v18.2 ###
     "health_rules": {
         # ── Group A: Critical Error Rules (default ON) ──────────────────────
@@ -115,6 +116,8 @@ DEFAULT_SETTINGS = {
         "missing_movie_year":              True,
         # ── Group B: Warning Rules ───────────────────────────────────────────
         "multiple_video_files":            False,
+        "imdb_id_partial":                 True,      ### NEW v0.18.3 — ID in one file only ###
+        "tmdb_id_partial":                 True,      ### NEW v0.18.3 ###
         "missing_poster":                  True,
         "missing_fanart":                  True,
         "missing_folder":                  True,

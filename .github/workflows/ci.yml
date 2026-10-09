@@ -16,7 +16,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install test tools
-        run: pip install pytest jsonschema
+      - name: Install system packages (Tk, virtual display, FFmpeg)
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb ffmpeg
+      - name: Install Python packages
+        run: pip install pytest jsonschema pillow openpyxl
       - name: Run tests
         run: python -m pytest tests -v
+      - name: Run end-to-end self-test (virtual display)
+        run: xvfb-run -a python tests/selftest_v0_18_3.py

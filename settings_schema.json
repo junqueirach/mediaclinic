@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mediaclinic-settings-v0.14.0",
+  "$id": "mediaclinic-settings-v0.18.3",
   "title": "MediaClinic Settings",
   "description": "Schema for settings.json written by mediaclinic/settings_controller.py",
   "type": "object",
@@ -10,7 +10,8 @@
     "text_editor":           { "type": "string", "default": "" },
     "scraper_path":          { "type": "string", "default": "" },
     "last_folder":           { "type": "string", "default": "" },
-    "last_results":          { "type": "array",  "default": [] },
+    "last_results":          { "type": "array",  "default": [],
+                               "description": "Deprecated since v0.18.3 — scan results now live in last_results.json next to this file; key kept empty for compatibility" },
     "sort_option":           {
       "type": "string",
       "default": "Movie Name (A-Z)",
@@ -105,11 +106,17 @@
       "description": "Persisted column widths keyed by column id (string → integer pixels)",
       "additionalProperties": { "type": "number" }
     },
+    "export_prefs": {
+      "type": "object",
+      "default": {},
+      "description": "Last choices of the Export Movie List dialog (v0.18.3): preset, fields, format, scope",
+      "additionalProperties": true
+    },
     "health_rules": {
       "type": "object",
       "additionalProperties": false,
       "default": {},
-      "description": "Configurable health rule engine settings (v0.18.2)",
+      "description": "Configurable health rule engine settings (v0.18.2, extended v0.18.3)",
       "properties": {
         "missing_video_file":              { "type": "boolean", "default": true },
         "corrupt_nfo":                     { "type": "boolean", "default": true },
@@ -131,6 +138,8 @@
         "genre_missing":                   { "type": "boolean", "default": true },
         "missing_movie_year":              { "type": "boolean", "default": true },
         "multiple_video_files":            { "type": "boolean", "default": false },
+        "imdb_id_partial":                 { "type": "boolean", "default": true },
+        "tmdb_id_partial":                 { "type": "boolean", "default": true },
         "missing_poster":                  { "type": "boolean", "default": true },
         "missing_fanart":                  { "type": "boolean", "default": true },
         "missing_folder":                  { "type": "boolean", "default": true },

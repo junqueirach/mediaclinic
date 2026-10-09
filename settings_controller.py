@@ -1,13 +1,14 @@
 # =============================================================================
 # settings_controller.py
 # Metadata & MediaClinic — Settings Business Logic
-# Version: 0.14.0
+# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
 # -------
 # All non-UI logic that the settings subsystem needs:
 #   - Persistent storage (load / save JSON)
+#   - Scan-results cache file (last_results.json)              ### NEW v0.18.3 ###
 #   - FFmpeg / FFprobe discovery and testing
 #   - Notepad++ discovery
 #   - Browser detection
@@ -29,6 +30,7 @@
 #   settings_context.py — wraps these functions as SettingsContext callables
 # =============================================================================
 
+import copy                                                      ### NEW v0.18.3 ###
 import json
 import os
 import re
@@ -43,7 +45,15 @@ from settings_model import DEFAULT_SETTINGS
 # ── Persistent storage ────────────────────────────────────────────────────────
 
 def get_config_dir():
-    """Return (and create if necessary) the platform config directory."""
+    """Return (and create if necessary) the platform config directory.
+    The MEDIACLINIC_CONFIG_DIR environment variable overrides the default
+    location (used by the self-test so it never touches real settings).
+    ### MODIFIED v0.18.3 ###
+    """
+    override = os.environ.get("MEDIACLINIC_CONFIG_DIR", "").strip()
+    if override:
+        os.makedirs(override, exist_ok=True)
+        return override
     if os.name == "nt":
         base = os.environ.get("APPDATA", os.path.expanduser("~"))
     else:
@@ -54,30 +64,51 @@ def get_config_dir():
     return d
 
 
-CONFIG_PATH = os.path.join(get_config_dir(), "settings.json")
+CONFIG_PATH        = os.path.join(get_config_dir(), "settings.json")
+RESULTS_CACHE_PATH = os.path.join(get_config_dir(), "last_results.json")   ### NEW v0.18.3 ###
+
+# Legacy quality tier name migration (v0.16.1) — single copy lives here now.
+_LEGACY_QUALITY_MAP = {                                          ### MOVED v0.18.3 ###
+    "Ultra (4K)":         "4K",
+    "Retina/QHD":         "1440p",
+    "Retina/QHD (1440p)": "1440p",
+    "Standard (HD)":      "1080p",
+    "Full HD":            "1080p",
+    "Optimized":          "720p",
+    "HD Ready":           "720p",
+    "Thumbnail":          "360p",
+    "Below HD Ready":     "360p",
+}
 
 
 def load_settings():
     """
     Load settings from CONFIG_PATH, deep-merge with DEFAULT_SETTINGS,
-    and return the resulting dict.  Returns a copy of DEFAULT_SETTINGS
+    and return the resulting dict.  Returns a deep copy of DEFAULT_SETTINGS
     on any read or parse error.
+    ### MODIFIED v0.18.3 — deep copy of defaults, health_rules deep-merge,
+    legacy quality-label migration (all moved here from the main script) ###
     """
+    merged = copy.deepcopy(DEFAULT_SETTINGS)
     try:
         if os.path.isfile(CONFIG_PATH):
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            merged = dict(DEFAULT_SETTINGS)
-            # Deep-merge improve_checks sub-dict
-            if "improve_checks" in data:
-                ic = dict(DEFAULT_SETTINGS["improve_checks"])
-                ic.update(data["improve_checks"])
-                data["improve_checks"] = ic
+            if not isinstance(data, dict):
+                return merged
+            for sub in ("improve_checks", "health_rules"):
+                if isinstance(data.get(sub), dict):
+                    d = dict(DEFAULT_SETTINGS[sub])
+                    d.update(data[sub])
+                    data[sub] = d
             merged.update(data)
-            return merged
+            for qkey in ("poster_quality_level", "folder_quality_level",
+                         "fanart_quality_level"):
+                if merged.get(qkey) in _LEGACY_QUALITY_MAP:
+                    merged[qkey] = _LEGACY_QUALITY_MAP[merged[qkey]]
     except Exception:
         pass
-    return dict(DEFAULT_SETTINGS)
+    return merged
 
 
 def save_settings(settings):
@@ -87,6 +118,59 @@ def save_settings(settings):
             json.dump(settings, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+
+
+# ── Scan-results cache (v0.18.3) ──────────────────────────────────────────────
+# The full scan-result list used to live inside settings.json ("last_results"),
+# which made that file several MB and slowed every settings save.  It now has
+# its own file next to settings.json.
+
+def load_results_cache():
+    """Return the cached scan-result list, or [] when absent/unreadable."""  ### NEW v0.18.3 ###
+    try:
+        if os.path.isfile(RESULTS_CACHE_PATH):
+            with open(RESULTS_CACHE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
+    return []
+
+
+def save_results_cache(results):
+    """Persist the scan-result list.  Returns True on success."""  ### NEW v0.18.3 ###
+    try:
+        tmp = RESULTS_CACHE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(results, f, ensure_ascii=False, default=str)
+        os.replace(tmp, RESULTS_CACHE_PATH)
+        return True
+    except Exception:
+        return False
+
+
+def migrate_results_from_settings(settings):
+    """
+    One-time migration: move settings["last_results"] (pre-v0.18.3) into the
+    results cache file.  Returns True when a migration happened.
+    """                                                           ### NEW v0.18.3 ###
+    old = settings.get("last_results")
+    if isinstance(old, list) and old:
+        # Keep a copy of the pre-migration settings.json so v0.18.2 can still be
+        # started from it if ever needed (it expects the rows inside).
+        try:
+            bak = CONFIG_PATH + ".pre-v0.18.3.bak"
+            if not os.path.isfile(bak) and os.path.isfile(CONFIG_PATH):
+                shutil.copy2(CONFIG_PATH, bak)
+        except Exception:
+            pass
+        if not os.path.isfile(RESULTS_CACHE_PATH):
+            save_results_cache(old)
+        settings["last_results"] = []
+        save_settings(settings)
+        return True
+    return False
 
 
 # ── FFmpeg discovery & validation ─────────────────────────────────────────────
@@ -132,7 +216,7 @@ def test_ffmpeg(ff_path, fp_path):
             return False, "Executable not found"
         try:
             r = subprocess.run(
-                [path, "-version"], capture_output=True, text=True, timeout=10,
+                [path, "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             if r.returncode == 0 and (
                     "ffmpeg" in r.stdout.lower() or "ffprobe" in r.stdout.lower()):

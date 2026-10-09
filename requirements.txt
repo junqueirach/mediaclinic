@@ -1,0 +1,4 @@
+# MediaClinic runs on the Python standard library plus Tkinter.
+# Both packages below are optional; the app starts without them.
+pillow>=10.0      # thumbnails in the Fetch Poster / Fanart / Backdrops dialogs
+openpyxl>=3.1     # Excel (.xlsx) export

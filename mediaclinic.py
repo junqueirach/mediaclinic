@@ -1,12 +1,35 @@
 # =============================================================================
 # Metadata & MediaClinic
-# Version: 0.18.2                                              ### MODIFIED_BY_CLAUDE_v18.2 ###
+# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
 # Author:  Luiz Junqueira & Claude AI
 # Contact: junqueira.ch@gmail.com
 #
 # CHANGELOG
 # ---------
-# v0.14.0 (current)                                         ### NEW v0.14.0 ###
+# v0.18.3 (current)                                         ### NEW v0.18.3 ###
+#   - New: Export Movie List… dialog (Tools menu / Export… button / Ctrl+Shift+E)
+#          column presets, filtered-view option, CSV comma (default), CSV
+#          semicolon, tab-separated, plain text, Excel .xlsx (export_list.py)
+#   - New: scan results moved out of settings.json into last_results.json
+#          (settings_controller.load/save_results_cache); throttled saves
+#   - New: per-scan read caches — each NFO/XML text, parsed tree and image
+#          header is read once per movie (_read_text/_parse_root/get_image_wh)
+#   - New: health rules imdb_id_partial / tmdb_id_partial; compact mode wired
+#   - Fix: Run Improvements Check — All Movies (undefined _run_improvements_check)
+#   - Fix: Settings menu tab indices (built from SettingsDialog._TAB_REGISTRY)
+#   - Fix: Quick Scan change detection (scan_mtime stored per row) and health
+#          recomputed after FFprobe data is restored
+#   - Fix: use_ffprobe threaded explicitly through scan functions; "Update
+#          Scan (no/with FFprobe)" honour the button; Full Scan without
+#          FFprobe keeps Audio column
+#   - Fix: Source / Rating / Votes health messages; title mismatch compares
+#          only NFO <title> vs XML <LocalTitle>
+#   - Fix: _tmdb_download_image exception order (retries now happen)
+#   - Fix: scroll-wheel bind_all leaks; column widths restored on every start
+#   - Code: duplicated settings/backup/quality code removed — imported from
+#          settings_model / settings_controller; Help text → help_text.py;
+#          genre tables → genre_data.py; dead code and series stubs removed
+# v0.14.0                                         ### NEW v0.14.0 ###
 #   - Architecture: settings subsystem split into four dedicated modules:
 #       settings_model.py      — pure data, defaults, quality tiers
 #       settings_controller.py — all non-UI logic (load/save, FFmpeg, browsers, backup)
@@ -184,36 +207,45 @@ except ImportError:
 # The main script continues to own all live state (SETTINGS, FFMPEG_PATH, etc.)
 # and passes it into settings_dialog via _sd_inject() exactly as before.
 # No circular imports: none of these modules import from mediaclinic.py.
-import settings_model       # noqa: F401  pure data — imported for module init
-import settings_controller  # noqa: F401  non-UI logic — available for future direct use
-import settings_context     # noqa: F401  SettingsContext dataclass + run_async helper
-from settings_model import normalize_lang_code                   ### ADDED_BY_CLAUDE_v18.2 ###
+### MODIFIED v0.18.3 — the settings modules are now the single source of truth;
+### the duplicate copies that lived in this file were removed.
+from settings_model import (
+    DEFAULT_SETTINGS as _DEFAULT_SETTINGS, DEFAULT_TAG_PAIRS, WORLD_LANGUAGES,
+    POSTER_QUALITY_TIERS, FANART_QUALITY_TIERS, _IMG_QUALITY_TOLERANCE,
+    classify_image_quality, normalize_lang_code,
+    poster_quality_sort_key              as _poster_quality_sort_key,
+    fanart_quality_sort_key              as _fanart_quality_sort_key,
+    poster_quality_sort_key_missing_last as _poster_quality_sort_key_missing_last,
+    fanart_quality_sort_key_missing_last as _fanart_quality_sort_key_missing_last,
+)
+import settings_controller as _sc
+from settings_controller import (
+    CONFIG_PATH,
+    load_settings          as _load_settings,
+    save_settings          as _save_settings,
+    find_ffmpeg_ffprobe    as _find_ffmpeg_ffprobe,
+    test_ffmpeg            as _test_ffmpeg,
+    find_notepadpp         as _find_notepadpp,
+    detect_installed_browsers,
+)
 from settings_dialog import SettingsDialog, _inject_globals as _sd_inject
+from genre_data  import GENRE_SYNONYMS as _GENRE_SYNONYMS, GENRE_TRANSLATIONS as _GENRE_TRANSLATIONS  ### NEW v0.18.3 ###
+import help_text   as _help                                      ### NEW v0.18.3 ###
+import export_list as _export                                    ### NEW v0.18.3 ###
 
 # ── App identity ──────────────────────────────────────────────────────────────
 APP_NAME    = "Metadata & MediaClinic"
-APP_VERSION = "0.18.2"                                           ### MODIFIED_BY_CLAUDE_v18.2 ###
+APP_VERSION = "0.18.3"                                           ### MODIFIED v0.18.3 ###
 APP_AUTHOR  = "Luiz Junqueira & Claude AI"
 APP_EMAIL   = "junqueira.ch@gmail.com"
+_UA         = f"MediaClinic/{APP_VERSION}"   # User-Agent for all HTTP calls ### NEW v0.18.3 ###
 
 # ── File extensions ───────────────────────────────────────────────────────────
 VIDEO_EXTENSIONS    = {'.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.flv',
                        '.ts', '.m2ts', '.mpg', '.mpeg', '.divx', '.ogm', '.webm'}
 SUBTITLE_EXTENSIONS = {'.srt', '.sub', '.ssa', '.ass', '.vtt', '.idx', '.sup'}
 
-# ── 30 most-used world languages (ISO 639-1 + common label) ──────────────────
-WORLD_LANGUAGES = [
-    ("ZH", "Chinese"),    ("ES", "Spanish"),    ("EN", "English"),
-    ("HI", "Hindi"),      ("AR", "Arabic"),     ("PT", "Portuguese"),
-    ("BN", "Bengali"),    ("RU", "Russian"),    ("JA", "Japanese"),
-    ("PA", "Punjabi"),    ("DE", "German"),     ("KO", "Korean"),
-    ("FR", "French"),     ("TE", "Telugu"),     ("MR", "Marathi"),
-    ("TR", "Turkish"),    ("TA", "Tamil"),      ("VI", "Vietnamese"),
-    ("IT", "Italian"),    ("UR", "Urdu"),       ("FA", "Persian"),
-    ("PL", "Polish"),     ("NL", "Dutch"),      ("UK", "Ukrainian"),
-    ("MS", "Malay"),      ("SV", "Swedish"),    ("DA", "Danish"),
-    ("FI", "Finnish"),    ("NO", "Norwegian"),  ("EL", "Greek"),
-]
+# WORLD_LANGUAGES is imported from settings_model (v0.18.3)
 
 # Build language lookup sets for each ISO code
 # e.g. "PT" → {'por','pt','pt-br','pt-pt','portuguese','portugues','ptbr','ptpt','pt_br','pt_pt'}
@@ -396,46 +428,7 @@ STATUS_WARN    = "◐"   # U+25D0 HALF BLACK CIRCLE   — warning / proportion i
 STATUS_MISSING = "○"   # U+25CB WHITE CIRCLE        — file missing / absent
 STATUS_ERROR   = "✕"   # U+2715 MULTIPLICATION X    — parse error / corrupt
 
-# ── Default NFO→XML tag comparison pairs ─────────────────────────────────────
-DEFAULT_TAG_PAIRS = [
-    # (nfo_path, xml_path, label, numeric_tolerance_pct)
-    # nfo_path: dot-separated path from root, e.g. "title" or "fileinfo.streamdetails.video.width"
-    # xml_path: dot-separated path from root
-    ("title",                               "LocalTitle",                  "Title",            0),
-    ("originaltitle",                       "OriginalTitle",               "Original Title",   0),
-    ("year",                                "ProductionYear",              "Year",             0),
-    ("releasedate",                         "ReleaseDate",                 "Release Date",     0),
-    ("releasedate",                         "PremiereDate",                "Premiere Date",    0),
-    ("votes",                               "Votes",                       "Votes",            5),
-    ("rating",                              "IMDBrating",                  "Rating (IMDB)",    5),
-    ("rating",                              "Rating",                      "Rating",           5),
-    ("id",                                  "IMDB_ID",                     "IMDB ID",          0),
-    ("id",                                  "IMDB",                        "IMDB",             0),
-    ("imdbid",                              "IMDB_ID",                     "IMDb ID",          0),
-    ("imdbid",                              "IMDB",                        "IMDb",             0),
-    ("tmdbid",                              "TMDbId",                      "TMDb ID",          0),
-    ("tmdbid",                              "TMDB",                        "TMDb",             0),
-    ("tmdbid",                              "TMDB_ID",                     "TMDb ID2",         0),
-    ("country",                             "Country",                     "Country",          0),
-    ("runtime",                             "RunningTime",                 "Runtime",          5),
-    ("runtime",                             "Runtime",                     "Runtime2",         5),
-    ("plot",                                "Overview",                    "Plot/Overview",    0),
-    ("plot",                                "Synopsis",                    "Plot/Synopsis",    0),
-    ("plot",                                "Plot",                        "Plot",             0),
-    ("plot",                                "Description",                 "Plot/Desc",        0),
-    ("outline",                             "Outline",                     "Outline",          0),
-    ("genre",                               "Genres.Genre",                "Genre",            0),
-    ("studio",                              "Studios.Studio",              "Studio",           0),
-    ("director",                            "Director",                    "Director",         0),
-    ("fileinfo.streamdetails.audio.channels",    "MediaInfo.Audio.Channels",   "Audio Channels",   5),
-    ("fileinfo.streamdetails.audio.codec",       "MediaInfo.Audio.Codec",      "Audio Codec",      0),
-    ("fileinfo.streamdetails.video.codec",       "MediaInfo.Video.Codec",      "Video Codec",      0),
-    ("fileinfo.streamdetails.video.durationinseconds", "MediaInfo.Video.DurationSeconds", "Duration", 5),
-    ("fileinfo.streamdetails.video.language",    "MediaInfo.Audio.Language",   "Video Language",   0),
-    ("fileinfo.streamdetails.video.scantype",    "MediaInfo.Video.ScanType",   "Scan Type",        0),
-    ("fileinfo.streamdetails.video.height",      "MediaInfo.Video.Height",     "Video Height",     0),
-    ("fileinfo.streamdetails.video.width",       "MediaInfo.Video.Width",      "Video Width",      0),
-]
+# DEFAULT_TAG_PAIRS is imported from settings_model (v0.18.3)
 
 # ── XML standalone ↔ MediaInfo cross-check pairs ─────────────────────────────
 # (standalone_xpath, mediainfo_xpath, label, tolerance_pct)
@@ -450,214 +443,8 @@ XML_INTERNAL_PAIRS = [
 ]
 
 # ── Persistent storage ────────────────────────────────────────────────────────
-def _get_config_dir():
-    if os.name == "nt":
-        base = os.environ.get("APPDATA", os.path.expanduser("~"))
-    else:
-        base = os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config"))
-    d = os.path.join(base, "MediaMetadataClinic")
-    os.makedirs(d, exist_ok=True)
-    return d
-
-CONFIG_PATH = os.path.join(_get_config_dir(), "settings.json")
-
-_DEFAULT_SETTINGS = {
-    "ffmpeg_path":        "",
-    "text_editor":        "",          # path to preferred text editor exe
-    "scraper_path":       "",          # path to video scraper exe
-    "last_folder":        "",
-    "last_results":       [],
-    "sort_option":        "Movie Name (A-Z)",
-    "extract_timeout":    60,
-    "use_ffprobe":        True,        # ffprobe checkbox
-    "lang_ok_code":       "PT",        # language for "OK?" column
-    # Improvement thresholds
-    "improve_checks": {
-        "large_xml":      True,
-        "nfo_xml_diff":   True,
-        "ffprobe_diff":   True,
-        "poster_folder":  True,
-        "proportions":    True,
-        "backdrops":      True,
-    },
-    "max_nfo_kb":         50,
-    "max_xml_kb":         25,
-    "min_backdrops":      5,
-    "tag_pairs":          None,        # None = use DEFAULT_TAG_PAIRS
-    # Phase 2 — API keys
-    "tmdb_api_key":       "",
-    "omdb_api_key":       "",
-    # Phase 2 — Browser
-    "default_browser":    "",          # path to browser exe; "" = system default
-    # Phase 2 — Image minimum sizes (KB); 0 = skip check
-    "min_poster_kb":      100,
-    "min_folder_kb":      100,
-    "min_fanart_kb":      200,
-    # Phase 2 — Backdrop extraction count
-    "backdrop_count":     10,
-    # v0.10.0 — UI preferences
-    "alternating_rows":   True,
-    "show_header_tips":   True,    # v0.10.5 — show column header tooltips
-    # v0.11.0 — Image quality resolution tiers               ### NEW v0.11.0 ###
-    "poster_quality_level":  "1080p",   # default poster/folder quality minimum  ### v0.16.1 ###
-    "folder_quality_level":  "1080p",
-    "fanart_quality_level":  "1080p",
-    "fanart_accept_168":     False,             # accept 16:8 (≈1.50) ratio as valid
-    "poster_accept_34":      False,             # NEW v0.12.0 accept 3:4 (0.75) ratio as valid
-    "show_image_size":       False,             # show Size columns alongside Quality columns
-    # Phase 2 — Genre list (one per line; stored as newline-joined string)
-    "genre_list":         (
-        "Action\nAdventure\nAnimation\nComedy\nCrime\nDocumentary\nDrama\n"
-        "Family\nFantasy\nHistory\nHorror\nMusic\nMystery\nRomance\n"
-        "Science Fiction\nThriller\nWar\nWestern"
-    ),
-    # Phase 2 — Metadata source (future scraper target)
-    "metadata_source":    "tmdb",      # "tmdb" | "omdb"
-    # v0.12.0 — Backup folder maintenance                   ### NEW v0.12.0 ###
-    "max_backup_size_mb":    500,       # auto-delete oldest backups above this MB limit
-    "backup_cleanup_enabled": True,     # reserved for future use
-    # v0.12.0 — UI preferences (extended)                   ### NEW v0.12.0 ###
-    "compact_mode":          False,     # reduce row height
-    "dark_theme":            True,      # dark theme (toggle placeholder)
-    "auto_fit_columns":      True,      # auto-fit column widths on load
-    # v0.18.0 — Column width persistence                    ### NEW v0.18.0 ###
-    "column_widths":         {},        # {col_id: pixel_width} saved on close
-    # v0.18.2 — Health Rules engine                         ### ADDED_BY_CLAUDE_v18.2 ###
-    "rating_apply_all_movies": False,
-    "rating_use_more_votes":   False,
-    "health_rules": {
-        "missing_video_file":              True,
-        "corrupt_nfo":                     True,
-        "missing_nfo":                     True,
-        "corrupt_xml":                     True,
-        "missing_xml":                     True,
-        "corrupt_poster":                  True,
-        "corrupt_fanart":                  True,
-        "corrupt_folder":                  True,
-        "missing_imdb_id":                 True,
-        "corrupt_imdb_id":                 True,
-        "missing_tmdb_id":                 True,
-        "corrupt_tmdb_id":                 True,
-        "rating_conflict":                 True,
-        "no_audio_tracks":                 True,
-        "video_quality_minimum":           True,
-        "video_quality_minimum_level":     "720p",
-        "votes_conflict":                  True,
-        "genre_missing":                   True,
-        "missing_movie_year":              True,
-        "multiple_video_files":            False,
-        "missing_poster":                  True,
-        "missing_fanart":                  True,
-        "missing_folder":                  True,
-        "poster_proportion":               True,
-        "fanart_proportion":               True,
-        "folder_proportion":               True,
-        "poster_folder_quality_minimum":   True,
-        "poster_folder_quality_level":     "1080p",
-        "fanart_quality_minimum":          True,
-        "fanart_quality_level_minimum":    "1080p",
-        "poster_folder_identical":         True,
-        "insufficient_backdrops":          True,
-        "backdrop_min_count":              5,
-        "backdrop_too_small":              True,
-        "backdrop_min_avg_kb":             20,
-        "missing_rating":                  True,
-        "rating_warning":                  True,
-        "suspicious_rating":               True,
-        "suspicious_rating_threshold":     1.0,
-        "genre_warning":                   True,
-        "missing_votes":                   True,
-        "votes_warning":                   True,
-        "lang_not_ok":                     True,
-        "missing_language_field":          True,
-        "nfo_xml_too_large":               True,
-        "required_audio_language":         True,
-        "required_audio_language_code":    "ENG",
-        "required_subtitle_language":      True,
-        "required_subtitle_language_code": "POR",
-        "missing_movie_title":             True,
-        "title_mismatch":                  True,
-        "folder_name_mismatch":            False,
-    },
-}
-
-def _load_settings():
-    # Legacy quality tier name migration  ### NEW v0.16.1 ###
-    _LEGACY_QUALITY_MAP = {
-        "Ultra (4K)":         "4K",
-        "Retina/QHD":         "1440p",
-        "Retina/QHD (1440p)": "1440p",
-        "Standard (HD)":      "1080p",
-        "Full HD":            "1080p",
-        "Optimized":          "720p",
-        "HD Ready":           "720p",
-        "Thumbnail":          "360p",
-        "Below HD Ready":     "360p",
-    }
-    try:
-        if os.path.isfile(CONFIG_PATH):
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            merged = dict(_DEFAULT_SETTINGS)
-            # Deep merge improve_checks
-            if "improve_checks" in data:
-                ic = dict(_DEFAULT_SETTINGS["improve_checks"])
-                ic.update(data["improve_checks"])
-                data["improve_checks"] = ic
-            # Deep merge health_rules (v0.18.2)              ### ADDED_BY_CLAUDE_v18.2 ###
-            if "health_rules" in data:
-                hr = dict(_DEFAULT_SETTINGS["health_rules"])
-                hr.update(data["health_rules"])
-                data["health_rules"] = hr
-            merged.update(data)
-            # Migrate legacy quality labels silently
-            for qkey in ("poster_quality_level", "folder_quality_level",
-                         "fanart_quality_level"):
-                if merged.get(qkey) in _LEGACY_QUALITY_MAP:
-                    merged[qkey] = _LEGACY_QUALITY_MAP[merged[qkey]]
-            return merged
-    except Exception:
-        pass
-    return dict(_DEFAULT_SETTINGS)
-
-def _save_settings(s):
-    try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(s, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-
-# ── FFmpeg discovery & validation ─────────────────────────────────────────────
-def _find_ffmpeg_ffprobe(custom_dir=""):
-    exe = lambda d, n: (os.path.join(d, n + ".exe") if os.name == "nt"
-                        else os.path.join(d, n))
-    if custom_dir and os.path.isdir(custom_dir):
-        ff = exe(custom_dir, "ffmpeg");  fp = exe(custom_dir, "ffprobe")
-        if not os.path.isfile(ff): ff = os.path.join(custom_dir, "ffmpeg")
-        if not os.path.isfile(fp): fp = os.path.join(custom_dir, "ffprobe")
-        if os.path.isfile(ff) and os.path.isfile(fp):
-            return ff, fp
-    return shutil.which("ffmpeg"), shutil.which("ffprobe")
-
-def _test_ffmpeg(ff_path, fp_path):
-    def _run(path):
-        if not path or not os.path.isfile(path):
-            return False, "Executable not found"
-        try:
-            r = subprocess.run(
-                [path, "-version"], capture_output=True, text=True, timeout=10,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            if r.returncode == 0 and ("ffmpeg" in r.stdout.lower() or
-                                       "ffprobe" in r.stdout.lower()):
-                return True, "OK"
-            return False, f"Unexpected output (exit {r.returncode})"
-        except subprocess.TimeoutExpired:
-            return False, "Timed out"
-        except Exception as e:
-            return False, str(e)
-    ff_ok, ff_msg = _run(ff_path)
-    fp_ok, fp_msg = _run(fp_path)
-    return ff_ok, fp_ok, ff_msg, fp_msg
+# _DEFAULT_SETTINGS, _load_settings, _save_settings, _find_ffmpeg_ffprobe and
+# _test_ffmpeg are imported from settings_model / settings_controller (v0.18.3).
 
 SETTINGS = _load_settings()
 FFMPEG_PATH, FFPROBE_PATH = _find_ffmpeg_ffprobe(SETTINGS.get("ffmpeg_path", ""))
@@ -685,7 +472,10 @@ def _setup_logging():
 
 LOG_PATH = _setup_logging()
 logger   = logging.getLogger("MediaClinic")
-logger.info("=== Metadata & MediaClinic v0.13.1 started ===")
+logger.info(f"=== {APP_NAME} v{APP_VERSION} started ===")        ### MODIFIED v0.18.3 ###
+# One-time migration of the scan results out of settings.json  ### NEW v0.18.3 ###
+if _sc.migrate_results_from_settings(SETTINGS):
+    logger.info(f"Migrated last_results from settings.json to {_sc.RESULTS_CACHE_PATH}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Backup mechanism (v0.11.0)                                  ### NEW v0.11.0 ###
@@ -702,175 +492,24 @@ _SCRIPT_DIR = _APP_DIR
 _BACKUP_ROOT = os.path.join(_SCRIPT_DIR, "backup")
 
 
-def _make_backup(movie_name: str, *file_paths: str) -> str | None:
-    """
-    Create a timestamped backup of one or more NFO/XML files.
-
-    Parameters
-    ----------
-    movie_name : str
-        Movie name used in the folder name (spaces → underscores).
-    *file_paths : str
-        Absolute paths to files to back up.  Files that do not exist
-        are silently skipped.
-
-    Returns
-    -------
-    str | None
-        The backup folder path created, or None if nothing was copied
-        (all files were missing or an error occurred).
-    """
-    try:
-        os.makedirs(_BACKUP_ROOT, exist_ok=True)
-        # Build safe movie name slug (underscores, strip unsafe chars)
-        safe_name = re.sub(r'[\\/:*?"<>|]', '', movie_name).strip()
-        safe_name = re.sub(r'\s+', '_', safe_name)
-        if not safe_name:
-            safe_name = "unknown"
-        timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-        base_folder = os.path.join(_BACKUP_ROOT, f"backup_{safe_name}_{timestamp}")
-        # Append counter suffix if folder already exists (same second)
-        folder = base_folder
-        counter = 2
-        while os.path.exists(folder):
-            folder = f"{base_folder}_{counter}"
-            counter += 1
-        # Only copy files that actually exist
-        copied = []
-        for fp in file_paths:
-            if fp and os.path.isfile(fp):
-                os.makedirs(folder, exist_ok=True)
-                dest = os.path.join(folder, os.path.basename(fp))
-                shutil.copy2(fp, dest)
-                copied.append(os.path.basename(fp))
-        if copied:
-            logger.info(f"Backup created: {folder}  —  files: {', '.join(copied)}")
-            clean_backup_folder_if_needed(folder)  ### NEW v0.12.0 ###
-            return folder
-        return None
-    except Exception as e:
-        logger.error(f"Backup failed for '{movie_name}': {e}")
-        return None
+def _make_backup(movie_name, *file_paths):
+    """Timestamped backup of one or more files (see settings_controller.make_backup).
+    ### MODIFIED v0.18.3 — delegates to settings_controller; cleanup kept here ###"""
+    folder = _sc.make_backup(_BACKUP_ROOT, movie_name, *file_paths, logger=logger)
+    if folder:
+        clean_backup_folder_if_needed(folder)
+    return folder
 
 
-def _make_batch_backup(movie_name: str, backup_folder_ref: list, *file_paths: str) -> str | None:
-    """
-    Variant for batch operations.  Creates a single shared backup folder
-    for the whole batch and reuses it for subsequent calls in the same batch.
-
-    Parameters
-    ----------
-    movie_name : str
-        Used only for the initial folder name (first call in batch).
-    backup_folder_ref : list
-        A one-element list [folder_path_or_None] used as a mutable reference.
-        Pass the same list for every call in the batch.
-    *file_paths : str
-        Files to back up in this call.
-
-    Returns
-    -------
-    str | None
-        The shared backup folder path.
-    """
-    try:
-        if backup_folder_ref[0] is None:
-            # First call: create the shared folder
-            os.makedirs(_BACKUP_ROOT, exist_ok=True)
-            safe_name = re.sub(r'[\\/:*?"<>|]', '', movie_name).strip()
-            safe_name = re.sub(r'\s+', '_', safe_name)
-            if not safe_name:
-                safe_name = "batch"
-            timestamp = time.strftime("%Y-%m-%d_%H-%M-%S")
-            base_folder = os.path.join(_BACKUP_ROOT, f"backup_{safe_name}_{timestamp}")
-            folder = base_folder
-            counter = 2
-            while os.path.exists(folder):
-                folder = f"{base_folder}_{counter}"
-                counter += 1
-            backup_folder_ref[0] = folder
-            logger.info(f"Batch backup folder created: {folder}")
-        folder = backup_folder_ref[0]
-        copied = []
-        for fp in file_paths:
-            if fp and os.path.isfile(fp):
-                os.makedirs(folder, exist_ok=True)
-                dest = os.path.join(folder, os.path.basename(fp))
-                # Avoid overwriting if same filename already backed up
-                if os.path.exists(dest):
-                    base, ext = os.path.splitext(os.path.basename(fp))
-                    idx = 2
-                    while os.path.exists(dest):
-                        dest = os.path.join(folder, f"{base}_{idx}{ext}")
-                        idx += 1
-                shutil.copy2(fp, dest)
-                copied.append(os.path.basename(fp))
-        if copied:
-            logger.info(f"Batch backup — added to {folder}: {', '.join(copied)}")
-        return folder
-    except Exception as e:
-        logger.error(f"Batch backup failed: {e}")
-        return None
+def _make_batch_backup(movie_name, backup_folder_ref, *file_paths):
+    """Batch variant — one shared folder per batch (settings_controller.make_batch_backup)."""
+    return _sc.make_batch_backup(_BACKUP_ROOT, movie_name, backup_folder_ref,
+                                 *file_paths, logger=logger)
 
 
 def clean_backup_folder_if_needed(active_folder: str = None):
-    """
-    Auto-delete oldest backup_* subfolders when total size exceeds the limit.
-    ### NEW v0.12.0 ###
-
-    Parameters
-    ----------
-    active_folder : str | None
-        The backup folder just created (never deleted even if over limit).
-        Pass None when calling at startup.
-    """
-    try:
-        max_mb = SETTINGS.get("max_backup_size_mb", 500)
-        if not max_mb or max_mb <= 0:
-            return
-        if not os.path.isdir(_BACKUP_ROOT):
-            return
-        max_bytes = max_mb * 1024 * 1024
-
-        def _folder_size(path):
-            total = 0
-            try:
-                for e in os.scandir(path):
-                    if e.is_file():
-                        try: total += e.stat().st_size
-                        except Exception: pass
-            except Exception:
-                pass
-            return total
-
-        # Collect all backup_* subfolders
-        backup_dirs = []
-        for entry in os.scandir(_BACKUP_ROOT):
-            if entry.is_dir() and entry.name.startswith("backup_"):
-                try:
-                    backup_dirs.append((entry.stat().st_ctime, entry.path))
-                except Exception:
-                    pass
-
-        total_bytes = sum(_folder_size(p) for _, p in backup_dirs)
-        if total_bytes <= max_bytes:
-            return
-
-        backup_dirs.sort(key=lambda x: x[0])  # oldest first
-        for _, folder_path in backup_dirs:
-            if total_bytes <= max_bytes:
-                break
-            if active_folder and os.path.abspath(folder_path) == os.path.abspath(active_folder):
-                continue
-            try:
-                folder_size = _folder_size(folder_path)
-                shutil.rmtree(folder_path)
-                total_bytes -= folder_size
-                logger.info(f"Backup cleanup: removed {folder_path} ({format_size(folder_size)})")
-            except Exception as e:
-                logger.error(f"Backup cleanup failed for {folder_path}: {e}")
-    except Exception as e:
-        logger.error(f"clean_backup_folder_if_needed error: {e}")
+    """Auto-delete oldest backup_* folders above the size limit (settings_controller)."""
+    _sc.clean_backup_folder_if_needed(_BACKUP_ROOT, SETTINGS, active_folder, logger=logger)
 
 
 def refresh_ffmpeg_paths():
@@ -878,19 +517,7 @@ def refresh_ffmpeg_paths():
     FFMPEG_PATH, FFPROBE_PATH = _find_ffmpeg_ffprobe(SETTINGS.get("ffmpeg_path", ""))
 
 # ── Text editor opener ────────────────────────────────────────────────────────
-def _find_notepadpp():
-    """Try common Notepad++ install locations on Windows."""
-    candidates = [
-        r"C:\Program Files\Notepad++\notepad++.exe",
-        r"C:\Program Files (x86)\Notepad++\notepad++.exe",
-        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Notepad++", "notepad++.exe"),
-        os.path.join(os.environ.get("PROGRAMFILES", ""), "Notepad++", "notepad++.exe"),
-    ]
-    for c in candidates:
-        if os.path.isfile(c):
-            return c
-    return shutil.which("notepad++")
-
+# _find_notepadpp is imported from settings_controller (v0.18.3)
 def open_in_editor(filepath):
     """
     Open a file in the configured text editor.
@@ -971,147 +598,15 @@ def open_with_scraper(folder_path):
 
 # ── Browser helpers ───────────────────────────────────────────────────────────
 
-_KNOWN_BROWSERS_WIN = [
-    # (display_name, candidate_paths...)
-    ("Google Chrome",    [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        os.path.join(os.environ.get("LOCALAPPDATA",""), r"Google\Chrome\Application\chrome.exe"),
-    ]),
-    ("Mozilla Firefox",  [
-        r"C:\Program Files\Mozilla Firefox\firefox.exe",
-        r"C:\Program Files (x86)\Mozilla Firefox\firefox.exe",
-    ]),
-    ("Microsoft Edge",   [
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        os.path.join(os.environ.get("PROGRAMFILES",""),  r"Microsoft\Edge\Application\msedge.exe"),
-    ]),
-    ("Brave",            [
-        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
-        os.path.join(os.environ.get("LOCALAPPDATA",""), r"BraveSoftware\Brave-Browser\Application\brave.exe"),
-    ]),
-    ("Opera",            [
-        os.path.join(os.environ.get("LOCALAPPDATA",""), r"Programs\Opera\opera.exe"),
-        r"C:\Program Files\Opera\opera.exe",
-    ]),
-    ("Vivaldi",          [
-        os.path.join(os.environ.get("LOCALAPPDATA",""), r"Vivaldi\Application\vivaldi.exe"),
-    ]),
-]
-
-
-def detect_installed_browsers():
-    """
-    Scan standard locations for known browsers on Windows.
-    Returns list of (display_name, exe_path) tuples for browsers actually found.
-    """
-    found = []
-    if os.name != "nt":
-        return found
-    for name, candidates in _KNOWN_BROWSERS_WIN:
-        for path in candidates:
-            if path and os.path.isfile(path):
-                found.append((name, path))
-                break
-    return found
-
+# detect_installed_browsers is imported from settings_controller (v0.18.3)
 
 def open_url_with_browser(url):
-    """
-    Open a URL in the user's configured browser.
-    Falls back to the system default (webbrowser module) if none configured.
-    """
-    browser_path = SETTINGS.get("default_browser", "").strip()
-    if browser_path and os.path.isfile(browser_path):
-        try:
-            subprocess.Popen([browser_path, url],
-                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            return
-        except Exception:
-            pass
-    # System default fallback
-    webbrowser.open(url)
+    """Open *url* in the configured browser (system default when none set)."""
+    _sc.open_url_with_browser(url, SETTINGS)
 
 
-
-
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Image Quality Tier System  (updated v0.16.1)                ### NEW v0.16.1 ###
-# ══════════════════════════════════════════════════════════════════════════════
-# 7-tier system for poster/folder and fanart. Lowest tier (360p) absorbs all
-# images below its threshold. FANART_BELOW_LABEL removed.
-
-POSTER_QUALITY_TIERS = [
-    # (label,   min_w, min_h,  total_px,  est_size_str)
-    ("4K",      2000,  3000,  6_000_000, "1.5–3.0 MB"),
-    ("1440p",   1500,  2250,  3_375_000, "800 KB–1.5 MB"),
-    ("1080p",   1000,  1500,  1_500_000, "300–600 KB"),
-    ("720p",     666,  1000,    666_000, "150–250 KB"),
-    ("540p",     540,   810,    437_400, "120–150 KB"),
-    ("480p",     480,   720,    345_600, "70–120 KB"),
-    ("360p",     360,   540,    194_400, "40–70 KB"),
-]
-
-FANART_QUALITY_TIERS = [
-    # (label,   min_w, min_h,  total_px,  est_size_str)
-    ("4K",      3840,  2160,  8_294_400, "2.0–4.5 MB"),
-    ("1440p",   2560,  1440,  3_686_400, "1.0–2.0 MB"),
-    ("1080p",   1920,  1080,  2_073_600, "400–800 KB"),
-    ("720p",    1280,   720,    921_600, "200–350 KB"),
-    ("540p",     960,   540,    518_400, "130–180 KB"),
-    ("480p",     854,   480,    409_920, "80–130 KB"),
-    ("360p",     640,   360,    230_400, "40–75 KB"),
-]
-
-# Tolerance margin (±5%)
-_IMG_QUALITY_TOLERANCE = 0.05
-
-
-def classify_image_quality(width, height, image_type):
-    """Classify image quality. Lowest tier (360p) absorbs all images below it."""
-    if not width or not height:
-        return "—"
-    tol = 1 - _IMG_QUALITY_TOLERANCE
-    if image_type in ("poster", "folder"):
-        for label, mw, mh, _, _ in POSTER_QUALITY_TIERS:
-            if width >= mw * tol and height >= mh * tol:
-                return label
-        return "360p"
-    elif image_type == "fanart":
-        for label, mw, mh, _, _ in FANART_QUALITY_TIERS:
-            if width >= mw * tol and height >= mh * tol:
-                return label
-        return "360p"
-    return "—"
-
-
-def _poster_quality_sort_key(label):
-    order = {t[0]: i for i, t in enumerate(POSTER_QUALITY_TIERS)}
-    return order.get(label, len(POSTER_QUALITY_TIERS) + 1)
-
-
-def _fanart_quality_sort_key(label):
-    order = {t[0]: i for i, t in enumerate(FANART_QUALITY_TIERS)}
-    return order.get(label, len(FANART_QUALITY_TIERS) + 1)
-
-
-def _poster_quality_sort_key_missing_last(r, key, high_to_low):
-    val = r.get(key)
-    if val is None or val == "—":
-        return 9999 if high_to_low else -1
-    return _poster_quality_sort_key(val)
-
-
-def _fanart_quality_sort_key_missing_last(r, key, high_to_low):
-    val = r.get(key)
-    if val is None or val == "—":
-        return 9999 if high_to_low else -1
-    return _fanart_quality_sort_key(val)
-
+# POSTER_QUALITY_TIERS, FANART_QUALITY_TIERS, classify_image_quality and the
+# quality sort keys are imported from settings_model (v0.18.3).
 
 def _sources_sort_key(r, errors_first=True):                   ### NEW v0.17.0 ###
     """
@@ -1132,26 +627,6 @@ def _sources_sort_key(r, errors_first=True):                   ### NEW v0.17.0 #
 def _lang_ok_sort_key(val):                                     ### NEW v0.15.0 — fix inverted sort ###
     """Sort key: Y=0 (best, sorts first), N=1, —=2 (no video)."""
     return {"Y": 0, "N": 1}.get(val, 2)
-
-
-def _poster_quality_sort_key_missing_last(r, key, high_to_low):
-    """
-    Sort helper that always puts missing files at the extreme end.
-    high_to_low=True  → higher quality first  → missing = last (highest key)
-    high_to_low=False → lower quality first   → missing = first (lowest key = -1)
-    """
-    val = r.get(key)
-    if val is None or val == "—":
-        return 9999 if high_to_low else -1
-    return _poster_quality_sort_key(val)
-
-
-def _fanart_quality_sort_key_missing_last(r, key, high_to_low):
-    val = r.get(key)
-    if val is None or val == "—":
-        return 9999 if high_to_low else -1
-    return _fanart_quality_sort_key(val)
-
 
 
 def _accent_insensitive_name(r):                                ### NEW v0.15.0 — accent-insensitive sort ###
@@ -1190,6 +665,82 @@ def format_size(size_bytes):
     elif size_bytes < 1024**2:   return f"{size_bytes/1024:.1f} KB"
     elif size_bytes < 1024**3:   return f"{size_bytes/(1024**2):.1f} MB"
     else:                        return f"{size_bytes/(1024**3):.2f} GB"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Per-scan read caches (v0.18.3)                                 ### NEW v0.18.3 ###
+# ══════════════════════════════════════════════════════════════════════════════
+# A movie's NFO and XML used to be opened and parsed ~10 times per scan (name,
+# year, genres, rating, votes, IDs, titles, language, validation…) and each
+# image header 3 times.  These caches key on (mtime_ns, size) so a file edited
+# by the app (or by the user) is re-read automatically.  Bounded; cleared at
+# the start of every scan by clear_read_caches().
+_TEXT_CACHE   = {}
+_ROOT_CACHE   = {}
+_IMG_WH_CACHE = {}
+_CACHE_MAX    = 6000
+_AMP_FIX_RE   = re.compile(r'&(?!amp;|lt;|gt;|quot;|apos;|#)')
+
+
+def _stat_key(path):
+    try:
+        st = os.stat(path)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def _cache_put(cache, key, value):
+    if len(cache) >= _CACHE_MAX:
+        cache.clear()
+    cache[key] = value
+
+
+def _read_text(path):
+    """Return the file's text (BOM stripped) or None if unreadable."""
+    if not path:
+        return None
+    sk = _stat_key(path)
+    if sk is None:
+        return None
+    key = (path, sk)
+    hit = _TEXT_CACHE.get(key)
+    if hit is not None:
+        return hit
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+    except Exception:
+        return None
+    if content.startswith("\ufeff"):
+        content = content[1:]
+    _cache_put(_TEXT_CACHE, key, content)
+    return content
+
+
+def _parse_root(path):
+    """Return the parsed ElementTree root (with KODI-safe & handling) or None."""
+    if not path:
+        return None
+    sk = _stat_key(path)
+    if sk is None:
+        return None
+    key = (path, sk)
+    if key in _ROOT_CACHE:
+        return _ROOT_CACHE[key]
+    content = _read_text(path)
+    root = None
+    if content is not None:
+        try:
+            root = ET.fromstring(_AMP_FIX_RE.sub("&amp;", content))
+        except Exception:
+            root = None
+    _cache_put(_ROOT_CACHE, key, root)
+    return root
+
+
+def clear_read_caches():
+    _TEXT_CACHE.clear(); _ROOT_CACHE.clear(); _IMG_WH_CACHE.clear()
+
 
 def get_jpeg_dimensions(filepath):
     """Parse JPEG dimensions from SOF marker.
@@ -1237,20 +788,31 @@ def get_png_dimensions(filepath):
             return struct.unpack(">I", d[0:4])[0], struct.unpack(">I", d[4:8])[0]
     except Exception: return None, None
 
-def get_image_dimensions(filepath):
-    ext = os.path.splitext(filepath)[1].lower()
-    w, h = (get_jpeg_dimensions(filepath) if ext in ('.jpg', '.jpeg')
-            else get_png_dimensions(filepath) if ext == '.png' else (None, None))
-    return f"{w}×{h}" if w and h and (w > 0 or h > 0) else None
-
 def get_image_wh(filepath):
-    """Return (width, height) integers or (None, None)."""
+    """Return (width, height) integers or (None, None).  Cached per file
+    (mtime + size) so the header is parsed once per scan.  ### MODIFIED v0.18.3 ###"""
+    if not filepath:
+        return None, None
+    sk = _stat_key(filepath)
+    if sk is None:
+        return None, None
+    key = (filepath, sk)
+    hit = _IMG_WH_CACHE.get(key)
+    if hit is not None:
+        return hit
     ext = os.path.splitext(filepath)[1].lower()
     if ext in ('.jpg', '.jpeg'):
-        return get_jpeg_dimensions(filepath)
-    if ext == '.png':
-        return get_png_dimensions(filepath)
-    return None, None
+        wh = get_jpeg_dimensions(filepath)
+    elif ext == '.png':
+        wh = get_png_dimensions(filepath)
+    else:
+        wh = (None, None)
+    _cache_put(_IMG_WH_CACHE, key, wh)
+    return wh
+
+def get_image_dimensions(filepath):
+    w, h = get_image_wh(filepath)
+    return f"{w}×{h}" if w and h else None
 
 def is_valid_jpeg(filepath):
     try:
@@ -1431,6 +993,33 @@ def next_backdrop_number(sub_path):
 # Video / subtitle / language helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _pkey(path):                                               ### NEW v0.18.3 ###
+    """Normalised dict key for a folder path (forward and back slashes compare equal)."""
+    try:
+        return os.path.normcase(os.path.normpath(path or ""))
+    except Exception:
+        return path or ""
+
+
+def _folder_mtime(sub_path):                                   ### NEW v0.18.3 ###
+    """Newest modification time (float seconds) among the files directly in
+    *sub_path*, or 0.  Stored per row as scan_mtime so Quick Scan can detect
+    modified movies by comparing against the value recorded at scan time."""
+    newest = 0.0
+    try:
+        for e in os.scandir(sub_path):
+            try:
+                if e.is_file():
+                    m = e.stat().st_mtime
+                    if m > newest:
+                        newest = m
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return newest
+
+
 def scan_video_files(sub_path):
     videos = []
     try:
@@ -1450,15 +1039,23 @@ def scan_video_files(sub_path):
             "video_bytes":main.stat().st_size,"video_size":format_size(main.stat().st_size),
             "video_width":None,"video_height":None,"video_quality":"—"}
 
-def _get_video_resolution(video_path):
+def _ffprobe_enabled(flag=None):
+    """True when ffprobe may run: a path exists and the flag (or the global
+    setting when flag is None) allows it.                    ### NEW v0.18.3 ###"""
+    if not FFPROBE_PATH:
+        return False
+    return bool(SETTINGS.get("use_ffprobe", True)) if flag is None else bool(flag)
+
+
+def _get_video_resolution(video_path, use_ffprobe=None):
     """Return (width, height) of first video stream, or (None, None)."""
-    if not FFPROBE_PATH or not SETTINGS.get("use_ffprobe", True):
+    if not _ffprobe_enabled(use_ffprobe):
         return None, None
     try:
         r = subprocess.run(
             [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
              "-show_streams", "-select_streams", "v:0", video_path],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if r.returncode == 0 and r.stdout.strip():
             streams = json.loads(r.stdout).get("streams", [])
@@ -1469,15 +1066,15 @@ def _get_video_resolution(video_path):
         pass
     return None, None
 
-def _get_ffprobe_full(video_path):
+def _get_ffprobe_full(video_path, use_ffprobe=None):
     """Return full ffprobe JSON dict (format + streams), or {}."""
-    if not FFPROBE_PATH or not SETTINGS.get("use_ffprobe", True):
+    if not _ffprobe_enabled(use_ffprobe):
         return {}
     try:
         r = subprocess.run(
             [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
              "-show_streams", "-show_format", video_path],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if r.returncode == 0 and r.stdout.strip():
             return json.loads(r.stdout)
@@ -1485,7 +1082,7 @@ def _get_ffprobe_full(video_path):
         pass
     return {}
 
-def scan_subtitles(sub_path, video_path):
+def scan_subtitles(sub_path, video_path, use_ffprobe=None):
     result = {"subs_internal":[],"subs_external":[],"subs_summary":"—"}
     try:
         for f in os.scandir(sub_path):
@@ -1494,12 +1091,12 @@ def scan_subtitles(sub_path, video_path):
                 lang = parts[-1] if len(parts) > 1 and len(parts[-1]) <= 20 else "unknown"
                 result["subs_external"].append({"lang": lang, "file": f.name})
     except PermissionError: pass
-    if video_path and FFPROBE_PATH and SETTINGS.get("use_ffprobe", True):
+    if video_path and _ffprobe_enabled(use_ffprobe):
         try:
             proc = subprocess.run(
                 [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
                  "-show_streams", "-select_streams", "s", video_path],
-                capture_output=True, text=True, timeout=20,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             if proc.returncode == 0 and proc.stdout.strip():
                 for stream in json.loads(proc.stdout).get("streams", []):
@@ -1515,19 +1112,19 @@ def scan_subtitles(sub_path, video_path):
         parts.append(f"Ext: {', '.join(s['lang'] for s in result['subs_external'])}")
     result["subs_summary"] = " | ".join(parts) if parts else ("None" if video_path else "—")
     return result
-def scan_audio_tracks(video_path):                              ### NEW v0.15.0 ###
+def scan_audio_tracks(video_path, use_ffprobe=None):             ### NEW v0.15.0 ###
     """
     Extract audio tracks from video_path using ffprobe.
     Returns list of dicts: [{language, codec, channels, bitrate}, ...]
     Only runs if FFPROBE_PATH is available.
     """
-    if not video_path or not FFPROBE_PATH or not SETTINGS.get("use_ffprobe", True):
+    if not video_path or not _ffprobe_enabled(use_ffprobe):
         return []
     try:
         proc = subprocess.run(
             [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
              "-show_streams", "-select_streams", "a", video_path],
-            capture_output=True, text=True, timeout=20,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if proc.returncode != 0 or not proc.stdout.strip():
             return []
@@ -1569,7 +1166,8 @@ def scan_audio_tracks(video_path):                              ### NEW v0.15.0 
 
 
 
-def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path, iso_code="PT"):
+def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path,
+                    iso_code="PT", use_ffprobe=None):
     """
     Y  — target language audio OR subtitle is present (ffprobe + XML + NFO)
     N  — video present but no target language found
@@ -1579,12 +1177,12 @@ def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path
         return "—"
 
     # 1. FFprobe audio streams
-    if FFPROBE_PATH and SETTINGS.get("use_ffprobe", True):
+    if _ffprobe_enabled(use_ffprobe):
         try:
             r = subprocess.run(
                 [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
                  "-show_streams", "-select_streams", "a", video_path],
-                capture_output=True, text=True, timeout=20,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             if r.returncode == 0 and r.stdout.strip():
                 for stream in json.loads(r.stdout).get("streams", []):
@@ -1607,8 +1205,7 @@ def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path
     # 4. XML: LanguageCode tag
     if xml_path and os.path.isfile(xml_path):
         try:
-            with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = _read_text(xml_path) or ""
             for m in re.finditer(r'<LanguageCode>([^<]+)</LanguageCode>', content, re.IGNORECASE):
                 if is_target_lang(m.group(1).strip(), iso_code): return "Y"
             # XML Audio/Language
@@ -1619,8 +1216,7 @@ def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path
     # 5. NFO: streamdetails/video/language
     if nfo_path and os.path.isfile(nfo_path):
         try:
-            with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = _read_text(nfo_path) or ""
             for m in re.finditer(r'<language>([^<]+)</language>', content, re.IGNORECASE):
                 if is_target_lang(m.group(1).strip(), iso_code): return "Y"
         except Exception: pass
@@ -1630,8 +1226,7 @@ def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path
 def extract_language_from_xml(filepath):
     if not filepath or not os.path.isfile(filepath): return "—"
     try:
-        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
+        content = _read_text(filepath) or ""
         m = re.search(r'<Language>([^<]+)</Language>', content)
         if m:
             lang = m.group(1).strip()
@@ -1680,11 +1275,9 @@ def validate_xml_file(filepath, is_nfo=False):
     ok, reason = _fast_precheck_xml(filepath)
     if not ok:
         return [{"line": 0, "col": 0, "message": reason}]
-    try:
-        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-    except Exception as e:
-        return [{"line":0,"col":0,"message":f"Cannot read: {e}"}]
+    content = _read_text(filepath)                             ### MODIFIED v0.18.3 ###
+    if content is None:
+        return [{"line":0,"col":0,"message":"Cannot read file"}]
     if not content.strip(): return [{"line":1,"col":0,"message":"File is empty"}]
     if is_nfo and _is_url_only_nfo(content): return errors
     if content.startswith('\ufeff'): content = content[1:]
@@ -1744,17 +1337,8 @@ def _parse_xml_to_dict(filepath):
     Parse an XML/NFO file into a flat+nested dict for tag comparison.
     Returns {} on failure.
     """
-    if not filepath or not os.path.isfile(filepath): return {}
-    try:
-        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-        if content.startswith('\ufeff'): content = content[1:]
-        # Normalise & so ET doesn't choke
-        content = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-        root = ET.fromstring(content)
-        return root
-    except Exception:
-        return None
+    if not filepath or not os.path.isfile(filepath): return None
+    return _parse_root(filepath)                               ### MODIFIED v0.18.3 ###
 
 def _xpath_get(root, dotpath):
     """
@@ -1775,16 +1359,6 @@ def _xpath_get(root, dotpath):
                 results.extend(_recurse(child, remaining[1:]))
         return results
     return _recurse(root, parts)
-
-def _get_nfo_id_by_moviedb(root, moviedb_val):
-    """Return <id moviedb='X'> value from NFO root."""
-    if root is None: return []
-    results = []
-    for el in root.iter('id'):
-        if el.get('moviedb', '').lower() == moviedb_val.lower():
-            txt = (el.text or "").strip()
-            if txt: results.append(txt)
-    return results
 
 def _norm_val(v):
     """Normalise a value for comparison: lowercase, strip spaces."""
@@ -1819,43 +1393,15 @@ def _vals_match(vals_a, vals_b, tol_pct=0):
                 return True
     return False
 
-def get_movie_ids_from_xml(xml_path):
-    """Extract IMDB and TMDb IDs from movie.xml. Returns (imdb_id, tmdb_id)."""
-    if not xml_path or not os.path.isfile(xml_path):
-        return None, None
-    try:
-        with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-        if content.startswith('\ufeff'): content = content[1:]
-        content = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-        root = ET.fromstring(content)
-    except Exception:
-        return None, None
-
-    imdb_tags = ['IMDB', 'IMDbId', 'IMDB_ID']
-    tmdb_tags = ['TMDbId', 'TMDB', 'TMDB_ID']
-    imdb_id = None; tmdb_id = None
-    for tag in imdb_tags:
-        el = root.find(tag)
-        if el is not None and el.text and el.text.strip():
-            imdb_id = el.text.strip(); break
-    for tag in tmdb_tags:
-        el = root.find(tag)
-        if el is not None and el.text and el.text.strip():
-            tmdb_id = el.text.strip(); break
-    return imdb_id, tmdb_id
-
-
 def get_movie_year_from_files(nfo_path, xml_path):
     """Extract production year from NFO (<year>) or XML (<ProductionYear>)."""
     for filepath, tags in [(nfo_path, ['year']), (xml_path, ['ProductionYear'])]:
         if not filepath or not os.path.isfile(filepath):
             continue
         try:
-            with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            content_clean = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-            root = ET.fromstring(content_clean)
+            root = _parse_root(filepath)                       ### MODIFIED v0.18.3 ###
+            if root is None:
+                continue
             for tag in tags:
                 el = root.find(tag)
                 if el is not None:
@@ -1881,9 +1427,7 @@ def get_movie_name_from_files(nfo_path, xml_path, subfolder_name):
     def _tag(fp, tag):
         if not fp or not os.path.isfile(fp): return ""
         try:
-            with open(fp, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            if content.startswith("\ufeff"): content = content[1:]
+            content = _read_text(fp) or ""                     ### MODIFIED v0.18.3 ###
             m = re.search(rf"<{tag}[^>]*>([^<]+)</{tag}>", content, re.IGNORECASE)
             if not m: return ""
             return html.unescape(m.group(1).strip())  # v0.10.2 — decode &amp; etc.
@@ -1910,8 +1454,7 @@ def get_movie_year_display(nfo_path, xml_path):
     def _tag(fp, tag):
         if not fp or not os.path.isfile(fp): return ""
         try:
-            with open(fp, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = _read_text(fp) or ""                     ### MODIFIED v0.18.3 ###
             m = re.search(rf"<{tag}[^>]*>([^<]+)</{tag}>", content, re.IGNORECASE)
             v = m.group(1).strip() if m else ""
             return v if re.match(r"^\d{4}$", v) else ""
@@ -1962,8 +1505,7 @@ def extract_rating_from_files(nfo_path, xml_path):              ### NEW v0.15.0 
 
     if nfo_path and os.path.isfile(nfo_path):
         try:
-            with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = _read_text(nfo_path) or ""              ### MODIFIED v0.18.3 ###
             m = re.search(r'<rating[^>]*>([^<]*)</rating>', content, re.IGNORECASE)
             if m:
                 raw = m.group(1).strip()
@@ -1985,8 +1527,7 @@ def extract_rating_from_files(nfo_path, xml_path):              ### NEW v0.15.0 
 
     if xml_path and os.path.isfile(xml_path):
         try:
-            with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = _read_text(xml_path) or ""              ### MODIFIED v0.18.3 ###
             for tag in ["IMDBrating", "Rating"]:
                 m = re.search(rf'<{tag}[^>]*>([^<]*)</{tag}>', content, re.IGNORECASE)
                 if m:
@@ -2089,8 +1630,7 @@ def extract_votes_from_files(nfo_path, xml_path):          ### NEW v0.16.0 ###
 
     if nfo_path and os.path.isfile(nfo_path):
         try:
-            with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = _read_text(nfo_path) or ""              ### MODIFIED v0.18.3 ###
             m = re.search(r'<votes[^>]*>([^<]*)</votes>', content, re.IGNORECASE)
             if m:
                 raw = m.group(1).strip()
@@ -2103,8 +1643,7 @@ def extract_votes_from_files(nfo_path, xml_path):          ### NEW v0.16.0 ###
 
     if xml_path and os.path.isfile(xml_path):
         try:
-            with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
+            content = _read_text(xml_path) or ""              ### MODIFIED v0.18.3 ###
             mv = re.search(r'<Votes[^>]*>([^<]*)</Votes>', content)
             if mv:
                 raw = mv.group(1).strip()
@@ -2168,10 +1707,9 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
     # ── XML ──────────────────────────────────────────────────────────────────
     if xml_path and os.path.isfile(xml_path):
         try:
-            with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            clean = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-            root = ET.fromstring(clean)
+            root = _parse_root(xml_path)                       ### MODIFIED v0.18.3 ###
+            if root is None:
+                raise ValueError("unparseable XML")
             for tag in ["IMDB", "IMDbId", "IMDB_ID"]:
                 el = root.find(tag)
                 if el is not None:
@@ -2190,10 +1728,9 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
     # ── NFO ──────────────────────────────────────────────────────────────────
     if nfo_path and os.path.isfile(nfo_path):
         try:
-            with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            clean = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-            root_nfo = ET.fromstring(clean)
+            root_nfo = _parse_root(nfo_path)                   ### MODIFIED v0.18.3 ###
+            if root_nfo is None:
+                raise ValueError("unparseable NFO")
             for el in root_nfo.findall("id"):
                 mdb = el.get("moviedb", "")
                 txt = (el.text or "").strip()
@@ -2216,8 +1753,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
         except Exception:
             # Malformed NFO — regex fallback
             try:
-                with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
+                content = _read_text(nfo_path) or ""           ### MODIFIED v0.18.3 ###
                 m = re.search(r'<imdbid[^>]*>([^<]+)</imdbid>', content, re.IGNORECASE)
                 if m: imdb_nfo.append(m.group(1).strip())
                 m = re.search(r'<tmdbid[^>]*>([^<]+)</tmdbid>', content, re.IGNORECASE)
@@ -2328,21 +1864,12 @@ def _safe_parse_xml(filepath):
     """
     if not filepath or not os.path.isfile(filepath):
         return None, {}
-    try:
-        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
-    except Exception:
+    content = _read_text(filepath)                             ### MODIFIED v0.18.3 ###
+    if content is None:
         return None, {}
-
-    if content.startswith('\ufeff'):
-        content = content[1:]
-    clean = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-
-    try:
-        root = ET.fromstring(clean)
+    root = _parse_root(filepath)
+    if root is not None:
         return root, {}
-    except ET.ParseError:
-        pass
 
     # Fallback: regex extraction of the most important tags
     fb = {
@@ -2836,7 +2363,7 @@ def _tmdb_fetch_json(url, timeout=15):                         ### NEW v0.17.0-b
     import urllib.request, gzip as _gzip
     req = urllib.request.Request(
         url,
-        headers={"User-Agent": "MediaClinic/0.17.0"})
+        headers={"User-Agent": _UA})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         raw = resp.read()
     # Detect gzip by magic bytes — decompress only if really gzip
@@ -2921,7 +2448,7 @@ def _tmdb_download_image(url, dest_path, retries=2):           ### NEW v0.18.0 #
             _time.sleep(wait)
         try:
             req = urllib.request.Request(
-                url, headers={"User-Agent": "MediaClinic/0.18.0"})
+                url, headers={"User-Agent": _UA})
             with urllib.request.urlopen(req,
                     timeout=_CONNECT_TIMEOUT + _READ_TIMEOUT) as resp:
                 data = resp.read()
@@ -2929,24 +2456,9 @@ def _tmdb_download_image(url, dest_path, retries=2):           ### NEW v0.18.0 #
                 fout.write(data)
             return True, None
 
-        except ConnectionResetError as e:
-            # WinError 10054 and other connection resets — always retry
-            last_err = f"Connection reset by TMDB server (will retry): {e}"
-            logger.warning(f"_tmdb_download_image attempt {attempt+1}: {last_err}")
-            continue
-
-        except OSError as e:
-            # Catch WinError 10054 on Windows where it surfaces as OSError
-            err_str = str(e)
-            if "10054" in err_str or "connection" in err_str.lower():
-                last_err = f"Connection reset (WinError): {e}"
-                logger.warning(f"_tmdb_download_image attempt {attempt+1}: {last_err}")
-                continue
-            # Other OS errors (disk full, permission) — do not retry
-            last_err = f"File write error: {e}"
-            logger.error(f"_tmdb_download_image: {last_err}")
-            return False, last_err
-
+        # NOTE v0.18.3: HTTPError/URLError are subclasses of OSError, so they
+        # MUST be handled before the generic OSError branch (they used to be
+        # unreachable, which disabled every retry).           ### FIXED v0.18.3 ###
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504):
                 last_err = f"HTTP {e.code} from TMDB (will retry)"
@@ -2958,10 +2470,27 @@ def _tmdb_download_image(url, dest_path, retries=2):           ### NEW v0.18.0 #
 
         except urllib.error.URLError as e:
             last_err = _tmdb_error_message(e)
-            # Timeout errors are worth retrying; others (DNS) are not
-            if "timed out" in str(e.reason).lower():
-                logger.warning(f"_tmdb_download_image attempt {attempt+1}: timeout")
+            # Timeout / connection resets are worth retrying; DNS failures are not
+            reason = str(e.reason).lower()
+            if "timed out" in reason or "10054" in reason or "reset" in reason:
+                logger.warning(f"_tmdb_download_image attempt {attempt+1}: {last_err}")
                 continue
+            return False, last_err
+
+        except (ConnectionResetError, TimeoutError) as e:
+            last_err = f"Connection reset by TMDB server (will retry): {e}"
+            logger.warning(f"_tmdb_download_image attempt {attempt+1}: {last_err}")
+            continue
+
+        except OSError as e:
+            err_str = str(e)
+            if "10054" in err_str or "connection" in err_str.lower():
+                last_err = f"Connection reset (WinError): {e}"
+                logger.warning(f"_tmdb_download_image attempt {attempt+1}: {last_err}")
+                continue
+            # Other OS errors (disk full, permission) — do not retry
+            last_err = f"File write error: {e}"
+            logger.error(f"_tmdb_download_image: {last_err}")
             return False, last_err
 
         except Exception as e:
@@ -3001,7 +2530,7 @@ def _fetch_omdb_rating(imdb_id, api_key):
     try:
         import urllib.request
         url = f"https://www.omdbapi.com/?apikey={api_key}&i={imdb_id}&type=movie"
-        req = urllib.request.Request(url, headers={"User-Agent": "MediaClinic/9.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": _UA})
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read())
         if data.get("Response") == "True":
@@ -3013,7 +2542,7 @@ def _fetch_omdb_rating(imdb_id, api_key):
         pass
     return None, None
 
-def write_rating_to_files(nfo_path, xml_path, rating, votes):
+def write_rating_to_files(nfo_path, xml_path, rating, votes, movie_name="rating_sync"):  ### MODIFIED v0.18.3 ###
     """
     Write rating and votes to all matching tags in NFO and XML.
     NFO: <rating>, <votes>
@@ -3032,7 +2561,7 @@ def write_rating_to_files(nfo_path, xml_path, rating, votes):
         return content   # tag not found: leave as-is (don't inject new tags)
 
     # Backup before any writes                          ### NEW v0.11.0 ###
-    _make_backup("rating_sync", nfo_path, xml_path)
+    _make_backup(movie_name or "rating_sync", nfo_path, xml_path)
 
     # NFO
     if nfo_path and os.path.isfile(nfo_path):
@@ -3073,11 +2602,8 @@ def get_movie_titles_from_files(nfo_path, xml_path):
     def _extract_text(filepath, tags):
         if not filepath or not os.path.isfile(filepath): return
         try:
-            with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            if content.startswith('\ufeff'): content = content[1:]
-            content_clean = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-            root = ET.fromstring(content_clean)
+            root = _parse_root(filepath)                       ### MODIFIED v0.18.3 ###
+            if root is None: return
             for tag in tags:
                 el = root.find(tag)
                 if el is not None:
@@ -3089,6 +2615,24 @@ def get_movie_titles_from_files(nfo_path, xml_path):
     _extract_text(nfo_path,  ['title', 'originaltitle'])
     _extract_text(xml_path,  ['LocalTitle', 'OriginalTitle'])
     return titles
+
+
+def get_primary_titles(nfo_path, xml_path):                    ### NEW v0.18.3 ###
+    """
+    Return (nfo_title, xml_localtitle) — the two tags that must agree for the
+    title_mismatch health rule.  Either is "" when the file or tag is absent.
+    Falls back to a regex read when the file does not parse as XML.
+    """
+    def _one(fp, tag):
+        if not fp or not os.path.isfile(fp):
+            return ""
+        root = _parse_root(fp)
+        if root is not None:
+            el = root.find(tag)
+            return html.unescape((el.text or "").strip()) if el is not None else ""
+        m = re.search(rf"<{tag}[^>]*>([^<]+)</{tag}>", _read_text(fp) or "", re.IGNORECASE)
+        return html.unescape(m.group(1).strip()) if m else ""
+    return _one(nfo_path, "title"), _one(xml_path, "LocalTitle")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Scanning
@@ -3148,22 +2692,22 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
 
     # ffprobe for resolution (if enabled)
     if use_ffprobe and vi["video_path"] and FFPROBE_PATH:
-        w, h = _get_video_resolution(vi["video_path"])
+        w, h = _get_video_resolution(vi["video_path"], use_ffprobe=True)
         vi["video_width"]   = w
         vi["video_height"]  = h
         vi["video_quality"] = classify_quality(w, h)
 
-    si = scan_subtitles(sub_path, vi["video_path"])
+    si = scan_subtitles(sub_path, vi["video_path"], use_ffprobe=use_ffprobe)  ### MODIFIED v0.18.3 ###
     # Audio tracks (v0.15.0)                                   ### NEW v0.15.0 ###
     audio_tracks = []
     if use_ffprobe and vi["video_path"] and FFPROBE_PATH:
-        audio_tracks = scan_audio_tracks(vi["video_path"])
+        audio_tracks = scan_audio_tracks(vi["video_path"], use_ffprobe=True)
 
     iso = SETTINGS.get("lang_ok_code", "PT")
     lang_ok = compute_lang_ok(vi["video_path"], si["subs_internal"], si["subs_external"],
                                nfo_path if ne else None,
                                xml_path if xe else None,
-                               iso_code=iso)
+                               iso_code=iso, use_ffprobe=use_ffprobe)  ### MODIFIED v0.18.3 ###
 
     vs = (STATUS_MISSING if vi["video_count"] == 0
           else STATUS_ERROR if vi["video_count"] > 1 else STATUS_OK)
@@ -3191,6 +2735,8 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
     # v0.18.2 — title/year raw fields for health rules     ### ADDED_BY_CLAUDE_v18.2 ###
     titles = get_movie_titles_from_files(
         nfo_path if ne else None, xml_path if xe else None)
+    nfo_title, xml_localtitle = get_primary_titles(                ### NEW v0.18.3 ###
+        nfo_path if ne else None, xml_path if xe else None)
     movie_year_raw = get_movie_year_from_files(
         nfo_path if ne else None, xml_path if xe else None)
 
@@ -3214,6 +2760,8 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         "movie_name": movie_name, "movie_year": movie_year,
         "movie_title_raw": titles,                               ### ADDED_BY_CLAUDE_v18.2 ###
         "movie_year_raw": movie_year_raw,                        ### ADDED_BY_CLAUDE_v18.2 ###
+        "nfo_title": nfo_title, "xml_localtitle": xml_localtitle, ### NEW v0.18.3 ###
+        "scan_mtime": _folder_mtime(sub_path),                   ### NEW v0.18.3 ###
         "poster_exists": pe, "poster_path": poster_path,
         "poster_bytes": pb, "poster_size": format_size(pb) if pe else "—",
         "poster_dim": pd, "poster_corrupt": pc, "poster_desc": ps_desc,
@@ -3269,9 +2817,6 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
     return _row
 
 # ── JSON persistence helpers ───────────────────────────────────────────────────
-def _results_to_json(results):
-    return results
-
 def _results_from_json(data):
     defaults = {
         "video_width": None, "video_height": None, "video_quality": "—",
@@ -3297,6 +2842,8 @@ def _results_from_json(data):
         # v0.18.2 — health engine fields                     ### ADDED_BY_CLAUDE_v18.2 ###
         "health_status": "warning", "health_reasons": [],
         "movie_title_raw": [], "movie_year_raw": None, "ffprobe_ran": False,
+        # v0.18.3                                                ### NEW v0.18.3 ###
+        "nfo_title": "", "xml_localtitle": "", "scan_mtime": None,
     }
     out = []
     for r in data:
@@ -3374,77 +2921,6 @@ SORT_OPTIONS = {                                                 ### NEW v0.11.0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SERIES MODE — Scanning pipeline placeholders (Phase B)
-# ══════════════════════════════════════════════════════════════════════════════
-#
-# Phase C will implement full series scanning. The stubs below define the
-# expected function signatures so that Phase C can fill them in without
-# changing the call sites in App._start_scan_series().
-#
-# SERIES FOLDER STRUCTURE (expected for Phase C):
-#   <root>/
-#     ShowName (Year)/
-#       Season 01/
-#         ShowName S01E01.mkv
-#         ShowName S01E01.nfo
-#         ShowName S01E01-thumb.jpg
-#         season01-poster.jpg
-#         season01-landscape.jpg
-#       Season 02/
-#         ...
-#       show.nfo          ← series-level NFO
-#       poster.jpg        ← show poster
-#       fanart.jpg        ← show fanart
-#       banner.jpg        ← optional banner
-#
-# TODO (Phase C): implement the following stubs.
-
-def scan_one_series(series_path, series_name):
-    """
-    Phase C placeholder — full scan of a single series folder.
-    Returns a series result dict (structure TBD in Phase C).
-
-    Expected keys (Phase C):
-        series_name, series_path, show_nfo_exists, show_nfo_path,
-        show_poster_exists, show_fanart_exists, season_count,
-        episode_count, missing_episode_nfos, missing_thumbnails,
-        genres, year, row_health
-    """
-    # TODO (Phase C): implement series scanning logic
-    raise NotImplementedError("Series scanning not yet implemented (Phase C)")
-
-
-def scan_one_season(season_path, season_number, series_name):
-    """
-    Phase C placeholder — scan a single season subfolder.
-    Returns a season result dict.
-    """
-    # TODO (Phase C): implement season scanning logic
-    raise NotImplementedError("Season scanning not yet implemented (Phase C)")
-
-
-def scan_one_episode(episode_path, episode_name):
-    """
-    Phase C placeholder — scan a single episode file + sidecar files.
-    Returns an episode result dict.
-    """
-    # TODO (Phase C): implement episode scanning logic
-    raise NotImplementedError("Episode scanning not yet implemented (Phase C)")
-
-
-# ── Series sort options placeholder ──────────────────────────────────────────
-# TODO (Phase C): define SERIES_SORT_OPTIONS dict analogous to SORT_OPTIONS.
-# SERIES_SORT_OPTIONS = {
-#     "Show Name (A-Z)":   (lambda r: r.get("series_name","").lower(), False),
-#     "Show Name (Z-A)":   (lambda r: r.get("series_name","").lower(), True),
-#     "Year (older first)":(lambda r: r.get("year","-"),               False),
-#     "Year (newer first)":(lambda r: r.get("year","-"),               True),
-#     "Season count":      (lambda r: r.get("season_count",0),         True),
-#     "Episode count":     (lambda r: r.get("episode_count",0),        True),
-#     "Health (errors 1st)":(lambda r: {"red":0,"yellow":1,"green":2}.get(r.get("row_health","yellow"),1), False),
-# }
-
-# ══════════════════════════════════════════════════════════════════════════════
 # Improvements engine
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -3519,7 +2995,7 @@ def run_improvements(data_list, checks=None):
         # ── 2.3  FFprobe vs NFO/XML ───────────────────────────────────────────
         if (checks.get("ffprobe_diff", True) and d.get("video_path") and
                 d["video_width"] and d["video_height"] and
-                FFPROBE_PATH and SETTINGS.get("use_ffprobe", True)):
+                _ffprobe_enabled()):
             probe = _get_ffprobe_full(d["video_path"])
             if probe:
                 streams = probe.get("streams", [])
@@ -3674,14 +3150,14 @@ def get_video_duration(video_path):                            ### UPDATED v0.17
     Returns (duration_float, estimated:bool).
     Callers that only need a float may use the first element.
     """
-    if not FFPROBE_PATH or not SETTINGS.get("use_ffprobe", True): return None, False
+    if not _ffprobe_enabled(): return None, False
 
     ext = os.path.splitext(video_path)[1].lower()
     _cflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
     def _run(cmd, timeout=20):
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True,
+            r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                                timeout=timeout, creationflags=_cflags)
             return r.stdout.strip(), r.returncode
         except Exception:
@@ -3780,7 +3256,7 @@ def extract_single_frame(video_path, time_sec, output_path, timeout_sec=60):
         r = subprocess.run(
             [FFMPEG_PATH, "-y", "-ss", str(time_sec), "-i", video_path,
              "-frames:v", "1", "-q:v", "1", output_path],
-            capture_output=True, text=True, timeout=timeout_sec,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout_sec,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if r.returncode == 0 and os.path.isfile(output_path) and os.path.getsize(output_path) > 0:
             return True, ""
@@ -4695,61 +4171,6 @@ class CustomGenreDialog(tk.Toplevel):                           ### NEW v0.15.0 
     def _no(self):  self.delete_custom = False; self.destroy()
 
 
-class ManualRatingDialog(tk.Toplevel):
-    """Ask user to enter rating and votes manually when no API returned data."""
-
-    def __init__(self, parent, movie_name):
-        super().__init__(parent)
-        self.title("Ratings Sync — Manual Entry")
-        self.geometry("420x240")
-        self.configure(bg="#1e1e2e")
-        self.transient(parent); self.grab_set()
-        self.resizable(False, False)
-
-        self.rating = None
-        self.votes  = None
-
-        tk.Label(self, text=f"🎬  {movie_name}",
-                 font=("Helvetica",11,"bold"), bg="#1e1e2e", fg="#cdd6f4"
-                 ).pack(pady=(14,2))
-        tk.Label(self, text="Neither TMDb nor OMDb returned valid data.\nEnter values manually or Cancel to skip.",
-                 font=("Helvetica",10), bg="#1e1e2e", fg="#a6adc8",
-                 justify="center").pack(pady=(0,12))
-
-        f = tk.Frame(self, bg="#1e1e2e"); f.pack(padx=30)
-        tk.Label(f, text="Rating (e.g. 7.5):", font=("Helvetica",10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=20, anchor="w").grid(row=0, column=0, pady=4)
-        self._rating_var = tk.StringVar()
-        tk.Entry(f, textvariable=self._rating_var, font=("Consolas",10),
-                 bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
-                 relief="flat", width=12).grid(row=0, column=1, pady=4, padx=(8,0))
-        tk.Label(f, text="Votes:", font=("Helvetica",10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=20, anchor="w").grid(row=1, column=0, pady=4)
-        self._votes_var = tk.StringVar()
-        tk.Entry(f, textvariable=self._votes_var, font=("Consolas",10),
-                 bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
-                 relief="flat", width=12).grid(row=1, column=1, pady=4, padx=(8,0))
-
-        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(10,14))
-        tk.Button(bf, text="  Save  ", font=("Helvetica",10,"bold"),
-                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
-                  command=self._save).pack(side="left", padx=(0,8))
-        tk.Button(bf, text="  Cancel (skip)  ", font=("Helvetica",10,"bold"),
-                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
-                  command=self._cancel).pack(side="left")
-        self.protocol("WM_DELETE_WINDOW", self._cancel)
-
-    def _save(self):
-        self.rating = self._rating_var.get().strip()
-        self.votes  = self._votes_var.get().strip() or "0"
-        self.destroy()
-
-    def _cancel(self):
-        self.rating = ""   # empty string signals "skip"
-        self.votes  = ""
-        self.destroy()
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Settings Dialog
 # ══════════════════════════════════════════════════════════════════════════════
@@ -4797,14 +4218,14 @@ class HelpDialog(tk.Toplevel):
                   background=[("selected","#45475a")],
                   foreground=[("selected","#89b4fa")])
 
-        self._add_tab(nb, "🚀  Getting Started",   self._TAB_START)    ### NEW v0.15.0 ###
-        self._add_tab(nb, "📊  Table & Columns",   self._TAB_TABLE)    ### NEW v0.15.0 ###
-        self._add_tab(nb, "🖱  Actions & Tools",   self._TAB_ACTIONS)  ### NEW v0.15.0 ###
-        self._add_tab(nb, "⭐  Ratings & Genres",      self._TAB_RATINGS)  ### NEW v0.15.0 ###
-        self._add_tab(nb, "🎵  Audio & Images",    self._TAB_AUDIO)    ### NEW v0.15.0 ###
-        self._add_tab(nb, "⚙️  Settings",        self._TAB_SETTINGS)
-        self._add_tab(nb, "⌨  Shortcuts & Help",      self._TAB_SHORTCUTS)
-        self._add_tab(nb, "📋  Version History",  self._TAB_VERSION)   ### NEW v0.16.0 ###
+        self._add_tab(nb, "🚀  Getting Started",   _help.TAB_START)      ### MODIFIED v0.18.3 — help_text.py ###
+        self._add_tab(nb, "📊  Table & Columns",   _help.TAB_TABLE)
+        self._add_tab(nb, "🖱  Actions & Tools",   _help.TAB_ACTIONS)
+        self._add_tab(nb, "⭐  Ratings & Genres",  _help.TAB_RATINGS)
+        self._add_tab(nb, "🎵  Audio & Images",    _help.TAB_AUDIO)
+        self._add_tab(nb, "⚙️  Settings",          _help.TAB_SETTINGS)
+        self._add_tab(nb, "⌨  Shortcuts & Help",   _help.TAB_SHORTCUTS)
+        self._add_tab(nb, "📋  Version History",   _help.TAB_VERSION)
         self._add_about_tab(nb)
 
         # Select requested tab (0-based index)               ### NEW v0.16.0 ###
@@ -4816,810 +4237,7 @@ class HelpDialog(tk.Toplevel):
                   bg="#89b4fa", fg="#1e1e2e", relief="flat", cursor="hand2",
                   command=self.destroy).pack(pady=(6,12))
 
-    # ── Tab content strings ───────────────────────────────────────────────────────────────────────
-
-    _TAB_START = """─────────────────────────────────────────
-  Metadata & MediaClinic  -  Getting Started
-─────────────────────────────────────────
-
-WHAT IS THIS APP?
-  Metadata & MediaClinic is a KODI / Emby / Jellyfin media library
-  auditor and repair tool. It scans a root media folder, checks every
-  artwork file, metadata file, and video, then presents a colour-coded
-  health table so you can see at a glance what is missing or broken.
-
-  One subfolder = one movie. Each subfolder should contain:
-    • poster.jpg       - portrait cover art (2:3 ratio)
-    • folder.jpg       - identical copy of poster.jpg for KODI
-    • fanart.jpg       - wide background art (16:9 ratio)
-    • backdrop.jpg, backdrop1.jpg ...  - scene frames
-    • MovieName.nfo    - KODI metadata in XML format
-    • movie.xml        - Emby/Jellyfin metadata in XML format
-    • MovieName.mkv    (or .mp4, .avi, etc.)
-
-─────────────────────────────────────────
-FIRST RUN
-─────────────────────────────────────────
-
-  1. Click  Browse...  and select your root media folder.
-  2. Click  Scan.
-     The table fills in phases: subfolders first, then images,
-     then metadata, then video (with FFprobe if enabled).
-  3. Each row shows the health of one movie:
-       GREEN row   - all key files present and valid
-       YELLOW row  - one or more files missing, or warnings present
-       RED row     - a file has a structural error
-  4. Your last scan is saved automatically and restored on startup.
-
-─────────────────────────────────────────
-QUICK-START CHECKLIST
-─────────────────────────────────────────
-
-  • Set your FFmpeg path in Settings → Tools
-    (enables video analysis and backdrop extraction)
-
-  • Add TMDb and/or OMDb API keys in Settings → API Keys
-    (enables online ratings sync)
-
-  • Configure your preferred browser in Settings → Browser
-
-  • Set the "Lang OK?" language target in Settings → Language OK?
-    (default: PT - Portuguese)
-
-  • Run a scan, sort by "Health (errors 1st)" to triage problems.
-
-─────────────────────────────────────────
-STATUS ICONS
-─────────────────────────────────────────
-
-  ⬤   OK / valid / present
-  ◐   Warning - conflict, proportion mismatch, or minor issue
-  ○   File missing
-  ✕   Error - parse error or corrupt data
-
-─────────────────────────────────────────
-ROW COLOURS
-─────────────────────────────────────────
-
-  GREEN   - All required files present and valid; one video file.
-  YELLOW  - Something missing or a non-blocking warning exists.
-  RED     - Hard error: XML/NFO parse error, corrupt image, etc.
-
-─────────────────────────────────────────
-AUTOMATIC BACKUPS
-─────────────────────────────────────────
-
-  Whenever the app modifies a .nfo or .xml file it creates a silent
-  backup before writing. Backups go in:
-
-    backup/backup_MovieName_YYYY-MM-DD_HH-MM-SS/
-
-  No popup is shown. Check logs/app.log for a full backup record.
-"""
-
-    _TAB_TABLE = """─────────────────────────────────────────
-  Table & Columns
-─────────────────────────────────────────
-
-COLUMN REFERENCE
-
-  Movie Name   - Title from NFO <title> or XML <Title>.
-                 Double-click opens the movie folder.
-
-  Year         - Year from NFO <year> or XML <ProductionYear>.
-
-  Genres       - Genres from NFO <genre> tags. Double-click opens .nfo.
-                 Hover shows each genre and its validation status.
-
-  Rating       - Rating from NFO <rating>, XML <IMDBrating>, or <Rating>.
-                 Icon: ⬤ OK, ◐ conflict. Hover shows Rating, Votes, Source.
-
-  Poster       - Status and quality tier of poster.jpg (2:3 portrait).
-                 Hover shows dimensions, size, ratio, quality tier.
-
-  Folder       - Status and quality tier of folder.jpg.
-                 Should be an identical copy of poster.jpg.
-
-  Fanart       - Status and quality tier of fanart.jpg (16:9 landscape).
-                 Hover shows dimensions, size, ratio, quality tier.
-
-  Backdrops    - Count of backdrop images found. Hover shows count and
-                 average file size in KB.
-
-  .nfo         - Status of the .nfo metadata file.
-  .xml         - Status of the movie.xml metadata file.
-
-  Language     - Language from XML <Language>.
-
-  Video        - Video container format (MKV, MP4, AVI, etc.).
-  Video Size   - Video file size on disk.
-  Quality      - Video resolution class (FFprobe).
-
-  Audio        - Audio tracks from FFprobe.
-                 Format: EN (5.1), PT (2.0)
-                 Hover shows full per-track details.
-                 Only populated during FFprobe scans.
-
-  Lang OK?     - Y/N: target language audio or subtitle present.
-                 Set target language in Settings → Language OK?.
-
-  Subtitles    - Embedded tracks (FFprobe) and external .srt files.
-
-─────────────────────────────────────────
-IMAGE QUALITY TIERS
-─────────────────────────────────────────
-
-  Poster / Folder (2:3 portrait):
-    4K      - 2000×3000 or above
-    1440p   - 1500×2250 or above
-    1080p   - 1000×1500 or above
-    720p    - 666×1000 or above
-    540p    - 540×810 or above
-    480p    - 480×720 or above
-    360p    - 360×540 or above (floor — absorbs all below)
-
-  Fanart (16:9 landscape):
-    4K      - 3840×2160 or above
-    1440p   - 2560×1440 or above
-    1080p   - 1920×1080 or above
-    720p    - 1280×720 or above
-    540p    - 960×540 or above
-    480p    - 854×480 or above
-    360p    - 640×360 or above (floor — absorbs all below)
-
-─────────────────────────────────────────
-HOVER TOOLTIPS
-─────────────────────────────────────────
-
-  Every column has a hover tooltip.
-  Missing image files show:  Expected: C:\\Filmes\\Movie\\poster.jpg
-  All "Expected:" paths use Windows-style backslashes.
-"""
-
-    _TAB_ACTIONS = """─────────────────────────────────────────
-  Actions
-─────────────────────────────────────────
-
-DOUBLE-CLICK ACTIONS
-
-  Column        Opens...
-  ----------    -----------------------------------------------
-  Movie Name    Movie folder in Windows Explorer
-  Genres        .nfo file in your configured text editor
-  Rating        .nfo file in your configured text editor
-  Votes         .nfo file in your configured text editor
-  Source        Popup to choose IMDB or TMDB website
-  Poster        poster.jpg in your default image viewer
-  Folder        folder.jpg in your default image viewer
-  Fanart        fanart.jpg in your default image viewer
-  Backdrops     First backdrop image
-  NFO           Parse error dialog or editor
-  XML           Parse error dialog or editor
-  Language      movie.xml in editor
-  Video         Plays the video
-  Quality       Plays the video
-  Subtitles     Subtitle tracks dialog
-
-─────────────────────────────────────────
-RIGHT-CLICK MENU (SINGLE MOVIE)
-─────────────────────────────────────────
-
-  Open Folder           - Open the movie folder in Windows Explorer
-  Open poster.jpg       - Open poster.jpg in your image viewer
-  Open folder.jpg       - Open folder.jpg in your image viewer
-  Open fanart.jpg       - Open fanart.jpg in your image viewer
-  Play video            - Play the movie in your default player
-  Extract Backdrop(s)   - Extract backdrop frames from video
-  Subtitles...          - Show subtitle tracks dialog
-  Open .nfo             - Open the .nfo file in your editor
-  Open movie.xml        - Open movie.xml in your editor
-  Open on IMDB          - Open IMDB page in your browser
-  Open on TMDb          - Open TMDb page in your browser
-  Open on OpenSubtitles.org
-  Copy Movie Name       - Copy the title to clipboard
-  Open in Scraper       - Open folder in your configured scraper
-
-  Run Improvements Check
-  Sync Ratings          - Fetch rating/votes from TMDb + IMDb
-  Normalize Sources     - Repair IMDB/TMDB tags in XML/NFO
-  Search Sources        - Search TMDB online by title + year
-  Normalize Genres      - Fix capitalisation, synonyms, duplicates
-  Fetch Poster/Folder   - Compare and replace poster from TMDB
-  Fetch Fanart          - Compare and replace fanart from TMDB
-  ──────────────────
-  Update (no FFprobe)   - Re-scan metadata without FFprobe
-  Update (with FFprobe) - Full re-scan including video analysis
-  Refresh Icons         - Redraw status icons
-
-─────────────────────────────────────────
-RIGHT-CLICK MENU (MULTI-SELECTION)
-─────────────────────────────────────────
-
-  Multi-selection batch versions appear for:
-    Sync Ratings (N movies)
-    Normalize Sources (N movies)
-    Search Sources (N movies)
-    Normalize Genres (N movies)
-    Fetch Poster/Folder (N movies)
-    Fetch Fanart (N movies)
-    Update (no FFprobe) (N movies)
-    Update (with FFprobe) (N movies)
-
-  Select multiple rows with Ctrl+click or Shift+click.
-
-─────────────────────────────────────────
-TOOLS MENU (BATCH OPERATIONS)
-─────────────────────────────────────────
-
-  All batch operations run in a background thread. A progress window
-  shows percentage complete. Press Cancel or ESC to stop at any time.
-  All file modifications create silent backups before writing.
-
-  Save Scan Results
-    Save the current scan results to a JSON file.
-
-  Open Scan Results
-    Load a previously saved JSON scan file.
-    On parse error, shows a popup and leaves current results unchanged.
-
-  Sync Ratings Online — All Movies
-    Fetches updated ratings from TMDb and/or OMDb for every scanned
-    movie. Shows the Ratings Sync popup for each movie.
-
-  Normalize Sources — All Movies
-    Runs Normalize Sources for all movies with ◐ or ○ in the Source
-    column. Backs up XML/NFO before writing.
-
-  Search Sources — All Movies
-    Searches TMDB for every movie using title + year.
-    Shows grouped results popup with Export TXT option.
-
-  Normalize Genres — All Movies
-    Normalises genre tags in all movies. Asks confirmation first.
-
-  Run Improvements Check — All Movies
-    Analyses all movies for metadata issues. Saves a report to a
-    user-chosen .txt file. Appends results incrementally.
-
-  Refresh Icons — All Movies
-    Redraws all status icons in the table.
-
-  Delete All extrafanart Subfolders (legacy)
-    Deletes the "extrafanart" subfolder from every movie folder.
-    Creates a backup of folder contents before deleting.
-    Asks confirmation before starting.
-"""
-
-    _TAB_RATINGS = """─────────────────────────────────────────
-  Ratings Sync
-─────────────────────────────────────────
-
-OVERVIEW
-
-  Ratings Sync fetches updated ratings and vote counts from TMDb
-  and/or OMDb/IMDb and writes them to your NFO and XML files.
-
-  Requires API keys in Settings → API Keys.
-
-HOW TO SYNC
-
-  Single movie:     Right-click → Sync Ratings from IMDb / TMDb
-  Selected movies:  Right-click → Sync Ratings (N movies)
-  All movies:       Tools → Sync Ratings Online - All Movies
-
-─────────────────────────────────────────
-RATINGS SYNC POPUP
-─────────────────────────────────────────
-
-  The popup always shows a dual-column comparison: TMDb vs OMDb/IMDb.
-  Previously only shown when both sources had data; now always shown.
-
-  If only one source has data:
-    • The missing source shows "Not Available" in grey.
-    • The button for the missing source is disabled.
-
-  Rating: shown to one decimal place.
-  Votes: shown as an integer.
-
-  Checkbox: Apply this choice to all remaining movies
-    Your selection is applied to all subsequent movies in the batch
-    without asking again. Useful for large batch syncs.
-
-  Checkbox: Use the source with more votes
-    Automatically pre-selects the source with the higher vote count.
-    Equal votes: uses the average of the two ratings.
-    You can still override the pre-selection before confirming.
-
-  These defaults can be set permanently in:
-    Settings → Ratings → Ratings Synchronization Options
-
-─────────────────────────────────────────
-RATING HOVER TOOLTIP
-─────────────────────────────────────────
-
-  Hovering over the Rating cell shows:
-
-    Rating: 7.3
-    Votes: 42185
-    Source: NFO (<rating>, <votes>)
-
-  Source line examples:
-    NFO (<rating>, <votes>)
-    XML (<IMDBrating>, <Votes>)
-    XML (<Rating>) and NFO (<votes>)
-    XML (<IMDBrating>), no vote information found
-
-  If multiple tags hold different values, the cell shows ◐ (warning)
-  and the tooltip notes the conflict.
-
-  Votes extraction priority:
-    1. NFO <votes>
-    2. XML <Votes>
-    3. XML <VoteCount>
-
-─────────────────────────────────────────
-NORMALIZE GENRES
-─────────────────────────────────────────
-
-OVERVIEW
-
-  Normalize Genres standardises genre tags across NFO and XML files:
-    • Fixes capitalisation  (e.g. "action" → "Action")
-    • Resolves synonyms     (e.g. "Sci-Fi" → "Science Fiction")
-    • Removes duplicates
-    • Splits merged tags    (e.g. "Family/Fantasy" → Family + Fantasy)
-      Splitting uses: / \\ | , ;
-
-HOW TO NORMALISE
-
-  Single movie:   Right-click → Normalize Genres
-  Multiple:       Right-click → Normalize Genres (N movies)
-  All movies:     Tools → Normalize Genres - All Movies
-
-CUSTOM GENRES
-
-  A genre is standard only if it appears in the Standard Genre List
-  (Settings → Genres). Any other genre is "custom".
-
-  When custom genres are found for a movie, you are asked:
-
-    Delete the Custom Genre(s)?  [Yes]  [No]
-
-    Yes — removes custom genres; keeps normalised standard ones only.
-    No  — keeps custom genres unchanged; normalises standard genres.
-
-  This dialog appears once per movie. Each movie is processed
-  independently (no shared state across multiple selections).
-
-WHAT IS WRITTEN
-
-  Normalised genres are written to both .nfo and movie.xml.
-  A silent backup is created before any write.
-"""
-
-    _TAB_AUDIO = """─────────────────────────────────────────
-  Audio Column
-─────────────────────────────────────────
-
-OVERVIEW
-
-  The Audio column shows audio tracks detected by FFprobe.
-  It is only populated during FFprobe-enabled scans.
-
-COLUMN FORMAT
-
-  Each track shows:  LANGUAGE (CHANNELS)
-  Multiple tracks are comma-separated and sorted alphabetically.
-  Languages are uppercase ISO codes.
-
-  Examples:
-    EN (5.1)
-    EN (5.1), PT (2.0)
-    EN (7.1), FR (5.1), DE (2.0)
-
-HOVER TOOLTIP
-
-  Audio Tracks: 2
-
-  Track 1:
-  Language: EN
-  Codec: AC3
-  Channels: 5.1
-  Bitrate: 640 kbps
-
-  Track 2:
-  Language: PT
-  Codec: AAC
-  Channels: 2.0
-  Bitrate: 192 kbps
-
-  Missing bitrate shows: Bitrate: Unknown
-  Missing language tag shows: Language: Unknown
-
-NOTE
-  Audio data is not updated during "Update (no FFprobe)" rescans.
-  Use "Update (with FFprobe)" to refresh audio track information.
-
-─────────────────────────────────────────
-SUBTITLES
-─────────────────────────────────────────
-
-  The Subtitles column shows:
-    • Embedded tracks detected by FFprobe  (Int: EN, PT ...)
-    • External .srt files in the movie folder  (Ext: pt.srt ...)
-
-  The Lang OK? column (Y/N) checks for the configured target language
-  in audio streams, embedded subs, or external subs.
-
-─────────────────────────────────────────
-BACKDROPS & IMAGES
-─────────────────────────────────────────
-
-BACKDROP HOVER TOOLTIP
-
-  Hovering the Backdrops cell now shows:
-    Backdrops: N image files
-    Average Size: Xkb
-
-EXTRACTING BACKDROPS
-
-  Right-click → Extract Backdrop(s) to extract frames from video.
-  Requires FFmpeg in Settings → Tools.
-  The extract count is set in Settings → Image Sizes.
-
-IMAGE MISSING PATHS
-
-  When an image is missing, the tooltip shows:
-    Expected: C:\\Filmes\\MovieName\\poster.jpg
-  All paths use Windows-style backslashes.
-
-PROPORTION CHECKS
-
-  Poster / Folder: expected 2:3 portrait ratio.
-  Fanart:          expected 16:9 landscape ratio.
-  ◐ indicates a proportion warning (non-blocking).
-
-  Settings → Image Sizes → Accept 3:4 ratio (poster/folder)
-  Settings → Image Sizes → Accept 16:8 ratio (fanart)
-
-─────────────────────────────────────────
-SORTING
-─────────────────────────────────────────
-
-  Use the Sort dropdown to re-order the table. Sort is stable.
-
-  Movie Name sorts are accent-insensitive:  A, Á, Â all sort as A.
-
-  Available sort options:
-    Movie Name (A-Z) / (Z-A)
-    Year (older first) / (newer first)
-    Genre (A-Z) / (Z-A)
-    Rating (high→low) / (low→high)
-    Votes (high→low) / (low→high)
-    Poster / Folder / Fanart Quality (high→low) / (low→high)
-    Video size (lg→sm) / (sm→lg)
-    Language (A→Z) / (Z→A)
-    Quality (best first) / (worst first)
-    Lang OK? (Y first) / (N first)
-    Backdrops (most) / (fewest)
-    Health (Errors 1st)   - RED rows at top
-    Health (Warning 1st)  - YELLOW rows at top
-    Health (OK 1st)       - GREEN rows at top
-"""
-
-    _TAB_SETTINGS = """─────────────────────────────────────────
-  Settings Reference
-─────────────────────────────────────────
-
-TOOLS TAB
-
-  Text Editor     - Path to your editor (e.g. Notepad++).
-  FFmpeg path     - Folder containing ffmpeg.exe and ffprobe.exe.
-                    Required for video analysis and backdrop extraction.
-  Scraper path    - Path to your media scraper (optional).
-  Extract timeout - Max seconds per backdrop extraction (5-600 s).
-  Use FFprobe     - Enable/disable video analysis per scan.
-
-─────────────────────────────────────────
-API KEYS TAB
-─────────────────────────────────────────
-
-  TMDb API Key    - Required for TMDb ratings sync.
-  OMDb API Key    - Required for OMDb/IMDb ratings sync.
-  Metadata source - Choose TMDb or OMDb as the default source.
-
-  Get a free TMDb key at: themoviedb.org/settings/api
-  Get a free OMDb key at: omdbapi.com/apikey.aspx
-
-─────────────────────────────────────────
-BROWSER TAB
-─────────────────────────────────────────
-
-  Select your preferred browser for web links.
-  Changing the browser does NOT trigger a rescan prompt.
-
-─────────────────────────────────────────
-LANGUAGE OK? TAB
-─────────────────────────────────────────
-
-  ISO 639-1 language code for the Lang OK? column. Default: PT.
-  Y shown if target language found in: FFprobe audio, embedded subs,
-  external .srt files, XML <Language>, or NFO language tags.
-
-─────────────────────────────────────────
-IMPROVEMENTS TAB
-─────────────────────────────────────────
-
-  Toggle improvement checks:
-    • Large XML/NFO files     - flag files above size threshold
-    • NFO <→ XML mismatches  - detect conflicting data
-    • FFprobe vs NFO/XML      - detect resolution/codec discrepancies
-    • poster.jpg vs folder.jpg - detect size differences
-    • Image proportions       - flag non-standard aspect ratios
-    • Insufficient backdrops  - flag too few backdrop frames
-
-  Max NFO/XML size (KB) and Min backdrops count configured here.
-
-─────────────────────────────────────────
-IMAGE SIZES TAB
-─────────────────────────────────────────
-
-  Quality levels for poster/folder/fanart (minimum acceptable tier).
-  Accept 16:8 ratio      - allow slightly wider fanart without warning.
-  Accept 3:4 ratio       - allow 3:4 poster/folder without warning.
-  Backdrop count         - how many backdrops to extract per movie.
-  Min size (KB)          - flag files below this threshold.
-
-─────────────────────────────────────────
-RATINGS TAB
-─────────────────────────────────────────
-
-  Apply this choice to all remaining movies
-    Default state for the "Apply to all" checkbox in the Ratings Sync
-    popup. When on, your first choice is applied to all batch movies.
-
-  Use the source with more votes
-    Default for the "Use more votes" checkbox. When on, the source
-    with the higher vote count is pre-selected. Equal votes: average.
-
-─────────────────────────────────────────
-GENRES TAB
-─────────────────────────────────────────
-
-  The Standard Genre List defines which genres are standard.
-  Genres not in this list are treated as custom during Normalize Genres.
-  "Reset to TMDb defaults" reloads the standard TMDb genre list.
-
-─────────────────────────────────────────
-NFO / XML TAGS TAB
-─────────────────────────────────────────
-
-  Defines NFO/XML tag pairs for the mismatch improvement check.
-  Each pair: NFO dot-path, XML dot-path, human label, tolerance %.
-
-─────────────────────────────────────────
-USER INTERFACE TAB
-─────────────────────────────────────────
-
-  Show header tooltips, alternating rows, compact mode,
-  dark theme, auto-fit columns, show image size in cells.
-
-─────────────────────────────────────────
-BACKUP TAB
-─────────────────────────────────────────
-
-  Max backup size (MB) - oldest backups deleted when limit exceeded.
-  Set to 0 to disable automatic cleanup.
-"""
-
-    _TAB_SHORTCUTS = """─────────────────────────────────────────
-  Keyboard Shortcuts
-─────────────────────────────────────────
-
-  F1              - Open Help
-  F5              - Start Scan
-  Ctrl+S          - Start Scan
-  Ctrl+L          - Clear All results
-  Ctrl+E          - Export results to CSV
-  Ctrl+I          - Refresh All Icons
-  Ctrl+A          - Select all rows
-  Escape          - Cancel scan in progress
-
-  A-Z, 0-9        - Jump to next movie starting with that character
-
-  Double-click    - Action depends on column (see Actions & Tools tab)
-  Right-click     - Context menu for selected row(s)
-  Shift+click     - Select a range of rows
-  Ctrl+click      - Add individual rows to selection
-
-─────────────────────────────────────────
-TROUBLESHOOTING
-─────────────────────────────────────────
-
-  Settings shows only a few tabs or tabs are empty
-    Fixed in a previous version (broken _DEFAULTself reference).
-    Ensure you are running the latest version.
-
-  Audio column is empty
-    Requires FFprobe. Enable "Use FFprobe" in Settings → Tools, then
-    run "Update (with FFprobe)" on affected movies.
-
-  Rating tooltip shows no Votes or Source
-    The NFO/XML files may not contain vote tags.
-    Run "Sync Ratings Online" to fetch and write the latest data.
-
-  Backdrop extraction produces no files
-    Ensure FFmpeg is configured in Settings → Tools.
-    Increase "Extract timeout" for large video files.
-
-  Genres not normalising correctly
-    Check your Standard Genre List in Settings → Genres.
-    Genres not in the list are treated as custom.
-
-  Sort order looks wrong for accented characters
-    Sorting is accent-insensitive: A, Á, Â all sort as A.
-
-  Expected: paths show forward slashes
-    Fixed in a previous version. All Expected: paths now use backslashes.
-
-  Application log
-    All operations logged to logs/app.log next to the script.
-    Check for detailed errors and backup records.
-
-─────────────────────────────────────────
-CREDITS
-─────────────────────────────────────────
-
-  Metadata & MediaClinic is developed by Luiz Junqueira with Claude AI.
-  Built to keep KODI / Emby / Jellyfin media libraries clean,
-  complete, and metadata-perfect.
-
-  Full version history: Help → Version History
-"""
-
-    ### NEW v0.16.0 — Version History tab (moved from _TAB_SHORTCUTS) ###
-    _TAB_VERSION = """─────────────────────────────────────────
-  Version History  —  Metadata & MediaClinic
-─────────────────────────────────────────
-
-  v0.17.0 - NEW: Fetcher Backdrops — download and manage TMDB backdrops per movie.
-             NEW: Column resize no longer shrinks adjacent columns.
-             FIX: Help tab titles and headers stripped of version numbers.
-             NEW: Scan renamed Full Scan (Rebuild Library) with tooltip.
-             NEW: Update Scan renamed Quick Scan (Update Library) with tooltip.
-             NEW: Sort options Sources (Errors 1st) and Sources (OK 1st).
-             NEW: Ratings Sync — Type Values button for manual rating/votes entry.
-             NEW: Ratings Sync — opens even when no TMDB/IMDb ID present.
-             NEW: Votes formatted with comma separators in Ratings Sync popup.
-             NEW: Progress popup for batch operations (Tools menu + multi-select ≥10).
-             NEW: Extrafanart deletion — preview list + backup + progress popup.
-             FIX: Normalize Sources — TMDB ID tag insertion and IMDb bare <id> write.
-             FIX: FFprobe duration fallback (MP4/MKV) — 4-step chain + default estimate.
-             FIX: Shift+Up now correctly shrinks selection instead of resetting block.
-             FIX: Jump-to-letter — relaxed focus guard so keypress fires reliably.
-
-  v0.16.1 - NEW: Default sort always Movie Name (A-Z) on startup, scan, folder
-                 open, and load scan results.
-             FIX: Shift+Arrow selection rewritten to Windows Explorer behaviour.
-                 Anchor stays fixed; only moving end changes. Shift+Up now
-                 correctly shrinks selection instead of moving entire block.
-             NEW: Image quality tiers updated to 7-tier system (4K → 360p).
-                 Poster/folder: 4K/1440p/1080p/720p/540p/480p/360p.
-                 Fanart: 4K/1440p/1080p/720p/540p/480p/360p.
-                 360p absorbs all images below threshold (no more "Below" label).
-             MIGRATE: Old tier labels auto-migrated on settings load:
-                 Standard (HD) → 1080p, Full HD → 1080p, Retina/QHD → 1440p,
-                 Ultra (4K) → 4K, Optimized → 720p, Thumbnail → 360p.
-             VERSION: 0.16.0 → 0.16.1.
-
-───────────────────────────────────────── (between Rating and Source).
-                 Counts votes from NFO <votes> / XML <Votes> / <VoteCount>.
-                 Icon: ⬤ match  ◐ conflict  ○ missing  ✕ error.
-             NEW: Source column (IMDB + TMDB IDs across all 12 tags).
-                 Double-click to open IMDB or TMDB website.
-                 Red row if any source tag is unreadable.
-             NEW: Right-click → Normalize Sources.
-                 Case A: auto-fill missing tags when remaining agree.
-                 Case B: popup to choose correct ID when tags disagree.
-                 Case C: prompt to type ID when all tags missing.
-                 Backs up XML/NFO before writing. Multi-selection supported.
-             NEW: Right-click → Search Sources.
-                 Queries TMDB search by title + year.
-                 Extracts TMDB ID and IMDB ID from results.
-                 Shows grouped popup with Export TXT option.
-             NEW: Right-click → Fetch Poster/Folder.
-                 Compares local poster with TMDB poster images.
-                 Downloads at full TMDB resolution. Backs up existing files.
-                 Grayed out when no TMDB API key or no TMDB ID.
-             NEW: Right-click → Fetch Fanart.
-                 Same as Fetch Poster/Folder but for fanart/backdrops.
-             NEW: Tools → Save Scan Results / Open Scan Results.
-                 Save and reload full scan to/from JSON.
-             NEW: Tools → Normalize Sources — All Movies.
-                 Runs Normalize Sources for all ◐ or ○ movies.
-             NEW: Tools → Search Sources — All Movies.
-                 Searches TMDB for every movie; grouped results popup.
-             NEW: Normalize Genres — language intelligence.
-                 Detects genres in PT, DE, FR, ES, IT, RU, ZH, AR
-                 and translates to English before normalizing.
-             FIX: Rating column — votes conflict removed from rating status.
-                  Rating ◐ now means rating values differ (not votes).
-             RENAME: "Health (errors 1st)" → "Health (Errors 1st)".
-             SORT: Votes (high→low) and Votes (low→high) added.
-             NEW: Help → Version History (this tab).
-             VERSION: 0.15.0 → 0.16.0.
-
-─────────────────────────────────────────
-
-  v0.15.0 - Rating tooltip: Votes count and Source description.
-             Audio column: FFprobe audio tracks with hover details.
-             Normalize Genres: custom genre dialog per movie,
-               per-movie isolation fix (no shared state).
-             Backdrops tooltip: count and average file size.
-             Expected: paths normalized to backslashes.
-             Settings tabs bug fix (Improvements + Genres tabs).
-             New Ratings Settings tab (sync defaults).
-             Enhanced Ratings Sync popup: always dual-column,
-               "Not Available" for missing source, "Use more votes".
-             Tools menu redesigned with batch operations.
-             Right-click: renamed image entries.
-             Sort fixes: quality columns and Lang OK? were inverted.
-             New "Health (Warning 1st)" sort option.
-             Accent-insensitive movie name sorting.
-             Help system fully rewritten.
-
-  v0.14.0 - Settings subsystem split into 4 dedicated modules.
-             FFmpeg test and browser detection run off UI thread.
-             Snapshot logic upgraded to structured dict.
-             New: settings_schema.json, CLAUDE_RULES.md, test harness.
-
-  v0.13.1 - Browser change no longer triggers rescan prompt.
-             Normalize Genres splits merged tags on / \\ | , ;.
-             Keyboard jump-to-letter in table (A-Z / 0-9).
-
-  v0.13.0 - Browser tab selected row visually highlighted.
-             Rescan popup centered on parent window.
-             Settings save no longer freezes UI (wait_window removed).
-             NFO/XML error popup includes "Open File" button.
-             Status bar always recalculated after every scan path.
-
-  v0.12.0 - Poster/Folder/Fanart columns merged (icon + quality label).
-             Rating column between Genres and Poster.
-             Backup tab with auto-cleanup of oldest backups.
-             3:4 ratio acceptance toggle for poster/folder.
-             Right-click "Add Custom Genre(s)" to Settings.
-             Compact mode and dark theme toggle in User Interface tab.
-
-  v0.11.0 - Silent backup before any NFO/XML write.
-             FFprobe data persists across no-FFprobe re-validates.
-             Image quality tier system (resolution-based).
-             Fanart 16:8 acceptance toggle.
-             Help menu moved to last position; F1 opens Help globally.
-             Sort menu redesigned: quality-based sorts, Folder Quality.
-
-  v0.10.x - COLUMN_MODEL architecture (single source of truth).
-             settings_dialog.py extracted from main file.
-             Series tab stub added.
-             All Phase A bug fixes: Genre column, Year column,
-             Clear All button, alternating rows, richer status bar,
-             keyboard shortcuts, NFO/XML pre-validation.
-
-  v0.9.0  - Online Ratings Sync (TMDb + OMDb), side-by-side dialog.
-             Genre column + Normalize Genres action.
-             Improvements report with scan error appending.
-             API Keys (TMDb + OMDb) with validation.
-             Browser selection with auto-detection.
-             Image minimum sizes (KB thresholds).
-             Genre list editable in Settings.
-
-  v0.8.0  - Settings menu, Improvements engine, IMDB/TMDb links.
-             Auto-size columns, FFprobe checkbox, language column.
-             Backdrop progress, Shift+select multi-selection.
-
-  v0.7.0  - Quality column (576p/DVD), PT OK?, persistent sessions.
-
-  v0.6.x  - Original release.
-"""
+    # Tab content strings live in help_text.py (v0.18.3)
 
     def _add_tab(self, nb, label, text):
         frame = tk.Frame(nb, bg="#1e1e2e"); nb.add(frame, text=label)
@@ -6182,9 +4800,15 @@ class _SearchSourcesResultDialog(tk.Toplevel):             ### REBUILT v0.16.0 #
                                                    anchor="nw")
         self._inner.bind("<Configure>", self._on_inner_configure)
         self._canvas.bind("<Configure>", self._on_canvas_configure)
-        self._canvas.bind_all("<MouseWheel>",
-                              lambda e: self._canvas.yview_scroll(
-                                  int(-1*(e.delta/120)), "units"))
+        # Scoped wheel binding (global bind_all used to leak after close) ### FIXED v0.18.3 ###
+        def _wheel(e):
+            try:
+                self._canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+            except tk.TclError:
+                pass
+        self._canvas.bind("<Enter>", lambda e: self._canvas.bind_all("<MouseWheel>", _wheel))
+        self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
+        self.bind("<Destroy>", lambda e: self._canvas.unbind_all("<MouseWheel>"), add="+")
 
         self._build_content()
 
@@ -6661,13 +5285,7 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
                 scrollregion=self._canvas.bbox("all")))
         self._canvas.bind("<Configure>",
             lambda e: self._canvas.itemconfig(self._grid_win, width=e.width))
-        # Change 12: Scoped mouse-wheel bindings — activate on Enter, release on Leave ### NEW v0.18.0 ###
-        self._canvas.bind("<Enter>",
-            lambda e: self._canvas.bind_all("<MouseWheel>",
-                lambda ev: self._canvas.yview_scroll(int(-1*(ev.delta/120)), "units")))
-        self._canvas.bind("<Leave>",
-            lambda e: self._canvas.unbind_all("<MouseWheel>"))
-        # Linux scroll support                                                          ### NEW v0.18.0 ###
+        # Scoped mouse-wheel bindings — activate on Enter, release on Leave ### NEW v0.18.0, deduplicated v0.18.3 ###
         self._canvas.bind("<Enter>",
             lambda e: (
                 self._canvas.bind_all("<MouseWheel>",
@@ -6804,7 +5422,7 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
         for base in (self._TMDB_BASE_THUMB, self._TMDB_FALLBACK_THUMB):
             try:
                 req = urllib.request.Request(base + file_path,
-                    headers={"User-Agent": "MediaClinic/0.17.0"})
+                    headers={"User-Agent": _UA})
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     return resp.read()
             except Exception:
@@ -7356,14 +5974,6 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
             except Exception:
                 pass
 
-    def _deactivate_replace_buttons(self):
-        for btn in self._replace_btns.values():
-            try:
-                btn.configure(state="disabled", bg="#45475a",
-                              fg=self._DIM, cursor="arrow")
-            except Exception:
-                pass
-
     # ── TMDB backdrops ────────────────────────────────────────────────────────
     def _load_tmdb(self):
         try:
@@ -7441,7 +6051,7 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
                 try:
                     req = urllib.request.Request(
                         self._TMDB_BASE_THUMB + fl,
-                        headers={"User-Agent": "MediaClinic/0.17.0"})
+                        headers={"User-Agent": _UA})
                     with urllib.request.urlopen(req, timeout=15) as resp:
                         raw = resp.read()
                     if _PIL_AVAILABLE:
@@ -7560,6 +6170,205 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
 # Main Application
 # ══════════════════════════════════════════════════════════════════════════════
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Settings menu entries — (icon, menu label, tab label in SettingsDialog._TAB_REGISTRY)
+# The tab index is looked up at build time so it can never drift again.  ### NEW v0.18.3 ###
+# ══════════════════════════════════════════════════════════════════════════════
+_SETTINGS_MENU_ITEMS = [
+    ("🔧", "Tools (Editor / FFmpeg / Backdrop)", "Tools"),
+    ("🔑", "API Keys (TMDb / OMDb)",             "API Keys"),
+    ("🌐", "Browser Selection",                  "Browser"),
+    ("🌍", "Language OK?",                       "Language"),
+    ("🔍", "Improvements",                       "Improvements"),
+    ("🖼", "Image Sizes",                        "Image Sizes"),
+    ("⭐", "Ratings",                            "Ratings"),
+    ("🎬", "Genres",                             "Genres"),
+    ("🏷", "NFO-XML Tags",                       "NFO / XML"),
+    ("🎨", "User Interface",                     "User Interface"),
+    ("🏥", "Health Rules",                       "Health Rules"),
+    ("💾", "Backup",                             "Backup"),
+]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Export Movie List dialog (v0.18.3)                            ### NEW v0.18.3 ###
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ExportListDialog(tk.Toplevel):
+    """
+    Choose columns, rows and file format, then write the movie list.
+    All file logic lives in export_list.py; this class is UI only.
+    """
+    _BG = "#1e1e2e"; _PANEL = "#313244"; _TXT = "#cdd6f4"; _DIM = "#6c7086"; _BLU = "#89b4fa"
+
+    def __init__(self, parent, all_rows, view_rows, folder_name=""):
+        super().__init__(parent)
+        self._app       = parent
+        self._all_rows  = list(all_rows)
+        self._view_rows = list(view_rows)
+        self._folder    = folder_name
+        self.title("Export Movie List")
+        self.configure(bg=self._BG)
+        self.transient(parent); self.grab_set()
+        self.resizable(False, False)
+
+        prefs   = SETTINGS.get("export_prefs") or {}
+        preset  = prefs.get("preset", "Basic")
+        if preset not in list(_export.PRESETS) + ["Custom"]:
+            preset = "Basic"
+        fields  = prefs.get("fields") or _export.PRESETS.get(preset, _export.PRESETS["Basic"])
+        fmt     = prefs.get("format", "csv_comma")
+        if fmt not in dict((f, 1) for f, _, _ in _export.FORMATS):
+            fmt = "csv_comma"
+        if fmt == "xlsx" and not _export.xlsx_available():
+            fmt = "csv_comma"
+        scope   = prefs.get("scope", "all")
+
+        tk.Label(self, text="Export Movie List", font=("Helvetica", 13, "bold"),
+                 bg=self._BG, fg=self._BLU).pack(anchor="w", padx=18, pady=(14, 2))
+        tk.Label(self, text="Movie names containing commas or quotes are quoted "
+                            "automatically — CSV files never break.",
+                 font=("Helvetica", 9), bg=self._BG, fg=self._DIM).pack(anchor="w", padx=18, pady=(0, 8))
+
+        body = tk.Frame(self, bg=self._BG); body.pack(fill="both", expand=True, padx=14)
+
+        # ── Columns ───────────────────────────────────────────────────────────
+        cf = tk.LabelFrame(body, text=" Columns ", bg=self._BG, fg=self._BLU,
+                           font=("Helvetica", 10, "bold"), bd=1, relief="groove")
+        cf.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=4)
+        self._preset_var = tk.StringVar(value=preset)
+        pr = tk.Frame(cf, bg=self._BG); pr.pack(anchor="w", padx=8, pady=(6, 4))
+        for name in list(_export.PRESETS) + ["Custom"]:
+            tk.Radiobutton(pr, text=name, variable=self._preset_var, value=name,
+                           command=self._apply_preset,
+                           font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
+                           selectcolor=self._PANEL, activebackground=self._BG,
+                           activeforeground=self._TXT).pack(side="left", padx=(0, 10))
+        grid = tk.Frame(cf, bg=self._BG); grid.pack(padx=8, pady=(0, 8))
+        self._field_vars = {}
+        per_col = (len(_export.EXPORT_FIELDS) + 2) // 3
+        for i, (key, label, _fn) in enumerate(_export.EXPORT_FIELDS):
+            v = tk.BooleanVar(value=(key in fields))
+            self._field_vars[key] = v
+            tk.Checkbutton(grid, text=label, variable=v, command=self._on_field_toggle,
+                           font=("Helvetica", 9), bg=self._BG, fg=self._TXT,
+                           selectcolor=self._PANEL, activebackground=self._BG,
+                           activeforeground=self._TXT, anchor="w", width=16
+                           ).grid(row=i % per_col, column=i // per_col, sticky="w", padx=2)
+        if preset != "Custom":
+            self._apply_preset()
+
+        # ── Rows + Format ─────────────────────────────────────────────────────
+        right = tk.Frame(body, bg=self._BG); right.grid(row=0, column=1, sticky="nsew", pady=4)
+
+        rf = tk.LabelFrame(right, text=" Rows ", bg=self._BG, fg=self._BLU,
+                           font=("Helvetica", 10, "bold"), bd=1, relief="groove")
+        rf.pack(fill="x", pady=(0, 8))
+        self._scope_var = tk.StringVar(value=scope if scope in ("all", "view") else "all")
+        tk.Radiobutton(rf, text=f"All movies  ({len(self._all_rows)})",
+                       variable=self._scope_var, value="all",
+                       font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
+                       selectcolor=self._PANEL, activebackground=self._BG,
+                       activeforeground=self._TXT).pack(anchor="w", padx=8, pady=(6, 2))
+        tk.Radiobutton(rf, text=f"Current view — filtered and sorted  ({len(self._view_rows)})",
+                       variable=self._scope_var, value="view",
+                       font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
+                       selectcolor=self._PANEL, activebackground=self._BG,
+                       activeforeground=self._TXT).pack(anchor="w", padx=8, pady=(0, 6))
+
+        ff = tk.LabelFrame(right, text=" Format ", bg=self._BG, fg=self._BLU,
+                           font=("Helvetica", 10, "bold"), bd=1, relief="groove")
+        ff.pack(fill="x")
+        self._fmt_var = tk.StringVar(value=fmt)
+        xlsx_ok = _export.xlsx_available()
+        for fid, label, _ext in _export.FORMATS:
+            state = "normal"
+            text  = label
+            if fid == "xlsx" and not xlsx_ok:
+                state = "disabled"; text = label + "   (needs the openpyxl package)"
+            tk.Radiobutton(ff, text=text, variable=self._fmt_var, value=fid, state=state,
+                           font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
+                           selectcolor=self._PANEL, activebackground=self._BG,
+                           activeforeground=self._TXT, disabledforeground=self._DIM
+                           ).pack(anchor="w", padx=8, pady=1)
+        tk.Frame(ff, bg=self._BG, height=4).pack()
+
+        # ── Buttons ───────────────────────────────────────────────────────────
+        bf = tk.Frame(self, bg=self._BG); bf.pack(pady=(10, 14))
+        tk.Button(bf, text="  Export…  ", font=("Helvetica", 10, "bold"),
+                  bg="#a6e3a1", fg=self._BG, relief="flat", cursor="hand2",
+                  command=self._do_export).pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10, "bold"),
+                  bg="#45475a", fg=self._TXT, relief="flat", cursor="hand2",
+                  command=self.destroy).pack(side="left")
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Return>", lambda e: self._do_export())
+
+        self.update_idletasks()
+        try:
+            x = parent.winfo_rootx() + (parent.winfo_width()  - self.winfo_width())  // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+    def _apply_preset(self):
+        name = self._preset_var.get()
+        if name == "Custom":
+            return
+        keys = set(_export.PRESETS.get(name, []))
+        for k, v in self._field_vars.items():
+            v.set(k in keys)
+
+    def _on_field_toggle(self):
+        chosen = self.selected_fields()
+        for name, keys in _export.PRESETS.items():
+            if chosen == list(keys):
+                self._preset_var.set(name)
+                return
+        self._preset_var.set("Custom")
+
+    def selected_fields(self):
+        """Selected field keys in EXPORT_FIELDS order."""
+        return [k for k, _, _ in _export.EXPORT_FIELDS if self._field_vars[k].get()]
+
+    def _do_export(self):
+        fields = self.selected_fields()
+        if not fields:
+            messagebox.showwarning("Export Movie List", "Select at least one column.", parent=self)
+            return
+        fmt   = self._fmt_var.get()
+        rows  = self._view_rows if self._scope_var.get() == "view" else self._all_rows
+        if not rows:
+            messagebox.showinfo("Export Movie List", "There are no movies to export.", parent=self)
+            return
+        ext   = _export.default_extension(fmt)
+        types = {".csv": [("CSV files", "*.csv"), ("All files", "*.*")],
+                 ".txt": [("Text files", "*.txt"), ("All files", "*.*")],
+                 ".xlsx": [("Excel workbook", "*.xlsx"), ("All files", "*.*")]}[ext]
+        path = filedialog.asksaveasfilename(
+            parent=self, title="Export Movie List", defaultextension=ext,
+            filetypes=types, initialfile=_export.suggested_filename(fmt, self._folder))
+        if not path:
+            return
+        SETTINGS["export_prefs"] = {"preset": self._preset_var.get(), "fields": fields,
+                                    "format": fmt, "scope": self._scope_var.get()}
+        _save_settings(SETTINGS)
+        try:
+            n = _export.export_rows(rows, fields, fmt, path)
+        except Exception as e:
+            logger.error(f"Export Movie List failed: {e}")
+            messagebox.showerror("Export failed", str(e), parent=self)
+            return
+        logger.info(f"Export Movie List: {n} movies, {len(fields)} columns, {fmt} → {path}")
+        self.destroy()
+        if messagebox.askyesno("Export complete",
+                               f"Saved {n} movie(s) to:\n{path}\n\nOpen the file now?",
+                               parent=self._app):
+            os_open(path)
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -7568,7 +6377,7 @@ class App(tk.Tk):
         self.configure(bg="#1e1e2e")
         self._item_map      = {}
         self._results       = []   # movies scan results
-        self._series_results = []  # Phase C placeholder: series scan results
+        self._last_cache_save = 0.0  # throttle for last_results.json writes ### NEW v0.18.3 ###
         self._folder        = None
         self._scanning      = False
         self._cancel_scan   = False
@@ -7583,10 +6392,12 @@ class App(tk.Tk):
         self._sel_anchor    = None   ### NEW v0.16.1 — Shift+Arrow anchor index ###
         self._sel_active_idx = None  ### NEW v0.17.0 — Shift+Arrow active (moving) end ###
         self._build_ui()
-        self._update_extract_btn_state()
+        self._restore_column_widths()                          ### FIXED v0.18.3 — always, not only with a saved session ###
         self.protocol("WM_DELETE_WINDOW", self._on_app_close)   ### NEW v0.18.0 — save column widths on close ###
         self.after(200, self._restore_last_session)
         threading.Thread(target=self._async_test_ffmpeg, daemon=True).start()  ### FIX v0.16.0 ###
+        # Backup cleanup at startup (moved here from _restore_last_session) ### MODIFIED v0.18.3 ###
+        threading.Thread(target=clean_backup_folder_if_needed, daemon=True).start()
 
     # ── Build UI ───────────────────────────────────────────────────────────────
     def _build_ui(self):
@@ -7601,33 +6412,20 @@ class App(tk.Tk):
         settings_menu.add_command(label="⚙️  All Settings…",
                                   command=lambda: SettingsDialog(self, tab=0))
         settings_menu.add_separator()
-        settings_menu.add_command(label="🔧  Tools (Editor / FFmpeg / Backdrop)",
-                                  command=lambda: SettingsDialog(self, tab=0))
-        settings_menu.add_command(label="🔑  API Keys (TMDb / OMDb)",
-                                  command=lambda: SettingsDialog(self, tab=1))
-        settings_menu.add_command(label="🌐  Browser Selection",
-                                  command=lambda: SettingsDialog(self, tab=2))
-        settings_menu.add_command(label="🌍  Language OK?",
-                                  command=lambda: SettingsDialog(self, tab=3))
-        settings_menu.add_command(label="🔍  Improvements",
-                                  command=lambda: SettingsDialog(self, tab=4))
-        settings_menu.add_command(label="🖼  Image Sizes",
-                                  command=lambda: SettingsDialog(self, tab=5))
-        settings_menu.add_command(label="⭐  Ratings",                     ### NEW v0.15.0 ###
-                                  command=lambda: SettingsDialog(self, tab=10))
-        settings_menu.add_command(label="🎬  Genres",
-                                  command=lambda: SettingsDialog(self, tab=6))
-        settings_menu.add_command(label="🏷  NFO-XML Tags",
-                                  command=lambda: SettingsDialog(self, tab=7))
-        ### NEW v0.13.0 — synchronize menubar with all dialog tabs ###
-        settings_menu.add_command(label="🎨  User Interface",
-                                  command=lambda: SettingsDialog(self, tab=8))
-        settings_menu.add_command(label="💾  Backup",
-                                  command=lambda: SettingsDialog(self, tab=9))
+        # Entries are built from SettingsDialog._TAB_REGISTRY so the tab index
+        # can never drift (v0.18.2 opened the wrong tabs).    ### FIXED v0.18.3 ###
+        _tab_index = {lbl: idx for idx, lbl, _m in SettingsDialog._TAB_REGISTRY}
+        for _icon, _label, _tab_name in _SETTINGS_MENU_ITEMS:
+            _idx = _tab_index.get(_tab_name, 0)
+            settings_menu.add_command(label=f"{_icon}  {_label}",
+                                      command=lambda i=_idx: SettingsDialog(self, tab=i))
 
         tools_menu = tk.Menu(menubar, tearoff=0, bg="#313244", fg="#cdd6f4",  ### NEW v0.15.0 — redesigned ###
                              activebackground="#585b70", activeforeground="#cdd6f4")
         menubar.add_cascade(label="Tools", menu=tools_menu)
+        tools_menu.add_command(label="📤  Export Movie List…  (Ctrl+Shift+E)",   ### NEW v0.18.3 ###
+                               command=self._export_list_dialog)
+        tools_menu.add_separator()
         ### NEW v0.16.0 — Save/Open Scan Results (first, separated by divider) ###
         tools_menu.add_command(label="💾  Save Scan Results",
                                command=self._save_scan_results)
@@ -7673,7 +6471,7 @@ class App(tk.Tk):
         self._series_tab = tk.Frame(self._main_nb, bg="#1e1e2e")
         self._main_nb.add(self._series_tab, text="📺  Series")
         tk.Label(self._series_tab,
-                 text="\n\n\n     Under Development 👍 - Waiting for the tokens to reset!\n\n"
+                 text="\n\n\n     Under Development\n\n"
                       "     This tab will support TV series libraries in a future release.\n\n"
                       "     For now, please use the Movies tab for all your media.",
                  font=("Helvetica", 14), bg="#1e1e2e", fg="#6c7086",
@@ -7727,8 +6525,13 @@ class App(tk.Tk):
         self.clear_btn = tk.Button(picker, text="  Clear All  ", bg="#fab387",
                                    fg="#1e1e2e", command=self._clear_all, **btn_kw)
         self.clear_btn.pack(side="left", padx=(6,0))
-        tk.Button(picker, text="  Export CSV  ", bg="#cba6f7", fg="#1e1e2e",
-                  command=self._export_csv, **btn_kw).pack(side="left", padx=(6,0))
+        export_btn = tk.Button(picker, text="  Export…  ", bg="#cba6f7", fg="#1e1e2e",
+                  command=self._export_list_dialog, **btn_kw)              ### MODIFIED v0.18.3 ###
+        export_btn.pack(side="left", padx=(6,0))
+        _add_btn_tooltip(export_btn,
+            "Export Movie List (Ctrl+Shift+E)\n"
+            "CSV (comma or semicolon), tab-separated, plain text or Excel.\n"
+            "Choose columns and whether to export all movies or the current view.")
 
         # FFprobe checkbox
         tk.Checkbutton(picker, text="FFprobe", variable=self._use_ffprobe,
@@ -7823,7 +6626,8 @@ class App(tk.Tk):
 
         style = ttk.Style(self); style.theme_use("clam")
         style.configure("Treeview", background="#313244", foreground="#cdd6f4",
-                        fieldbackground="#313244", rowheight=26,
+                        fieldbackground="#313244",
+                        rowheight=(20 if SETTINGS.get("compact_mode", False) else 26),  ### NEW v0.18.3 ###
                         font=("Helvetica",10))
         style.configure("Treeview.Heading", background="#45475a", foreground="#89b4fa",
                         font=("Helvetica",10,"bold"), relief="flat")
@@ -7843,9 +6647,6 @@ class App(tk.Tk):
                               command=lambda c=col["id"]: self._on_header_dblclick_guard(c))
             self.tree.column(col["id"], width=col["width"], anchor=col["anchor"],
                              stretch=col["stretch"], minwidth=30)
-        ### NEW v0.11.0 — hide/show image Size columns based on settings ###
-        self._apply_image_size_col_visibility()
-
         ### NEW v0.10.0 — alternating rows toggled by settings ###
         _alt = SETTINGS.get("alternating_rows", True)
         _row_colors = {                                    ### MODIFIED_BY_CLAUDE_v18.2 — renamed tags ###
@@ -7925,6 +6726,10 @@ class App(tk.Tk):
         self.bind("<Control-f>", lambda e: self._filter_entry.focus_set())
         self.bind("<Control-F>", lambda e: self._filter_entry.focus_set())
         self._filter_entry.bind("<Escape>", lambda e: self._clear_filter())
+        # v0.18.3 — Esc cancels a running scan; Ctrl+Shift+E exports    ### NEW v0.18.3 ###
+        self.bind("<Escape>", lambda e: self._cancel() if self._scanning else None)
+        self.bind("<Control-Shift-E>", lambda e: self._export_list_dialog())
+        self.bind("<Control-Shift-e>", lambda e: self._export_list_dialog())
 
         # Header double-click state tracker
         self._hdr_click_time = {}
@@ -8261,17 +7066,9 @@ class App(tk.Tk):
                       command=lambda: webbrowser.open("https://ffmpeg.org/download.html")
                       ).pack(side="left", padx=(0,4))
 
-    def _update_extract_btn_state(self):  ### NEW v0.10.0 — extract btn removed; kept as no-op ###
-        pass  # extract_btn removed in v0.10.0 (replaced by clear_btn)
-
     def _on_ffprobe_toggle(self):
         SETTINGS["use_ffprobe"] = self._use_ffprobe.get()
         _save_settings(SETTINGS)
-
-    ### NEW v0.12.0 — image size columns removed; method kept as no-op for compat ###
-    def _apply_image_size_col_visibility(self):
-        """Image size columns were removed in v0.12.0. No-op kept for call-site compat."""
-        pass
 
     # ── Settings changed callback ─────────────────────────────────────────────
     @staticmethod
@@ -8355,9 +7152,9 @@ class App(tk.Tk):
                     fw, fh = self._parse_dim_str(r.get("fanart_dim"))
                     r["fanart_quality"] = classify_image_quality(fw, fh, "fanart")
 
-            self._apply_image_size_col_visibility()
+            ttk.Style(self).configure(                                     ### NEW v0.18.3 ###
+                "Treeview", rowheight=(20 if SETTINGS.get("compact_mode", False) else 26))
             self._refresh_table()
-            self._update_extract_btn_state()
             self._update_stats()
 
         # Schedule deferred refresh — runs AFTER the Settings dialog destroys
@@ -9191,14 +7988,9 @@ class App(tk.Tk):
             "subs_summary":   data.get("subs_summary", ""),
             "lang_ok":        data.get("lang_ok", "—"),
             "audio_tracks":   data.get("audio_tracks", []),  ### FIX v0.15.0 ###
+            "ffprobe_ran":    data.get("ffprobe_ran", False), ### NEW v0.18.3 ###
         }
-        # Save ffprobe setting, temporarily disable it
-        orig = SETTINGS.get("use_ffprobe", True)
-        SETTINGS["use_ffprobe"] = False
-        try:
-            r = scan_one_subfolder(sp, sn)
-        finally:
-            SETTINGS["use_ffprobe"] = orig
+        r = scan_one_subfolder(sp, sn, use_ffprobe=False)    ### MODIFIED v0.18.3 — explicit flag ###
         # Restore FFprobe-derived data so it is not lost ### NEW v0.11.0 ###
         r.update(_ffprobe_fields)
         _hs, _hr = compute_movie_health(r, SETTINGS.get("health_rules", {}), SETTINGS)  ### MODIFIED_BY_CLAUDE_v18.2 ###
@@ -9262,8 +8054,8 @@ class App(tk.Tk):
                 self.after(0, _apply)
             except Exception as e:
                 logger.error(f"Re-validate (with FFprobe) error for {sn}: {e}")
-                self.after(0, lambda: messagebox.showerror("Error",
-                    f"Re-validation failed for {sn}:\n{e}"))
+                _msg = f"Re-validation failed for {sn}:\n{e}"   ### FIXED v0.18.3 — 'e' is gone when the lambda runs ###
+                self.after(0, lambda m=_msg: messagebox.showerror("Error", m))
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -9538,7 +8330,8 @@ class App(tk.Tk):
                 source_used = "manual"
 
             if chosen_r and chosen_v:
-                errors = write_rating_to_files(nfo_path, xml_path, chosen_r, chosen_v)
+                errors = write_rating_to_files(nfo_path, xml_path, chosen_r, chosen_v,
+                                               movie_name=d.get("movie_name", name))  ### MODIFIED v0.18.3 ###
                 if errors:
                     self.after(0, lambda n=name, errs=errors:
                         messagebox.showerror("Write Error",
@@ -9654,7 +8447,13 @@ class App(tk.Tk):
                         self.after(0, lambda n=name, idx=i: (
                             status_lbl.configure(text=f"{n[:45]}…" if len(n)>45 else n),
                             prog_var.set(idx + 1)))
-                        issues = _run_improvements_check(d)
+                        ### FIXED v0.18.3 — _run_improvements_check never existed ###
+                        _res   = run_improvements([d])
+                        issues = list(_res[0][1]) if _res else []
+                        issues += [f"[NFO error] Line {e['line']}: {e['message']}"
+                                   for e in d.get("nfo_errors", [])]
+                        issues += [f"[XML error] Line {e['line']}: {e['message']}"
+                                   for e in d.get("xml_errors", [])]
                         if issues:
                             fout.write(f"Movie: {name}\n")
                             for issue in issues:
@@ -9665,9 +8464,10 @@ class App(tk.Tk):
                     messagebox.showinfo("Improvements Check Complete",
                         f"Report saved to:\n{out_path}")))
             except Exception as ex:
-                self.after(0, lambda: (
+                _msg = f"Improvements check failed:\n{ex}"       ### FIXED v0.18.3 — 'ex' is gone when the lambda runs ###
+                self.after(0, lambda m=_msg: (
                     prog_win.destroy(),
-                    messagebox.showerror("Error", f"Improvements check failed:\n{ex}")))
+                    messagebox.showerror("Error", m)))
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -9794,17 +8594,6 @@ class App(tk.Tk):
 
         threading.Thread(target=_worker, daemon=True).start()
 
-
-    def _sync_ratings_selected(self):
-        """Sync ratings for currently selected rows, or show warning if none."""
-        sel = self.tree.selection()
-        if not sel:
-            messagebox.showwarning("No Selection",
-                "Select one or more movies first, then use\n"
-                "right-click → Sync Ratings, or select all movies.")
-            return
-        data_list = [self._item_map[i] for i in sel if i in self._item_map]
-        self._sync_ratings(data_list)
 
     # ── Normalize Genres (item 13) ─────────────────────────────────────────────
     def _sync_ratings_all(self):                                ### NEW v0.15.0 ###
@@ -10523,14 +9312,6 @@ class App(tk.Tk):
         for r in self.tree.get_children(): self.tree.delete(r)
         self._update_status_bar(0, 0, 0, "Cleared", self.sort_var.get())
         logger.info("User cleared scan results")
-    def _extract_frames(self):
-        if self._scanning: return
-        sel = self.tree.selection()
-        if not sel: messagebox.showwarning("No selection","Select a row first."); return
-        d = self._item_map.get(sel[0])
-        if not d: return
-        self._do_extract(d)
-
     def _do_extract(self, d):
         # FIX v0.16.0 — use cached FFmpeg status; never block on main thread  ### FIX v0.16.0 ###
         ff_ok = self._ffmpeg_status[0] if self._ffmpeg_status else False
@@ -10624,7 +9405,7 @@ class App(tk.Tk):
             messagebox.showinfo("Empty", "No subfolders found."); return
 
         # Capture prior results BEFORE touching UI (still on main thread, fast)
-        prior_by_path = {r["subfolder_path"]: r for r in self._results}
+        prior_by_path = {_pkey(r["subfolder_path"]): r for r in self._results}   ### MODIFIED v0.18.3 — slash-insensitive ###
         prior_for_ff  = list(self._results)
 
         # Set up UI state immediately (no heavy work on main thread)
@@ -10637,46 +9418,43 @@ class App(tk.Tk):
         self._draw_scan_progress(0, "Quick Scan — detecting changes…")
 
         def worker():
-            # ── Phase A: compute prior mtimes (background, can be slow) ────────
-            prior_mtimes = {}
-            for r in prior_for_ff:
-                sp = r.get("subfolder_path", "")
-                if not sp:
+            clear_read_caches()
+            # ── Phase A/B: detect new / modified subfolders ───────────────────
+            # v0.18.2 compared two reads of the CURRENT disk and therefore never
+            # saw a modified movie.  Each row now carries scan_mtime (newest
+            # file time when it was scanned); rows without it (older cache)
+            # are rescanned once.                              ### FIXED v0.18.3 ###
+            changed_entries = []
+            n_no_mtime = 0
+            for entry in entries:
+                if self._cancel_scan:
+                    break
+                prior = prior_by_path.get(_pkey(entry.path))
+                if prior is None:
+                    changed_entries.append(entry)              # new folder
+                    continue
+                recorded = prior.get("scan_mtime")
+                if recorded is None:
+                    n_no_mtime += 1
+                    changed_entries.append(entry)              # unknown → rescan
                     continue
                 try:
-                    files = [os.path.join(sp, fn) for fn in os.listdir(sp)
-                             if os.path.isfile(os.path.join(sp, fn))]
-                    prior_mtimes[sp] = max(
-                        (os.path.getmtime(f) for f in files), default=0)
-                except Exception:
-                    prior_mtimes[sp] = 0
+                    if abs(_folder_mtime(entry.path) - float(recorded)) > 0.5:
+                        changed_entries.append(entry)          # modified
+                except (TypeError, ValueError):
+                    changed_entries.append(entry)
 
             if self._cancel_scan:
                 self.after(0, lambda: self._scan_done(prior_for_ff)); return
 
-            # ── Phase B: detect changed / new subfolders ────────────────────
-            current_paths   = {e.path for e in entries}
-            changed_entries = []
-            for entry in entries:
-                if entry.path not in prior_by_path:
-                    changed_entries.append(entry)   # new
-                    continue
-                try:
-                    files = [os.path.join(entry.path, fn)
-                             for fn in os.listdir(entry.path)
-                             if os.path.isfile(os.path.join(entry.path, fn))]
-                    mtime_now = max((os.path.getmtime(f) for f in files), default=0)
-                except Exception:
-                    mtime_now = 0
-                if mtime_now != prior_mtimes.get(entry.path, -1):
-                    changed_entries.append(entry)   # modified
-
+            current_paths = {_pkey(e.path) for e in entries}
             n_changed = len(changed_entries)
             n_total   = len(entries)
-            n_removed = max(0, len(prior_by_path) - len(current_paths & set(prior_by_path.keys())))
-            logger.info(f"Quick Scan: {n_changed}/{n_total} changed, {n_removed} removed")
+            n_removed = sum(1 for p in prior_by_path if p not in current_paths)
+            logger.info(f"Quick Scan: {n_changed}/{n_total} changed, {n_removed} removed"
+                        + (f", {n_no_mtime} without recorded scan time" if n_no_mtime else ""))
 
-            if n_changed == 0 and current_paths == set(prior_by_path.keys()):
+            if n_changed == 0 and n_removed == 0:
                 self.after(0, lambda: (
                     self._scan_done(prior_for_ff),
                     messagebox.showinfo("Quick Scan",
@@ -10688,6 +9466,9 @@ class App(tk.Tk):
                     f"Quick Scan — {nc} changed, {nr} removed"))
 
             # ── Phase C: rescan changed/new subfolders only ─────────────────
+            _KEEP = ("video_width", "video_height", "video_quality",
+                     "subs_internal", "subs_summary", "lang_ok",
+                     "audio_tracks", "ffprobe_ran")
             rescanned = {}
             for i, entry in enumerate(changed_entries):
                 if self._cancel_scan:
@@ -10696,17 +9477,23 @@ class App(tk.Tk):
                 self.after(0, lambda p=pct, n=entry.name:
                     self._draw_scan_progress(p, f"Quick Scan — {n[:45]}"))
                 try:
-                    r = scan_one_subfolder(entry.path, entry.name,
-                                           use_ffprobe=False)
-                    # Preserve FFprobe data from prior scan
-                    for rd in prior_for_ff:
-                        if rd.get("subfolder_path") == entry.path:
-                            for key in ("video_width", "video_height", "video_quality",
-                                        "subs_internal", "subs_external", "subs_summary",
-                                        "lang_ok", "audio_tracks"):
-                                if rd.get(key) is not None:
-                                    r[key] = rd[key]
-                            break
+                    r  = scan_one_subfolder(entry.path, entry.name, use_ffprobe=False)
+                    rd = prior_by_path.get(_pkey(entry.path))
+                    if rd and rd.get("ffprobe_ran"):
+                        # Preserve FFprobe data from the prior scan, then recompute
+                        # health so rules see the restored audio/subtitle data.
+                        for key in _KEEP:
+                            if rd.get(key) is not None:
+                                r[key] = rd[key]
+                        if r.get("subs_internal") or r.get("subs_external"):
+                            parts = []
+                            if r.get("subs_internal"):
+                                parts.append("Int: " + ", ".join(s["lang"] for s in r["subs_internal"]))
+                            if r.get("subs_external"):
+                                parts.append("Ext: " + ", ".join(s["lang"] for s in r["subs_external"]))
+                            r["subs_summary"] = " | ".join(parts)
+                        _hs, _hr = compute_movie_health(r, SETTINGS.get("health_rules", {}), SETTINGS)
+                        r["health_status"] = _hs; r["health_reasons"] = _hr   ### FIXED v0.18.3 ###
                     rescanned[entry.path] = r
                 except Exception as ex:
                     logger.error(f"Quick Scan error for {entry.name}: {ex}")
@@ -10716,8 +9503,8 @@ class App(tk.Tk):
             for entry in entries:
                 if entry.path in rescanned:
                     new_results.append(rescanned[entry.path])
-                elif entry.path in prior_by_path:
-                    new_results.append(prior_by_path[entry.path])
+                elif _pkey(entry.path) in prior_by_path:
+                    new_results.append(prior_by_path[_pkey(entry.path)])
                 # deleted subfolders are dropped
 
             self.after(0, lambda r=new_results: self._scan_done(r))
@@ -10742,12 +9529,8 @@ class App(tk.Tk):
         if not folder or not os.path.isdir(folder):
             messagebox.showwarning("No folder", "No folder to update. Browse first."); return
         self._folder = folder; self.folder_var.set(folder)
-        orig = SETTINGS.get("use_ffprobe", True)
-        SETTINGS["use_ffprobe"] = False
-        try:
-            self._start_scan(folder)
-        finally:
-            SETTINGS["use_ffprobe"] = orig
+        self._scan_label = "Update Scan"
+        self._start_scan(folder, use_ff=False)                 ### FIXED v0.18.3 ###
 
     def _update_scan_with_ff(self):
         """Update scan with FFprobe — called after settings change.
@@ -10758,19 +9541,15 @@ class App(tk.Tk):
         if not folder or not os.path.isdir(folder):
             messagebox.showwarning("No folder", "No folder to update. Browse first."); return
         self._folder = folder; self.folder_var.set(folder)
-        orig = SETTINGS.get("use_ffprobe", True)
-        SETTINGS["use_ffprobe"] = True
-        try:
-            self._start_scan(folder)
-        finally:
-            SETTINGS["use_ffprobe"] = orig
+        self._scan_label = "Update Scan"
+        self._start_scan(folder, use_ff=True)                  ### FIXED v0.18.3 ###
 
     def _scan(self):
         if self._scanning: return
         if not self._folder:
             messagebox.showwarning("No folder","Select a folder first."); return
         self._scan_label = "Full Scan"                         ### NEW v0.17.0 ###
-        self._start_scan(self._folder)
+        self._start_scan(self._folder, use_ff=self._use_ffprobe.get())
 
     def _cancel(self):
         self._cancel_scan = True
@@ -10787,7 +9566,7 @@ class App(tk.Tk):
                       fill="#cdd6f4", font=("Helvetica",10,"bold"))
         self.pbar_label.configure(text=text)
 
-    def _start_scan(self, folder):
+    def _start_scan(self, folder, use_ff=None):               ### MODIFIED v0.18.3 — explicit FFprobe flag ###
         # v0.18.2 — clear filter at scan start               ### ADDED_BY_CLAUDE_v18.2 ###
         if hasattr(self, "_filter_var"):
             self._filter_var.set("")
@@ -10812,7 +9591,9 @@ class App(tk.Tk):
         self.pbar_label.pack(side="left", padx=(8,0))
         self._draw_scan_progress(0, "Starting…")
 
-        use_ff = self._use_ffprobe.get()
+        if use_ff is None:
+            use_ff = self._use_ffprobe.get()
+        use_ff = bool(use_ff)
         total  = len(entries)
         t0     = [time.time()]
 
@@ -10823,26 +9604,16 @@ class App(tk.Tk):
             if rem > 60: return f"{int(rem//60)}m {int(rem%60)}s remaining"
             return f"{int(rem)}s remaining"
 
-        def _insert_or_update(r, idx):
-            """Insert a new row or update an existing one in the table."""
-            tag = r["health_status"] + ("_odd" if idx % 2 else "")
-            # Check if row already exists
-            for iid, rd in self._item_map.items():
-                if rd.get("subfolder_path") == r["subfolder_path"]:
-                    self._item_map[iid] = r
-                    self.tree.item(iid, values=self._rv(r), tags=(tag,))
-                    return
-            iid = self.tree.insert("", "end", values=self._rv(r), tags=(tag,))
-            self._item_map[iid] = r
-
         def worker():
             results_partial = []
+            clear_read_caches()                                ### NEW v0.18.3 ###
             ### FIX v0.17.0-bugA — use captured list; self._results was cleared before worker started ###
             _prior_ffprobe = {}
             for rd in _prior_results_for_ffprobe:
                 sp = rd.get("subfolder_path")
-                if sp and (rd.get("video_width") or rd.get("video_quality","—") != "—"):
-                    _prior_ffprobe[sp] = {
+                if sp and (rd.get("video_width") or rd.get("video_quality","—") != "—"
+                           or rd.get("ffprobe_ran")):
+                    _prior_ffprobe[_pkey(sp)] = {                   ### MODIFIED v0.18.3 — slash-insensitive ###
                         "video_width":   rd.get("video_width"),
                         "video_height":  rd.get("video_height"),
                         "video_quality": rd.get("video_quality", "—"),
@@ -10850,6 +9621,8 @@ class App(tk.Tk):
                         "subs_external": rd.get("subs_external", []),
                         "subs_summary":  rd.get("subs_summary", ""),
                         "lang_ok":       rd.get("lang_ok", "—"),
+                        "audio_tracks":  rd.get("audio_tracks", []),   ### FIXED v0.18.3 ###
+                        "ffprobe_ran":   rd.get("ffprobe_ran", False), ### FIXED v0.18.3 ###
                     }
 
             # ── Phase 1: list subfolders ──────────────────────────────────────
@@ -10857,7 +9630,7 @@ class App(tk.Tk):
             stubs = []
             for entry in entries:
                 ### NEW v0.11.0 — seed stub with prior FFprobe data if available ###
-                prior = _prior_ffprobe.get(entry.path, {})
+                prior = _prior_ffprobe.get(_pkey(entry.path), {})
                 stubs.append({
                     "subfolder": entry.name, "subfolder_path": entry.path,
                     "poster_exists":False,"poster_path":os.path.join(entry.path,"poster.jpg"),
@@ -10888,14 +9661,18 @@ class App(tk.Tk):
                     "movie_name": entry.name, "movie_year": "-",
                     "health_status":"warning","health_reasons":[],
                     # v0.18.2 — new health engine fields          ### ADDED_BY_CLAUDE_v18.2 ###
-                    "movie_title_raw":[],"movie_year_raw":None,"ffprobe_ran":False,
+                    "movie_title_raw":[],"movie_year_raw":None,
+                    "ffprobe_ran":prior.get("ffprobe_ran", False),                 ### MODIFIED v0.18.3 ###
+                    "nfo_title":"","xml_localtitle":"",                            ### NEW v0.18.3 ###
+                    "scan_mtime":_folder_mtime(entry.path),                        ### NEW v0.18.3 ###
                     # v0.11.0 — image quality tiers (filled in Phase 2) ### NEW v0.11.0 ###
                     "poster_quality":"—","folder_quality":"—","fanart_quality":"—",
                     # v0.12.0 — rating (filled in Phase 3)               ### NEW v0.12.0 ###
                     "rating_str":"-","rating_status":STATUS_MISSING,"rating_value":-1.0,
                     # v0.15.0 — new fields                               ### FIX v0.15.0 ###
                     "rating_votes":0,"rating_votes_src":"","rating_src":"",
-                    "backdrop_avg_bytes":0,"audio_tracks":[],
+                    "backdrop_avg_bytes":0,
+                    "audio_tracks":prior.get("audio_tracks", []),                  ### FIXED v0.18.3 ###
                     # v0.16.0 — votes and source (filled in Phase 3)  ### NEW v0.16.0 ###
                     "votes_int":0,"votes_status":STATUS_MISSING,"votes_src":"",
                     "source_imdb_val":None,"source_imdb_status":STATUS_MISSING,"source_imdb_all":[],
@@ -10947,10 +9724,9 @@ class App(tk.Tk):
                 except Exception as _row_exc:                        # ADDED_BY_CLAUDE_v18
                     logger.warning(                                  # ADDED_BY_CLAUDE_v18
                         f"Phase 2 skipped '{entry.name}': {_row_exc}")
-                # incremental save every 10 rows
                 if i % 10 == 0:
                     self.after(0, lambda r=list(results_partial):
-                               self._incremental_save(r))
+                               self._incremental_save(r, throttle=True))   ### MODIFIED v0.18.3 ###
 
             self.after(0, lambda r=list(results_partial):
                        self._phase_update(r, "Phase 2/4 complete — images scanned"))
@@ -11020,6 +9796,7 @@ class App(tk.Tk):
                     # v0.18.2 — title/year raw for health rules  ### ADDED_BY_CLAUDE_v18.2 ###
                     row["movie_title_raw"] = get_movie_titles_from_files(nfo_p2, xml_p2)
                     row["movie_year_raw"]  = get_movie_year_from_files(nfo_p2, xml_p2)
+                    row["nfo_title"], row["xml_localtitle"] = get_primary_titles(nfo_p2, xml_p2)  ### NEW v0.18.3 ###
                     _hs, _hr = compute_movie_health(row, SETTINGS.get("health_rules", {}), SETTINGS)  ### MODIFIED_BY_CLAUDE_v18.2 ###
                     row["health_status"] = _hs; row["health_reasons"] = _hr
                 except Exception as _row_exc:                        # ADDED_BY_CLAUDE_v18
@@ -11027,7 +9804,7 @@ class App(tk.Tk):
                         f"Phase 3 skipped '{entry.name}': {_row_exc}")
                 if i % 10 == 0:
                     self.after(0, lambda r=list(results_partial):
-                               self._incremental_save(r))
+                               self._incremental_save(r, throttle=True))   ### MODIFIED v0.18.3 ###
 
             self.after(0, lambda r=list(results_partial):
                        self._phase_update(r, "Phase 3/4 complete — metadata scanned"))
@@ -11044,27 +9821,36 @@ class App(tk.Tk):
                 try:                                                 # ADDED_BY_CLAUDE_v18
                     sub = entry.path
                     vi  = scan_video_files(sub)
-                    if use_ff and vi["video_path"] and FFPROBE_PATH:
-                        w, h = _get_video_resolution(vi["video_path"])
+                    _probe_now = bool(use_ff and vi["video_path"] and FFPROBE_PATH)
+                    if _probe_now:
+                        w, h = _get_video_resolution(vi["video_path"], use_ffprobe=True)
                         vi["video_width"] = w; vi["video_height"] = h
                         vi["video_quality"] = classify_quality(w, h)
                     else:
                         ### NEW v0.11.0 — preserve existing FFprobe data when not re-running ###
-                        # If a prior scan stored FFprobe results, keep them.
                         vi["video_width"]   = row.get("video_width")
                         vi["video_height"]  = row.get("video_height")
                         vi["video_quality"] = row.get("video_quality", "—")
-                    si = scan_subtitles(sub, vi["video_path"])
-                    # Audio tracks (v0.15.0)                            ### FIX v0.15.0 ###
-                    if use_ff and vi["video_path"] and FFPROBE_PATH:
-                        audio_tracks = scan_audio_tracks(vi["video_path"])
+                    si = scan_subtitles(sub, vi["video_path"], use_ffprobe=use_ff)  ### MODIFIED v0.18.3 ###
+                    if _probe_now:
+                        audio_tracks = scan_audio_tracks(vi["video_path"], use_ffprobe=True)
                     else:
                         audio_tracks = row.get("audio_tracks", [])
+                        # keep embedded subtitle tracks found by an earlier FFprobe pass
+                        if not si["subs_internal"] and row.get("subs_internal"):
+                            si["subs_internal"] = row["subs_internal"]
+                            parts = ["Int: " + ", ".join(s["lang"] for s in si["subs_internal"])]
+                            if si["subs_external"]:
+                                parts.append("Ext: " + ", ".join(s["lang"] for s in si["subs_external"]))
+                            si["subs_summary"] = " | ".join(parts)
                     iso = SETTINGS.get("lang_ok_code","PT")
                     nfo_p = row["nfo_path"] if row["nfo_exists"] else None
                     xml_p = row["xml_path"] if row["xml_exists"] else None
                     lo = compute_lang_ok(vi["video_path"], si["subs_internal"],
-                                         si["subs_external"], nfo_p, xml_p, iso)
+                                         si["subs_external"], nfo_p, xml_p, iso,
+                                         use_ffprobe=use_ff)                   ### MODIFIED v0.18.3 ###
+                    if not _probe_now and row.get("lang_ok") == "Y" and vi["video_path"]:
+                        lo = "Y"   # earlier FFprobe pass already found the language in audio
                     vs = (STATUS_MISSING if vi["video_count"]==0
                           else STATUS_ERROR if vi["video_count"]>1 else STATUS_OK)
                     row.update({
@@ -11076,7 +9862,7 @@ class App(tk.Tk):
                         "subs_internal":si["subs_internal"],"subs_external":si["subs_external"],
                         "subs_summary":si["subs_summary"],"lang_ok":lo,
                         "audio_tracks": audio_tracks,                   ### FIX v0.15.0 ###
-                        "ffprobe_ran": bool(use_ff and vi["video_path"] and FFPROBE_PATH),  ### ADDED_BY_CLAUDE_v18.2 ###
+                        "ffprobe_ran": _probe_now or (not use_ff and bool(row.get("ffprobe_ran"))),  ### MODIFIED v0.18.3 ###
                     })
                     _hs, _hr = compute_movie_health(row, SETTINGS.get("health_rules", {}), SETTINGS)  ### MODIFIED_BY_CLAUDE_v18.2 ###
                     row["health_status"] = _hs; row["health_reasons"] = _hr
@@ -11085,7 +9871,7 @@ class App(tk.Tk):
                         f"Phase 4 skipped '{entry.name}': {_row_exc}")
                 if i % 5 == 0:
                     self.after(0, lambda r=list(results_partial):
-                               self._incremental_save(r))
+                               self._incremental_save(r, throttle=True))   ### MODIFIED v0.18.3 ###
 
             self.after(0, lambda: self._scan_done(list(results_partial)))
 
@@ -11117,10 +9903,24 @@ class App(tk.Tk):
         self._update_stats()
         self.pbar_label.configure(text=msg)
 
-    def _incremental_save(self, results):
-        SETTINGS["last_folder"]  = self._folder
-        SETTINGS["last_results"] = _results_to_json(results)
-        _save_settings(SETTINGS)
+    def _incremental_save(self, results, throttle=False):
+        """Persist the current folder and results.
+        Results go to last_results.json (settings_controller), no longer into
+        settings.json.  With throttle=True (used during scans) writes are at
+        most one every 10 s.                                   ### MODIFIED v0.18.3 ###"""
+        now = time.time()
+        if throttle and (now - self._last_cache_save) < 10.0:
+            return
+        self._last_cache_save = now
+        if SETTINGS.get("last_folder") != self._folder or SETTINGS.get("last_results"):
+            SETTINGS["last_folder"]  = self._folder
+            SETTINGS["last_results"] = []
+            _save_settings(SETTINGS)
+        try:
+            if not _sc.save_results_cache(results):
+                logger.warning("Results cache save failed")
+        except RuntimeError as e:            # dict changed size during JSON dump
+            logger.warning(f"Results cache save skipped: {e}")
 
     def _apply_default_sort(self):                             ### NEW v0.16.1 ###
         """Reset sort to Movie Name (A-Z) and refresh table. No UI freeze."""
@@ -11140,8 +9940,7 @@ class App(tk.Tk):
         self._phase_update(results, "")
         self._update_stats()
         self._apply_default_sort()                             ### NEW v0.16.1 ###
-        SETTINGS["last_folder"]  = self._folder
-        SETTINGS["last_results"] = _results_to_json(results)
+        self._incremental_save(results)                        ### MODIFIED v0.18.3 — results → cache file ###
         self.after(50, self.tree.focus_set)                    ### NEW v0.17.0 — restore keyboard focus for jump-to-letter ###
         self._jump_last_char = None                            ### NEW v0.17.0 — reset jump state after scan ###
         self._jump_last_iid  = None
@@ -11158,24 +9957,9 @@ class App(tk.Tk):
             logger.info(f"{_label} complete: {len(results)} movies, {_warn} warnings, {_err} errors")
         except Exception: pass
 
-    # ── Series mode scan hook (Phase C placeholder) ────────────────────────
-    def _start_scan_series(self):
-        """
-        Phase C placeholder — start a series library scan.
-        Will be called when the user clicks Scan inside the Series tab.
-        TODO (Phase C): implement full series scanning pipeline analogous
-        to _start_scan(), using scan_one_series() as the worker function.
-        The results will populate self._series_results and a separate
-        series Treeview widget inside self._series_tab.
-        """
-        # TODO (Phase C): implement
-        messagebox.showinfo("Series Scan",
-                            "Series scanning is not yet implemented.\n"
-                            "This feature is coming in Phase C!")
-
     def _restore_last_session(self):
         last_folder  = SETTINGS.get("last_folder","")
-        last_results = SETTINGS.get("last_results",[])
+        last_results = _sc.load_results_cache()                ### MODIFIED v0.18.3 — from last_results.json ###
         if not last_folder or not last_results: return
         if not os.path.isdir(last_folder): return
         self._folder = last_folder
@@ -11183,10 +9967,7 @@ class App(tk.Tk):
         self._results = _results_from_json(last_results)
         self._update_stats()
         self._apply_default_sort()                             ### NEW v0.16.1 ###
-        # Restore saved column widths (after table is populated)  ### NEW v0.18.0 ###
-        self._restore_column_widths()
-        # Run backup cleanup in background at startup  ### NEW v0.12.0 ###
-        threading.Thread(target=clean_backup_folder_if_needed, daemon=True).start()
+        self._restore_column_widths()                          ### NEW v0.18.0 ###
 
     def _restore_column_widths(self):                          ### NEW v0.18.0 ###
         """Apply persisted column widths from SETTINGS["column_widths"]."""
@@ -11213,10 +9994,10 @@ class App(tk.Tk):
         except Exception:
             pass
         SETTINGS["column_widths"] = widths
-        # Also persist current results so nothing is lost on close
-        if self._results:
-            SETTINGS["last_folder"]  = self._folder
-            SETTINGS["last_results"] = _results_to_json(self._results)
+        SETTINGS["last_results"]  = []     # results live in last_results.json since v0.18.3
+        if self._results and self._folder:
+            SETTINGS["last_folder"] = self._folder
+            _sc.save_results_cache(self._results)
         _save_settings(SETTINGS)
         self.destroy()
 
@@ -11352,48 +10133,15 @@ class App(tk.Tk):
             else:
                 self._filter_label.configure(text="")
 
-    # ── Export CSV ─────────────────────────────────────────────────────────────
-    def _export_csv(self):
-        if self._scanning: return
-        if not self._results: messagebox.showinfo("Empty","Scan first."); return
-        p = filedialog.asksaveasfilename(
-            title="Export CSV", defaultextension=".csv",
-            filetypes=[("CSV","*.csv")], initialfile="scan_results.csv")
-        if not p: return
-        def _st(s): return "OK" if s==STATUS_OK else ("Error" if s==STATUS_ERROR else "Missing")
-        try:
-            with open(p, "w", newline="", encoding="utf-8-sig") as f:
-                w = csv.writer(f)
-                iso = SETTINGS.get("lang_ok_code","PT")
-                ### NEW v0.10.0 — updated CSV headers for new columns ###
-                w.writerow(["Movie Name","Year","Folder Name","Path",
-                             "poster.jpg","Poster Size","Poster Dim",
-                             "folder.jpg","Folder Size","Folder Dim",
-                             "fanart.jpg","Fanart Size","Fanart Dim","Backdrops",
-                             ".nfo","NFO Status","NFO Errors","movie.xml","XML Status","XML Errors",
-                             "Language","Video Files","Video Ext","Video Size","Quality",
-                             f"{iso} OK?","Embedded Subs","External Subs","Genre","Health"])
-                for r in self._results:
-                    w.writerow([
-                        r.get("movie_name", r["subfolder"]), r.get("movie_year", "-"),
-                        r["subfolder"], r["subfolder_path"],
-                        "Y" if r["poster_exists"] else "N", r["poster_size"], r["poster_dim"] or "—",
-                        "Y" if r["folder_exists"] else "N", r["folder_size"], r["folder_dim"] or "—",
-                        "Y" if r["fanart_exists"] else "N", r["fanart_size"], r["fanart_dim"] or "—",
-                        r["backdrop_count"],
-                        "Y" if r["nfo_exists"] else "N", _st(r["nfo_status"]),
-                        "; ".join(f"L{e['line']}:{e['message']}" for e in r["nfo_errors"]) or "",
-                        "Y" if r["xml_exists"] else "N", _st(r["xml_status"]),
-                        "; ".join(f"L{e['line']}:{e['message']}" for e in r["xml_errors"]) or "",
-                        r["language"], r["video_count"], r["video_ext"], r["video_size"],
-                        r.get("video_quality","—"), r.get("lang_ok","—"),
-                        ", ".join(s["lang"] for s in r["subs_internal"]) or "None",
-                        ", ".join(f'{s["lang"]}({s["file"]})' for s in r["subs_external"]) or "None",
-                        r["health_status"],
-                    ])
-            messagebox.showinfo("Exported", f"Saved {len(self._results)} rows to:\n{p}")
-        except Exception as e:
-            messagebox.showerror("Export failed", str(e))
+    # ── Export Movie List (v0.18.3) ───────────────────────────────────────────
+    def _export_list_dialog(self):                             ### NEW v0.18.3 ###
+        if self._scanning:
+            messagebox.showinfo("Export", "Please wait for the scan to complete.", parent=self); return
+        if not self._results:
+            messagebox.showinfo("Export", "Scan first — there is nothing to export.", parent=self); return
+        view_rows = [self._item_map[i] for i in self.tree.get_children() if i in self._item_map]
+        ExportListDialog(self, self._results, view_rows,
+                         os.path.basename(self._folder or "") if self._folder else "")
 
 
 # ── compute_movie_health — rule engine (v0.18.2) ─────────────────────────────
@@ -11454,29 +10202,36 @@ def compute_movie_health(row: dict, rules: dict,
         if row.get("folder_status") == STATUS_ERROR:
             error_reasons.append("Corrupt folder image")
 
-    if rules.get("missing_imdb_id", True):
-        if row.get("source_imdb_status") == STATUS_MISSING:
-            error_reasons.append("Missing IMDB ID")
+    # Source IDs — v0.18.2 reported "conflict" for an EMPTY tag (STATUS_ERROR)
+    # and stayed silent on a real conflict (STATUS_WARN).       ### FIXED v0.18.3 ###
+    for _k, _lbl in (("imdb", "IMDB"), ("tmdb", "TMDb")):
+        st   = row.get(f"source_{_k}_status", STATUS_MISSING)
+        vals = [v for v in (row.get(f"source_{_k}_all") or []) if v]
+        distinct = len(set(vals))
+        if rules.get(f"missing_{_k}_id", True):
+            if st == STATUS_MISSING:
+                error_reasons.append(f"Missing {_lbl} ID")
+            elif st == STATUS_ERROR and not vals:
+                error_reasons.append(f"Missing {_lbl} ID (tag present but empty)")
+        if rules.get(f"corrupt_{_k}_id", True):
+            if distinct > 1:
+                error_reasons.append(
+                    f"{_lbl} ID conflict between tags ({', '.join(sorted(set(vals)))})")
+            elif st == STATUS_ERROR and vals:
+                error_reasons.append(f"{_lbl} ID present in some tags but empty in others")
+        if rules.get(f"{_k}_id_partial", True):
+            if st == STATUS_WARN and distinct == 1:
+                warning_reasons.append(f"{_lbl} ID present in one file only (NFO or XML)")
 
-    if rules.get("corrupt_imdb_id", True):
-        if row.get("source_imdb_status") == STATUS_ERROR:
-            error_reasons.append("IMDB ID conflict between NFO and XML")
-
-    if rules.get("missing_tmdb_id", True):
-        if row.get("source_tmdb_status") == STATUS_MISSING:
-            error_reasons.append("Missing TMDb ID")
-
-    if rules.get("corrupt_tmdb_id", True):
-        if row.get("source_tmdb_status") == STATUS_ERROR:
-            error_reasons.append("TMDb ID conflict between NFO and XML")
-
+    # Rating / votes — STATUS_WARN means the values differ; STATUS_ERROR means
+    # a tag exists but is not numeric (handled as warnings below). ### FIXED v0.18.3 ###
     if rules.get("rating_conflict", True):
-        if row.get("rating_status") == STATUS_ERROR:
-            error_reasons.append("Rating conflict between NFO and XML")
+        if row.get("rating_status") == STATUS_WARN:
+            error_reasons.append("Rating conflict between NFO and XML (values differ)")
 
     if rules.get("votes_conflict", True):
-        if row.get("votes_status") == STATUS_ERROR:
-            error_reasons.append("Votes conflict between NFO and XML")
+        if row.get("votes_status") == STATUS_WARN:
+            error_reasons.append("Votes conflict between NFO <votes> and XML <Votes>")
 
     if rules.get("genre_missing", True):
         if row.get("genre_status") == STATUS_ERROR:
@@ -11581,8 +10336,8 @@ def compute_movie_health(row: dict, rules: dict,
             warning_reasons.append("Missing rating")
 
     if rules.get("rating_warning", True):
-        if row.get("rating_status") == STATUS_WARN:
-            warning_reasons.append("Rating present in one file only")
+        if row.get("rating_status") == STATUS_ERROR:
+            warning_reasons.append("Rating tag unreadable (non-numeric value)")  ### FIXED v0.18.3 ###
 
     if rules.get("suspicious_rating", True):
         rv        = row.get("rating_value")
@@ -11602,8 +10357,8 @@ def compute_movie_health(row: dict, rules: dict,
             warning_reasons.append("Missing votes")
 
     if rules.get("votes_warning", True):
-        if row.get("votes_status") == STATUS_WARN:
-            warning_reasons.append("Votes present in one file only")
+        if row.get("votes_status") == STATUS_ERROR:
+            warning_reasons.append("Votes tag unreadable (non-numeric value)")  ### FIXED v0.18.3 ###
 
     if rules.get("lang_not_ok", True):
         if row.get("lang_ok") == "N":
@@ -11649,8 +10404,14 @@ def compute_movie_health(row: dict, rules: dict,
             warning_reasons.append("Missing movie title in NFO/XML")
 
     if rules.get("title_mismatch", True):
-        if len(row.get("movie_title_raw", [])) >= 2:
-            warning_reasons.append("Title mismatch between NFO and XML")
+        # Only NFO <title> vs XML <LocalTitle> — original titles are allowed
+        # to differ (v0.18.2 flagged every foreign film).      ### FIXED v0.18.3 ###
+        _nt = " ".join((row.get("nfo_title") or "").split()).casefold()
+        _xt = " ".join((row.get("xml_localtitle") or "").split()).casefold()
+        if _nt and _xt and _nt != _xt:
+            warning_reasons.append(
+                f"Title mismatch: NFO <title> '{row.get('nfo_title')}' vs "
+                f"XML <LocalTitle> '{row.get('xml_localtitle')}'")
 
     if rules.get("folder_name_mismatch", False):
         titles = row.get("movie_title_raw", [])
