@@ -1,6 +1,6 @@
 # MediaClinic
 
-**A library health tool for Kodi, Emby and Jellyfin: scan your movie folders, find broken or incomplete metadata and artwork, and fix them.**
+**A library health tool for Plex, Kodi, Emby and Jellyfin users: scan your offline movie library, find broken or incomplete metadata and artwork, and fix them.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) ![Python](https://img.shields.io/badge/Python-3.10%2B-blue) ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey) [![CI](https://github.com/junqueirach/mediaclinic/actions/workflows/ci.yml/badge.svg)](https://github.com/junqueirach/mediaclinic/actions/workflows/ci.yml)
 
@@ -14,7 +14,7 @@
 
 <p align="center"><img src="docs/screenshots/how-it-works.png" alt="How it works" width="900"></p>
 
-MediaClinic expects one subfolder per movie. It checks every artwork file, metadata file and video, and shows one colour-coded health table, red for errors and yellow for warnings. From the same table you can repair the common problems in place.
+MediaClinic expects one subfolder per movie, the layout used by Plex, Kodi, Emby and Jellyfin. It checks Kodi `.nfo` and Emby/Jellyfin `movie.xml` files, so it also suits Plex libraries that use an NFO add-on. It checks every artwork file, metadata file and video, and shows one colour-coded health table, red for errors and yellow for warnings. From the same table you can repair the common problems in place.
 
 ## What it checks
 
