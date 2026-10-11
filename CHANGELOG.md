@@ -21,6 +21,7 @@ Faster scans on large and network libraries, new tools for finding problems in b
 - Health status is recomputed whenever rows are loaded from the cache or a saved results file, so stale "title mismatch" reasons from v0.18.2 no longer appear.
 - The Health Status Report dropped the warnings of movies that also had errors; it now lists both.
 - Title comparison tolerates Unicode, HTML-entity and quote differences (for example `&amp;` against `&`, or curly against straight quotes).
+- The source did not start on Python 3.10 and 3.11 (an f-string in the Duplicate Movies Report used a backslash escape, which only Python 3.12+ accepts). The Windows exe was not affected.
 
 ### Changed
 - Self-test `tests/selftest_v0_18_4.py` with 129 checks (was 98), run in CI under a virtual display.

@@ -3801,7 +3801,7 @@ def format_duplicates_report(results):                         ### NEW v0.18.4 #
         L.append(f"\U0001f4c1  {why}")
         for r in rows:
             L.append(f"     {r.get('movie_name') or r.get('subfolder')}  [{r.get('movie_year', '-')}]  "
-                     f"{r.get('video_quality', '\u2014')}  {r.get('video_size', '\u2014')}   \u2192  {r.get('subfolder_path', '')}")
+                     f"{r.get('video_quality', '—')}  {r.get('video_size', '—')}   \u2192  {r.get('subfolder_path', '')}")
         L.append("")
     return "\n".join(L)
 
