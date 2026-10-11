@@ -1,12 +1,27 @@
 # =============================================================================
 # Metadata & MediaClinic
-# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
+# Version: 0.18.4                                              ### MODIFIED v0.18.4 ###
 # Author:  Luiz Junqueira & Claude AI
 # Contact: junqueira.ch@gmail.com
 #
 # CHANGELOG
 # ---------
-# v0.18.3 (current)                                         ### NEW v0.18.3 ###
+# v0.18.4 (current)                                         ### NEW v0.18.4 ###
+#   - Fix: Update (no FFprobe) now re-reads external subtitles (and Lang OK?)
+#   - Fix: health status recomputed whenever rows are loaded from the cache or
+#          a saved results file (stale "title mismatch" reasons from v0.18.2)
+#   - Fix: health report keeps the warnings of red movies (errors + warnings)
+#   - Fix: title comparison tolerant to Unicode/HTML-entity/quote differences
+#   - New: Export fields IMDB Link, TMDB Link, Outline, Plot + "Identify" preset
+#   - New: parallel scanning (scan_workers / ffprobe_workers settings) and a
+#          single directory listing per movie (_FolderListing)
+#   - New: Quick Scan probes changed movies with FFprobe when the box is ticked
+#   - New: clickable Errors/Warnings counters, "Problems only", reason filter
+#   - New: duplicate detection (health rule duplicate_movie + Tools report)
+#   - New: Copy poster.jpg → folder.jpg (right-click, batch, Tools)
+#   - New: Library Statistics report, Column chooser (hidden_columns),
+#          Recompute Health Status, Kodi v17+ <ratings> block support
+# v0.18.3 (previous)                                        ### NEW v0.18.3 ###
 #   - New: Export Movie List… dialog (Tools menu / Export… button / Ctrl+Shift+E)
 #          column presets, filtered-view option, CSV comma (default), CSV
 #          semicolon, tab-separated, plain text, Excel .xlsx (export_list.py)
@@ -194,6 +209,7 @@ import logging.handlers
 import html  # v0.10.2 — HTML entity decoding
 import unicodedata  # v0.13.1 — strip diacritics for jump-to-letter
 import difflib      # v0.18.2 — folder_name_mismatch rule           ### ADDED_BY_CLAUDE_v18.2 ###
+from concurrent.futures import ThreadPoolExecutor                # v0.18.4 — parallel scanning
 
 # PIL/Pillow — used for thumbnail display in Fetch Image dialogs ### NEW v0.16.0 ###
 try:
@@ -235,7 +251,7 @@ import export_list as _export                                    ### NEW v0.18.3
 
 # ── App identity ──────────────────────────────────────────────────────────────
 APP_NAME    = "Metadata & MediaClinic"
-APP_VERSION = "0.18.3"                                           ### MODIFIED v0.18.3 ###
+APP_VERSION = "0.18.4"                                           ### MODIFIED v0.18.4 ###
 APP_AUTHOR  = "Luiz Junqueira & Claude AI"
 APP_EMAIL   = "junqueira.ch@gmail.com"
 _UA         = f"MediaClinic/{APP_VERSION}"   # User-Agent for all HTTP calls ### NEW v0.18.3 ###
@@ -943,20 +959,66 @@ def check_image_health(filepath, image_type):
 # Backdrop helpers
 # ══════════════════════════════════════════════════════════════════════════════
 
-def count_backdrops(sub_path):                                   ### NEW v0.15.0 — returns avg_bytes ###
+class _FolderListing:                                          ### NEW v0.18.4 ###
+    """
+    One os.scandir() per movie folder.  v0.18.3 listed each folder about six
+    times (videos, subtitles, backdrops, mtime, plus isfile/getsize calls);
+    on a network share every listing is a round-trip.  Lookups are case-
+    insensitive so "Poster.JPG" is found on Linux too.
+    """
+    __slots__ = ("path", "files")
+
+    def __init__(self, sub_path):
+        self.path  = sub_path
+        self.files = {}          # lower name -> (name, path, size, mtime)
+        try:
+            for e in os.scandir(sub_path):
+                try:
+                    if e.is_file():
+                        st = e.stat()
+                        self.files[e.name.lower()] = (e.name, e.path, st.st_size, st.st_mtime)
+                except OSError:
+                    pass
+        except OSError:
+            pass
+
+    def has(self, name):
+        return name.lower() in self.files
+
+    def size(self, name):
+        f = self.files.get(name.lower())
+        return f[2] if f else 0
+
+    def path_of(self, name):
+        f = self.files.get(name.lower())
+        return f[1] if f else os.path.join(self.path, name)
+
+    def newest_mtime(self):
+        return max((f[3] for f in self.files.values()), default=0.0)
+
+    def by_ext(self, exts):
+        return [f for f in self.files.values()
+                if os.path.splitext(f[0])[1].lower() in exts]
+
+
+def _subs_summary(subs_internal, subs_external, video_path):   ### NEW v0.18.4 ###
+    parts = []
+    if subs_internal:
+        parts.append("Int: " + ", ".join(s["lang"] for s in subs_internal))
+    if subs_external:
+        parts.append("Ext: " + ", ".join(s["lang"] for s in subs_external))
+    return " | ".join(parts) if parts else ("None" if video_path else "—")
+
+
+def count_backdrops(sub_path, listing=None):                     ### MODIFIED v0.18.4 — listing ###
     ### UPDATED v0.18.0 — scan all backdrop*.jpg; no longer stops at first gap ###
+    lst = listing or _FolderListing(sub_path)
     paths = []
-    try:
-        for entry in os.scandir(sub_path):
-            if not entry.is_file():
-                continue
-            name = entry.name.lower()
-            if name == "backdrop.jpg":
-                paths.append(entry.path)
-            elif re.match(r'^backdrop\d+\.jpg$', name):
-                paths.append(entry.path)
-    except OSError:
-        pass
+    sizes = {}
+    for name, path, size, _m in lst.files.values():
+        n = name.lower()
+        if n == "backdrop.jpg" or re.match(r'^backdrop\d+\.jpg$', n):
+            paths.append(path); sizes[path] = size
     # Sort deterministically: backdrop.jpg first, then backdrop1.jpg, backdrop2.jpg…
     def _sort_key(p):
         n = os.path.basename(p).lower()
@@ -966,7 +1028,7 @@ def count_backdrops(sub_path):                                   ### NEW v0.15.0
         return int(m.group(1)) if m else 9999
     paths.sort(key=_sort_key)
     count = len(paths)
-    total_bytes = sum(os.path.getsize(p) for p in paths if os.path.isfile(p))
+    total_bytes = sum(sizes.get(p, 0) for p in paths)
     avg_bytes = (total_bytes // count) if count > 0 else 0          ### NEW v0.15.0 ###
     return count, paths, avg_bytes                                   ### NEW v0.15.0 ###
 
@@ -1001,42 +1063,26 @@ def _pkey(path):                                               ### NEW v0.18.3 #
         return path or ""
 
 
-def _folder_mtime(sub_path):                                   ### NEW v0.18.3 ###
+def _folder_mtime(sub_path, listing=None):                     ### NEW v0.18.3, listing v0.18.4 ###
     """Newest modification time (float seconds) among the files directly in
     *sub_path*, or 0.  Stored per row as scan_mtime so Quick Scan can detect
     modified movies by comparing against the value recorded at scan time."""
-    newest = 0.0
-    try:
-        for e in os.scandir(sub_path):
-            try:
-                if e.is_file():
-                    m = e.stat().st_mtime
-                    if m > newest:
-                        newest = m
-            except OSError:
-                pass
-    except OSError:
-        pass
-    return newest
+    return (listing or _FolderListing(sub_path)).newest_mtime()
 
 
-def scan_video_files(sub_path):
-    videos = []
-    try:
-        for f in os.scandir(sub_path):
-            if f.is_file() and os.path.splitext(f.name)[1].lower() in VIDEO_EXTENSIONS:
-                videos.append(f)
-    except PermissionError: pass
+def scan_video_files(sub_path, listing=None):                  ### MODIFIED v0.18.4 — listing ###
+    lst = listing or _FolderListing(sub_path)
+    videos = sorted(lst.by_ext(VIDEO_EXTENSIONS), key=lambda f: f[2], reverse=True)
     if not videos:
         return {"video_count":0,"video_files":[],"video_ext":"—",
                 "video_path":None,"video_bytes":0,"video_size":"—",
                 "video_width":None,"video_height":None,"video_quality":"—"}
-    videos.sort(key=lambda e: e.stat().st_size, reverse=True)
-    main = videos[0]; ext = os.path.splitext(main.name)[1].lower()
+    name, path, size, _m = videos[0]
+    ext = os.path.splitext(name)[1].lower()
     # Quality determined later when ffprobe runs (phased scan)
-    return {"video_count":len(videos),"video_files":[v.name for v in videos],
-            "video_ext":ext.lstrip('.').upper(),"video_path":main.path,
-            "video_bytes":main.stat().st_size,"video_size":format_size(main.stat().st_size),
+    return {"video_count":len(videos),"video_files":[v[0] for v in videos],
+            "video_ext":ext.lstrip('.').upper(),"video_path":path,
+            "video_bytes":size,"video_size":format_size(size),
             "video_width":None,"video_height":None,"video_quality":"—"}
 
 def _ffprobe_enabled(flag=None):
@@ -1082,15 +1128,13 @@ def _get_ffprobe_full(video_path, use_ffprobe=None):
         pass
     return {}
 
-def scan_subtitles(sub_path, video_path, use_ffprobe=None):
+def scan_subtitles(sub_path, video_path, use_ffprobe=None, listing=None):  ### MODIFIED v0.18.4 — listing ###
     result = {"subs_internal":[],"subs_external":[],"subs_summary":"—"}
-    try:
-        for f in os.scandir(sub_path):
-            if f.is_file() and os.path.splitext(f.name)[1].lower() in SUBTITLE_EXTENSIONS:
-                parts = os.path.splitext(f.name)[0].rsplit('.', 1)
-                lang = parts[-1] if len(parts) > 1 and len(parts[-1]) <= 20 else "unknown"
-                result["subs_external"].append({"lang": lang, "file": f.name})
-    except PermissionError: pass
+    lst = listing or _FolderListing(sub_path)
+    for name, _p, _s, _m in sorted(lst.by_ext(SUBTITLE_EXTENSIONS)):
+        parts = os.path.splitext(name)[0].rsplit('.', 1)
+        lang = parts[-1] if len(parts) > 1 and len(parts[-1]) <= 20 else "unknown"
+        result["subs_external"].append({"lang": lang, "file": name})
     if video_path and _ffprobe_enabled(use_ffprobe):
         try:
             proc = subprocess.run(
@@ -1105,12 +1149,7 @@ def scan_subtitles(sub_path, video_path, use_ffprobe=None):
                         "lang":  tags.get("language") or tags.get("LANGUAGE") or "und",
                         "title": tags.get("title")    or tags.get("TITLE")    or ""})
         except Exception: pass
-    parts = []
-    if result["subs_internal"]:
-        parts.append(f"Int: {', '.join(s['lang'] for s in result['subs_internal'])}")
-    if result["subs_external"]:
-        parts.append(f"Ext: {', '.join(s['lang'] for s in result['subs_external'])}")
-    result["subs_summary"] = " | ".join(parts) if parts else ("None" if video_path else "—")
+    result["subs_summary"] = _subs_summary(result["subs_internal"], result["subs_external"], video_path)
     return result
 def scan_audio_tracks(video_path, use_ffprobe=None):             ### NEW v0.15.0 ###
     """
@@ -1465,6 +1504,41 @@ def get_movie_year_display(nfo_path, xml_path):
     return "-"
 
 
+_KODI_RATINGS_RE = re.compile(r'<ratings\b[^>]*>(.*?)</ratings>', re.I | re.S)   ### NEW v0.18.4 ###
+_KODI_RATING_RE  = re.compile(r'<rating\b([^>]*)>(.*?)</rating>', re.I | re.S)
+
+
+def _kodi_ratings(content):                                    ### NEW v0.18.4 ###
+    """
+    Read the Kodi v17+ NFO format:
+        <ratings><rating name="imdb" max="10" default="true">
+            <value>7.3</value><votes>12345</votes></rating></ratings>
+    Prefers the element marked default="true", then name="imdb", then the
+    first one.  Returns (rating_float, votes_int_or_None) or (None, None).
+    """
+    m = _KODI_RATINGS_RE.search(content or "")
+    if not m:
+        return None, None
+    best = None
+    for attrs, body in _KODI_RATING_RE.findall(m.group(1)):
+        v  = re.search(r'<value>\s*([^<]*?)\s*</value>', body, re.I)
+        vt = re.search(r'<votes>\s*([^<]*?)\s*</votes>', body, re.I)
+        if not v:
+            continue
+        try:
+            val = float(v.group(1).replace(",", "."))
+        except ValueError:
+            continue
+        digits = re.sub(r"[^\d]", "", vt.group(1)) if vt else ""
+        votes  = int(digits) if digits else None
+        name   = re.search(r'name\s*=\s*"([^"]*)"', attrs, re.I)
+        score  = (2 if 'default="true"' in attrs.lower().replace(" ", "") else 0) + \
+                 (1 if name and name.group(1).lower() == "imdb" else 0)
+        if best is None or score > best[0]:
+            best = (score, val, votes)
+    return (best[1], best[2]) if best else (None, None)
+
+
 def extract_rating_from_files(nfo_path, xml_path):              ### NEW v0.15.0 — adds votes + source ###
     """
     Extract movie rating and votes from NFO and/or XML files.
@@ -1522,6 +1596,13 @@ def extract_rating_from_files(nfo_path, xml_path):              ### NEW v0.15.0 
                     iv = _try_int(raw_v)
                     if iv is not None:
                         nfo_votes = iv
+            if nfo_val is None:                                  ### NEW v0.18.4 — Kodi v17+ block ###
+                kv, kvotes = _kodi_ratings(content)
+                if kv is not None:
+                    nfo_val = kv
+                    parse_error = False
+                    if nfo_votes is None and kvotes is not None:
+                        nfo_votes = kvotes
         except Exception:
             parse_error = True
 
@@ -1638,6 +1719,11 @@ def extract_votes_from_files(nfo_path, xml_path):          ### NEW v0.16.0 ###
                     iv = _parse_votes(raw)
                     if iv is not None: nfo_votes = iv
                     else: parse_error = True
+            if nfo_votes is None:                                ### NEW v0.18.4 — Kodi v17+ block ###
+                _kv, kvotes = _kodi_ratings(content)
+                if kvotes is not None:
+                    nfo_votes = kvotes
+                    parse_error = False
         except Exception:
             parse_error = True
 
@@ -2570,6 +2656,7 @@ def write_rating_to_files(nfo_path, xml_path, rating, votes, movie_name="rating_
                 content = f.read()
             content = _replace_tag(content, "rating", rating)
             content = _replace_tag(content, "votes",  votes)
+            content = _replace_kodi_rating(content, rating, votes)   ### NEW v0.18.4 ###
             with open(nfo_path, "w", encoding="utf-8") as f:
                 f.write(content)
         except Exception as e:
@@ -2590,6 +2677,28 @@ def write_rating_to_files(nfo_path, xml_path, rating, votes, movie_name="rating_
             errors.append(f"XML write error: {e}")
 
     return errors
+
+def _replace_kodi_rating(content, rating, votes):              ### NEW v0.18.4 ###
+    """Update <value>/<votes> of the preferred <rating> inside a Kodi v17+
+    <ratings> block (default="true", else name="imdb", else first)."""
+    m = _KODI_RATINGS_RE.search(content)
+    if not m:
+        return content
+    block = m.group(1)
+    items = list(_KODI_RATING_RE.finditer(block))
+    if not items:
+        return content
+    def _score(it):
+        attrs = it.group(1)
+        return (2 if 'default="true"' in attrs.lower().replace(" ", "") else 0) + \
+               (1 if re.search(r'name\s*=\s*"imdb"', attrs, re.I) else 0)
+    target = max(items, key=_score)
+    body = target.group(2)
+    body = re.sub(r'(<value>)[^<]*(</value>)', rf'\g<1>{rating}\2', body, count=1, flags=re.I)
+    body = re.sub(r'(<votes>)[^<]*(</votes>)', rf'\g<1>{votes}\2',  body, count=1, flags=re.I)
+    new_block = block[:target.start(2)] + body + block[target.end(2):]
+    return content[:m.start(1)] + new_block + content[m.end(1):]
+
 
 def get_movie_titles_from_files(nfo_path, xml_path):
     """
@@ -2641,23 +2750,24 @@ def get_primary_titles(nfo_path, xml_path):                    ### NEW v0.18.3 #
 def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False):
     """Full scan of a single subfolder. Returns result dict.
     force_ffprobe=True runs FFprobe regardless of the global use_ffprobe setting.
-    ### NEW v0.12.0 — force_ffprobe parameter added ###
+    ### MODIFIED v0.18.4 — one directory listing per movie (_FolderListing) ###
     """
     if force_ffprobe:
         use_ffprobe = True
     elif use_ffprobe is None:
         use_ffprobe = SETTINGS.get("use_ffprobe", True)
 
-    poster_path = os.path.join(sub_path, "poster.jpg")
-    fanart_path = os.path.join(sub_path, "fanart.jpg")
-    folder_path = os.path.join(sub_path, "folder.jpg")
+    lst = _FolderListing(sub_path)
+    poster_path = lst.path_of("poster.jpg")
+    fanart_path = lst.path_of("fanart.jpg")
+    folder_path = lst.path_of("folder.jpg")
 
-    pe  = os.path.isfile(poster_path)
-    fe  = os.path.isfile(fanart_path)
-    fle = os.path.isfile(folder_path)
-    pb  = os.path.getsize(poster_path)  if pe  else 0
-    fb  = os.path.getsize(fanart_path)  if fe  else 0
-    flb = os.path.getsize(folder_path)  if fle else 0
+    pe  = lst.has("poster.jpg")
+    fe  = lst.has("fanart.jpg")
+    fle = lst.has("folder.jpg")
+    pb  = lst.size("poster.jpg")
+    fb  = lst.size("fanart.jpg")
+    flb = lst.size("folder.jpg")
     pd  = get_image_dimensions(poster_path) if pe  else None
     fd  = get_image_dimensions(fanart_path) if fe  else None
     fld = get_image_dimensions(folder_path) if fle else None
@@ -2672,23 +2782,24 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
     fc  = fs_status  == STATUS_ERROR
     flc = fls_status == STATUS_ERROR
 
-    bc, bp, bc_avg_bytes = count_backdrops(sub_path)  ### NEW v0.15.0 ###
+    bc, bp, bc_avg_bytes = count_backdrops(sub_path, listing=lst)
 
-    nfo_path = os.path.join(sub_path, sub_name + ".nfo")
-    ne  = os.path.isfile(nfo_path)
-    nb  = os.path.getsize(nfo_path) if ne else 0
+    nfo_name = sub_name + ".nfo"
+    nfo_path = lst.path_of(nfo_name)
+    ne  = lst.has(nfo_name)
+    nb  = lst.size(nfo_name)
     nerr = validate_xml_file(nfo_path, is_nfo=True) if ne else []
 
-    xml_path = os.path.join(sub_path, "movie.xml")
-    xe  = os.path.isfile(xml_path)
-    xb  = os.path.getsize(xml_path) if xe else 0
+    xml_path = lst.path_of("movie.xml")
+    xe  = lst.has("movie.xml")
+    xb  = lst.size("movie.xml")
     xerr = validate_xml_file(xml_path, is_nfo=False) if xe else []
     lang = extract_language_from_xml(xml_path) if xe else "—"
 
     ns = (STATUS_ERROR if nerr else STATUS_OK) if ne else STATUS_MISSING
     xs = (STATUS_ERROR if xerr else STATUS_OK) if xe else STATUS_MISSING
 
-    vi = scan_video_files(sub_path)
+    vi = scan_video_files(sub_path, listing=lst)
 
     # ffprobe for resolution (if enabled)
     if use_ffprobe and vi["video_path"] and FFPROBE_PATH:
@@ -2697,8 +2808,7 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         vi["video_height"]  = h
         vi["video_quality"] = classify_quality(w, h)
 
-    si = scan_subtitles(sub_path, vi["video_path"], use_ffprobe=use_ffprobe)  ### MODIFIED v0.18.3 ###
-    # Audio tracks (v0.15.0)                                   ### NEW v0.15.0 ###
+    si = scan_subtitles(sub_path, vi["video_path"], use_ffprobe=use_ffprobe, listing=lst)
     audio_tracks = []
     if use_ffprobe and vi["video_path"] and FFPROBE_PATH:
         audio_tracks = scan_audio_tracks(vi["video_path"], use_ffprobe=True)
@@ -2707,61 +2817,45 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
     lang_ok = compute_lang_ok(vi["video_path"], si["subs_internal"], si["subs_external"],
                                nfo_path if ne else None,
                                xml_path if xe else None,
-                               iso_code=iso, use_ffprobe=use_ffprobe)  ### MODIFIED v0.18.3 ###
+                               iso_code=iso, use_ffprobe=use_ffprobe)
 
     vs = (STATUS_MISSING if vi["video_count"] == 0
           else STATUS_ERROR if vi["video_count"] > 1 else STATUS_OK)
 
-    # Genre (Phase 3)
     genres = get_genres_from_nfo(nfo_path if ne else None)
     genre_display, genre_status = classify_genres(genres)
 
-    # Rating extraction (v0.12.0)                         ### NEW v0.12.0 ###
-    rating_str, rating_status, rating_value, rating_votes, rating_votes_src, rating_src = (  ### NEW v0.15.0 ###
+    rating_str, rating_status, rating_value, rating_votes, rating_votes_src, rating_src = (
         extract_rating_from_files(nfo_path if ne else None, xml_path if xe else None))
-
-    # Votes extraction (v0.16.0)                          ### NEW v0.16.0 ###
     votes_int, votes_status, votes_src = extract_votes_from_files(
         nfo_path if ne else None, xml_path if xe else None)
-
-    # Source IDs extraction (v0.16.0)                     ### NEW v0.16.0 ###
     src_ids = extract_source_ids_from_files(
         nfo_path if ne else None, xml_path if xe else None)
 
-    has_err = (ns == STATUS_ERROR or xs == STATUS_ERROR or pc or fc or flc
-               or src_ids["imdb_status"] == STATUS_ERROR         ### NEW v0.16.0 ###
-               or src_ids["tmdb_status"] == STATUS_ERROR)        ### NEW v0.16.0 ###
-
-    # v0.18.2 — title/year raw fields for health rules     ### ADDED_BY_CLAUDE_v18.2 ###
     titles = get_movie_titles_from_files(
         nfo_path if ne else None, xml_path if xe else None)
-    nfo_title, xml_localtitle = get_primary_titles(                ### NEW v0.18.3 ###
+    nfo_title, xml_localtitle = get_primary_titles(
         nfo_path if ne else None, xml_path if xe else None)
     movie_year_raw = get_movie_year_from_files(
         nfo_path if ne else None, xml_path if xe else None)
-
-    # v0.10.0 — compute display name and year
     movie_name = get_movie_name_from_files(
         nfo_path if ne else None, xml_path if xe else None, sub_name)
     movie_year = get_movie_year_display(
         nfo_path if ne else None, xml_path if xe else None)
 
-    ### NEW v0.11.0 — compute image quality tiers ###
-    pw, ph = get_image_wh(poster_path) if pe else (None, None)
+    pw, ph   = get_image_wh(poster_path) if pe else (None, None)
     flw, flh = get_image_wh(folder_path) if fle else (None, None)
     fw, fh   = get_image_wh(fanart_path) if fe else (None, None)
 
-    # v0.18.2 — ffprobe_ran flag                           ### ADDED_BY_CLAUDE_v18.2 ###
     ffprobe_ran = bool(use_ffprobe and vi["video_path"] and FFPROBE_PATH)
 
-    # Build partial row so compute_movie_health can evaluate it
     _row = {
         "subfolder": sub_name, "subfolder_path": sub_path,
         "movie_name": movie_name, "movie_year": movie_year,
-        "movie_title_raw": titles,                               ### ADDED_BY_CLAUDE_v18.2 ###
-        "movie_year_raw": movie_year_raw,                        ### ADDED_BY_CLAUDE_v18.2 ###
-        "nfo_title": nfo_title, "xml_localtitle": xml_localtitle, ### NEW v0.18.3 ###
-        "scan_mtime": _folder_mtime(sub_path),                   ### NEW v0.18.3 ###
+        "movie_title_raw": titles,
+        "movie_year_raw": movie_year_raw,
+        "nfo_title": nfo_title, "xml_localtitle": xml_localtitle,
+        "scan_mtime": lst.newest_mtime(),
         "poster_exists": pe, "poster_path": poster_path,
         "poster_bytes": pb, "poster_size": format_size(pb) if pe else "—",
         "poster_dim": pd, "poster_corrupt": pc, "poster_desc": ps_desc,
@@ -2793,7 +2887,7 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         "subs_internal": si["subs_internal"], "subs_external": si["subs_external"],
         "subs_summary": si["subs_summary"],
         "audio_tracks": audio_tracks,
-        "ffprobe_ran": ffprobe_ran,                              ### ADDED_BY_CLAUDE_v18.2 ###
+        "ffprobe_ran": ffprobe_ran,
         "lang_ok": lang_ok,
         "genres": genres, "genre_display": genre_display, "genre_status": genre_status,
         "rating_str": rating_str, "rating_status": rating_status,
@@ -2808,12 +2902,9 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         "source_tmdb_val": src_ids["tmdb_val"],
         "source_tmdb_status": src_ids["tmdb_status"],
         "source_tmdb_all": src_ids["tmdb_all_vals"],
+        "duplicate_of": [],
     }
-    # v0.18.2 — compute health via rule engine              ### ADDED_BY_CLAUDE_v18.2 ###
-    _status, _reasons = compute_movie_health(
-        _row, SETTINGS.get("health_rules", {}), SETTINGS)
-    _row["health_status"]  = _status
-    _row["health_reasons"] = _reasons
+    _apply_health(_row)
     return _row
 
 # ── JSON persistence helpers ───────────────────────────────────────────────────
@@ -2844,6 +2935,8 @@ def _results_from_json(data):
         "movie_title_raw": [], "movie_year_raw": None, "ffprobe_ran": False,
         # v0.18.3                                                ### NEW v0.18.3 ###
         "nfo_title": "", "xml_localtitle": "", "scan_mtime": None,
+        # v0.18.4                                                ### NEW v0.18.4 ###
+        "health_errors": [], "health_warnings": [], "duplicate_of": [],
     }
     out = []
     for r in data:
@@ -3605,6 +3698,189 @@ class ImprovementsDialog(tk.Toplevel):
 
 
 # ── format_health_report — pure function (v0.18.2) ───────────────────────────
+def _reason_key(reason):                                       ### NEW v0.18.4 ###
+    """Collapse a health reason to its rule text (drop the movie-specific part)."""
+    s = str(reason)
+    for cut in (" (", ": "):
+        i = s.find(cut)
+        if i > 0:
+            s = s[:i]
+    return s.strip()
+
+
+def format_library_statistics(results):                        ### NEW v0.18.4 ###
+    """Library Statistics report (pure function, no Tk, no I/O)."""
+    import datetime
+    from collections import Counter
+    n = len(results)
+    sep = "=" * 60
+    L = [f"Library Statistics \u2014 {n} movie(s)",
+         f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", sep, ""]
+    if not n:
+        return "\n".join(L + ["No movies loaded."])
+    def _pct(k): return f"{k:5d}  ({k * 100 // n:3d}%)"
+    hs = Counter(r.get("health_status", "warning") for r in results)
+    L += ["HEALTH",
+          f"  OK       {_pct(hs.get('ok', 0))}",
+          f"  Warning  {_pct(hs.get('warning', 0))}",
+          f"  Error    {_pct(hs.get('error', 0))}", ""]
+    total_bytes = sum(r.get("video_bytes", 0) or 0 for r in results)
+    with_video  = sum(1 for r in results if r.get("video_count", 0) >= 1)
+    L += ["VIDEO",
+          f"  Movies with a video file   {_pct(with_video)}",
+          f"  Total video size           {format_size(total_bytes)}",
+          f"  Average video size         {format_size(total_bytes // max(with_video, 1))}"]
+    vq = Counter(r.get("video_quality", "\u2014") for r in results)
+    for q in sorted(vq, key=_quality_sort_key):
+        L.append(f"    {q:12s} {_pct(vq[q])}")
+    ac = Counter(t.get("language", "UND") for r in results for t in r.get("audio_tracks", []) or [])
+    if ac:
+        L.append("  Audio languages (tracks): " + ", ".join(f"{k} {v}" for k, v in ac.most_common(12)))
+    L.append("")
+    L += ["SUBTITLES / LANGUAGE",
+          f"  Lang OK? = Y               {_pct(sum(1 for r in results if r.get('lang_ok') == 'Y'))}",
+          f"  Lang OK? = N               {_pct(sum(1 for r in results if r.get('lang_ok') == 'N'))}",
+          f"  External subtitle files    {_pct(sum(1 for r in results if r.get('subs_external')))}",
+          f"  Embedded subtitle tracks   {_pct(sum(1 for r in results if r.get('subs_internal')))}"]
+    xl = Counter((r.get("language") or "\u2014") for r in results)
+    L.append("  XML <Language>: " + ", ".join(f"{k} {v}" for k, v in xl.most_common(10)))
+    L.append("")
+    L += ["ARTWORK"]
+    for key, label in (("poster", "Poster"), ("folder", "Folder"), ("fanart", "Fanart")):
+        present = sum(1 for r in results if r.get(f"{key}_exists"))
+        qc = Counter(r.get(f"{key}_quality", "\u2014") for r in results if r.get(f"{key}_exists"))
+        L.append(f"  {label:7s} present {_pct(present)}   " +
+                 ", ".join(f"{q} {c}" for q, c in sorted(qc.items(), key=lambda kv: _poster_quality_sort_key(kv[0]) if key != 'fanart' else _fanart_quality_sort_key(kv[0]))))
+    bcs = [r.get("backdrop_count", 0) for r in results]
+    L.append(f"  Backdrops: total {sum(bcs)}, average {sum(bcs) / n:.1f} per movie, "
+             f"{sum(1 for b in bcs if b == 0)} movie(s) without any")
+    L.append("")
+    L += ["METADATA",
+          f"  NFO present                {_pct(sum(1 for r in results if r.get('nfo_exists')))}",
+          f"  XML present                {_pct(sum(1 for r in results if r.get('xml_exists')))}",
+          f"  IMDB ID present            {_pct(sum(1 for r in results if r.get('source_imdb_val')))}",
+          f"  TMDB ID present            {_pct(sum(1 for r in results if r.get('source_tmdb_val')))}",
+          f"  Rating present             {_pct(sum(1 for r in results if r.get('rating_status') not in (STATUS_MISSING, STATUS_ERROR)))}",
+          f"  Duplicates flagged         {_pct(sum(1 for r in results if r.get('duplicate_of')))}", ""]
+    gc = Counter(g for r in results for g in (r.get("genres") or []))
+    L += ["GENRES (top 20)"]
+    for g, c in gc.most_common(20):
+        L.append(f"  {c:5d}  {g}")
+    L.append("")
+    dec = Counter()
+    for r in results:
+        y = str(r.get("movie_year", "-"))
+        dec[(y[:3] + "0s") if y.isdigit() and len(y) == 4 else "unknown"] += 1
+    L += ["DECADES"]
+    for d, c in sorted(dec.items()):
+        L.append(f"  {d:8s} {_pct(c)}")
+    L.append("")
+    rated = [r.get("rating_value") for r in results if (r.get("rating_value") or -1) >= 0]
+    if rated:
+        L.append(f"RATINGS   average {sum(rated) / len(rated):.2f} over {len(rated)} rated movie(s)")
+    cnt = Counter(_reason_key(x) for r in results for x in r.get("health_reasons", []))
+    if cnt:
+        L += ["", "MOST COMMON HEALTH ISSUES"]
+        for k, c in cnt.most_common(15):
+            L.append(f"  {c:5d}  {k}")
+    return "\n".join(L)
+
+
+def format_duplicates_report(results):                         ### NEW v0.18.4 ###
+    """Groups of movies that share an IMDB ID, a TMDB ID, or a title + year."""
+    import datetime
+    groups = _duplicate_groups(results)
+    sep = "=" * 60
+    L = [f"Duplicate Movies Report \u2014 {len(results)} movie(s) checked",
+         f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", sep, ""]
+    if not groups:
+        return "\n".join(L + ["No duplicates found."])
+    L.append(f"{len(groups)} group(s) of possible duplicates:")
+    L.append("")
+    for why, rows in groups:
+        L.append(f"\U0001f4c1  {why}")
+        for r in rows:
+            L.append(f"     {r.get('movie_name') or r.get('subfolder')}  [{r.get('movie_year', '-')}]  "
+                     f"{r.get('video_quality', '\u2014')}  {r.get('video_size', '\u2014')}   \u2192  {r.get('subfolder_path', '')}")
+        L.append("")
+    return "\n".join(L)
+
+
+def _norm_title_key(name):                                     ### NEW v0.18.4 ###
+    import unicodedata
+    s = unicodedata.normalize("NFKD", html.unescape(str(name or "")))
+    s = "".join(c for c in s if not unicodedata.combining(c)).casefold()
+    s = re.sub(r"[^\w\s]", " ", s)
+    s = re.sub(r"\b(the|a|an|o|a|os|as|le|la|les|el|los|las|der|die|das)\b", " ", s)
+    return " ".join(s.split())
+
+
+def _duplicate_groups(results):                                ### NEW v0.18.4 ###
+    """Return [(reason, [rows…]), …] for movies sharing an ID or title+year."""
+    by_imdb, by_tmdb, by_title = {}, {}, {}
+    for r in results:
+        i = (r.get("source_imdb_val") or "").strip().lower()
+        t = (r.get("source_tmdb_val") or "").strip()
+        if i: by_imdb.setdefault(i, []).append(r)
+        if t: by_tmdb.setdefault(t, []).append(r)
+        k = _norm_title_key(r.get("movie_name") or r.get("subfolder"))
+        y = str(r.get("movie_year", "-"))
+        if k and y.isdigit():
+            by_title.setdefault((k, y), []).append(r)
+    groups, seen = [], set()
+    for label, table in (("IMDB ID", by_imdb), ("TMDB ID", by_tmdb)):
+        for key, rows in table.items():
+            if len(rows) > 1:
+                sig = frozenset(id(x) for x in rows)
+                if sig not in seen:
+                    seen.add(sig); groups.append((f"Same {label} {key}", rows))
+    for (k, y), rows in by_title.items():
+        if len(rows) > 1:
+            sig = frozenset(id(x) for x in rows)
+            if sig not in seen:
+                seen.add(sig); groups.append((f"Same title and year: {rows[0].get('movie_name')} ({y})", rows))
+    groups.sort(key=lambda g: (g[1][0].get("movie_name") or "").lower())
+    return groups
+
+
+def _detect_duplicates(results):                               ### NEW v0.18.4 ###
+    """Set row['duplicate_of'] (names of the other folders) for every row."""
+    for r in results:
+        r["duplicate_of"] = []
+    for _why, rows in _duplicate_groups(results):
+        for r in rows:
+            others = [x.get("subfolder", "?") for x in rows if x is not r]
+            for o in others:
+                if o not in r["duplicate_of"]:
+                    r["duplicate_of"].append(o)
+    return results
+
+
+def _apply_health(row, rules=None, settings=None):             ### NEW v0.18.4 ###
+    """Evaluate the rule engine for one row and store status, errors, warnings
+    and the combined reasons list on the row.  Returns the status."""
+    status, errs, warns = compute_movie_health_detailed(
+        row, rules if rules is not None else SETTINGS.get("health_rules", {}),
+        settings if settings is not None else SETTINGS)
+    row["health_status"]   = status
+    row["health_errors"]   = errs
+    row["health_warnings"] = warns
+    row["health_reasons"]  = errs + warns
+    return status
+
+
+def finalize_results(results):                                 ### NEW v0.18.4 ###
+    """Duplicate detection + health for a whole result list (no I/O, fast)."""
+    _detect_duplicates(results)
+    rules = SETTINGS.get("health_rules", {})
+    for r in results:
+        try:
+            _apply_health(r, rules, SETTINGS)
+        except Exception as e:
+            logger.warning(f"finalize_results: {r.get('subfolder')}: {e}")
+    return results
+
+
 def format_health_report(results):                               ### ADDED_BY_CLAUDE_v18.2 ###
     """
     Build a human-readable health status report from a list of movie row dicts.
@@ -3612,6 +3888,7 @@ def format_health_report(results):                               ### ADDED_BY_CL
     Pure function: no Tk calls, no I/O.
     """
     import datetime
+    from collections import Counter
     errors   = [r for r in results if r.get("health_status") == "error"]
     warnings = [r for r in results if r.get("health_status") == "warning"]
     ok_count = len(results) - len(errors) - len(warnings)
@@ -3626,16 +3903,34 @@ def format_health_report(results):                               ### ADDED_BY_CL
         (f"\u26a0  WARNING movies: {len(warnings)}"
          f"    \u2715  ERROR movies: {len(errors)}"
          f"    \u2713  OK movies: {ok_count}"),
-        "", sep, "",
+        "",
     ]
+    # Most common issues (v0.18.4)
+    counter = Counter(_reason_key(x) for r in results for x in r.get("health_reasons", []))
+    if counter:
+        lines.append("Most common issues:")
+        for key, n in counter.most_common(15):
+            lines.append(f"  {n:5d}  {key}")
+        lines.append("")
+    lines += [sep, ""]
     def _display_name(r):
         return r.get("movie_name") or r.get("subfolder", "Unknown")
+    def _split(r):
+        """(errors, warnings) — rows from older caches only have health_reasons."""
+        e, w = r.get("health_errors"), r.get("health_warnings")
+        if e is None and w is None:
+            rs = r.get("health_reasons", [])
+            return (rs, []) if r.get("health_status") == "error" else ([], rs)
+        return (e or []), (w or [])
     for r in sorted(errors, key=_display_name):
         name = _display_name(r); year = r.get("movie_year", "-")
         lines.append(f"\U0001f4c1  {name}  [{year}]               [ERROR]")
         lines.append(dash)
-        for reason in r.get("health_reasons", []):
+        e, w = _split(r)
+        for reason in e:
             lines.append(f"  \u2715  {reason}")
+        for reason in w:                     # v0.18.4 — warnings of red movies are listed too
+            lines.append(f"  \u26a0  {reason}")
         lines.append("")
     for r in sorted(warnings, key=_display_name):
         name = _display_name(r); year = r.get("movie_year", "-")
@@ -6369,6 +6664,128 @@ class ExportListDialog(tk.Toplevel):
             os_open(path)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Generic text report dialog + Column chooser (v0.18.4)       ### NEW v0.18.4 ###
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TextReportDialog(tk.Toplevel):
+    """Monospace text report with Copy / Save / Close (statistics, duplicates…)."""
+
+    def __init__(self, parent, title, text, file_stem="report", width=820, height=600):
+        super().__init__(parent)
+        self.title(title)
+        self.geometry(f"{width}x{height}")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent)
+        self.resizable(True, True)
+        self._raw = text
+        self._stem = file_stem
+        tk.Label(self, text=title, font=("Helvetica", 13, "bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=16, pady=(14, 2))
+        fr = tk.Frame(self, bg="#1e1e2e"); fr.pack(fill="both", expand=True, padx=16, pady=(4, 6))
+        t = tk.Text(fr, wrap="none", bg="#313244", fg="#cdd6f4",
+                    font=("Consolas", 10), relief="flat", padx=10, pady=10)
+        sb = ttk.Scrollbar(fr, orient="vertical", command=t.yview)
+        hb = ttk.Scrollbar(fr, orient="horizontal", command=t.xview)
+        t.configure(yscrollcommand=sb.set, xscrollcommand=hb.set)
+        t.grid(row=0, column=0, sticky="nsew"); sb.grid(row=0, column=1, sticky="ns")
+        hb.grid(row=1, column=0, sticky="ew")
+        fr.rowconfigure(0, weight=1); fr.columnconfigure(0, weight=1)
+        t.tag_configure("h", foreground="#89b4fa", font=("Consolas", 10, "bold"))
+        t.tag_configure("sep", foreground="#45475a")
+        for line in text.splitlines():
+            if line.startswith("="):
+                t.insert("end", line + "\n", "sep")
+            elif line and line == line.upper() and line[0].isalpha():
+                t.insert("end", line + "\n", "h")
+            else:
+                t.insert("end", line + "\n")
+        t.configure(state="disabled")
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(4, 12))
+        tk.Button(bf, text="  📋 Copy  ", font=("Helvetica", 10, "bold"),
+                  bg="#89b4fa", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._copy).pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  💾 Save to .txt  ", font=("Helvetica", 10, "bold"),
+                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._save).pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  Close  ", font=("Helvetica", 10, "bold"),
+                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(side="left")
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def _copy(self):
+        self.clipboard_clear(); self.clipboard_append(self._raw)
+
+    def _save(self):
+        import datetime
+        p = filedialog.asksaveasfilename(
+            parent=self, title="Save report", defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All", "*.*")],
+            initialfile=f"{self._stem}_{datetime.datetime.now().strftime('%Y-%m-%d')}.txt")
+        if not p:
+            return
+        try:
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(self._raw)
+            messagebox.showinfo("Saved", f"Report saved to:\n{p}", parent=self)
+        except Exception as e:
+            messagebox.showerror("Save failed", str(e), parent=self)
+
+
+class ColumnChooserDialog(tk.Toplevel):
+    """Show / hide table columns; the choice is remembered (hidden_columns)."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self._app = parent
+        self.title("Choose Columns")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+        self.resizable(False, False)
+        hidden = set(SETTINGS.get("hidden_columns") or [])
+        iso = SETTINGS.get("lang_ok_code", "PT")
+        tk.Label(self, text="Columns shown in the table", font=("Helvetica", 12, "bold"),
+                 bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=18, pady=(14, 6))
+        grid = tk.Frame(self, bg="#1e1e2e"); grid.pack(padx=18)
+        self._vars = {}
+        per_col = (len(COLUMN_MODEL) + 1) // 2
+        for i, col in enumerate(COLUMN_MODEL):
+            label = f"{iso} OK?" if col["label"] == "LANG_OK_LABEL" else col["label"]
+            v = tk.BooleanVar(value=col["id"] not in hidden)
+            self._vars[col["id"]] = v
+            cb = tk.Checkbutton(grid, text=label, variable=v, font=("Helvetica", 10),
+                                bg="#1e1e2e", fg="#cdd6f4", selectcolor="#313244",
+                                activebackground="#1e1e2e", activeforeground="#cdd6f4",
+                                anchor="w", width=18)
+            if col["id"] == "movie_name":
+                v.set(True); cb.configure(state="disabled")
+            cb.grid(row=i % per_col, column=i // per_col, sticky="w", padx=4, pady=1)
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(12, 14))
+        tk.Button(bf, text="  Show all  ", font=("Helvetica", 10), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2",
+                  command=lambda: [v.set(True) for v in self._vars.values()]).pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  OK  ", font=("Helvetica", 10, "bold"), bg="#a6e3a1", fg="#1e1e2e",
+                  relief="flat", cursor="hand2", command=self._ok).pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10, "bold"), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2", command=self.destroy).pack(side="left")
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Return>", lambda e: self._ok())
+        self.update_idletasks()
+        try:
+            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+
+    def _ok(self):
+        SETTINGS["hidden_columns"] = [cid for cid, v in self._vars.items()
+                                      if not v.get() and cid != "movie_name"]
+        _save_settings(SETTINGS)
+        self._app._apply_column_visibility()
+        self.destroy()
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -6391,7 +6808,9 @@ class App(tk.Tk):
         self._ffmpeg_status = None   ### FIX v0.16.0 ###
         self._sel_anchor    = None   ### NEW v0.16.1 — Shift+Arrow anchor index ###
         self._sel_active_idx = None  ### NEW v0.17.0 — Shift+Arrow active (moving) end ###
+        self._health_filter = None   # None | "error" | "warning" | "problems"  ### NEW v0.18.4 ###
         self._build_ui()
+        self._apply_column_visibility()                        ### NEW v0.18.4 ###
         self._restore_column_widths()                          ### FIXED v0.18.3 — always, not only with a saved session ###
         self.protocol("WM_DELETE_WINDOW", self._on_app_close)   ### NEW v0.18.0 — save column widths on close ###
         self.after(200, self._restore_last_session)
@@ -6425,6 +6844,15 @@ class App(tk.Tk):
         menubar.add_cascade(label="Tools", menu=tools_menu)
         tools_menu.add_command(label="📤  Export Movie List…  (Ctrl+Shift+E)",   ### NEW v0.18.3 ###
                                command=self._export_list_dialog)
+        tools_menu.add_command(label="🧱  Choose Columns…",                        ### NEW v0.18.4 ###
+                               command=lambda: ColumnChooserDialog(self))
+        tools_menu.add_separator()
+        tools_menu.add_command(label="📊  Library Statistics",                     ### NEW v0.18.4 ###
+                               command=self._show_statistics)
+        tools_menu.add_command(label="👯  Duplicate Movies Report",                ### NEW v0.18.4 ###
+                               command=self._show_duplicates)
+        tools_menu.add_command(label="♻  Recompute Health Status (no rescan)",     ### NEW v0.18.4 ###
+                               command=self._recompute_health)
         tools_menu.add_separator()
         ### NEW v0.16.0 — Save/Open Scan Results (first, separated by divider) ###
         tools_menu.add_command(label="💾  Save Scan Results",
@@ -6449,6 +6877,8 @@ class App(tk.Tk):
         tools_menu.add_command(label="🔁  Refresh Icons — All Movies",          ### NEW v0.15.0 ###
                                command=self._refresh_icons)
         tools_menu.add_separator()
+        tools_menu.add_command(label="🖼  Fix: Copy poster.jpg → folder.jpg — All Movies with differences",  ### NEW v0.18.4 ###
+                               command=lambda: self._copy_poster_to_folder(list(self._results)))
         tools_menu.add_command(label="🗑  Delete All extrafanart Subfolders (legacy)",  ### NEW v0.15.0 ###
                                command=self._delete_extrafanart_all)
 
@@ -6583,6 +7013,13 @@ class App(tk.Tk):
         tk.Button(fr_flt, text="x", font=("Helvetica", 10, "bold"),
                   bg="#313244", fg="#6c7086", relief="flat", cursor="hand2",
                   command=self._clear_filter).pack(side="left", padx=(4, 0))
+        self._problems_only_var = tk.BooleanVar(value=False)               ### NEW v0.18.4 ###
+        tk.Checkbutton(fr_flt, text="Problems only", variable=self._problems_only_var,
+                       command=lambda: self._set_health_filter(
+                           "problems" if self._problems_only_var.get() else None),
+                       font=("Helvetica", 9), bg="#1e1e2e", fg="#a6adc8",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(side="left", padx=(12, 0))
         self._filter_label = tk.Label(fr_flt, text="", font=("Helvetica", 9),
                                       bg="#1e1e2e", fg="#6c7086")
         self._filter_label.pack(side="left", padx=(10, 0))
@@ -6615,6 +7052,15 @@ class App(tk.Tk):
         self._sb_sort    = tk.Label(sb_frame, text="", font=("Helvetica",9),
                                     bg="#252535", fg="#6c7086", anchor="e")
         self._sb_sort.pack(side="right", padx=(0,12))
+        # Clickable counters: filter the table by health (v0.18.4)  ### NEW v0.18.4 ###
+        for _lbl, _kind in ((self._sb_errors, "error"), (self._sb_warn, "warning"),
+                            (self._sb_movies, None)):
+            _lbl.configure(cursor="hand2")
+            _lbl.bind("<Button-1>", lambda e, k=_kind: self._set_health_filter(
+                None if (k is None or self._health_filter == k) else k))
+        _add_btn_tooltip(self._sb_errors, "Click to show only movies with errors (click again to clear)")
+        _add_btn_tooltip(self._sb_warn,   "Click to show only movies with warnings (click again to clear)")
+        _add_btn_tooltip(self._sb_movies, "Click to show all movies again")
         # Legacy stats label (hidden but kept for internal use)
         tk.Label(_mt, textvariable=self.stats_var,
                  font=("Helvetica",8), bg="#1e1e2e", fg="#45475a"
@@ -6959,7 +7405,7 @@ class App(tk.Tk):
             self._col_resize_state = {}
             return
         try:
-            col_idx  = int(col_id.lstrip("#")) - 1
+            col_idx  = self._model_col_index(int(col_id.lstrip("#")) - 1)   ### v0.18.4 ###
             all_cols = self.tree.cget("columns")
             col_name = all_cols[col_idx]
         except Exception:
@@ -7164,18 +7610,12 @@ class App(tk.Tk):
         """
         Re-evaluate health_rules for every loaded movie using current SETTINGS.
         Runs on the main thread — no I/O, no re-scan. ~5ms for 500 movies.
-        Called by _offer_health_update() when the user accepts the health update.
+        Called after Save & Apply in the Settings dialog when health rules changed (v0.18.4),
+        and by Tools → Recompute Health Status.
         """
         if not self._results:
             return
-        rules = SETTINGS.get("health_rules", {})
-        for r in self._results:
-            try:
-                status, reasons = compute_movie_health(r, rules, SETTINGS)
-                r["health_status"]  = status
-                r["health_reasons"] = reasons
-            except Exception:
-                pass
+        finalize_results(self._results)                        ### MODIFIED v0.18.4 — duplicates + health ###
         self._phase_update(self._results, "")
         self._update_stats()
 
@@ -7199,7 +7639,7 @@ class App(tk.Tk):
                 _hide_header_tip()
                 return
             if col_id:
-                idx = int(col_id.lstrip("#")) - 1
+                idx = self._model_col_index(int(col_id.lstrip("#")) - 1)   ### v0.18.4 ###
                 cols = self.tree["columns"]
                 if 0 <= idx < len(cols):
                     cname = cols[idx]
@@ -7230,6 +7670,7 @@ class App(tk.Tk):
 
     # ── Cell tooltips (item 19) ────────────────────────────────────────────────
     def _tooltip(self, iid, ci):
+        ci = self._model_col_index(ci)                         ### NEW v0.18.4 — hidden columns ###
         d = self._item_map.get(iid)
         if not d: return None
 
@@ -7704,13 +8145,13 @@ class App(tk.Tk):
             col_id = self.tree.identify_column(e.x)
             if col_id:
                 cols = self.tree["columns"]
-                idx  = int(col_id.lstrip("#")) - 1
+                idx  = self._model_col_index(int(col_id.lstrip("#")) - 1)   ### v0.18.4 ###
                 if 0 <= idx < len(cols):
                     self._auto_size_col(cols[idx])
             return
         iid = self.tree.identify_row(e.y); cid = self.tree.identify_column(e.x)
         if not iid or not cid: return
-        ci  = int(cid.lstrip("#")) - 1
+        ci  = self._model_col_index(int(cid.lstrip("#")) - 1)             ### v0.18.4 ###
         d   = self._item_map.get(iid)
         if not d: return
         # Dispatch via COLUMN_MODEL + DBLCLICK_ACTIONS table (Phase B)
@@ -7877,6 +8318,16 @@ class App(tk.Tk):
             else:
                 m.add_command(label="🔄  Replace All Backdrops" + _tip, state="disabled")
 
+        # Copy poster.jpg → folder.jpg (v0.18.4)                 ### NEW v0.18.4 ###
+        _n_fix = sum(1 for dd in sel_data if dd.get("poster_exists")
+                     and (not dd.get("folder_exists") or dd.get("poster_bytes") != dd.get("folder_bytes")))
+        label_cp = (f"🖼  Copy poster.jpg → folder.jpg ({_n_fix} of {len(sel_data)} movies)" if multi
+                    else "🖼  Copy poster.jpg → folder.jpg")
+        if _n_fix:
+            m.add_command(label=label_cp, command=lambda dd=sel_data: self._copy_poster_to_folder(dd))
+        else:
+            m.add_command(label=label_cp + " (already identical)", state="disabled")
+
         # Add Custom Genre(s) — when custom genres detected    ### NEW v0.12.0 ###
         custom_genres = self._collect_custom_genres(sel_data)
         if custom_genres:
@@ -7978,23 +8429,20 @@ class App(tk.Tk):
         """
         sp, sn = data["subfolder_path"], data["subfolder"]
         if not os.path.isdir(sp): messagebox.showerror("Error","Folder gone."); return
-        # Save the existing FFprobe-derived fields before re-scanning
-        _ffprobe_fields = {                                 ### NEW v0.11.0 ###
-            "video_width":    data.get("video_width"),
-            "video_height":   data.get("video_height"),
-            "video_quality":  data.get("video_quality", "—"),
-            "subs_internal":  data.get("subs_internal", []),
-            "subs_external":  data.get("subs_external", []),
-            "subs_summary":   data.get("subs_summary", ""),
-            "lang_ok":        data.get("lang_ok", "—"),
-            "audio_tracks":   data.get("audio_tracks", []),  ### FIX v0.15.0 ###
-            "ffprobe_ran":    data.get("ffprobe_ran", False), ### NEW v0.18.3 ###
-        }
-        r = scan_one_subfolder(sp, sn, use_ffprobe=False)    ### MODIFIED v0.18.3 — explicit flag ###
-        # Restore FFprobe-derived data so it is not lost ### NEW v0.11.0 ###
-        r.update(_ffprobe_fields)
-        _hs, _hr = compute_movie_health(r, SETTINGS.get("health_rules", {}), SETTINGS)  ### MODIFIED_BY_CLAUDE_v18.2 ###
-        r["health_status"] = _hs; r["health_reasons"] = _hr
+        r = scan_one_subfolder(sp, sn, use_ffprobe=False)
+        # Keep only the FFprobe-derived data from the previous probe; external
+        # subtitle files are always re-read (v0.18.3 restored them as well, so
+        # a new .srt never appeared).                        ### FIXED v0.18.4 ###
+        if data.get("ffprobe_ran"):
+            for key in ("video_width", "video_height", "video_quality",
+                        "subs_internal", "audio_tracks", "ffprobe_ran"):
+                if data.get(key) is not None:
+                    r[key] = data[key]
+            r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"))
+            if data.get("lang_ok") == "Y" and r.get("video_path"):
+                r["lang_ok"] = "Y"       # audio match found by the earlier probe
+        r["duplicate_of"] = list(data.get("duplicate_of") or [])
+        _apply_health(r)
         self._item_map[iid] = r
         for i, o in enumerate(self._results):
             if o["subfolder_path"] == sp: self._results[i] = r; break
@@ -8006,7 +8454,7 @@ class App(tk.Tk):
     def _reval(self, iid, data):
         sp, sn = data["subfolder_path"], data["subfolder"]
         if not os.path.isdir(sp): messagebox.showerror("Error","Folder gone."); return
-        r = scan_one_subfolder(sp, sn)
+        r = self._rescan_row(data)                             ### MODIFIED v0.18.4 ###
         self._item_map[iid] = r
         for i, o in enumerate(self._results):
             if o["subfolder_path"] == sp: self._results[i] = r; break
@@ -8035,7 +8483,7 @@ class App(tk.Tk):
 
         def _worker():
             try:
-                r = scan_one_subfolder(sp, sn, force_ffprobe=True)
+                r = self._rescan_row(data, force_ffprobe=True)   ### MODIFIED v0.18.4 ###
                 def _apply():
                     self._item_map[iid] = r
                     for i, o in enumerate(self._results):
@@ -8068,7 +8516,7 @@ class App(tk.Tk):
                 if not os.path.isdir(sp):
                     continue
                 try:
-                    r = scan_one_subfolder(sp, sn, force_ffprobe=True)
+                    r = self._rescan_row(data, force_ffprobe=True)   ### MODIFIED v0.18.4 ###
                     def _apply(i=iid, d=r):
                         self._item_map[i] = d
                         for idx, o in enumerate(self._results):
@@ -8349,12 +8797,15 @@ class App(tk.Tk):
             f"Ratings sync finished for {len(data_list)} movie(s)."))
 
 
-    def _reval_by_path(self, d):
+    def _reval_by_path(self, d, no_ffprobe=False):               ### MODIFIED v0.18.4 ###
         """Re-validate a row by matching subfolder_path."""
         sp = d.get("subfolder_path")
         for iid, rd in self._item_map.items():
             if rd.get("subfolder_path") == sp:
-                self._reval(iid, rd)
+                if no_ffprobe:
+                    self._reval_no_ffmpeg(iid, rd)
+                else:
+                    self._reval(iid, rd)
                 return
 
     def _normalize_genres_all(self):
@@ -8748,6 +9199,7 @@ class App(tk.Tk):
                                  "Current scan results are unchanged.")
             return
         self._results = loaded
+        finalize_results(self._results)                        ### NEW v0.18.4 ###
         self._item_map.clear()
         for r in self.tree.get_children():
             self.tree.delete(r)
@@ -9391,11 +9843,11 @@ class App(tk.Tk):
         self._scan_label = "Quick Scan"                        ### NEW v0.17.0 ###
         self._start_quick_scan(folder)                         ### FIX v0.17.0-bugB ###
 
-    def _start_quick_scan(self, folder):                       ### NEW v0.17.0-bugB, FIX v0.17.2 ###
-        """Quick Scan: re-scan only subfolders that changed since the last scan.
-        All heavy work (mtime reads, re-scan) runs in a background thread.
-        The main thread only sets up UI state and spawns the thread.
-        """
+    def _start_quick_scan(self, folder):                       ### REWRITTEN v0.18.4 ###
+        """Quick Scan: re-scan only subfolders that were added, removed or whose
+        files changed since the last scan (scan_mtime per row).  Changed movies
+        are probed with FFprobe when the FFprobe box is ticked (v0.18.4); the
+        change detection and the rescans run in parallel."""
         try:
             entries = sorted([e for e in os.scandir(folder) if e.is_dir()],
                              key=lambda e: e.name.lower())
@@ -9404,11 +9856,12 @@ class App(tk.Tk):
         if not entries:
             messagebox.showinfo("Empty", "No subfolders found."); return
 
-        # Capture prior results BEFORE touching UI (still on main thread, fast)
-        prior_by_path = {_pkey(r["subfolder_path"]): r for r in self._results}   ### MODIFIED v0.18.3 — slash-insensitive ###
+        prior_by_path = {_pkey(r["subfolder_path"]): r for r in self._results}
         prior_for_ff  = list(self._results)
+        probe = bool(self._use_ffprobe.get()) and bool(FFPROBE_PATH)
+        n_workers = self._scan_workers()
+        n_probe   = self._ffprobe_workers()
 
-        # Set up UI state immediately (no heavy work on main thread)
         self._scanning = True; self._cancel_scan = False
         self.scan_btn.configure(state="disabled")
         self.update_btn.configure(state="disabled")
@@ -9416,44 +9869,39 @@ class App(tk.Tk):
         self.pbar_canvas.pack(side="left", fill="x", expand=True)
         self.pbar_label.pack(side="left", padx=(8, 0))
         self._draw_scan_progress(0, "Quick Scan — detecting changes…")
+        logger.info(f"Quick Scan started: {folder} (ffprobe={'on' if probe else 'off'})")
 
         def worker():
             clear_read_caches()
-            # ── Phase A/B: detect new / modified subfolders ───────────────────
-            # v0.18.2 compared two reads of the CURRENT disk and therefore never
-            # saw a modified movie.  Each row now carries scan_mtime (newest
-            # file time when it was scanned); rows without it (older cache)
-            # are rescanned once.                              ### FIXED v0.18.3 ###
-            changed_entries = []
-            n_no_mtime = 0
-            for entry in entries:
+            # ── Phase A: detect new / modified subfolders (parallel listings) ──
+            changed = []; lock = threading.Lock(); n_no_mtime = [0]
+            def _check(entry):
                 if self._cancel_scan:
-                    break
+                    return
                 prior = prior_by_path.get(_pkey(entry.path))
                 if prior is None:
-                    changed_entries.append(entry)              # new folder
-                    continue
+                    with lock: changed.append(entry)            # new folder
+                    return
                 recorded = prior.get("scan_mtime")
                 if recorded is None:
-                    n_no_mtime += 1
-                    changed_entries.append(entry)              # unknown → rescan
-                    continue
+                    with lock: n_no_mtime[0] += 1; changed.append(entry)
+                    return
                 try:
                     if abs(_folder_mtime(entry.path) - float(recorded)) > 0.5:
-                        changed_entries.append(entry)          # modified
+                        with lock: changed.append(entry)        # modified
                 except (TypeError, ValueError):
-                    changed_entries.append(entry)
-
+                    with lock: changed.append(entry)
+            self._run_parallel(entries, _check, n_workers)
             if self._cancel_scan:
                 self.after(0, lambda: self._scan_done(prior_for_ff)); return
+            order = {e.path: i for i, e in enumerate(entries)}
+            changed.sort(key=lambda e: order[e.path])
 
             current_paths = {_pkey(e.path) for e in entries}
-            n_changed = len(changed_entries)
-            n_total   = len(entries)
+            n_changed = len(changed); n_total = len(entries)
             n_removed = sum(1 for p in prior_by_path if p not in current_paths)
             logger.info(f"Quick Scan: {n_changed}/{n_total} changed, {n_removed} removed"
-                        + (f", {n_no_mtime} without recorded scan time" if n_no_mtime else ""))
-
+                        + (f", {n_no_mtime[0]} without recorded scan time" if n_no_mtime[0] else ""))
             if n_changed == 0 and n_removed == 0:
                 self.after(0, lambda: (
                     self._scan_done(prior_for_ff),
@@ -9461,63 +9909,102 @@ class App(tk.Tk):
                                         "No changes detected — library is up to date.")))
                 return
 
-            self.after(0, lambda nc=n_changed, nr=n_removed:
-                self._draw_scan_progress(0,
-                    f"Quick Scan — {nc} changed, {nr} removed"))
-
-            # ── Phase C: rescan changed/new subfolders only ─────────────────
+            # ── Phase B: rescan changed/new subfolders (parallel) ───────────
             _KEEP = ("video_width", "video_height", "video_quality",
-                     "subs_internal", "subs_summary", "lang_ok",
-                     "audio_tracks", "ffprobe_ran")
+                     "subs_internal", "audio_tracks", "ffprobe_ran")
             rescanned = {}
-            for i, entry in enumerate(changed_entries):
-                if self._cancel_scan:
-                    break
-                pct = int((i + 1) / max(n_changed, 1) * 90)
-                self.after(0, lambda p=pct, n=entry.name:
-                    self._draw_scan_progress(p, f"Quick Scan — {n[:45]}"))
-                try:
-                    r  = scan_one_subfolder(entry.path, entry.name, use_ffprobe=False)
-                    rd = prior_by_path.get(_pkey(entry.path))
-                    if rd and rd.get("ffprobe_ran"):
-                        # Preserve FFprobe data from the prior scan, then recompute
-                        # health so rules see the restored audio/subtitle data.
-                        for key in _KEEP:
-                            if rd.get(key) is not None:
-                                r[key] = rd[key]
-                        if r.get("subs_internal") or r.get("subs_external"):
-                            parts = []
-                            if r.get("subs_internal"):
-                                parts.append("Int: " + ", ".join(s["lang"] for s in r["subs_internal"]))
-                            if r.get("subs_external"):
-                                parts.append("Ext: " + ", ".join(s["lang"] for s in r["subs_external"]))
-                            r["subs_summary"] = " | ".join(parts)
-                        _hs, _hr = compute_movie_health(r, SETTINGS.get("health_rules", {}), SETTINGS)
-                        r["health_status"] = _hs; r["health_reasons"] = _hr   ### FIXED v0.18.3 ###
+            def _rescan(entry):
+                r  = scan_one_subfolder(entry.path, entry.name, use_ffprobe=probe)
+                rd = prior_by_path.get(_pkey(entry.path))
+                if rd and not probe and rd.get("ffprobe_ran"):
+                    # keep FFprobe-derived data from the prior scan; external
+                    # subtitles are always re-read                ### v0.18.4 ###
+                    for key in _KEEP:
+                        if rd.get(key) is not None:
+                            r[key] = rd[key]
+                    r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"))
+                    if rd.get("lang_ok") == "Y" and r.get("video_path"):
+                        r["lang_ok"] = "Y"
+                r["duplicate_of"] = list(rd.get("duplicate_of") or []) if rd else []
+                _apply_health(r)
+                with lock:
                     rescanned[entry.path] = r
-                except Exception as ex:
-                    logger.error(f"Quick Scan error for {entry.name}: {ex}")
+            label = f"Quick Scan — {n_changed} changed, {n_removed} removed" + (" (FFprobe)" if probe else "")
+            self._run_phase(changed, [None] * len(changed), lambda e, _r: _rescan(e),
+                            label, 0, 100, n_probe if probe else n_workers, None)
 
-            # ── Phase D: rebuild full results list in folder order ──────────
+            # ── Phase C: rebuild full results list in folder order ──────────
             new_results = []
             for entry in entries:
                 if entry.path in rescanned:
                     new_results.append(rescanned[entry.path])
                 elif _pkey(entry.path) in prior_by_path:
                     new_results.append(prior_by_path[_pkey(entry.path)])
-                # deleted subfolders are dropped
-
             self.after(0, lambda r=new_results: self._scan_done(r))
 
-        def _worker_guarded():                      # ADDED_BY_CLAUDE_v18 — top-level crash guard
-            try:                                    # ADDED_BY_CLAUDE_v18
-                worker()                           # ADDED_BY_CLAUDE_v18
-            except Exception as _exc:              # ADDED_BY_CLAUDE_v18
-                logger.error(                      # ADDED_BY_CLAUDE_v18
-                    f"Scan worker crashed: {_exc}", exc_info=True)
-                self.after(0, lambda: self._scan_done([]))  # ADDED_BY_CLAUDE_v18
+        def _worker_guarded():
+            try:
+                worker()
+            except Exception as _exc:
+                logger.error(f"Scan worker crashed: {_exc}", exc_info=True)
+                self.after(0, lambda: self._scan_done([]))
 
-        threading.Thread(target=_worker_guarded, daemon=True).start()  # MODIFIED_BY_CLAUDE_v18
+        threading.Thread(target=_worker_guarded, daemon=True).start()
+
+    # ── Parallel helpers (v0.18.4) ─────────────────────────────────────────────
+    def _scan_workers(self):
+        try:
+            return max(1, min(16, int(SETTINGS.get("scan_workers", 6) or 6)))
+        except (TypeError, ValueError):
+            return 6
+
+    def _ffprobe_workers(self):
+        try:
+            return max(1, min(8, int(SETTINGS.get("ffprobe_workers", 2) or 2)))
+        except (TypeError, ValueError):
+            return 2
+
+    def _run_parallel(self, items, fn, workers):
+        """Run fn(item) for every item on a thread pool; exceptions are logged."""
+        def _task(item):
+            if self._cancel_scan:
+                return
+            try:
+                fn(item)
+            except Exception as ex:
+                logger.warning(f"parallel task failed for {getattr(item, 'name', item)}: {ex}")
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+            list(ex.map(_task, items))
+
+    def _run_phase(self, entries, rows, fn, label, pct_lo, pct_hi, workers, save_rows):
+        """Run fn(entry, row) for every (entry, row) pair on a thread pool, with
+        throttled progress updates and ETA.  Stops submitting work after Cancel."""
+        total = len(entries); done = [0]; lock = threading.Lock()
+        t_start = time.time(); last_post = [0.0]
+        def _eta(n):
+            if n == 0: return ""
+            rem = (time.time() - t_start) / n * (total - n)
+            return f"{int(rem // 60)}m {int(rem % 60)}s remaining" if rem > 60 else f"{int(rem)}s remaining"
+        def _task(pair):
+            entry, row = pair
+            if self._cancel_scan:
+                return
+            try:
+                fn(entry, row)
+            except Exception as ex:
+                logger.warning(f"{label} skipped '{entry.name}': {ex}")
+            with lock:
+                done[0] += 1; n = done[0]
+                now = time.time()
+                post = (now - last_post[0] > 0.1) or n == total
+                if post: last_post[0] = now
+            if post:
+                pct = pct_lo + int(n / max(total, 1) * (pct_hi - pct_lo))
+                self.after(0, lambda p=pct, e=_eta(n): self._draw_scan_progress(p, f"{label} {p}%  {e}"))
+            if save_rows is not None and n % 25 == 0:
+                self.after(0, lambda r=list(save_rows): self._incremental_save(r, throttle=True))
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as ex:
+            list(ex.map(_task, zip(entries, rows)))
 
     ### NEW v0.11.1 — scan variants used by SettingsDialog._offer_rescan ###
     def _update_scan_no_ff(self):
@@ -9566,10 +10053,10 @@ class App(tk.Tk):
                       fill="#cdd6f4", font=("Helvetica",10,"bold"))
         self.pbar_label.configure(text=text)
 
-    def _start_scan(self, folder, use_ff=None):               ### MODIFIED v0.18.3 — explicit FFprobe flag ###
-        # v0.18.2 — clear filter at scan start               ### ADDED_BY_CLAUDE_v18.2 ###
+    def _start_scan(self, folder, use_ff=None):               ### REWRITTEN v0.18.4 — parallel phases ###
         if hasattr(self, "_filter_var"):
             self._filter_var.set("")
+        self._health_filter = None
         try:
             entries = sorted([e for e in os.scandir(folder) if e.is_dir()],
                              key=lambda e: e.name.lower())
@@ -9578,12 +10065,12 @@ class App(tk.Tk):
         if not entries:
             messagebox.showinfo("Empty","No subfolders found."); return
 
-        _prior_results_for_ffprobe = list(self._results)  ### FIX v0.17.0-bugA ###
+        _prior_results_for_ffprobe = list(self._results)
         self._results = []; self._item_map.clear()
         for r in self.tree.get_children(): self.tree.delete(r)
 
         self._scanning = True; self._cancel_scan = False
-        logger.info(f"{getattr(self, '_scan_label', 'Scan')} started: {folder}")  ### NEW v0.17.0 ###
+        logger.info(f"{getattr(self, '_scan_label', 'Scan')} started: {folder}")
         self.scan_btn.configure(state="disabled")
         self.update_btn.configure(state="disabled")
         self.cancel_btn.pack(side="left", padx=(6,0))
@@ -9594,26 +10081,18 @@ class App(tk.Tk):
         if use_ff is None:
             use_ff = self._use_ffprobe.get()
         use_ff = bool(use_ff)
-        total  = len(entries)
-        t0     = [time.time()]
-
-        def _eta_str(done, total, elapsed):
-            if done == 0: return ""
-            avg = elapsed / done
-            rem = avg * (total - done)
-            if rem > 60: return f"{int(rem//60)}m {int(rem%60)}s remaining"
-            return f"{int(rem)}s remaining"
+        n_workers = self._scan_workers()
+        n_probe   = self._ffprobe_workers()
+        t0 = time.time()
 
         def worker():
-            results_partial = []
-            clear_read_caches()                                ### NEW v0.18.3 ###
-            ### FIX v0.17.0-bugA — use captured list; self._results was cleared before worker started ###
+            clear_read_caches()
             _prior_ffprobe = {}
             for rd in _prior_results_for_ffprobe:
                 sp = rd.get("subfolder_path")
                 if sp and (rd.get("video_width") or rd.get("video_quality","—") != "—"
                            or rd.get("ffprobe_ran")):
-                    _prior_ffprobe[_pkey(sp)] = {                   ### MODIFIED v0.18.3 — slash-insensitive ###
+                    _prior_ffprobe[_pkey(sp)] = {
                         "video_width":   rd.get("video_width"),
                         "video_height":  rd.get("video_height"),
                         "video_quality": rd.get("video_quality", "—"),
@@ -9621,269 +10100,212 @@ class App(tk.Tk):
                         "subs_external": rd.get("subs_external", []),
                         "subs_summary":  rd.get("subs_summary", ""),
                         "lang_ok":       rd.get("lang_ok", "—"),
-                        "audio_tracks":  rd.get("audio_tracks", []),   ### FIXED v0.18.3 ###
-                        "ffprobe_ran":   rd.get("ffprobe_ran", False), ### FIXED v0.18.3 ###
+                        "audio_tracks":  rd.get("audio_tracks", []),
+                        "ffprobe_ran":   rd.get("ffprobe_ran", False),
                     }
 
-            # ── Phase 1: list subfolders ──────────────────────────────────────
+            # ── Phase 1: one directory listing per movie (parallel) ──────────
             self.after(0, lambda: self._draw_scan_progress(0, "Phase 1/4 — Listing subfolders…"))
+            listings = {}
+            lock = threading.Lock()
+            def _list(entry):
+                lst = _FolderListing(entry.path)
+                with lock:
+                    listings[entry.path] = lst
+            self._run_parallel(entries, _list, n_workers)
+            if self._cancel_scan:
+                self.after(0, lambda: self._scan_done([])); return
+
             stubs = []
             for entry in entries:
-                ### NEW v0.11.0 — seed stub with prior FFprobe data if available ###
                 prior = _prior_ffprobe.get(_pkey(entry.path), {})
+                lst = listings.get(entry.path) or _FolderListing(entry.path)
                 stubs.append({
                     "subfolder": entry.name, "subfolder_path": entry.path,
-                    "poster_exists":False,"poster_path":os.path.join(entry.path,"poster.jpg"),
+                    "poster_exists":False,"poster_path":lst.path_of("poster.jpg"),
                     "poster_bytes":0,"poster_size":"—","poster_dim":None,"poster_corrupt":False,
                     "poster_desc":"","poster_status":STATUS_MISSING,
-                    "fanart_exists":False,"fanart_path":os.path.join(entry.path,"fanart.jpg"),
+                    "fanart_exists":False,"fanart_path":lst.path_of("fanart.jpg"),
                     "fanart_bytes":0,"fanart_size":"—","fanart_dim":None,"fanart_corrupt":False,
                     "fanart_desc":"","fanart_status":STATUS_MISSING,
-                    "folder_exists":False,"folder_path":os.path.join(entry.path,"folder.jpg"),
+                    "folder_exists":False,"folder_path":lst.path_of("folder.jpg"),
                     "folder_bytes":0,"folder_size":"—","folder_dim":None,"folder_corrupt":False,
                     "folder_desc":"","folder_status":STATUS_MISSING,
                     "backdrop_count":0,"backdrop_paths":[],
-                    "nfo_exists":False,"nfo_path":os.path.join(entry.path,entry.name+".nfo"),
+                    "nfo_exists":False,"nfo_path":lst.path_of(entry.name+".nfo"),
                     "nfo_bytes":0,"nfo_size":"—","nfo_status":STATUS_MISSING,"nfo_errors":[],
-                    "xml_exists":False,"xml_path":os.path.join(entry.path,"movie.xml"),
+                    "xml_exists":False,"xml_path":lst.path_of("movie.xml"),
                     "xml_bytes":0,"xml_size":"—","xml_status":STATUS_MISSING,"xml_errors":[],
                     "language":"—","video_count":0,"video_files":[],"video_ext":"—",
                     "video_path":None,"video_bytes":0,"video_size":"—",
-                    "video_width":prior.get("video_width"),                         ### NEW v0.11.0 ###
-                    "video_height":prior.get("video_height"),                       ### NEW v0.11.0 ###
-                    "video_quality":prior.get("video_quality","—"),                 ### NEW v0.11.0 ###
+                    "video_width":prior.get("video_width"),
+                    "video_height":prior.get("video_height"),
+                    "video_quality":prior.get("video_quality","—"),
                     "video_status":STATUS_MISSING,
-                    "subs_internal":prior.get("subs_internal",[]),                  ### NEW v0.11.0 ###
-                    "subs_external":prior.get("subs_external",[]),                  ### NEW v0.11.0 ###
-                    "subs_summary":prior.get("subs_summary","—"),                   ### NEW v0.11.0 ###
-                    "lang_ok":prior.get("lang_ok","—"),                             ### NEW v0.11.0 ###
+                    "subs_internal":prior.get("subs_internal",[]),
+                    "subs_external":prior.get("subs_external",[]),
+                    "subs_summary":prior.get("subs_summary","—"),
+                    "lang_ok":prior.get("lang_ok","—"),
                     "genres":[],"genre_display":"—","genre_status":STATUS_ERROR,
                     "movie_name": entry.name, "movie_year": "-",
                     "health_status":"warning","health_reasons":[],
-                    # v0.18.2 — new health engine fields          ### ADDED_BY_CLAUDE_v18.2 ###
+                    "health_errors":[],"health_warnings":[],"duplicate_of":[],
                     "movie_title_raw":[],"movie_year_raw":None,
-                    "ffprobe_ran":prior.get("ffprobe_ran", False),                 ### MODIFIED v0.18.3 ###
-                    "nfo_title":"","xml_localtitle":"",                            ### NEW v0.18.3 ###
-                    "scan_mtime":_folder_mtime(entry.path),                        ### NEW v0.18.3 ###
-                    # v0.11.0 — image quality tiers (filled in Phase 2) ### NEW v0.11.0 ###
+                    "ffprobe_ran":prior.get("ffprobe_ran", False),
+                    "nfo_title":"","xml_localtitle":"",
+                    "scan_mtime":lst.newest_mtime(),
                     "poster_quality":"—","folder_quality":"—","fanart_quality":"—",
-                    # v0.12.0 — rating (filled in Phase 3)               ### NEW v0.12.0 ###
                     "rating_str":"-","rating_status":STATUS_MISSING,"rating_value":-1.0,
-                    # v0.15.0 — new fields                               ### FIX v0.15.0 ###
                     "rating_votes":0,"rating_votes_src":"","rating_src":"",
                     "backdrop_avg_bytes":0,
-                    "audio_tracks":prior.get("audio_tracks", []),                  ### FIXED v0.18.3 ###
-                    # v0.16.0 — votes and source (filled in Phase 3)  ### NEW v0.16.0 ###
+                    "audio_tracks":prior.get("audio_tracks", []),
                     "votes_int":0,"votes_status":STATUS_MISSING,"votes_src":"",
                     "source_imdb_val":None,"source_imdb_status":STATUS_MISSING,"source_imdb_all":[],
                     "source_tmdb_val":None,"source_tmdb_status":STATUS_MISSING,"source_tmdb_all":[],
                 })
             results_partial = list(stubs)
             self.after(0, lambda r=list(results_partial): self._phase_update(r, "Phase 1/4 complete — subfolders listed"))
-
             if self._cancel_scan:
                 self.after(0, lambda: self._scan_done(results_partial)); return
 
             # ── Phase 2: images ───────────────────────────────────────────────
-            for i, (entry, row) in enumerate(zip(entries, results_partial)):
-                if self._cancel_scan: break
-                pct = int((i+1)/total * 25)
-                eta = _eta_str(i+1, total, time.time()-t0[0])
-                self.after(0, lambda p=pct, e=eta: self._draw_scan_progress(
-                    p, f"Phase 2/4 — Images {p}%  {e}"))
-
-                try:                                                 # ADDED_BY_CLAUDE_v18
-                    sub = entry.path
-                    for img, key, itype in [("poster.jpg","poster","poster"),
-                                             ("folder.jpg","folder","folder"),
-                                             ("fanart.jpg","fanart","fanart")]:
-                        p_img = os.path.join(sub, img)
-                        exists = os.path.isfile(p_img)
-                        row[f"{key}_exists"] = exists
-                        if exists:
-                            sz = os.path.getsize(p_img)
-                            row[f"{key}_bytes"] = sz
-                            row[f"{key}_size"]  = format_size(sz)
-                            row[f"{key}_dim"]   = get_image_dimensions(p_img)
-                            st, desc = check_image_health(p_img, itype)
-                            row[f"{key}_status"]  = st
-                            row[f"{key}_corrupt"] = (st == STATUS_ERROR)
-                            row[f"{key}_desc"]    = desc
-                            ### NEW v0.11.0 — compute quality tier ###
-                            iw, ih = get_image_wh(p_img)
-                            row[f"{key}_quality"] = classify_image_quality(iw, ih, itype)
-                        else:
-                            row[f"{key}_status"]  = STATUS_MISSING
-                            row[f"{key}_quality"] = "—"   ### NEW v0.11.0 ###
-
-                    bc, bp, bc_avg = count_backdrops(sub)              ### FIX v0.15.0 ###
-                    row["backdrop_count"] = bc; row["backdrop_paths"] = bp
-                    row["backdrop_avg_bytes"] = bc_avg                 ### FIX v0.15.0 ###
-                    _hs, _hr = compute_movie_health(row, SETTINGS.get("health_rules", {}), SETTINGS)  ### MODIFIED_BY_CLAUDE_v18.2 ###
-                    row["health_status"] = _hs; row["health_reasons"] = _hr
-                except Exception as _row_exc:                        # ADDED_BY_CLAUDE_v18
-                    logger.warning(                                  # ADDED_BY_CLAUDE_v18
-                        f"Phase 2 skipped '{entry.name}': {_row_exc}")
-                if i % 10 == 0:
-                    self.after(0, lambda r=list(results_partial):
-                               self._incremental_save(r, throttle=True))   ### MODIFIED v0.18.3 ###
-
+            def _phase2(entry, row):
+                lst = listings[entry.path]
+                for img, key, itype in [("poster.jpg","poster","poster"),
+                                         ("folder.jpg","folder","folder"),
+                                         ("fanart.jpg","fanart","fanart")]:
+                    p_img  = lst.path_of(img)
+                    exists = lst.has(img)
+                    row[f"{key}_exists"] = exists
+                    row[f"{key}_path"]   = p_img
+                    if exists:
+                        sz = lst.size(img)
+                        row[f"{key}_bytes"] = sz
+                        row[f"{key}_size"]  = format_size(sz)
+                        row[f"{key}_dim"]   = get_image_dimensions(p_img)
+                        st, desc = check_image_health(p_img, itype)
+                        row[f"{key}_status"]  = st
+                        row[f"{key}_corrupt"] = (st == STATUS_ERROR)
+                        row[f"{key}_desc"]    = desc
+                        iw, ih = get_image_wh(p_img)
+                        row[f"{key}_quality"] = classify_image_quality(iw, ih, itype)
+                    else:
+                        row[f"{key}_status"]  = STATUS_MISSING
+                        row[f"{key}_quality"] = "—"
+                bc, bp, bc_avg = count_backdrops(entry.path, listing=lst)
+                row["backdrop_count"] = bc; row["backdrop_paths"] = bp
+                row["backdrop_avg_bytes"] = bc_avg
+                _apply_health(row)
+            self._run_phase(entries, results_partial, _phase2, "Phase 2/4 — Images", 0, 25, n_workers, results_partial)
             self.after(0, lambda r=list(results_partial):
                        self._phase_update(r, "Phase 2/4 complete — images scanned"))
             if self._cancel_scan:
                 self.after(0, lambda: self._scan_done(results_partial)); return
 
-            # ── Phase 3: NFO / XML ─────────────────────────────────────────────
-            for i, (entry, row) in enumerate(zip(entries, results_partial)):
-                if self._cancel_scan: break
-                pct = 25 + int((i+1)/total * 25)
-                eta = _eta_str(i+1, total, time.time()-t0[0])
-                self.after(0, lambda p=pct, e=eta: self._draw_scan_progress(
-                    p, f"Phase 3/4 — Metadata {p}%  {e}"))
-
-                try:                                                 # ADDED_BY_CLAUDE_v18
-                    sub = entry.path; sn = entry.name
-                    nfo_path = os.path.join(sub, sn+".nfo")
-                    xml_path = os.path.join(sub, "movie.xml")
-                    ne = os.path.isfile(nfo_path); xe = os.path.isfile(xml_path)
-                    row["nfo_exists"] = ne; row["nfo_path"] = nfo_path
-                    if ne:
-                        nb = os.path.getsize(nfo_path); nerr = validate_xml_file(nfo_path, True)
-                        row["nfo_bytes"] = nb; row["nfo_size"] = format_size(nb); row["nfo_errors"] = nerr
-                        row["nfo_status"] = (STATUS_ERROR if nerr else STATUS_OK)
-                    row["xml_exists"] = xe; row["xml_path"] = xml_path
-                    if xe:
-                        xb = os.path.getsize(xml_path); xerr = validate_xml_file(xml_path, False)
-                        row["xml_bytes"] = xb; row["xml_size"] = format_size(xb); row["xml_errors"] = xerr
-                        row["xml_status"] = (STATUS_ERROR if xerr else STATUS_OK)
-                        row["language"] = extract_language_from_xml(xml_path)
-                    # Genre extraction from NFO (Phase 3)
-                    if ne:
-                        genres = get_genres_from_nfo(nfo_path)
-                        gd, gs = classify_genres(genres)
-                        row["genres"] = genres
-                        row["genre_display"] = gd
-                        row["genre_status"]  = gs
-                    # Rating extraction (v0.12.0)                ### NEW v0.12.0 ###
-                    nfo_p_r = nfo_path if ne else None
-                    xml_p_r = xml_path if xe else None
-                    rs, rst, rv, rv_votes, rv_votes_src, rv_src = (      ### FIX v0.15.0 ###
-                        extract_rating_from_files(nfo_p_r, xml_p_r))
-                    row["rating_str"]        = rs
-                    row["rating_status"]     = rst
-                    row["rating_value"]      = rv
-                    row["rating_votes"]      = rv_votes                  ### FIX v0.15.0 ###
-                    row["rating_votes_src"]  = rv_votes_src              ### FIX v0.15.0 ###
-                    row["rating_src"]        = rv_src                    ### FIX v0.15.0 ###
-                    # Votes extraction (v0.16.0)                         ### NEW v0.16.0 ###
-                    vi_int, vi_st, vi_src = extract_votes_from_files(nfo_p_r, xml_p_r)
-                    row["votes_int"]    = vi_int
-                    row["votes_status"] = vi_st
-                    row["votes_src"]    = vi_src
-                    # Source IDs extraction (v0.16.0)                    ### NEW v0.16.0 ###
-                    src_ids = extract_source_ids_from_files(nfo_p_r, xml_p_r)
-                    row["source_imdb_val"]    = src_ids["imdb_val"]
-                    row["source_imdb_status"] = src_ids["imdb_status"]
-                    row["source_imdb_all"]    = src_ids["imdb_all_vals"]
-                    row["source_tmdb_val"]    = src_ids["tmdb_val"]
-                    row["source_tmdb_status"] = src_ids["tmdb_status"]
-                    row["source_tmdb_all"]    = src_ids["tmdb_all_vals"]
-                    ### NEW v0.10.0 — extract movie name and year after metadata phase ###
-                    nfo_p2 = nfo_path if ne else None
-                    xml_p2 = xml_path if xe else None
-                    row["movie_name"] = get_movie_name_from_files(nfo_p2, xml_p2, sn)
-                    row["movie_year"] = get_movie_year_display(nfo_p2, xml_p2)
-                    # v0.18.2 — title/year raw for health rules  ### ADDED_BY_CLAUDE_v18.2 ###
-                    row["movie_title_raw"] = get_movie_titles_from_files(nfo_p2, xml_p2)
-                    row["movie_year_raw"]  = get_movie_year_from_files(nfo_p2, xml_p2)
-                    row["nfo_title"], row["xml_localtitle"] = get_primary_titles(nfo_p2, xml_p2)  ### NEW v0.18.3 ###
-                    _hs, _hr = compute_movie_health(row, SETTINGS.get("health_rules", {}), SETTINGS)  ### MODIFIED_BY_CLAUDE_v18.2 ###
-                    row["health_status"] = _hs; row["health_reasons"] = _hr
-                except Exception as _row_exc:                        # ADDED_BY_CLAUDE_v18
-                    logger.warning(                                  # ADDED_BY_CLAUDE_v18
-                        f"Phase 3 skipped '{entry.name}': {_row_exc}")
-                if i % 10 == 0:
-                    self.after(0, lambda r=list(results_partial):
-                               self._incremental_save(r, throttle=True))   ### MODIFIED v0.18.3 ###
-
+            # ── Phase 3: NFO / XML ────────────────────────────────────────────
+            def _phase3(entry, row):
+                lst = listings[entry.path]; sn = entry.name
+                nfo_name = sn + ".nfo"
+                nfo_path = lst.path_of(nfo_name); xml_path = lst.path_of("movie.xml")
+                ne = lst.has(nfo_name); xe = lst.has("movie.xml")
+                row["nfo_exists"] = ne; row["nfo_path"] = nfo_path
+                if ne:
+                    nb = lst.size(nfo_name); nerr = validate_xml_file(nfo_path, True)
+                    row["nfo_bytes"] = nb; row["nfo_size"] = format_size(nb); row["nfo_errors"] = nerr
+                    row["nfo_status"] = (STATUS_ERROR if nerr else STATUS_OK)
+                row["xml_exists"] = xe; row["xml_path"] = xml_path
+                if xe:
+                    xb = lst.size("movie.xml"); xerr = validate_xml_file(xml_path, False)
+                    row["xml_bytes"] = xb; row["xml_size"] = format_size(xb); row["xml_errors"] = xerr
+                    row["xml_status"] = (STATUS_ERROR if xerr else STATUS_OK)
+                    row["language"] = extract_language_from_xml(xml_path)
+                if ne:
+                    genres = get_genres_from_nfo(nfo_path)
+                    gd, gs = classify_genres(genres)
+                    row["genres"] = genres; row["genre_display"] = gd; row["genre_status"] = gs
+                nfo_p = nfo_path if ne else None
+                xml_p = xml_path if xe else None
+                rs, rst, rv, rv_votes, rv_votes_src, rv_src = extract_rating_from_files(nfo_p, xml_p)
+                row["rating_str"] = rs; row["rating_status"] = rst; row["rating_value"] = rv
+                row["rating_votes"] = rv_votes; row["rating_votes_src"] = rv_votes_src; row["rating_src"] = rv_src
+                vi_int, vi_st, vi_src = extract_votes_from_files(nfo_p, xml_p)
+                row["votes_int"] = vi_int; row["votes_status"] = vi_st; row["votes_src"] = vi_src
+                src_ids = extract_source_ids_from_files(nfo_p, xml_p)
+                row["source_imdb_val"]    = src_ids["imdb_val"]
+                row["source_imdb_status"] = src_ids["imdb_status"]
+                row["source_imdb_all"]    = src_ids["imdb_all_vals"]
+                row["source_tmdb_val"]    = src_ids["tmdb_val"]
+                row["source_tmdb_status"] = src_ids["tmdb_status"]
+                row["source_tmdb_all"]    = src_ids["tmdb_all_vals"]
+                row["movie_name"] = get_movie_name_from_files(nfo_p, xml_p, sn)
+                row["movie_year"] = get_movie_year_display(nfo_p, xml_p)
+                row["movie_title_raw"] = get_movie_titles_from_files(nfo_p, xml_p)
+                row["movie_year_raw"]  = get_movie_year_from_files(nfo_p, xml_p)
+                row["nfo_title"], row["xml_localtitle"] = get_primary_titles(nfo_p, xml_p)
+                _apply_health(row)
+            self._run_phase(entries, results_partial, _phase3, "Phase 3/4 — Metadata", 25, 50, n_workers, results_partial)
             self.after(0, lambda r=list(results_partial):
                        self._phase_update(r, "Phase 3/4 complete — metadata scanned"))
             if self._cancel_scan:
                 self.after(0, lambda: self._scan_done(results_partial)); return
 
-            # ── Phase 4: video + ffprobe ───────────────────────────────────────
-            for i, (entry, row) in enumerate(zip(entries, results_partial)):
-                if self._cancel_scan: break
-                pct = 50 + int((i+1)/total * 50)
-                eta = _eta_str(i+1, total, time.time()-t0[0])
-                self.after(0, lambda p=pct, e=eta: self._draw_scan_progress(
-                    p, f"Phase 4/4 — Video{'+FFprobe' if use_ff else ''} {p}%  {e}"))
-                try:                                                 # ADDED_BY_CLAUDE_v18
-                    sub = entry.path
-                    vi  = scan_video_files(sub)
-                    _probe_now = bool(use_ff and vi["video_path"] and FFPROBE_PATH)
-                    if _probe_now:
-                        w, h = _get_video_resolution(vi["video_path"], use_ffprobe=True)
-                        vi["video_width"] = w; vi["video_height"] = h
-                        vi["video_quality"] = classify_quality(w, h)
-                    else:
-                        ### NEW v0.11.0 — preserve existing FFprobe data when not re-running ###
-                        vi["video_width"]   = row.get("video_width")
-                        vi["video_height"]  = row.get("video_height")
-                        vi["video_quality"] = row.get("video_quality", "—")
-                    si = scan_subtitles(sub, vi["video_path"], use_ffprobe=use_ff)  ### MODIFIED v0.18.3 ###
-                    if _probe_now:
-                        audio_tracks = scan_audio_tracks(vi["video_path"], use_ffprobe=True)
-                    else:
-                        audio_tracks = row.get("audio_tracks", [])
-                        # keep embedded subtitle tracks found by an earlier FFprobe pass
-                        if not si["subs_internal"] and row.get("subs_internal"):
-                            si["subs_internal"] = row["subs_internal"]
-                            parts = ["Int: " + ", ".join(s["lang"] for s in si["subs_internal"])]
-                            if si["subs_external"]:
-                                parts.append("Ext: " + ", ".join(s["lang"] for s in si["subs_external"]))
-                            si["subs_summary"] = " | ".join(parts)
-                    iso = SETTINGS.get("lang_ok_code","PT")
-                    nfo_p = row["nfo_path"] if row["nfo_exists"] else None
-                    xml_p = row["xml_path"] if row["xml_exists"] else None
-                    lo = compute_lang_ok(vi["video_path"], si["subs_internal"],
-                                         si["subs_external"], nfo_p, xml_p, iso,
-                                         use_ffprobe=use_ff)                   ### MODIFIED v0.18.3 ###
-                    if not _probe_now and row.get("lang_ok") == "Y" and vi["video_path"]:
-                        lo = "Y"   # earlier FFprobe pass already found the language in audio
-                    vs = (STATUS_MISSING if vi["video_count"]==0
-                          else STATUS_ERROR if vi["video_count"]>1 else STATUS_OK)
-                    row.update({
-                        "video_count":vi["video_count"],"video_files":vi["video_files"],
-                        "video_ext":vi["video_ext"],"video_path":vi["video_path"],
-                        "video_bytes":vi["video_bytes"],"video_size":vi["video_size"],
-                        "video_width":vi["video_width"],"video_height":vi["video_height"],
-                        "video_quality":vi["video_quality"],"video_status":vs,
-                        "subs_internal":si["subs_internal"],"subs_external":si["subs_external"],
-                        "subs_summary":si["subs_summary"],"lang_ok":lo,
-                        "audio_tracks": audio_tracks,                   ### FIX v0.15.0 ###
-                        "ffprobe_ran": _probe_now or (not use_ff and bool(row.get("ffprobe_ran"))),  ### MODIFIED v0.18.3 ###
-                    })
-                    _hs, _hr = compute_movie_health(row, SETTINGS.get("health_rules", {}), SETTINGS)  ### MODIFIED_BY_CLAUDE_v18.2 ###
-                    row["health_status"] = _hs; row["health_reasons"] = _hr
-                except Exception as _row_exc:                        # ADDED_BY_CLAUDE_v18
-                    logger.warning(                                  # ADDED_BY_CLAUDE_v18
-                        f"Phase 4 skipped '{entry.name}': {_row_exc}")
-                if i % 5 == 0:
-                    self.after(0, lambda r=list(results_partial):
-                               self._incremental_save(r, throttle=True))   ### MODIFIED v0.18.3 ###
-
+            # ── Phase 4: video + ffprobe ──────────────────────────────────────
+            def _phase4(entry, row):
+                lst = listings[entry.path]; sub = entry.path
+                vi  = scan_video_files(sub, listing=lst)
+                _probe_now = bool(use_ff and vi["video_path"] and FFPROBE_PATH)
+                if _probe_now:
+                    w, h = _get_video_resolution(vi["video_path"], use_ffprobe=True)
+                    vi["video_width"] = w; vi["video_height"] = h
+                    vi["video_quality"] = classify_quality(w, h)
+                else:
+                    vi["video_width"]   = row.get("video_width")
+                    vi["video_height"]  = row.get("video_height")
+                    vi["video_quality"] = row.get("video_quality", "—")
+                si = scan_subtitles(sub, vi["video_path"], use_ffprobe=use_ff, listing=lst)
+                if _probe_now:
+                    audio_tracks = scan_audio_tracks(vi["video_path"], use_ffprobe=True)
+                else:
+                    audio_tracks = row.get("audio_tracks", [])
+                    if not si["subs_internal"] and row.get("subs_internal"):
+                        si["subs_internal"] = row["subs_internal"]
+                        si["subs_summary"]  = _subs_summary(si["subs_internal"], si["subs_external"], vi["video_path"])
+                iso = SETTINGS.get("lang_ok_code","PT")
+                nfo_p = row["nfo_path"] if row["nfo_exists"] else None
+                xml_p = row["xml_path"] if row["xml_exists"] else None
+                lo = compute_lang_ok(vi["video_path"], si["subs_internal"], si["subs_external"],
+                                     nfo_p, xml_p, iso, use_ffprobe=use_ff)
+                if not _probe_now and row.get("lang_ok") == "Y" and vi["video_path"]:
+                    lo = "Y"
+                vs = (STATUS_MISSING if vi["video_count"]==0
+                      else STATUS_ERROR if vi["video_count"]>1 else STATUS_OK)
+                row.update({
+                    "video_count":vi["video_count"],"video_files":vi["video_files"],
+                    "video_ext":vi["video_ext"],"video_path":vi["video_path"],
+                    "video_bytes":vi["video_bytes"],"video_size":vi["video_size"],
+                    "video_width":vi["video_width"],"video_height":vi["video_height"],
+                    "video_quality":vi["video_quality"],"video_status":vs,
+                    "subs_internal":si["subs_internal"],"subs_external":si["subs_external"],
+                    "subs_summary":si["subs_summary"],"lang_ok":lo,
+                    "audio_tracks": audio_tracks,
+                    "ffprobe_ran": _probe_now or (not use_ff and bool(row.get("ffprobe_ran"))),
+                })
+                _apply_health(row)
+            self._run_phase(entries, results_partial, _phase4,
+                            f"Phase 4/4 — Video{'+FFprobe' if use_ff else ''}", 50, 100,
+                            n_probe if use_ff else n_workers, results_partial)
+            logger.info(f"Scan phases finished in {time.time() - t0:.1f}s "
+                        f"({len(entries)} movies, workers={n_workers}, ffprobe workers={n_probe if use_ff else 0})")
             self.after(0, lambda: self._scan_done(list(results_partial)))
 
-        def _worker_guarded():                      # ADDED_BY_CLAUDE_v18 — top-level crash guard
-            try:                                    # ADDED_BY_CLAUDE_v18
-                worker()                           # ADDED_BY_CLAUDE_v18
-            except Exception as _exc:              # ADDED_BY_CLAUDE_v18
-                logger.error(                      # ADDED_BY_CLAUDE_v18
-                    f"Scan worker crashed: {_exc}", exc_info=True)
-                self.after(0, lambda: self._scan_done([]))  # ADDED_BY_CLAUDE_v18
+        def _worker_guarded():
+            try:
+                worker()
+            except Exception as _exc:
+                logger.error(f"Scan worker crashed: {_exc}", exc_info=True)
+                self.after(0, lambda: self._scan_done([]))
 
-        threading.Thread(target=_worker_guarded, daemon=True).start()  # MODIFIED_BY_CLAUDE_v18
+        threading.Thread(target=_worker_guarded, daemon=True).start()
 
     def _phase_update(self, results, msg):
         """Bulk-refresh table after a scan phase completes."""
@@ -9928,7 +10350,6 @@ class App(tk.Tk):
         self._refresh_table()
 
     def _scan_done(self, results):
-        self._scanning = False
         self.scan_btn.configure(state="normal")
         self.update_btn.configure(state="normal")
         self.cancel_btn.pack_forget()
@@ -9936,7 +10357,9 @@ class App(tk.Tk):
         self.pbar_label.pack_forget()
         self._results = results
         if not results:
+            self._scanning = False
             self.stats_var.set("Cancelled or empty."); return
+        finalize_results(results)                              ### NEW v0.18.4 — duplicates + health ###
         self._phase_update(results, "")
         self._update_stats()
         self._apply_default_sort()                             ### NEW v0.16.1 ###
@@ -9956,6 +10379,7 @@ class App(tk.Tk):
                                     f"{_label} complete", self.sort_var.get())
             logger.info(f"{_label} complete: {len(results)} movies, {_warn} warnings, {_err} errors")
         except Exception: pass
+        self._scanning = False      # v0.18.4 — cleared last, after the results cache is written
 
     def _restore_last_session(self):
         last_folder  = SETTINGS.get("last_folder","")
@@ -9965,6 +10389,7 @@ class App(tk.Tk):
         self._folder = last_folder
         self.folder_var.set(last_folder)
         self._results = _results_from_json(last_results)
+        finalize_results(self._results)                        ### NEW v0.18.4 — never trust cached reasons ###
         self._update_stats()
         self._apply_default_sort()                             ### NEW v0.16.1 ###
         self._restore_column_widths()                          ### NEW v0.18.0 ###
@@ -10005,9 +10430,10 @@ class App(tk.Tk):
     def _update_status_bar(self, total, warnings, errors, action, sort_name):
         """Update the richer status bar labels."""
         try:
+            hf = getattr(self, "_health_filter", None)
             self._sb_movies.configure(text=f"  Movies: {total}")
-            self._sb_warn.configure(text=f"  Warnings: {warnings}")
-            self._sb_errors.configure(text=f"  Errors: {errors}")
+            self._sb_warn.configure(text=f"  Warnings: {warnings}" + ("  ◀ filtered" if hf == "warning" else ""))
+            self._sb_errors.configure(text=f"  Errors: {errors}" + ("  ◀ filtered" if hf == "error" else ""))
             if action:
                 self._sb_action.configure(text=f"  Last: {action}")
             self._sb_sort.configure(text=f"Sort: {sort_name}  ")
@@ -10105,6 +10531,117 @@ class App(tk.Tk):
         self._filter_var.set("")
         self._filter_entry.focus_set()
 
+    # ── v0.18.4 — health chips, column chooser, reports, fixes ────────────────
+    def _set_health_filter(self, kind):
+        """kind: None | 'error' | 'warning' | 'problems'."""
+        self._health_filter = kind
+        try:
+            self._problems_only_var.set(kind == "problems")
+        except Exception:
+            pass
+        self._refresh_table()
+        self._update_stats()
+
+    def _apply_column_visibility(self):
+        hidden = [c for c in (SETTINGS.get("hidden_columns") or []) if c in _COL_IDX and c != "movie_name"]
+        if hidden:
+            self.tree["displaycolumns"] = [c["id"] for c in COLUMN_MODEL if c["id"] not in hidden]
+        else:
+            self.tree["displaycolumns"] = "#all"
+
+    def _model_col_index(self, display_idx):
+        """Map a 0-based *display* column index (from identify_column) to the
+        COLUMN_MODEL index — they differ when columns are hidden."""
+        try:
+            disp = self.tree["displaycolumns"]
+        except tk.TclError:
+            return display_idx
+        if not disp or disp == "#all" or (isinstance(disp, (tuple, list)) and disp and disp[0] == "#all"):
+            return display_idx
+        if isinstance(disp, str):
+            disp = disp.split()
+        if 0 <= display_idx < len(disp):
+            return _COL_IDX.get(disp[display_idx], -1)
+        return -1
+
+    def _rescan_row(self, data, use_ffprobe=None, force_ffprobe=False):
+        """scan_one_subfolder for a loaded row, keeping its duplicate flag."""
+        r = scan_one_subfolder(data["subfolder_path"], data["subfolder"],
+                               use_ffprobe=use_ffprobe, force_ffprobe=force_ffprobe)
+        r["duplicate_of"] = list(data.get("duplicate_of") or [])
+        _apply_health(r)
+        return r
+
+    def _recompute_health(self):
+        if not self._results:
+            messagebox.showinfo("Recompute Health", "Run a scan first.", parent=self); return
+        self._apply_health_rules_inplace()
+        e = sum(1 for r in self._results if r["health_status"] == "error")
+        w = sum(1 for r in self._results if r["health_status"] == "warning")
+        self._incremental_save(self._results)
+        messagebox.showinfo("Recompute Health",
+                            f"Health status recomputed for {len(self._results)} movie(s) "
+                            f"with the current rules.\n\nErrors: {e}   Warnings: {w}", parent=self)
+
+    def _show_statistics(self):
+        if not self._results:
+            messagebox.showinfo("Library Statistics", "Run a scan first.", parent=self); return
+        TextReportDialog(self, "📊  Library Statistics", format_library_statistics(self._results),
+                         "library_statistics")
+
+    def _show_duplicates(self):
+        if not self._results:
+            messagebox.showinfo("Duplicate Movies", "Run a scan first.", parent=self); return
+        TextReportDialog(self, "👯  Duplicate Movies Report", format_duplicates_report(self._results),
+                         "duplicate_movies")
+
+    def _copy_poster_to_folder(self, data_list, confirm=True):
+        """Overwrite folder.jpg with poster.jpg where they differ (backup first)."""
+        if self._scanning:
+            messagebox.showinfo("Copy poster → folder", "Please wait for the scan to complete.", parent=self); return
+        targets = [d for d in data_list if d.get("poster_exists")
+                   and (not d.get("folder_exists") or d.get("poster_bytes") != d.get("folder_bytes"))]
+        if not targets:
+            messagebox.showinfo("Copy poster.jpg → folder.jpg",
+                                "Nothing to do — folder.jpg already matches poster.jpg "
+                                "(or there is no poster.jpg).", parent=self)
+            return
+        if confirm and not messagebox.askyesno(
+                "Copy poster.jpg → folder.jpg",
+                f"Overwrite folder.jpg with poster.jpg in {len(targets)} movie(s)?\n\n"
+                "Existing folder.jpg files are backed up first.", icon="warning", parent=self):
+            return
+        prog = _BatchProgressDialog(self, "Copying poster.jpg → folder.jpg…", total=len(targets)) \
+               if len(targets) >= 10 else None
+
+        def _worker():
+            ref = [None]; done = 0; errors = []
+            for i, d in enumerate(targets):
+                if prog and prog.cancelled:
+                    break
+                try:
+                    if os.path.isfile(d["folder_path"]):
+                        _make_batch_backup(d.get("movie_name", d["subfolder"]), ref, d["folder_path"])
+                    shutil.copy2(d["poster_path"], d["folder_path"])
+                    done += 1
+                    logger.info(f"poster.jpg copied to folder.jpg: {d['subfolder_path']}")
+                    self.after(0, lambda dd=d: self._reval_by_path(dd, no_ffprobe=True))
+                except Exception as ex:
+                    errors.append(f"{d.get('movie_name', d['subfolder'])}: {ex}")
+                if prog:
+                    prog.update(i + 1)
+            if prog:
+                prog.close()
+            def _done(n=done, errs=errors):
+                self._incremental_save(self._results)
+                msg = f"folder.jpg updated in {n} movie(s)."
+                if errs:
+                    msg += "\n\nErrors:\n" + "\n".join(errs[:5])
+                messagebox.showinfo("Copy poster.jpg → folder.jpg", msg, parent=self)
+            self.after(0, _done)
+
+        threading.Thread(target=_worker, daemon=True).start()
+
     # ── Refresh table ──────────────────────────────────────────────────────────
     def _refresh_table(self):
         if not self._results: return
@@ -10119,7 +10656,13 @@ class App(tk.Tk):
 
         # v0.18.2 — apply filter (view-only; self._results is never modified)
         term     = self._filter_var.get() if hasattr(self, "_filter_var") else ""  ### ADDED_BY_CLAUDE_v18.2 ###
-        filtered = [r for r in sorted_results if _matches_filter(r, term)]
+        hf       = getattr(self, "_health_filter", None)                           ### NEW v0.18.4 ###
+        def _hf_ok(r):
+            st = r.get("health_status", "warning")
+            if hf == "problems": return st != "ok"
+            if hf in ("error", "warning"): return st == hf
+            return True
+        filtered = [r for r in sorted_results if _hf_ok(r) and _matches_filter(r, term)]
 
         for i, r in enumerate(filtered):                         ### MODIFIED_BY_CLAUDE_v18.2 ###
             tag = r["health_status"] + ("_odd" if i % 2 else "")
@@ -10127,7 +10670,7 @@ class App(tk.Tk):
             self._item_map[iid] = r
 
         if hasattr(self, "_filter_label"):                       ### ADDED_BY_CLAUDE_v18.2 ###
-            if term.strip():
+            if term.strip() or hf:
                 self._filter_label.configure(
                     text=f"{len(filtered)} of {len(self._results)} shown")
             else:
@@ -10145,10 +10688,18 @@ class App(tk.Tk):
 
 
 # ── compute_movie_health — rule engine (v0.18.2) ─────────────────────────────
-def compute_movie_health(row: dict, rules: dict,
-                         settings: dict = None) -> tuple:        ### ADDED_BY_CLAUDE_v18.2 ###
+def compute_movie_health(row, rules, settings=None):             ### MODIFIED v0.18.4 ###
+    """Compatibility wrapper: (status, errors + warnings).  See the detailed
+    variant below — v0.18.2/3 dropped the warnings of red movies."""
+    status, errs, warns = compute_movie_health_detailed(row, rules, settings)
+    return status, errs + warns
+
+
+def compute_movie_health_detailed(row: dict, rules: dict,
+                                  settings: dict = None) -> tuple:   ### NEW v0.18.4 ###
     """
     Evaluate all enabled health rules against a movie row dict.
+    Returns (status, error_reasons, warning_reasons).
 
     Parameters
     ----------
@@ -10406,8 +10957,8 @@ def compute_movie_health(row: dict, rules: dict,
     if rules.get("title_mismatch", True):
         # Only NFO <title> vs XML <LocalTitle> — original titles are allowed
         # to differ (v0.18.2 flagged every foreign film).      ### FIXED v0.18.3 ###
-        _nt = " ".join((row.get("nfo_title") or "").split()).casefold()
-        _xt = " ".join((row.get("xml_localtitle") or "").split()).casefold()
+        _nt = _norm_title_cmp(row.get("nfo_title"))             ### MODIFIED v0.18.4 — tolerant ###
+        _xt = _norm_title_cmp(row.get("xml_localtitle"))
         if _nt and _xt and _nt != _xt:
             warning_reasons.append(
                 f"Title mismatch: NFO <title> '{row.get('nfo_title')}' vs "
@@ -10428,12 +10979,32 @@ def compute_movie_health(row: dict, rules: dict,
                 warning_reasons.append(
                     "Folder name doesn't match movie title")
 
+    if rules.get("duplicate_movie", True):                          ### NEW v0.18.4 ###
+        dup = row.get("duplicate_of") or []
+        if dup:
+            shown = ", ".join(dup[:3]) + (f" (+{len(dup) - 3} more)" if len(dup) > 3 else "")
+            warning_reasons.append(f"Possible duplicate of: {shown}")
+
     # ── Priority resolution ────────────────────────────────────────────────────
     if error_reasons:
-        return ("error", error_reasons)
+        return ("error", error_reasons, warning_reasons)
     if warning_reasons:
-        return ("warning", warning_reasons)
-    return ("ok", [])
+        return ("warning", [], warning_reasons)
+    return ("ok", [], [])
+
+
+_QUOTE_MAP = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201c": '"',
+                            "\u201d": '"', "\u201e": '"', "\u2013": "-", "\u2014": "-",
+                            "\u2212": "-", "\u00a0": " "})
+
+
+def _norm_title_cmp(s):                                          ### NEW v0.18.4 ###
+    """Normalise a title for the mismatch rule: HTML entities, Unicode form,
+    curly quotes/dashes, non-breaking spaces, whitespace and case."""
+    import unicodedata
+    s = html.unescape(str(s or ""))
+    s = unicodedata.normalize("NFKC", s).translate(_QUOTE_MAP)
+    return " ".join(s.split()).casefold()
 
 
 # ── _matches_filter — pure filter helper (v0.18.2) ───────────────────────────
@@ -10448,8 +11019,9 @@ def _matches_filter(row: dict, term: str) -> bool:              ### ADDED_BY_CLA
     health  = row.get("health_status", "").lower()
     lang    = row.get("language", "").lower()
     quality = row.get("video_quality", "").lower()
+    reasons = " | ".join(row.get("health_reasons", []) or []).lower()   ### NEW v0.18.4 ###
     return (t in name or year.startswith(t) or t in genre
-            or t == health or t in lang or t in quality)
+            or t == health or t in lang or t in quality or t in reasons)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

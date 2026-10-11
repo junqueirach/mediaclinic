@@ -1,7 +1,7 @@
 # =============================================================================
 # export_list.py
 # Metadata & MediaClinic — Movie List Export (pure logic, no tkinter)
-# Version: 0.18.3                                              ### NEW v0.18.3 ###
+# Version: 0.18.4                                              ### MODIFIED v0.18.4 — links, outline, plot ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -20,7 +20,9 @@
 # =============================================================================
 
 import csv
+import html
 import os
+import re
 
 # Status symbols (must match STATUS_* in the main script)
 _STATUS_TEXT = {"⬤": "OK", "◐": "Warning", "○": "Missing", "✕": "Error"}
@@ -62,6 +64,61 @@ def _votes_text(row):
     return str(int(v)) if v else ""
 
 
+# ── Outline / plot read from the files at export time (v0.18.4) ─────────────
+_TEXT_CACHE = {}
+
+
+def _file_text(path):
+    """Text of *path* (BOM stripped); '' if absent.  Cached by path for the
+    duration of one export (export_rows clears the cache), so every NFO/XML
+    is opened at most once even when Outline and Plot are both selected."""
+    if not path:
+        return ""
+    key = path
+    hit = _TEXT_CACHE.get(key)
+    if hit is not None:
+        return hit
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            txt = f.read()
+    except OSError:
+        txt = ""
+    if txt.startswith("\ufeff"):
+        txt = txt[1:]
+    if len(_TEXT_CACHE) > 2000:
+        _TEXT_CACHE.clear()
+    _TEXT_CACHE[key] = txt
+    return txt
+
+
+def _first_tag(row, nfo_tags, xml_tags):
+    """First non-empty <tag> text found in the NFO (then XML), cleaned for a cell."""
+    for key, tags in (("nfo", nfo_tags), ("xml", xml_tags)):
+        if not row.get(f"{key}_exists"):
+            continue
+        txt = _file_text(row.get(f"{key}_path"))
+        for tag in tags:
+            m = re.search(rf"<{tag}(?:\s[^>]*)?>(.*?)</{tag}\s*>", txt, re.I | re.S)
+            if m:
+                val = html.unescape(m.group(1)).strip()
+                if val.startswith("<![CDATA[") and val.endswith("]]>"):
+                    val = val[9:-3].strip()
+                val = " ".join(val.split())
+                if val:
+                    return val
+    return ""
+
+
+def _imdb_link(row):
+    v = (row.get("source_imdb_val") or "").strip()
+    return f"https://www.imdb.com/title/{v}/" if v else ""
+
+
+def _tmdb_link(row):
+    v = (row.get("source_tmdb_val") or "").strip()
+    return f"https://www.themoviedb.org/movie/{v}" if v else ""
+
+
 # ── Field registry: (key, column header, getter(row) -> str) ─────────────────
 EXPORT_FIELDS = [
     ("movie_name",    "Movie Name",     lambda r: r.get("movie_name") or r.get("subfolder", "")),
@@ -71,6 +128,10 @@ EXPORT_FIELDS = [
     ("votes",         "Votes",          _votes_text),
     ("imdb_id",       "IMDB ID",        lambda r: r.get("source_imdb_val") or ""),
     ("tmdb_id",       "TMDB ID",        lambda r: r.get("source_tmdb_val") or ""),
+    ("imdb_link",     "IMDB Link",      _imdb_link),                                   # v0.18.4
+    ("tmdb_link",     "TMDB Link",      _tmdb_link),                                   # v0.18.4
+    ("outline",       "Outline",        lambda r: _first_tag(r, ["outline"], ["Outline", "Tagline"])),   # v0.18.4
+    ("plot",          "Plot",           lambda r: _first_tag(r, ["plot"], ["Overview", "Plot", "Description"])),  # v0.18.4
     ("poster",        "Poster",         lambda r: _img_cell(r, "poster")),
     ("folder_img",    "Folder",         lambda r: _img_cell(r, "folder")),
     ("fanart",        "Fanart",         lambda r: _img_cell(r, "fanart")),
@@ -97,6 +158,7 @@ ALL_FIELD_KEYS = [k for k, _, _ in EXPORT_FIELDS]
 
 PRESETS = {
     "Basic":    ["movie_name", "year"],
+    "Identify": ["movie_name", "year", "imdb_link", "tmdb_link", "outline"],        # v0.18.4
     "Standard": ["movie_name", "year", "genres", "rating", "votes",
                  "video_quality", "health"],
     "All":      list(ALL_FIELD_KEYS),
@@ -131,15 +193,19 @@ def build_table(rows, field_keys):
     keys = [k for k in field_keys if k in _FIELD_MAP] or ["movie_name"]
     headers = [_FIELD_MAP[k][0] for k in keys]
     data = []
-    for r in rows:
-        line = []
-        for k in keys:
-            try:
-                v = _FIELD_MAP[k][1](r)
-            except Exception:
-                v = ""
-            line.append("" if v is None else str(v))
-        data.append(line)
+    _TEXT_CACHE.clear()          # each NFO/XML is opened at most once per table build
+    try:
+        for r in rows:
+            line = []
+            for k in keys:
+                try:
+                    v = _FIELD_MAP[k][1](r)
+                except Exception:
+                    v = ""
+                line.append("" if v is None else str(v))
+            data.append(line)
+    finally:
+        _TEXT_CACHE.clear()
     return headers, data
 
 

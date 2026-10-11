@@ -1,7 +1,7 @@
 # =============================================================================
 # help_text.py
 # Metadata & MediaClinic — Help tab contents (pure text)
-# Version: 0.18.3                                              ### NEW v0.18.3 ###
+# Version: 0.18.4                                              ### MODIFIED v0.18.4 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # The Help dialog in the main script renders these strings.  Moved out of the
@@ -147,9 +147,17 @@ FILTER BAR
 {SEP}
 
   Type in the Filter box (Ctrl+F) to show only movies whose name,
-  year, genre, language, video quality or health status
-  (ok / warning / error) matches. Esc clears the filter.
-  The status bar shows "N of M shown".
+  year, genre, language, video quality, health status
+  (ok / warning / error) or any health reason matches — typing
+  "backdrops" lists every movie with a backdrop issue.
+  Esc clears the filter. The status bar shows "N of M shown".
+
+  Tick "Problems only" to hide green rows, or click the Errors /
+  Warnings counters in the status bar to show only those rows
+  (click again, or click Movies, to show everything).
+
+  Tools → Choose Columns… hides columns you do not need; the
+  choice is remembered.
 
 {SEP}
 IMAGE QUALITY TIERS
@@ -208,6 +216,7 @@ RIGHT-CLICK MENU (SINGLE MOVIE)
   Normalize Sources     - Repair IMDB/TMDB tags in XML/NFO
   Search Sources        - Search TMDB online by title + year
   Normalize Genres      - Fix capitalisation, synonyms, duplicates
+  Copy poster.jpg → folder.jpg - one-click fix when they differ
   Fetch Poster/Folder · Fetch Fanart · Fetch Backdrops
   Replace All Backdrops - Backup, delete, re-download all from TMDB
   Add Custom Genre(s)   - Add detected custom genres to Settings
@@ -233,6 +242,10 @@ TOOLS MENU
 {SEP}
 
   Export Movie List…         - CSV / TSV / text / Excel (see below)
+  Choose Columns…            - show / hide table columns
+  Library Statistics         - health, quality, genres, decades…
+  Duplicate Movies Report    - same ID or title + year elsewhere
+  Recompute Health Status    - re-apply the rules, no rescan
   Save / Open Scan Results   - Full scan to and from a JSON file
   Sync Ratings Online — All Movies
   Normalize Sources — All Movies (only ◐ or ○ rows)
@@ -241,6 +254,7 @@ TOOLS MENU
   Run Improvements Check — All Movies  (report saved to .txt)
   Health Status Report — All Movies
   Refresh Icons — All Movies
+  Fix: Copy poster.jpg → folder.jpg — all movies with differences
   Delete All extrafanart Subfolders (legacy) - preview + backup
 
 {SEP}
@@ -249,7 +263,10 @@ EXPORT MOVIE LIST
 
   Tools → Export Movie List… (or the Export… button, Ctrl+Shift+E).
 
-  Columns:  Basic (Name, Year), Standard, All, or tick your own.
+  Columns:  Basic (Name, Year), Identify (Name, Year, IMDB link,
+            TMDB link, Outline), Standard, All, or tick your own.
+            IMDB Link / TMDB Link / Outline / Plot help the reader
+            of the file recognise each movie.
   Rows:     All movies, or only the current filtered/sorted view.
   Formats:
     CSV (comma)      - default; movie names with commas are quoted
@@ -359,6 +376,10 @@ POSTER / FANART FETCH
   size to poster.jpg and copies it to folder.jpg, after a backup.
   Fetch Fanart does the same for fanart.jpg.
 
+  "Copy poster.jpg → folder.jpg" (right-click, or Tools for the
+  whole library) overwrites folder.jpg with poster.jpg where the
+  two differ, after a backup.
+
 PROPORTION CHECKS
   Poster / Folder: 2:3 (optionally also 3:4).
   Fanart: 16:9 (optionally also 16:8).
@@ -380,7 +401,9 @@ TAB_SETTINGS = f"""{SEP}
 
 TOOLS
   Text editor, FFmpeg folder (Test FFmpeg), default backdrop frame
-  count, metadata source, optional scraper executable.
+  count, parallel scanning (folder/metadata workers, default 6;
+  FFprobe processes, default 2), metadata source, optional
+  scraper executable.
 
 API KEYS
   TMDb and OMDb keys with Validate buttons and links to get them.
@@ -416,18 +439,21 @@ USER INTERFACE
 HEALTH RULES
   Every condition that can turn a row red (error rules) or yellow
   (warning rules) has its own checkbox; some have a level or
-  threshold. After saving, you are offered an in-memory update of
-  the health status - no rescan needed. "Reset to defaults"
-  restores the shipped rule set.
+  threshold. Save & Apply recomputes the health status of the
+  loaded movies immediately - no rescan needed. "Reset to
+  defaults" restores the shipped rule set.
 
 BACKUP
   Maximum backup folder size (oldest backups deleted first, 0 =
   unlimited) and a button to delete all backups.
 
-AFTER SAVING
-  Changes to Image Sizes, Language, Genres or NFO/XML tags offer an
-  Update Scan (with or without FFprobe). Health rule changes offer a
-  health status update. Browser-only changes offer nothing.
+SAVE & APPLY
+  Writes settings.json. Changes to Image Sizes, Language, Genres or
+  NFO/XML tags offer an Update Scan (with or without FFprobe);
+  health rule changes are applied to the table at once. The
+  Save & Apply / Cancel buttons are always visible at the bottom;
+  long tabs scroll with the mouse wheel. A blank numeric field is
+  saved as its default value.
 """
 
 TAB_SHORTCUTS = f"""{SEP}
@@ -465,7 +491,12 @@ TROUBLESHOOTING
   Quick Scan says "No changes detected" after editing a file
     Quick Scan compares each folder's newest file time with the
     time recorded at the last scan. Run one Full Scan after
-    upgrading to v0.18.3 so the times are recorded.
+    upgrading from v0.18.2 or earlier so the times are recorded.
+    Changed movies are probed with FFprobe when the box is ticked.
+
+  A movie shows a health reason that no longer applies
+    Tools → Recompute Health Status re-applies the current rules
+    to the loaded rows; this also happens automatically on startup.
 
   Source column shows ✕ although the movie has an ID
     A tag exists but is empty (for example <TMDB></TMDB>).
@@ -492,6 +523,23 @@ CREDITS
 TAB_VERSION = f"""{SEP}
   Version History  —  Metadata & MediaClinic
 {SEP}
+
+  v0.18.4 - FIX: Update (no FFprobe) re-reads external subtitles.
+             FIX: cached health reasons recomputed on startup / open
+                 (stale "title mismatch" from v0.18.2 disappears).
+             FIX: health report lists the warnings of red movies too.
+             FIX: title comparison tolerant to entities/quotes/Unicode.
+             NEW: export fields IMDB Link, TMDB Link, Outline, Plot and
+                 an "Identify" preset.
+             NEW: parallel scanning (Settings → Tools) and one directory
+                 listing per movie: several times faster on shares.
+             NEW: Quick Scan probes changed movies with FFprobe.
+             NEW: clickable Errors / Warnings counters, "Problems only",
+                 filter matches health reasons.
+             NEW: duplicate detection rule + Duplicate Movies Report.
+             NEW: Copy poster.jpg → folder.jpg (single, batch, Tools).
+             NEW: Library Statistics, Choose Columns…, Recompute Health
+                 Status, Kodi v17+ <ratings> block support.
 
   v0.18.3 - NEW: Export Movie List… (Tools menu, Export… button,
                  Ctrl+Shift+E): column presets, filtered view, CSV

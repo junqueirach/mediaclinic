@@ -1,7 +1,13 @@
 # =============================================================================
 # settings_dialog.py
 # Metadata & MediaClinic — Settings UI Module
-# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
+# Version: 0.18.4                                              ### MODIFIED v0.18.4 ###
+# v0.18.4 — Tools tab: Parallel Scanning section (scan_workers / ffprobe_workers);
+#            Health Rules: duplicate_movie rule.
+#            Fix: Save/Cancel bar packed at the bottom FIRST so it can never be
+#            pushed off-screen by a tall tab (Tools grew past 660 px); tall tabs
+#            scroll (_scrollable_tab); numeric fields tolerate blank spinboxes
+#            (_num); 'Save & Apply' recomputes health automatically.
 # v0.18.3 — Health Rules tab: scroll-wheel binding scoped to the tab (no global
 #            leak after the dialog closes); new imdb/tmdb_id_partial rules;
 #            rating/votes rule labels corrected; legacy quality map imported
@@ -261,7 +267,8 @@ class SettingsDialog(tk.Toplevel):
         # Store context — fall back to module-level _ctx for compatibility
         self._ctx = ctx if ctx is not None else _ctx
         self.title(f"Settings — {self._ctx.app_name if self._ctx else _APP_NAME}")
-        self.geometry("920x660")   ### NEW v0.12.0 — wider to fit 10 tabs ###
+        self.geometry("940x720")   ### MODIFIED v0.18.4 ###
+        self.minsize(760, 480)     ### NEW v0.18.4 ###
         self.configure(bg="#1e1e2e")
         self.transient(parent); self.grab_set()
         self.resizable(True, True)
@@ -279,6 +286,23 @@ class SettingsDialog(tk.Toplevel):
         self._poster_tiers    = _c.poster_quality_tiers if _c else _POSTER_QUALITY_TIERS
         self._fanart_tiers    = _c.fanart_quality_tiers if _c else _FANART_QUALITY_TIERS
         self._open_url_fn     = _c.open_url             if _c else _open_url
+
+        # ── Bottom buttons — packed FIRST (side=bottom) so they stay visible
+        #    whatever the height of the selected tab.           ### FIXED v0.18.4 ###
+        bf = tk.Frame(self, bg="#1e1e2e")
+        bf.pack(side="bottom", fill="x", pady=(6, 12))
+        inner_bf = tk.Frame(bf, bg="#1e1e2e"); inner_bf.pack()
+        tk.Button(inner_bf, text="  Save & Apply  ", font=("Helvetica", 10, "bold"),
+                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  command=self._save_close).pack(side="left", padx=(0, 8))
+        tk.Button(inner_bf, text="  Cancel  ", font=("Helvetica", 10, "bold"),
+                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=self.destroy).pack(side="left")
+        tk.Label(bf, text="Save & Apply writes settings.json, recomputes the health status "
+                          "when rules changed, and offers an Update Scan when scan "
+                          "settings changed.",
+                 font=("Helvetica", 8), bg="#1e1e2e", fg="#6c7086").pack(pady=(4, 0))
+        self.bind("<Escape>", lambda e: self.destroy())
 
         # ── Notebook ─────────────────────────────────────────────────────────
         nb = ttk.Notebook(self)
@@ -302,20 +326,50 @@ class SettingsDialog(tk.Toplevel):
         # Used by _save_close to detect whether a rescan should be offered.
         self._rescan_snapshot = self._take_rescan_snapshot()
 
-        # ── Bottom buttons ────────────────────────────────────────────────────
-        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(6, 12))
-        tk.Button(bf, text="  Save & Close  ", font=("Helvetica", 10, "bold"),
-                  bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
-                  command=self._save_close).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10, "bold"),
-                  bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
-                  command=self.destroy).pack(side="left")
-
         # ── Jump to requested tab after UI is built ───────────────────────────
         self._nb = nb
         self.after(10, lambda: nb.select(min(self._initial_tab, len(nb.tabs()) - 1)))
 
     # ── Shared widget helpers ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _num(var, default):
+        """Value of a Tk numeric variable, or *default* when the spinbox is blank
+        or holds text (v.get() raises TclError in that case).  ### NEW v0.18.4 ###"""
+        try:
+            v = var.get()
+            if isinstance(v, str):
+                v = v.strip()
+                if v == "":
+                    return default
+                return float(v) if isinstance(default, float) else int(float(v))
+            return v
+        except (tk.TclError, ValueError, TypeError):
+            return default
+
+    def _scrollable_tab(self, nb, label):
+        """Add a tab whose content scrolls vertically (mouse wheel while the
+        pointer is over it).  Returns the inner frame to pack widgets into.
+        Replaces three copy-pasted canvas blocks.                ### NEW v0.18.4 ###"""
+        outer = tk.Frame(nb, bg="#1e1e2e"); nb.add(outer, text=label)
+        canvas = tk.Canvas(outer, bg="#1e1e2e", highlightthickness=0)
+        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        f = tk.Frame(canvas, bg="#1e1e2e")
+        win = canvas.create_window((0, 0), window=f, anchor="nw")
+        f.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win, width=e.width))
+        def _wheel(event):
+            try:
+                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            except tk.TclError:
+                pass
+        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _wheel))
+        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
+        outer.bind("<Destroy>", lambda e: canvas.unbind_all("<MouseWheel>"), add="+")
+        return f
 
     @staticmethod
     def _section(parent, label):
@@ -351,7 +405,7 @@ class SettingsDialog(tk.Toplevel):
     # ── Tab 0: Tools ──────────────────────────────────────────────────────────
 
     def _build_tools_tab(self, nb, label="Tools"):
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # Text editor
         self._section(f, "Text Editor (for NFO / XML files)")
@@ -406,6 +460,27 @@ class SettingsDialog(tk.Toplevel):
         tk.Spinbox(r, from_=1, to=50, textvariable=self._backdrop_count_var, width=6,
                    font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
                    buttonbackground="#45475a", relief="flat").pack(side="left")
+
+        # Parallel scanning (v0.18.4)                                ### NEW v0.18.4 ###
+        self._section(f, "Parallel Scanning")
+        self._note(f, "Workers used by Full Scan / Quick Scan. More workers help most on\n"
+                      "network shares; keep FFprobe processes low (each one is a video decode).")
+        r = self._row(f)
+        tk.Label(r, text="Folder / image / metadata workers:", font=("Helvetica", 10),
+                 bg="#1e1e2e", fg="#cdd6f4", width=32, anchor="w").pack(side="left")
+        self._scan_workers_var = tk.IntVar(value=self._s.get("scan_workers", 6))
+        tk.Spinbox(r, from_=1, to=16, textvariable=self._scan_workers_var, width=5,
+                   font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
+                   buttonbackground="#45475a", relief="flat").pack(side="left")
+        tk.Label(r, text="   (default 6)", font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086").pack(side="left")
+        r = self._row(f)
+        tk.Label(r, text="FFprobe processes in parallel:", font=("Helvetica", 10),
+                 bg="#1e1e2e", fg="#cdd6f4", width=32, anchor="w").pack(side="left")
+        self._ffprobe_workers_var = tk.IntVar(value=self._s.get("ffprobe_workers", 2))
+        tk.Spinbox(r, from_=1, to=8, textvariable=self._ffprobe_workers_var, width=5,
+                   font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
+                   buttonbackground="#45475a", relief="flat").pack(side="left")
+        tk.Label(r, text="   (default 2)", font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086").pack(side="left")
 
         # Metadata source / scraper
         self._section(f, "Video Scraper / Metadata Source")
@@ -470,16 +545,7 @@ class SettingsDialog(tk.Toplevel):
     # ── Tab 1: API Keys ───────────────────────────────────────────────────────
 
     def _build_api_keys_tab(self, nb, label="API Keys"):
-        outer = tk.Frame(nb, bg="#1e1e2e"); nb.add(outer, text=label)
-
-        canvas = tk.Canvas(outer, bg="#1e1e2e", highlightthickness=0)
-        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        f = tk.Frame(canvas, bg="#1e1e2e")
-        canvas.create_window((0, 0), window=f, anchor="nw")
-        f.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # TMDb
         self._section(f, "TMDb API Key (The Movie Database)")
@@ -907,15 +973,7 @@ class SettingsDialog(tk.Toplevel):
     def _build_image_sizes_tab(self, nb, label="Image Sizes"):
         """Image quality and proportion settings.          ### NEW v0.11.0 ###"""
 
-        outer = tk.Frame(nb, bg="#1e1e2e"); nb.add(outer, text=label)
-        canvas = tk.Canvas(outer, bg="#1e1e2e", highlightthickness=0)
-        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        f = tk.Frame(canvas, bg="#1e1e2e")
-        canvas.create_window((0, 0), window=f, anchor="nw")
-        f.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # ── Proportion Checks ─────────────────────────────────────────────────
         self._section(f, "Proportion Checks")
@@ -1310,28 +1368,7 @@ class SettingsDialog(tk.Toplevel):
         """Configurable health rule engine tab."""
         from settings_model import DEFAULT_SETTINGS
 
-        outer = tk.Frame(nb, bg="#1e1e2e"); nb.add(outer, text=label)
-        canvas = tk.Canvas(outer, bg="#1e1e2e", highlightthickness=0)
-        sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        f = tk.Frame(canvas, bg="#1e1e2e")
-        canvas.create_window((0, 0), window=f, anchor="nw")
-        f.bind("<Configure>", lambda e: canvas.configure(
-            scrollregion=canvas.bbox("all")))
-
-        # Mousewheel scrolling — bound only while the pointer is over this
-        # tab, released on leave (the old global bind_all leaked after close).
-        ### MODIFIED v0.18.3 ###
-        def _on_mousewheel(event):
-            try:
-                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            except tk.TclError:
-                pass
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _on_mousewheel))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
-        f.bind("<Destroy>",    lambda e: canvas.unbind_all("<MouseWheel>"), add="+")
+        f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         hr_defaults = DEFAULT_SETTINGS.get("health_rules", {})
         hr_current  = self._s.get("health_rules", {})
@@ -1519,6 +1556,7 @@ class SettingsDialog(tk.Toplevel):
         _check_row("multiple_video_files",   "Multiple video files in same folder  (default: OFF)")
         _check_row("imdb_id_partial",        "IMDB ID present in one file only (NFO or XML)")   # NEW v0.18.3
         _check_row("tmdb_id_partial",        "TMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
+        _check_row("duplicate_movie",        "Possible duplicate (same IMDB/TMDB ID or title + year in another folder)")  # NEW v0.18.4
         _check_row("missing_poster",         "Missing poster")
         _check_row("missing_fanart",         "Missing fanart")
         _check_row("missing_folder",         "Missing folder image")
@@ -1760,11 +1798,11 @@ class SettingsDialog(tk.Toplevel):
         if hasattr(self, "_poster_34_var"):
             img |= (self._poster_34_var.get() == "Yes") != img_snap.get("poster_accept_34", False)
         if hasattr(self, "_min_poster_kb_var"):
-            img |= self._min_poster_kb_var.get() != img_snap.get("min_poster_kb", 100)
+            img |= self._num(self._min_poster_kb_var, 100) != img_snap.get("min_poster_kb", 100)
         if hasattr(self, "_min_folder_kb_var"):
-            img |= self._min_folder_kb_var.get() != img_snap.get("min_folder_kb", 100)
+            img |= self._num(self._min_folder_kb_var, 100) != img_snap.get("min_folder_kb", 100)
         if hasattr(self, "_min_fanart_kb_var"):
-            img |= self._min_fanart_kb_var.get() != img_snap.get("min_fanart_kb", 200)
+            img |= self._num(self._min_fanart_kb_var, 200) != img_snap.get("min_fanart_kb", 200)
         changed["image_sizes"] = img
 
         # Language OK?
@@ -1797,8 +1835,8 @@ class SettingsDialog(tk.Toplevel):
             snap_hr = snap.get("health_rules", {})
             curr_hr = {}
             for k, v in self._hr_vars.items():      curr_hr[k] = v.get()
-            for k, v in self._hr_int_vars.items():  curr_hr[k] = v.get()
-            for k, v in self._hr_flt_vars.items():  curr_hr[k] = round(v.get(), 2)
+            for k, v in self._hr_int_vars.items():  curr_hr[k] = self._num(v, snap_hr.get(k, 0))
+            for k, v in self._hr_flt_vars.items():  curr_hr[k] = round(self._num(v, float(snap_hr.get(k, 0.0))), 2)
             for k, v in self._hr_str_vars.items():  curr_hr[k] = v.get()
             hr_changed = (curr_hr != snap_hr)
         changed["health_rules"] = hr_changed
@@ -1887,68 +1925,6 @@ class SettingsDialog(tk.Toplevel):
         cx = max(0, cx); cy = max(0, cy)
         dlg.geometry(f"{dw}x{dh}+{cx}+{cy}")
 
-    def _offer_health_update(self, parent_app):                  ### ADDED_BY_CLAUDE_v18.2 ###
-        """
-        Show a non-blocking dialog offering an in-memory health recalculation.
-        Modelled exactly on _offer_rescan — no wait_window(), non-blocking.
-        """
-        if not parent_app or not getattr(parent_app, "_results", None):
-            return
-
-        dlg = tk.Toplevel(parent_app)
-        dlg.title("Update Health Status?")
-        dlg.configure(bg="#1e1e2e")
-        dlg.transient(parent_app)
-        dlg.grab_set()
-        dlg.resizable(False, False)
-
-        outer = tk.Frame(dlg, bg="#1e1e2e")
-        outer.pack(fill="both", expand=True, padx=20, pady=(20, 12))
-
-        tk.Label(outer,
-                 text="Health Rules have changed.\n\n"
-                      "Would you like to update the health status of all\n"
-                      "loaded movies using the new rules?\n\n"
-                      "This does not require a re-scan. It uses the\n"
-                      "existing scan data already in memory.",
-                 font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                 justify="center").pack(pady=(0, 16))
-
-        bf = tk.Frame(outer, bg="#1e1e2e"); bf.pack()
-
-        def _choose(val):
-            dlg.grab_release()
-            dlg.destroy()
-            if val == "update" and hasattr(parent_app, "_apply_health_rules_inplace"):
-                parent_app._apply_health_rules_inplace()
-
-        tk.Button(bf, text="  Update Health Status  ",
-                  font=("Helvetica", 10, "bold"), bg="#a6e3a1", fg="#1e1e2e",
-                  relief="flat", cursor="hand2",
-                  command=lambda: _choose("update")).pack(side="left", padx=(0, 6))
-        tk.Button(bf, text="  Skip  ",
-                  font=("Helvetica", 10, "bold"), bg="#45475a", fg="#cdd6f4",
-                  relief="flat", cursor="hand2",
-                  command=lambda: _choose("skip")).pack(side="left")
-
-        dlg.protocol("WM_DELETE_WINDOW", lambda: _choose("skip"))
-
-        # Center on parent window (same pattern as _offer_rescan)
-        dlg.update_idletasks()
-        dw = dlg.winfo_reqwidth(); dh = dlg.winfo_reqheight()
-        try:
-            px = parent_app.winfo_x(); py = parent_app.winfo_y()
-            pw = parent_app.winfo_width(); ph = parent_app.winfo_height()
-            if pw > 0 and ph > 0:
-                cx = px + (pw - dw) // 2; cy = py + (ph - dh) // 2
-            else:
-                raise ValueError("parent not mapped")
-        except Exception:
-            cx = (dlg.winfo_screenwidth()  - dw) // 2
-            cy = (dlg.winfo_screenheight() - dh) // 2
-        cx = max(0, cx); cy = max(0, cy)
-        dlg.geometry(f"{dw}x{dh}+{cx}+{cy}")
-
     # ── Save & Close ──────────────────────────────────────────────────────────
 
     def _save_close(self):
@@ -1978,13 +1954,18 @@ class SettingsDialog(tk.Toplevel):
             _s["default_browser"]  = self._browser_var.get().strip()
             _s["lang_ok_code"]     = self._lang_var.get().upper()
             _s["improve_checks"]   = {k: v.get() for k, v in self._ic_vars.items()}
-            _s["max_nfo_kb"]       = self._max_nfo_kb_var.get()
-            _s["max_xml_kb"]       = self._max_xml_kb_var.get()
+            _num = self._num                                               ### v0.18.4 — blank-safe ###
+            _s["max_nfo_kb"]       = max(1, _num(self._max_nfo_kb_var, 50))
+            _s["max_xml_kb"]       = max(1, _num(self._max_xml_kb_var, 25))
             # _s["min_backdrops"] intentionally not written — deprecated in v0.18.2, now in health_rules ### MODIFIED_BY_CLAUDE_v18.2 ###
-            _s["min_poster_kb"]    = self._min_poster_kb_var.get()
-            _s["min_folder_kb"]    = self._min_folder_kb_var.get()
-            _s["min_fanart_kb"]    = self._min_fanart_kb_var.get()
-            _s["backdrop_count"]   = self._backdrop_count_var.get()
+            _s["min_poster_kb"]    = max(0, _num(self._min_poster_kb_var, 100))
+            _s["min_folder_kb"]    = max(0, _num(self._min_folder_kb_var, 100))
+            _s["min_fanart_kb"]    = max(0, _num(self._min_fanart_kb_var, 200))
+            _s["backdrop_count"]   = max(1, min(50, _num(self._backdrop_count_var, 10)))
+            if hasattr(self, "_scan_workers_var"):                          ### NEW v0.18.4 ###
+                _s["scan_workers"]    = max(1, min(16, _num(self._scan_workers_var, 6)))
+            if hasattr(self, "_ffprobe_workers_var"):
+                _s["ffprobe_workers"] = max(1, min(8, _num(self._ffprobe_workers_var, 2)))
             _s["metadata_source"]  = self._meta_src_var.get()
             if hasattr(self, "_poster_ql_var"):
                 _s["poster_quality_level"] = self._poster_ql_var.get()
@@ -2009,7 +1990,7 @@ class SettingsDialog(tk.Toplevel):
             if hasattr(self, "_auto_fit_var"):
                 _s["auto_fit_columns"] = self._auto_fit_var.get()
             if hasattr(self, "_max_backup_mb_var"):
-                _s["max_backup_size_mb"] = self._max_backup_mb_var.get()
+                _s["max_backup_size_mb"] = max(0, self._num(self._max_backup_mb_var, 500))
             if hasattr(self, "_rating_apply_all_var"):                      ### NEW v0.15.0 ###
                 _s["rating_apply_all_movies"] = self._rating_apply_all_var.get()  ### NEW v0.15.0 ###
             if hasattr(self, "_rating_use_more_votes_var"):                 ### NEW v0.15.0 ###
@@ -2018,9 +1999,10 @@ class SettingsDialog(tk.Toplevel):
             # v0.18.2 — write back health rule variables         ### ADDED_BY_CLAUDE_v18.2 ###
             if hasattr(self, "_hr_vars"):
                 hr = _s.setdefault("health_rules", {})
+                _hrd = self._defaults.get("health_rules", {})
                 for k, v in self._hr_vars.items():      hr[k] = v.get()
-                for k, v in self._hr_int_vars.items():  hr[k] = v.get()
-                for k, v in self._hr_flt_vars.items():  hr[k] = round(v.get(), 2)
+                for k, v in self._hr_int_vars.items():  hr[k] = max(1, self._num(v, _hrd.get(k, 1)))
+                for k, v in self._hr_flt_vars.items():  hr[k] = round(max(0.0, self._num(v, float(_hrd.get(k, 0.0)))), 2)
                 for k, v in self._hr_str_vars.items():  hr[k] = v.get()
 
             raw_genres = self._genres_text.get("1.0", "end")
@@ -2059,10 +2041,26 @@ class SettingsDialog(tk.Toplevel):
         if parent_app and hasattr(parent_app, "_on_settings_changed"):
             parent_app.after(0, parent_app._on_settings_changed)
 
-        # v0.18.2 — two-track post-save scheduling              ### MODIFIED_BY_CLAUDE_v18.2 ###
-        # Track 1: health-rules-only → offer in-memory recalculation, no re-scan
-        if changed.get("health_rules") and parent_app and getattr(parent_app, "_results", None):
-            parent_app.after(0, lambda: self._offer_health_update(parent_app))
+        # Track 1: health rules changed → recompute health automatically, no
+        # prompt and no re-scan (Save & Apply).                 ### MODIFIED v0.18.4 ###
+        if changed.get("health_rules") and parent_app and hasattr(parent_app, "_apply_health_rules_inplace"):
+            def _apply_rules_now():
+                try:
+                    if getattr(parent_app, "_results", None):
+                        parent_app._apply_health_rules_inplace()
+                        try:
+                            parent_app._incremental_save(parent_app._results)
+                            parent_app._sb_action.configure(text="  Last: Health rules applied")
+                        except Exception:
+                            pass
+                    _lg = (ctx.logger if ctx else _logger)
+                    if _lg:
+                        _lg.info("Health rules changed — health status recomputed")
+                except Exception as e:
+                    _lg = (ctx.logger if ctx else _logger)
+                    if _lg:
+                        _lg.error(f"Applying health rules failed: {e}")
+            parent_app.after(0, _apply_rules_now)
 
         # Track 2: scan-relevant settings → offer re-scan
         _scan_relevant = any([

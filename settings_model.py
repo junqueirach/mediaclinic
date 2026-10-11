@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_model.py
 # Metadata & MediaClinic — Pure Data Model
-# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
+# Version: 0.18.4                                              ### MODIFIED v0.18.4 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -92,6 +92,9 @@ DEFAULT_SETTINGS = {
     "rating_use_more_votes":   False,    ### NEW v0.15.0 ###
     "column_widths":           {},       # ADDED_BY_CLAUDE_v18: persisted column widths keyed by column id
     "export_prefs":            {},       # NEW v0.18.3: last choices of the Export Movie List dialog
+    "scan_workers":            6,        # NEW v0.18.4: parallel folder/metadata/image workers (1-16)
+    "ffprobe_workers":         2,        # NEW v0.18.4: parallel ffprobe processes (1-8)
+    "hidden_columns":          [],       # NEW v0.18.4: column ids hidden via Tools → Choose Columns
     # v0.18.2 — Health Rules (configurable rule engine)        ### ADDED_BY_CLAUDE_v18.2 ###
     "health_rules": {
         # ── Group A: Critical Error Rules (default ON) ──────────────────────
@@ -118,6 +121,7 @@ DEFAULT_SETTINGS = {
         "multiple_video_files":            False,
         "imdb_id_partial":                 True,      ### NEW v0.18.3 — ID in one file only ###
         "tmdb_id_partial":                 True,      ### NEW v0.18.3 ###
+        "duplicate_movie":                 True,      ### NEW v0.18.4 — same ID or title+year elsewhere ###
         "missing_poster":                  True,
         "missing_fanart":                  True,
         "missing_folder":                  True,

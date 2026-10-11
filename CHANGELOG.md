@@ -2,6 +2,30 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py` and in *Help → Version History* inside the app.
 
+## v0.18.4 — 2026-10-11
+
+Faster scans on large and network libraries, new tools for finding problems in big catalogues, duplicate detection, and fixes for stale or incomplete health information.
+
+### Added
+- **Parallel scanning**: folders, metadata and images are read by several workers at once (*Settings → Tools*: `scan_workers`, default 6; `ffprobe_workers`, default 2), and each movie folder is listed only once per scan. This matters most on network shares.
+- **Quick Scan** now probes changed movies with FFprobe when the FFprobe box is ticked.
+- **Large-catalogue tools**: click the Errors or Warnings counter to filter the table, tick *Problems only*, filter by health reason, hide columns with *Tools → Choose Columns…*, and see *Tools → Library Statistics*.
+- **Duplicate detection**: new health rule `duplicate_movie` (same ID, or same title and year, in another folder) and a *Duplicate Movies Report* in the Tools menu.
+- **Copy poster.jpg → folder.jpg** where the two differ: right-click, for a selection, or for the whole library from the Tools menu. A backup is made first.
+- **Export**: new fields IMDB Link, TMDB Link, Outline and Plot, and a new **Identify** preset (name, year, IMDB link, TMDB link, outline) so the reader of the file can recognise each movie.
+- Kodi v17+ `<ratings>` blocks are read as well as the legacy flat rating tags.
+- *Tools → Recompute Health Status*.
+
+### Fixed
+- *Update (no FFprobe)* did not re-read external subtitle files, so the subtitle and *Lang OK?* columns could stay out of date.
+- Health status is recomputed whenever rows are loaded from the cache or a saved results file, so stale "title mismatch" reasons from v0.18.2 no longer appear.
+- The Health Status Report dropped the warnings of movies that also had errors; it now lists both.
+- Title comparison tolerates Unicode, HTML-entity and quote differences (for example `&amp;` against `&`, or curly against straight quotes).
+
+### Changed
+- Self-test `tests/selftest_v0_18_4.py` with 129 checks (was 98), run in CI under a virtual display.
+- The repository launcher `MediaClinic.bat` now starts `mediaclinic.py` from its own folder.
+
 ## v0.18.3 — 2026-10-09
 
 First release with a ready-to-run Windows build (`MediaClinic-0.18.3-win64.zip`). Export, faster scans, many corrected health messages, and about 1,900 lines of duplicated or dead code removed.
