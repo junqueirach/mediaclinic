@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_dialog.py
 # Metadata & MediaClinic — Settings UI Module
-# Version: 0.18.4                                              ### MODIFIED v0.18.4 ###
+# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
 # v0.18.4 — Tools tab: Parallel Scanning section (scan_workers / ffprobe_workers);
 #            Health Rules: duplicate_movie rule.
 #            Fix: Save/Cancel bar packed at the bottom FIRST so it can never be
@@ -322,6 +322,10 @@ class SettingsDialog(tk.Toplevel):
             if builder:
                 builder(nb, label)
 
+        # v0.19.0 — keep the Image Sizes combos and the Health Rules combos in
+        # step (one minimum-quality setting, two places to edit it).
+        self._bind_quality_mirrors()                            ### NEW v0.19.0 ###
+
         # ── Snapshot rescan-relevant settings on open        ### NEW v0.11.1 ###
         # Used by _save_close to detect whether a rescan should be offered.
         self._rescan_snapshot = self._take_rescan_snapshot()
@@ -329,6 +333,16 @@ class SettingsDialog(tk.Toplevel):
         # ── Jump to requested tab after UI is built ───────────────────────────
         self._nb = nb
         self.after(10, lambda: nb.select(min(self._initial_tab, len(nb.tabs()) - 1)))
+
+        # v0.19.0 — window size/position memory.  The hook is installed by the
+        # main script (SettingsDialog._remember_window_hook); the harness and
+        # any other host without it are unaffected.           ### NEW v0.19.0 ###
+        _hook = getattr(self, "_remember_window_hook", None)
+        if _hook:
+            try:
+                _hook(self, "SettingsDialog", True)
+            except Exception:
+                pass
 
     # ── Shared widget helpers ─────────────────────────────────────────────────
 
@@ -1016,10 +1030,12 @@ class SettingsDialog(tk.Toplevel):
 
         # ── Minimum Image Quality (Resolution-driven) ─────────────────────────
         self._section(f, "Minimum Image Quality (Resolution-driven)")
-        self._note(f,
+        self._note(f,                                             ### MODIFIED v0.19.0 ###
             "Choose the minimum acceptable quality for each image type.\n"
-            "Images below the selected tier are flagged as errors.\n"
-            "Tolerance: ±5% to account for compression and aspect variations.")
+            "Images below the selected tier are flagged as WARNINGS (Health Rules:\n"
+            "'Poster/folder quality below minimum' and 'Fanart quality below minimum').\n"
+            "These boxes and the Health Rules tab are the same setting; poster and folder\n"
+            "share one value.  Tolerance: ±5% for compression and aspect variations.")
 
         # ──────────── Poster / Folder ─────────────────────────────────────────
         tk.Label(f, text="POSTER / FOLDER  (2:3 portrait ratio)",
@@ -1047,8 +1063,9 @@ class SettingsDialog(tk.Toplevel):
         tk.Label(r1, text="Minimum quality — poster.jpg:",
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=36, anchor="w").pack(side="left")
+        _hr_now = self._s.get("health_rules") or {}                ### NEW v0.19.0 — Health Rules are authoritative ###
         self._poster_ql_var = tk.StringVar(
-            value=self._s.get("poster_quality_level", "1080p"))
+            value=_hr_now.get("poster_folder_quality_level") or self._s.get("poster_quality_level", "1080p"))
         ttk.Combobox(r1, textvariable=self._poster_ql_var,
                      values=poster_tiers, state="readonly",
                      width=18, font=("Helvetica", 10)).pack(side="left", padx=(8, 0))
@@ -1057,8 +1074,8 @@ class SettingsDialog(tk.Toplevel):
         tk.Label(r2, text="Minimum quality — folder.jpg:",
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=36, anchor="w").pack(side="left")
-        self._folder_ql_var = tk.StringVar(
-            value=self._s.get("folder_quality_level", "1080p"))
+        self._folder_ql_var = tk.StringVar(                         ### MODIFIED v0.19.0 — same value as poster ###
+            value=_hr_now.get("poster_folder_quality_level") or self._s.get("folder_quality_level", "1080p"))
         ttk.Combobox(r2, textvariable=self._folder_ql_var,
                      values=poster_tiers, state="readonly",
                      width=18, font=("Helvetica", 10)).pack(side="left", padx=(8, 0))
@@ -1090,8 +1107,8 @@ class SettingsDialog(tk.Toplevel):
         tk.Label(r3, text="Minimum quality — fanart.jpg:",
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=36, anchor="w").pack(side="left")
-        self._fanart_ql_var = tk.StringVar(
-            value=self._s.get("fanart_quality_level", "1080p"))
+        self._fanart_ql_var = tk.StringVar(                         ### MODIFIED v0.19.0 — mirrors Health Rules ###
+            value=_hr_now.get("fanart_quality_level_minimum") or self._s.get("fanart_quality_level", "1080p"))
         ttk.Combobox(r3, textvariable=self._fanart_ql_var,
                      values=fanart_tiers, state="readonly",
                      width=18, font=("Helvetica", 10)).pack(side="left", padx=(8, 0))
@@ -1101,8 +1118,8 @@ class SettingsDialog(tk.Toplevel):
         # ── Legacy KB minimums (kept for additional safety net) ───────────────
         self._section(f, "Legacy File Size Minimums (KB)")
         self._note(f,
-            "Secondary check — files below this size are flagged as errors.\n"
-            "Set to 0 to rely on resolution tiers only.")
+            "Secondary check — files below this size are flagged as WARNINGS\n"   ### MODIFIED v0.19.0 ###
+            "(Health Rule 'Image file below minimum size').  Set to 0 to skip.")
 
         def _sz_row(parent, label, varname, default):
             r = tk.Frame(parent, bg="#1e1e2e"); r.pack(anchor="w", padx=24, pady=2)
@@ -1119,6 +1136,37 @@ class SettingsDialog(tk.Toplevel):
         _sz_row(f, "poster.jpg minimum size:", "min_poster_kb", 100)
         _sz_row(f, "folder.jpg minimum size:", "min_folder_kb", 100)
         _sz_row(f, "fanart.jpg minimum size:", "min_fanart_kb", 200)
+
+    def _bind_quality_mirrors(self):                               ### NEW v0.19.0 ###
+        """One minimum-quality setting shown in two tabs: the Image Sizes
+        combos (_poster_ql_var, _folder_ql_var, _fanart_ql_var) and the Health
+        Rules combos (_hr_str_vars['poster_folder_quality_level'] /
+        ['fanart_quality_level_minimum']).  Any change is copied to the others;
+        the equality guard prevents trace recursion."""
+        hr = getattr(self, "_hr_str_vars", {})
+        groups = [
+            [v for v in (getattr(self, "_poster_ql_var", None),
+                         getattr(self, "_folder_ql_var", None),
+                         hr.get("poster_folder_quality_level")) if v is not None],
+            [v for v in (getattr(self, "_fanart_ql_var", None),
+                         hr.get("fanart_quality_level_minimum")) if v is not None],
+        ]
+        for group in groups:
+            if len(group) < 2:
+                continue
+            master = group[-1].get() if group[-1].get() else group[0].get()
+            for v in group:
+                if v.get() != master:
+                    v.set(master)
+            def _make(src, others):
+                def _sync(*_):
+                    val = src.get()
+                    for o in others:
+                        if o.get() != val:
+                            o.set(val)
+                return _sync
+            for v in group:
+                v.trace_add("write", _make(v, [o for o in group if o is not v]))
 
     def _update_proportion_text(self, *_):
         """Update the dynamic proportion description based on both toggles.
@@ -1569,6 +1617,8 @@ class SettingsDialog(tk.Toplevel):
         _check_combo_row("fanart_quality_minimum", "fanart_quality_level_minimum",
                          "Fanart quality below minimum:",
                          FANART_QUALITY_LEVELS, "1080p", combo_width=10)
+        _check_row("image_file_too_small",   "Image file below minimum size (KB limits from the Image Sizes tab)")   # NEW v0.19.0
+        _check_row("image_format_mismatch",  "Image format differs from its extension (e.g. a PNG named poster.jpg)")  # NEW v0.19.0
         _check_row("poster_folder_identical",  "Poster and folder image are different (different sizes)")
         _check_spin_int_row("insufficient_backdrops", "backdrop_min_count",
                             "Backdrop images below minimum:", 5, 1, 50, width=4)
@@ -2004,6 +2054,12 @@ class SettingsDialog(tk.Toplevel):
                 for k, v in self._hr_int_vars.items():  hr[k] = max(1, self._num(v, _hrd.get(k, 1)))
                 for k, v in self._hr_flt_vars.items():  hr[k] = round(max(0.0, self._num(v, float(_hrd.get(k, 0.0)))), 2)
                 for k, v in self._hr_str_vars.items():  hr[k] = v.get()
+                # v0.19.0 — Image Sizes quality keys are mirrors of the Health
+                # Rules values (one authoritative source).   ### NEW v0.19.0 ###
+                _s["poster_quality_level"] = _s["folder_quality_level"] = \
+                    hr.get("poster_folder_quality_level") or _s.get("poster_quality_level", "1080p")
+                _s["fanart_quality_level"] = \
+                    hr.get("fanart_quality_level_minimum") or _s.get("fanart_quality_level", "1080p")
 
             raw_genres = self._genres_text.get("1.0", "end")
             _s["genre_list"] = "\n".join(
@@ -2043,7 +2099,11 @@ class SettingsDialog(tk.Toplevel):
 
         # Track 1: health rules changed → recompute health automatically, no
         # prompt and no re-scan (Save & Apply).                 ### MODIFIED v0.18.4 ###
-        if changed.get("health_rules") and parent_app and hasattr(parent_app, "_apply_health_rules_inplace"):
+        # v0.19.0: Image Sizes changes (quality tiers, KB minimums, proportion
+        # toggles) are re-evaluated in place from the cached image facts, so
+        # they follow the same track as the health rules and need no rescan.
+        if ((changed.get("health_rules") or changed.get("image_sizes"))        ### MODIFIED v0.19.0 ###
+                and parent_app and hasattr(parent_app, "_apply_health_rules_inplace")):
             def _apply_rules_now():
                 try:
                     if getattr(parent_app, "_results", None):
@@ -2064,14 +2124,13 @@ class SettingsDialog(tk.Toplevel):
 
         # Track 2: scan-relevant settings → offer re-scan
         _scan_relevant = any([
-            changed.get("image_sizes"),
-            changed.get("language"),
+            changed.get("language"),                                ### MODIFIED v0.19.0 — image_sizes handled in place ###
             changed.get("genres"),
             changed.get("tags"),
         ])
         if _scan_relevant and parent_app:
             parent_app.after(0, lambda: self._offer_rescan(parent_app))
-        elif not _scan_relevant and not changed.get("health_rules"):
+        elif not _scan_relevant and not changed.get("health_rules") and not changed.get("image_sizes"):
             _log = (ctx.logger if ctx else _logger)
             if _log:
                 _log.info("Settings saved; no rescan-relevant changes — no prompt offered.")

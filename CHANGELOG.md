@@ -2,6 +2,30 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py` and in *Help → Version History* inside the app.
 
+## v0.19.0 — 2026-10-13
+
+Several libraries in one table, online checks of IMDb/TMDb IDs, an Auto Repair tool, and a clearer image status. Published as source only; the next Windows build comes with v0.19.1.
+
+### Added
+- **Several library folders**: *Libraries…* dialog, a library filter next to *Browse…* (it also limits Full and Quick Scan), one combined table with an optional *Library* column, duplicate detection across libraries, and a *Library* export field. A library that cannot be reached keeps its cached rows, is skipped by scans and shown as offline. The old single folder setting is migrated.
+- **Verify IMDb/TMDb IDs** (*Tools → All Movies*, or right-click one movie or a selection): looks each film up on TMDb and compares title (any TMDb title or translation, accent-insensitive) and year (±1). Results (OK, different films, another film, not found, NFO/XML disagree, no IDs) appear in a sortable report you can save as .txt or .csv; the result is kept on the row and shown in the Source tooltip. Requests are limited to 40 per 10 seconds.
+- **Auto Repair** (right-click, or *Tools → All Movies* with a dry-run preview): IDs (exact title and year applied automatically, otherwise a chooser with thumbnails), conflicting and partial IDs, ratings, genre normalisation (custom genres kept), genres and year from a verified TMDb ID, NFO/XML title copy and the XML language tag. Artwork is never touched. A backup is made before the first write, and a per-movie summary (fixed, skipped, still failing) can be saved.
+- Health rules `image_file_too_small` and `image_format_mismatch`.
+- *Apply this choice to all remaining movies* in the custom-genre dialog and *Skip all remaining* in the Normalize Sources ID dialog.
+- Window size and position are remembered for the main window (including maximised), every dialog and Settings, and kept on the visible screen.
+- Rows refresh automatically after every change, in the background and once per batch. Metadata and artwork changes refresh without FFprobe.
+
+### Fixed
+- Images below the minimum resolution or file size were reported as corrupt. The image status now separates missing, corrupt (cannot be decoded), too small, wrong proportions and wrong format for the extension; the format is detected from the file contents.
+- One minimum image quality setting is used everywhere; cached rows are re-evaluated on load.
+- Sync Ratings: the zero-votes choice can be applied to all remaining movies in the run, the primary source always wins where it has a valid value, *Type Values + Apply to all* no longer skips the remaining movies, and 0.0 / 0 is never written.
+- Every NFO/XML write is atomic (temporary file, then replace), and missing tags are inserted before the real closing tag (a `movie.xml` with a `<Title>` root was damaged by the v0.18.x ID writer).
+- *Normalize Genres* and *Delete extrafanart* now refresh the affected rows.
+
+### Changed
+- Self-test `tests/selftest_v0_19_0.py` with about 285 checks (was 129), run in CI under a virtual display. The maximised-window check runs on Windows only, because Tk on Linux has no "zoomed" state.
+- Background dialogs use one event-based helper instead of polling.
+
 ## v0.18.4 — 2026-10-11
 
 Faster scans on large and network libraries, new tools for finding problems in big catalogues, duplicate detection, and fixes for stale or incomplete health information.

@@ -1,7 +1,7 @@
 # =============================================================================
 # export_list.py
 # Metadata & MediaClinic — Movie List Export (pure logic, no tkinter)
-# Version: 0.18.4                                              ### MODIFIED v0.18.4 — links, outline, plot ###
+# Version: 0.19.0                                              ### MODIFIED v0.19.0 — Library field ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -149,6 +149,7 @@ EXPORT_FIELDS = [
     ("subtitles",     "Subtitles",      lambda r: "" if r.get("subs_summary", "—") == "—" else r.get("subs_summary", "")),
     ("health",        "Health",         lambda r: (r.get("health_status") or "").capitalize()),
     ("health_reasons","Health Reasons", lambda r: "; ".join(r.get("health_reasons", []) or [])),
+    ("library",       "Library",        lambda r: r.get("library_root") or os.path.dirname(r.get("subfolder_path", "") or "")),   # v0.19.0
     ("folder_name",   "Folder Name",    lambda r: r.get("subfolder", "")),
     ("path",          "Path",           lambda r: r.get("subfolder_path", "")),
 ]

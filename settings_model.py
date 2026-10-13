@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_model.py
 # Metadata & MediaClinic — Pure Data Model
-# Version: 0.18.4                                              ### MODIFIED v0.18.4 ###
+# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -94,7 +94,10 @@ DEFAULT_SETTINGS = {
     "export_prefs":            {},       # NEW v0.18.3: last choices of the Export Movie List dialog
     "scan_workers":            6,        # NEW v0.18.4: parallel folder/metadata/image workers (1-16)
     "ffprobe_workers":         2,        # NEW v0.18.4: parallel ffprobe processes (1-8)
-    "hidden_columns":          [],       # NEW v0.18.4: column ids hidden via Tools → Choose Columns
+    "hidden_columns":          ["library"],  # NEW v0.18.4: column ids hidden via Tools → Choose Columns (v0.19.0: Library hidden by default)
+    "library_folders":         [],       # NEW v0.19.0: library (root) folders; migrated from last_folder
+    "library_filter":          "",       # NEW v0.19.0: "" = all libraries, else one root shown/scanned
+    "window_geometry":         {},       # NEW v0.19.0: {window_id: {"geometry": "WxH+X+Y", "zoomed": bool}}
     # v0.18.2 — Health Rules (configurable rule engine)        ### ADDED_BY_CLAUDE_v18.2 ###
     "health_rules": {
         # ── Group A: Critical Error Rules (default ON) ──────────────────────
@@ -132,6 +135,8 @@ DEFAULT_SETTINGS = {
         "poster_folder_quality_level":     "1080p",
         "fanart_quality_minimum":          True,
         "fanart_quality_level_minimum":    "1080p",
+        "image_file_too_small":            True,      ### NEW v0.19.0 — below min_*_kb (warning) ###
+        "image_format_mismatch":           True,      ### NEW v0.19.0 — e.g. PNG named .jpg (warning) ###
         "poster_folder_identical":         True,
         "insufficient_backdrops":          True,
         "backdrop_min_count":              5,

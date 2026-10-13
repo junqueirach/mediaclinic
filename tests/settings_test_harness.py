@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_test_harness.py
 # Metadata & MediaClinic — Settings Subsystem Test Harness
-# Version: 0.14.0
+# Version: 0.19.0  (12 tabs; T09 pumps a real mainloop)
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -248,10 +248,17 @@ def run_all():
 
     try:
         run_async(_fake_work, callback=_fake_callback, root=root)
-        deadline = time.time() + 2.0
-        while not _async_done.is_set() and time.time() < deadline:
-            root.update()
-            time.sleep(0.01)
+        # v0.19.0: worker threads may only call root.after() while the main
+        # thread is inside mainloop() (tkinter raises "main thread is not in
+        # main loop" otherwise), so pump a real mainloop for up to 2 s.
+        def _poll():
+            if _async_done.is_set() or time.time() > _deadline:
+                root.quit()
+            else:
+                root.after(10, _poll)
+        _deadline = time.time() + 2.0
+        root.after(10, _poll)
+        root.mainloop()
         _check("T09 run_async delivers callback with correct value",
                _async_result == [42],
                f"got {_async_result}")

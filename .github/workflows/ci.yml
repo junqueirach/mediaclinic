@@ -23,4 +23,4 @@ jobs:
       - name: Run tests
         run: python -m pytest tests -v
       - name: Run end-to-end self-test (virtual display)
-        run: xvfb-run -a python tests/selftest_v0_18_4.py
+        run: xvfb-run -a python tests/selftest_v0_19_0.py

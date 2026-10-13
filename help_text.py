@@ -1,7 +1,7 @@
 # =============================================================================
 # help_text.py
 # Metadata & MediaClinic — Help tab contents (pure text)
-# Version: 0.18.4                                              ### MODIFIED v0.18.4 ###
+# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # The Help dialog in the main script renders these strings.  Moved out of the
@@ -171,7 +171,13 @@ IMAGE QUALITY TIERS
     4K 3840×2160 · 1440p 2560×1440 · 1080p 1920×1080 · 720p 1280×720
     540p 960×540 · 480p 854×480 · 360p 640×360 (floor)
 
-  ±5% tolerance. Minimum tiers are set in Settings → Image Sizes.
+  ±5% tolerance. The minimum tier is ONE setting shown in both
+  Settings → Health Rules and Settings → Image Sizes (poster and
+  folder share it). Images below it are warnings, never "corrupt".
+  "Corrupt" (✕) means the file cannot be decoded: no JPEG/PNG
+  signature, truncated data or 0 bytes. The format is detected from
+  the file content, so a PNG named poster.jpg is still read; it gets
+  the warning "extension mismatch" instead.
 
 {SEP}
 COLUMN WIDTHS
@@ -419,8 +425,10 @@ IMPROVEMENTS
   maximum sizes (also used by the "too large" health rule).
 
 IMAGE SIZES
-  Minimum quality tier per image type, 3:4 and 16:8 acceptance,
-  legacy minimum file sizes in KB.
+  Minimum quality tier (same value as Health Rules), 3:4 and 16:8
+  acceptance, minimum file sizes in KB (health rule "Image file
+  below minimum size"). Since v0.19.0 these changes are applied to
+  the table at once, without a rescan.
 
 RATINGS
   Defaults for the two batch checkboxes of the Ratings Sync popup.
@@ -448,9 +456,9 @@ BACKUP
   unlimited) and a button to delete all backups.
 
 SAVE & APPLY
-  Writes settings.json. Changes to Image Sizes, Language, Genres or
-  NFO/XML tags offer an Update Scan (with or without FFprobe);
-  health rule changes are applied to the table at once. The
+  Writes settings.json. Changes to Language, Genres or NFO/XML tags
+  offer an Update Scan (with or without FFprobe); health rule and
+  Image Sizes changes are applied to the table at once. The
   Save & Apply / Cancel buttons are always visible at the bottom;
   long tabs scroll with the mouse wheel. A blank numeric field is
   saved as its default value.
@@ -523,6 +531,55 @@ CREDITS
 TAB_VERSION = f"""{SEP}
   Version History  —  Metadata & MediaClinic
 {SEP}
+
+  v0.19.0 - FIX: false "Corrupt poster/fanart/folder image" for images
+                 that were only below the minimum resolution or size;
+                 "corrupt" now means "cannot be decoded" (signature,
+                 end marker, Pillow confirmation). Size, resolution,
+                 proportions and extension mismatch are separate
+                 warnings. One minimum-quality setting (Health Rules;
+                 Image Sizes mirrors it). Cached rows re-evaluated on
+                 load, so stale "corrupt" flags disappear.
+             NEW: health rules "Image file below minimum size" and
+                 "Image format mismatch" (PNG named .jpg is read).
+             FIX: Sync Ratings remembers the zero-votes fallback
+                 ("Apply this choice to all remaining movies with zero
+                 votes and no rating"); the primary choice wins wherever a
+                 source is valid; typed values + "apply to all" no longer
+                 skip the remaining movies; 0.0 / 0 is never written.
+             NEW: "Apply to all remaining" in the custom-genre dialog and
+                 "Skip all remaining" when typing missing IDs.
+             NEW: every window remembers its size and position (the main
+                 window also whether it was maximised); dialogs that cannot
+                 be resized remember their position. Windows that would
+                 land off-screen are moved back onto the desktop.
+             NEW: Verify IMDb/TMDb IDs (Tools and right-click): checks that
+                 the IDs in NFO/XML belong to the movie (title in any
+                 language or alternative title, year ±1) and classifies each
+                 movie: OK / IMDb and TMDb point to different films / ID
+                 belongs to another film / ID does not exist / NFO and XML
+                 disagree / no IDs. Sortable report, Save, Fix…; nothing is
+                 written until you choose to fix.
+             NEW: Auto Repair (right-click and Tools → All Movies, with a
+                 dry-run preview): applies every safe fix — IDs (exact
+                 title + year automatically, otherwise a chooser with poster
+                 thumbnails), ratings, genres, year and genres from a
+                 verified TMDb ID, title copy, XML Language. Never touches
+                 poster/folder/fanart/backdrops. Backup first, atomic
+                 writes, per-movie summary (fixed / skipped / still failing).
+             FIX: a missing ID tag is now inserted inside the XML root
+                 (movie.xml files with a <Title> root were made invalid).
+             NEW: rows refresh automatically after every repair, sync,
+                 normalize, fetch, extract, delete or Auto Repair (no
+                 manual Update needed). These refreshes do not run FFprobe
+                 and keep the audio/quality data; a batch tool refreshes
+                 once at the end.
+             NEW: several library folders: Libraries… button (add, remove,
+                 reorder) and a library filter next to Browse… that sets
+                 what the table shows and what Full / Quick Scan cover.
+                 One combined table; Library column (Tools → Choose
+                 Columns); duplicates found across libraries; a library
+                 that is offline keeps its last scan; Library export field.
 
   v0.18.4 - FIX: Update (no FFprobe) re-reads external subtitles.
              FIX: cached health reasons recomputed on startup / open

@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_controller.py
 # Metadata & MediaClinic — Settings Business Logic
-# Version: 0.18.3                                              ### MODIFIED v0.18.3 ###
+# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -102,13 +102,49 @@ def load_settings():
                     d.update(data[sub])
                     data[sub] = d
             merged.update(data)
+            # v0.19.0 — first run after the upgrade: the single root folder
+            # becomes the first library; the new Library column starts hidden.
+            if "library_folders" not in data:                     ### NEW v0.19.0 ###
+                lf = (data.get("last_folder") or "").strip()
+                merged["library_folders"] = [lf] if lf else []
+                hc = list(merged.get("hidden_columns") or [])
+                if "library" not in hc:
+                    hc.append("library")
+                merged["hidden_columns"] = hc
             for qkey in ("poster_quality_level", "folder_quality_level",
                          "fanart_quality_level"):
                 if merged.get(qkey) in _LEGACY_QUALITY_MAP:
                     merged[qkey] = _LEGACY_QUALITY_MAP[merged[qkey]]
     except Exception:
         pass
+    sync_quality_mirrors(merged)                                 ### NEW v0.19.0 ###
     return merged
+
+
+def sync_quality_mirrors(settings):
+    """
+    v0.19.0: the minimum image quality has ONE authoritative source — the
+    Health Rules keys (poster_folder_quality_level, fanart_quality_level_minimum).
+    The older Image Sizes keys (poster_quality_level, folder_quality_level,
+    fanart_quality_level) are kept in settings.json for compatibility and are
+    rewritten here to mirror the Health Rules values.  Returns True when a
+    mirror was changed.                                          ### NEW v0.19.0 ###
+    """
+    try:
+        hr = settings.get("health_rules")
+        if not isinstance(hr, dict):
+            return False
+        pf = hr.get("poster_folder_quality_level") or "1080p"
+        fa = hr.get("fanart_quality_level_minimum") or "1080p"
+        changed = False
+        for key, val in (("poster_quality_level", pf), ("folder_quality_level", pf),
+                         ("fanart_quality_level", fa)):
+            if settings.get(key) != val:
+                settings[key] = val
+                changed = True
+        return changed
+    except Exception:
+        return False
 
 
 def save_settings(settings):

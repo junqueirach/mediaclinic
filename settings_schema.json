@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mediaclinic-settings-v0.18.4",
+  "$id": "mediaclinic-settings-v0.19.0",
   "title": "MediaClinic Settings",
   "description": "Schema for settings.json written by mediaclinic/settings_controller.py",
   "type": "object",
@@ -9,7 +9,8 @@
     "ffmpeg_path":           { "type": "string", "default": "" },
     "text_editor":           { "type": "string", "default": "" },
     "scraper_path":          { "type": "string", "default": "" },
-    "last_folder":           { "type": "string", "default": "" },
+    "last_folder":           { "type": "string", "default": "",
+                               "description": "First library folder (kept for compatibility with v0.18.x)" },
     "last_results":          { "type": "array",  "default": [],
                                "description": "Deprecated since v0.18.3 — scan results now live in last_results.json next to this file; key kept empty for compatibility" },
     "sort_option":           {
@@ -70,16 +71,19 @@
     "alternating_rows":      { "type": "boolean", "default": true },
     "show_header_tips":      { "type": "boolean", "default": true },
     "poster_quality_level": {
+      "description": "Mirror of health_rules.poster_folder_quality_level since v0.19.0 (Health Rules are authoritative)",
       "type": "string",
       "enum": ["4K", "1440p", "1080p", "720p", "540p", "480p", "360p"],
       "default": "1080p"
     },
     "folder_quality_level": {
+      "description": "Mirror of health_rules.poster_folder_quality_level since v0.19.0",
       "type": "string",
       "enum": ["4K", "1440p", "1080p", "720p", "540p", "480p", "360p"],
       "default": "1080p"
     },
     "fanart_quality_level": {
+      "description": "Mirror of health_rules.fanart_quality_level_minimum since v0.19.0",
       "type": "string",
       "enum": ["4K", "1440p", "1080p", "720p", "540p", "480p", "360p"],
       "default": "1080p"
@@ -110,8 +114,24 @@
                                "description": "Parallel workers for listing, image and metadata phases (v0.18.4)" },
     "ffprobe_workers":       { "type": "integer", "minimum": 1, "maximum": 8,  "default": 2,
                                "description": "Parallel ffprobe processes during video phases (v0.18.4)" },
-    "hidden_columns":        { "type": "array", "default": [], "items": { "type": "string" },
-                               "description": "Column ids hidden via Tools → Choose Columns (v0.18.4)" },
+    "hidden_columns":        { "type": "array", "default": ["library"], "items": { "type": "string" },
+                               "description": "Column ids hidden via Tools → Choose Columns (v0.18.4); the Library column is hidden by default (v0.19.0)" },
+    "library_folders":       { "type": "array", "default": [], "items": { "type": "string" },
+                               "description": "Library (root) folders, scanned into one table; migrated from last_folder on the first v0.19.0 run (v0.19.0)" },
+    "library_filter":        { "type": "string", "default": "",
+                               "description": "Library shown and scanned; empty = all libraries (v0.19.0)" },
+    "window_geometry": {
+      "type": "object",
+      "default": {},
+      "description": "Saved size/position per window id (class name, plus a suffix for shared classes such as TextReportDialog:<stem>) (v0.19.0)",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "geometry": { "type": "string", "pattern": "^[0-9]+x[0-9]+[+-][0-9]+[+-][0-9]+$" },
+          "zoomed":   { "type": "boolean", "default": false }
+        }
+      }
+    },
     "export_prefs": {
       "type": "object",
       "default": {},
@@ -157,6 +177,10 @@
         "poster_folder_quality_level":     { "type": "string",  "default": "1080p" },
         "fanart_quality_minimum":          { "type": "boolean", "default": true },
         "fanart_quality_level_minimum":    { "type": "string",  "default": "1080p" },
+        "image_file_too_small":            { "type": "boolean", "default": true,
+                                             "description": "Warning when poster/folder/fanart is below min_*_kb (v0.19.0)" },
+        "image_format_mismatch":           { "type": "boolean", "default": true,
+                                             "description": "Warning when the image signature differs from the extension, e.g. PNG named .jpg (v0.19.0)" },
         "poster_folder_identical":         { "type": "boolean", "default": true },
         "insufficient_backdrops":          { "type": "boolean", "default": true },
         "backdrop_min_count":              { "type": "integer", "minimum": 1, "default": 5 },
