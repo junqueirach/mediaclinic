@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_controller.py
 # Metadata & MediaClinic — Settings Business Logic
-# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
+# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -36,6 +36,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading                                                 ### NEW v0.19.1 I1 ###
 import time
 import webbrowser
 
@@ -66,6 +67,57 @@ def get_config_dir():
 
 CONFIG_PATH        = os.path.join(get_config_dir(), "settings.json")
 RESULTS_CACHE_PATH = os.path.join(get_config_dir(), "last_results.json")   ### NEW v0.18.3 ###
+FFPROBE_CACHE_PATH = os.path.join(get_config_dir(), "ffprobe_cache.json")  ### NEW v0.19.1 I5 ###
+
+
+def load_ffprobe_cache():                                       ### NEW v0.19.1 I5 ###
+    """{normcase path: {"size", "mtime_ns", "data"}} — {} when missing or
+    corrupt (a broken cache is simply ignored and rebuilt)."""
+    try:
+        with open(FFPROBE_CACHE_PATH, "r", encoding="utf-8") as f:
+            c = json.load(f)
+        if isinstance(c, dict):
+            return {k: v for k, v in c.items()
+                    if isinstance(v, dict) and "size" in v and "mtime_ns" in v and isinstance(v.get("data"), dict)}
+    except Exception:
+        pass
+    return {}
+
+
+def save_ffprobe_cache(cache):                                  ### NEW v0.19.1 I5 ###
+    """Atomic write (temp file + replace).  Worker threads only."""
+    tmp = FFPROBE_CACHE_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cache, f, ensure_ascii=False, separators=(",", ":"))
+    os.replace(tmp, FFPROBE_CACHE_PATH)
+
+FANARTTV_CACHE_PATH = os.path.join(get_config_dir(), "fanarttv_cache.json")  ### NEW v0.19.1 I10 ###
+FANARTTV_CACHE_DAYS = 7
+
+
+def load_fanarttv_cache():                                      ### NEW v0.19.1 I10 ###
+    """{"tmdb:603" | "imdb:tt…": {"t": epoch, "data": {...}}} — {} when
+    missing or corrupt.  Holds fanart.tv answers only, never a key."""
+    try:
+        with open(FANARTTV_CACHE_PATH, "r", encoding="utf-8") as f:
+            c = json.load(f)
+        if isinstance(c, dict):
+            return {k: v for k, v in c.items()
+                    if isinstance(v, dict) and isinstance(v.get("t"), (int, float)) and isinstance(v.get("data"), dict)}
+    except Exception:
+        pass
+    return {}
+
+
+def save_fanarttv_cache(cache):                                 ### NEW v0.19.1 I10 ###
+    """Atomic write; entries older than FANARTTV_CACHE_DAYS are dropped."""
+    import time as _t
+    limit = _t.time() - FANARTTV_CACHE_DAYS * 86400
+    keep = {k: v for k, v in cache.items() if v.get("t", 0) >= limit}
+    tmp = FANARTTV_CACHE_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(keep, f, ensure_ascii=False, separators=(",", ":"))
+    os.replace(tmp, FANARTTV_CACHE_PATH)
 
 # Legacy quality tier name migration (v0.16.1) — single copy lives here now.
 _LEGACY_QUALITY_MAP = {                                          ### MOVED v0.18.3 ###
@@ -106,11 +158,17 @@ def load_settings():
             # becomes the first library; the new Library column starts hidden.
             if "library_folders" not in data:                     ### NEW v0.19.0 ###
                 lf = (data.get("last_folder") or "").strip()
-                merged["library_folders"] = [lf] if lf else []
+                merged["library_folders"] = [os.path.normpath(lf)] if lf else []   ### normpath v0.19.1 ###
                 hc = list(merged.get("hidden_columns") or [])
                 if "library" not in hc:
                     hc.append("library")
                 merged["hidden_columns"] = hc
+            # v0.19.1 — library paths are stored Windows-style (z:/x → z:\\x)  ### NEW v0.19.1 ###
+            if isinstance(merged.get("library_folders"), list):
+                merged["library_folders"] = [os.path.normpath(x.strip()) for x in merged["library_folders"]
+                                             if isinstance(x, str) and x.strip()]
+            if isinstance(merged.get("library_filter"), str) and merged["library_filter"].strip():
+                merged["library_filter"] = os.path.normpath(merged["library_filter"].strip())
             for qkey in ("poster_quality_level", "folder_quality_level",
                          "fanart_quality_level"):
                 if merged.get(qkey) in _LEGACY_QUALITY_MAP:
@@ -412,6 +470,187 @@ def _make_backup_folder_path(backup_root, name, fallback="unknown"):
     return folder
 
 
+# ── v0.19.1 I1: backup manifest + restore ("Undo the last batch") ────────────
+# Every backup folder gets a manifest.json:
+#   {"version": 1, "created": "YYYY-MM-DD HH:MM:SS", "action": "Ratings Sync",
+#    "run_id": "...", "files": [{"original": abs path, "backup": name in the
+#    folder, "size", "mtime",                 (the original BEFORE the change)
+#    "after_size", "after_mtime"}]}           (the file as the run left it)
+# The action label comes from a thread-local context (backup_action), so the
+# backup functions keep their signatures.  "after_*" is filled by
+# note_written(paths), which the app calls from _schedule_refresh after every
+# change; Backup History uses it to warn about files changed since the run.
+MANIFEST_NAME = "manifest.json"
+_BK_CTX = threading.local()
+_MF_LOCK = threading.RLock()
+_OPEN_MANIFESTS = {}          # backup folder -> manifest dict (this session)
+_RUN_SEQ = [0]
+
+
+class backup_action:                                            ### NEW v0.19.1 I1 ###
+    """with backup_action("Ratings Sync"): …  — labels the backups made in
+    this thread (one run id per with-block)."""
+    def __init__(self, action):
+        self.action = action
+
+    def __enter__(self):
+        self._prev = (getattr(_BK_CTX, "action", None), getattr(_BK_CTX, "run_id", None))
+        _RUN_SEQ[0] += 1
+        _BK_CTX.action = self.action
+        _BK_CTX.run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{_RUN_SEQ[0]}"
+        return self
+
+    def __exit__(self, *exc):
+        _BK_CTX.action, _BK_CTX.run_id = self._prev
+        return False
+
+
+def current_backup_action():                                    ### NEW v0.19.1 I1 ###
+    return getattr(_BK_CTX, "action", None) or "Edit"
+
+
+def read_manifest(folder):                                      ### NEW v0.19.1 I1 ###
+    try:
+        with open(os.path.join(folder, MANIFEST_NAME), "r", encoding="utf-8") as f:
+            m = json.load(f)
+        return m if isinstance(m, dict) and isinstance(m.get("files"), list) else None
+    except Exception:
+        return None
+
+
+def _write_manifest(folder, m):
+    tmp = os.path.join(folder, MANIFEST_NAME + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(m, f, indent=1, ensure_ascii=False)
+    os.replace(tmp, os.path.join(folder, MANIFEST_NAME))
+
+
+def _manifest_add(folder, original, backup_path, logger=None):  ### NEW v0.19.1 I1 ###
+    """Record one backed-up file; the FIRST backup of an original in a folder
+    is its pre-run state, later ones are not listed again."""
+    try:
+        with _MF_LOCK:
+            m = _OPEN_MANIFESTS.get(folder) or read_manifest(folder) or {
+                "version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "action": current_backup_action(),
+                "run_id": getattr(_BK_CTX, "run_id", None) or os.path.basename(folder),
+                "files": []}
+            orig = os.path.abspath(original)
+            if any(os.path.normcase(f["original"]) == os.path.normcase(orig) for f in m["files"]):
+                return
+            st = os.stat(backup_path)
+            m["files"].append({"original": orig, "backup": os.path.basename(backup_path),
+                               "size": st.st_size, "mtime": st.st_mtime})
+            _write_manifest(folder, m)
+            _OPEN_MANIFESTS[folder] = m
+    except Exception as e:
+        if logger:
+            logger.warning(f"Backup manifest not written in {folder}: {e}")
+
+
+def note_written(paths):                                        ### NEW v0.19.1 I1 ###
+    """After a change: remember how the run left every backed-up file under
+    *paths* (files or movie folders) — size + mtime — so a later restore can
+    warn when the file was changed again afterwards."""
+    if not paths:
+        return
+    roots = [os.path.normcase(os.path.abspath(p)).rstrip("\\/") for p in paths if p]
+    with _MF_LOCK:
+        for folder, m in list(_OPEN_MANIFESTS.items()):
+            changed = False
+            for f in m["files"]:
+                o = os.path.normcase(f["original"])
+                if any(o == r or o.startswith(r + os.sep) for r in roots) and os.path.isfile(f["original"]):
+                    st = os.stat(f["original"])
+                    if f.get("after_mtime") != st.st_mtime or f.get("after_size") != st.st_size:
+                        f["after_mtime"], f["after_size"] = st.st_mtime, st.st_size
+                        changed = True
+            if changed:
+                try:
+                    _write_manifest(folder, m)
+                except Exception:
+                    pass
+
+
+def file_changed_since_run(entry):                              ### NEW v0.19.1 I1 ###
+    """True / False / None (unknown: the run's result was never recorded)."""
+    if "after_mtime" not in entry:
+        return None
+    try:
+        st = os.stat(entry["original"])
+    except OSError:
+        return True
+    return abs(st.st_mtime - entry["after_mtime"]) > 0.001 or st.st_size != entry.get("after_size")
+
+
+def list_backup_runs(backup_root):                              ### NEW v0.19.1 I1 ###
+    """All backup folders, newest first: {folder, name, created, action,
+    run_id, files, movies, legacy}.  Folders made before v0.19.1 have no
+    manifest → legacy (manual restore only).  Worker threads only."""
+    runs = []
+    try:
+        entries = [e for e in os.scandir(backup_root) if e.is_dir() and e.name.startswith("backup_")]
+    except OSError:
+        return runs
+    for e in entries:
+        m = read_manifest(e.path)
+        if m:
+            files = m["files"]
+            runs.append({"folder": e.path, "name": e.name, "created": m.get("created", ""),
+                         "action": m.get("action", "Edit"), "run_id": m.get("run_id", e.name),
+                         "files": files, "legacy": False,
+                         "movies": len({os.path.dirname(f["original"]) for f in files})})
+        else:
+            try:
+                n = sum(1 for _ in os.scandir(e.path))
+                mt = re.search(r"_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})(?:_\d+)?$", e.name)
+                created = (f"{mt.group(1)} {mt.group(2)}:{mt.group(3)}:{mt.group(4)}" if mt   # the folder name has the date
+                           else time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(e.stat().st_mtime)))
+            except OSError:
+                n, created = 0, ""
+            runs.append({"folder": e.path, "name": e.name, "created": created, "action": "—",
+                         "run_id": e.name, "files": [], "legacy": True, "movies": 0, "n_files": n})
+    runs.sort(key=lambda r: (r["created"], r["name"]), reverse=True)
+    return runs
+
+
+def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.19.1 I1 ###
+    """Copy the files of one backup run back to where they came from.
+    First the CURRENT files are backed up (action "Before undo — …"), so the
+    undo can itself be undone.  Each file is written atomically (temp file in
+    the same folder + os.replace).  *skip* = originals to leave alone.
+    Returns (restored_paths, errors, safety_folder)."""
+    m = read_manifest(folder)
+    if not m:
+        return [], ["No manifest — this backup can only be restored by hand."], None
+    todo = [f for f in m["files"] if f["original"] not in set(skip)]
+    ref = [None]
+    with backup_action(f"Before undo — {m.get('action', 'Edit')} ({m.get('created', '')})"):
+        for f in todo:
+            if os.path.isfile(f["original"]):
+                make_batch_backup(backup_root, "before_undo", ref, f["original"], logger=logger)
+    restored, errors = [], []
+    for f in todo:
+        src = os.path.join(folder, f["backup"])
+        dst = f["original"]
+        tmp = dst + ".mcrestore"
+        try:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(src, tmp)           # copyfile: the restored file gets a new mtime
+            os.replace(tmp, dst)
+            restored.append(dst)
+        except Exception as e:
+            errors.append(f"{os.path.basename(dst)}: {e}")
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
+    if logger:
+        logger.info(f"Restored {len(restored)} file(s) from {folder} ({len(errors)} error(s))")
+    return restored, errors, ref[0]
+
+
 def make_backup(backup_root, movie_name, *file_paths, logger=None):
     """
     Create a timestamped backup of one or more NFO/XML files.
@@ -441,6 +680,7 @@ def make_backup(backup_root, movie_name, *file_paths, logger=None):
                 dest = os.path.join(folder, os.path.basename(fp))
                 shutil.copy2(fp, dest)
                 copied.append(os.path.basename(fp))
+                _manifest_add(folder, fp, dest, logger)             ### NEW v0.19.1 I1 ###
         if copied:
             if logger:
                 logger.info(f"Backup created: {folder}  —  files: {', '.join(copied)}")
@@ -494,6 +734,7 @@ def make_batch_backup(backup_root, movie_name, backup_folder_ref,
                         idx += 1
                 shutil.copy2(fp, dest)
                 copied.append(os.path.basename(fp))
+                _manifest_add(folder, fp, dest, logger)             ### NEW v0.19.1 I1 ###
         if copied and logger:
             logger.info(
                 f"Batch backup — added to {folder}: {', '.join(copied)}")

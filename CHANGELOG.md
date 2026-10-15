@@ -1,6 +1,40 @@
 # Changelog
 
-All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py` and in *Help → Version History* inside the app.
+All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
+
+## v0.19.1 — 2026-10-15
+
+Windows build again (`MediaClinic-0.19.1-win64.zip`), a second image source, frames from the video, Undo for backups, Kodi file names, and many fixes. The detailed list is in the `CHANGELOG` block at the top of `mediaclinic.py`.
+
+### Added
+- **fanart.tv** as a second image source in Fetch Poster/Folder, Fetch Fanart, Fetch Backdrops and Replace All Backdrops (TMDb, fanart.tv or both; your own free key, answers cached for 7 days).
+- **Frames from movie** in Fetch Fanart and Fetch Backdrops: 10 frames from the video with FFmpeg, black frames replaced, "More frames" for a new set.
+- **Backup History / Undo** (Tools menu): every backup folder records what it changed, and a whole run can be restored.
+- **Enter ID…** in Search Sources and the TMDb chooser: type an IMDb and/or TMDb ID, check title, year and poster, then apply. An IMDb ID that TMDb does not know can be confirmed on its own.
+- **Hard-coded subtitles…** (right-click): mark burned-in subtitle languages; written as tags to NFO and XML and counted by the subtitle rules. There is no automatic detection.
+- **Kodi file names**: artwork and NFO are found under every name Kodi uses (`<video>-poster.jpg`, `.png`, `.tbn`, `movie.nfo`, extra fanart), and new files are written in the folder's style. DVD and Blu-ray folders count as one movie.
+- Kodi `<uniqueid>` tags are read and kept in sync.
+- Normalize Genres can fetch genres from TMDb (then OMDb) for movies that have none, after a preview.
+- Health rules for movies with only one ID source or none (error, warning or off), and for Kodi naming.
+- A prompt to scan after the library list changes; *Remove from list* for a movie whose folder is gone.
+- One TMDb/OMDb client with rate limits, retries and clear messages (limit reached, invalid key, offline); a service that keeps failing is paused and the pause survives a restart. API keys are redacted from the log.
+- Progress window with Cancel for every batch tool from 3 movies up; the status bar shows how many movies are selected.
+
+### Fixed
+- **Replace All Backdrops**: the backup before deleting the old backdrops silently failed since v0.18.3. The backup now works, a failed backup stops the run before anything is deleted, and the tool shows how many backdrops you have and how many TMDb offers before it starts.
+- Genres are read from the NFO with the XML as fallback, and differences between the two are reported.
+- NFO/XML errors: every error in the file is listed with its exact line and tag name.
+- An audio track that FFprobe reports as undefined takes its language from the NFO or XML.
+- Library paths are always shown and stored in Windows style.
+- A movie whose folder was deleted is removed from the table on Update.
+- Double-click on a broken NFO/XML opens it in the editor; Shift+PageUp/PageDown/Home/End extend the selection.
+- Search Sources shows the film behind the current ID even when the title search finds nothing.
+
+### Changed
+- FFprobe runs once per video (was four times) and the result is cached, so an unchanged library is not probed again.
+- Help: the Version History tab is gone (the history is in this file); new *Scans & Libraries* tab; all texts rewritten for v0.19.x.
+- Self-test `tests/selftest_v0_19_1.py` with about 660 checks (was about 285). Five path checks that expect Windows-style paths run on Windows only. CI also runs `tests/settings_test_harness.py`.
+- The Windows exe has its own icon.
 
 ## v0.19.0 — 2026-10-13
 

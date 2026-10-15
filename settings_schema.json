@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mediaclinic-settings-v0.19.0",
+  "$id": "mediaclinic-settings-v0.19.1",
   "title": "MediaClinic Settings",
   "description": "Schema for settings.json written by mediaclinic/settings_controller.py",
   "type": "object",
@@ -62,6 +62,10 @@
     },
     "tmdb_api_key":          { "type": "string", "default": "" },
     "omdb_api_key":          { "type": "string", "default": "" },
+    "fanarttv_api_key":      { "type": "string", "default": "",
+                               "description": "Personal fanart.tv API key (v0.19.1 I10)" },
+    "fanarttv_client_key":   { "type": "string", "default": "",
+                               "description": "Optional fanart.tv VIP client key (v0.19.1 I10)" },
     "default_browser":       { "type": "string", "default": "",
                                "description": "Path to browser exe; empty = system default" },
     "min_poster_kb":         { "type": "integer", "minimum": 0, "default": 100 },
@@ -132,6 +136,21 @@
         }
       }
     },
+    "ffprobe_cache_enabled": { "type": "boolean", "default": true,
+                               "description": "v0.19.1: remember FFprobe results in ffprobe_cache.json (path + size + mtime); unchanged videos are not probed again" },
+    "api_pauses": {
+      "type": "object",
+      "default": {},
+      "description": "v0.19.1: per-service pause after a rate limit / daily limit / repeated server error; written only when a pause starts or ends, expired entries dropped on start",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "until":   { "type": "string" },
+          "kind":    { "type": "string", "enum": ["rate_limited", "daily_limit", "invalid_key", "offline", "server_error", "timeout"] },
+          "message": { "type": "string" }
+        }
+      }
+    },
     "export_prefs": {
       "type": "object",
       "default": {},
@@ -155,6 +174,8 @@
         "missing_imdb_id":                 { "type": "boolean", "default": true },
         "corrupt_imdb_id":                 { "type": "boolean", "default": true },
         "missing_tmdb_id":                 { "type": "boolean", "default": true },
+        "single_source_level":             { "type": "string", "enum": ["error", "warning", "off"], "default": "error", "description": "v0.19.1: how a movie with only an IMDb or only a TMDb ID is reported" },
+        "no_source_level":                 { "type": "string", "enum": ["error", "warning", "off"], "default": "error", "description": "v0.19.1: how a movie with no IMDb and no TMDb ID is reported" },
         "corrupt_tmdb_id":                 { "type": "boolean", "default": true },
         "rating_conflict":                 { "type": "boolean", "default": true },
         "no_audio_tracks":                 { "type": "boolean", "default": true },
@@ -170,6 +191,8 @@
         "missing_poster":                  { "type": "boolean", "default": true },
         "missing_fanart":                  { "type": "boolean", "default": true },
         "missing_folder":                  { "type": "boolean", "default": true },
+        "folder_optional_with_kodi_poster": { "type": "boolean", "default": true, "description": "v0.19.1: no 'Missing folder image' when a Kodi-style poster (<video>-poster.jpg/png, .tbn) exists" },
+        "nfo_name_not_kodi":               { "type": "boolean", "default": true, "description": "v0.19.1: warn when the NFO exists only as <folder>.nfo and Kodi (which reads <video>.nfo / movie.nfo) would not find it" },
         "poster_proportion":               { "type": "boolean", "default": true },
         "fanart_proportion":               { "type": "boolean", "default": true },
         "folder_proportion":               { "type": "boolean", "default": true },
@@ -191,6 +214,9 @@
         "suspicious_rating":               { "type": "boolean", "default": true },
         "suspicious_rating_threshold":     { "type": "number",  "minimum": 0.0, "default": 1.0 },
         "genre_warning":                   { "type": "boolean", "default": true },
+        "genre_only_in_xml":               { "type": "boolean", "default": true, "description": "NFO has no <genre> tags while the XML has genres (v0.19.1)" },
+        "genre_only_in_nfo":               { "type": "boolean", "default": true, "description": "XML has no <Genre> tags while the NFO has genres (v0.19.1)" },
+        "genre_nfo_wrong_tags":            { "type": "boolean", "default": true, "description": "NFO uses <Genres>/<Genre> (not read by Kodi) (v0.19.1)" },
         "missing_votes":                   { "type": "boolean", "default": true },
         "votes_warning":                   { "type": "boolean", "default": true },
         "lang_not_ok":                     { "type": "boolean", "default": true },

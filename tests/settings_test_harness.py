@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_test_harness.py
 # Metadata & MediaClinic — Settings Subsystem Test Harness
-# Version: 0.19.0  (12 tabs; T09 pumps a real mainloop)
+# Version: 0.19.1  (12 tabs; T09 pumps a real mainloop; T13–T15 added in v0.19.1 I9, T16 in B24)
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -22,6 +22,10 @@
 #   9. Browser-only change does NOT set changed["any"] = True
 #  10. No UI freeze: dialog opens, saves, and closes within 3 seconds
 #  11. run_async delivers callback on main thread without deadlock
+#  13. Image Sizes ↔ Health Rules quality combos mirror both ways   (v0.19.1)
+#  14. The v0.19.0/v0.19.1 health-rule rows exist and save          (v0.19.1)
+#  15. The window-memory hook is called by the dialog               (v0.19.1)
+#  17. fanart.tv key block: link, save, key-only change = no rescan (v0.19.1 I10)
 #
 # RUN
 # ---
@@ -304,6 +308,133 @@ def run_all():
         _check("T12 Dialog destroyed after Save", not still_alive)
     except Exception as e:
         _check("T12 Dialog destroyed", False, str(e))
+
+    # ── v0.19.1 I9: T13–T15 ──────────────────────────────────────────────────  ### NEW v0.19.1 I9 ###
+    # health_rules is a nested dict: give the fake settings their own copy so a
+    # save never writes into DEFAULT_SETTINGS.
+    fake_settings["health_rules"] = dict(DEFAULT_SETTINGS["health_rules"])
+
+    def _in_loop(fn, seconds=0.6):
+        """Run fn inside a real mainloop and keep the loop running briefly, so
+        the run_async workers the dialog starts (browser detection …) can
+        deliver their callbacks instead of raising "main thread is not in
+        main loop"."""
+        box = {}
+        end = time.time() + seconds
+        def _tick():
+            if time.time() > end: root.quit()
+            else: root.after(20, _tick)
+        def _start():
+            try: box["r"] = fn()
+            except Exception: box["e"] = traceback.format_exc()
+            root.after(20, _tick)
+        root.after(0, _start); root.mainloop()
+        if "e" in box: raise RuntimeError(box["e"])
+        return box.get("r")
+
+    # ── Test 13: Image Sizes ↔ Health Rules quality combos are one setting ───
+    dlg13 = None
+    try:
+        dlg13 = _in_loop(lambda: SettingsDialog(root, tab=5, ctx=ctx))
+        hr = dlg13._hr_str_vars
+        dlg13._fanart_ql_var.set("720p")
+        a = hr["fanart_quality_level_minimum"].get() == "720p"
+        hr["fanart_quality_level_minimum"].set("540p")
+        b = dlg13._fanart_ql_var.get() == "540p"
+        hr["poster_folder_quality_level"].set("720p")
+        c = dlg13._poster_ql_var.get() == "720p" and dlg13._folder_ql_var.get() == "720p"
+        dlg13._poster_ql_var.set("1080p")
+        d = hr["poster_folder_quality_level"].get() == "1080p" and dlg13._folder_ql_var.get() == "1080p"
+        _check("T13 Image Sizes ↔ Health Rules quality combos mirror both ways",
+               a and b and c and d, f"fanart→hr={a} hr→fanart={b} hr→poster+folder={c} poster→hr+folder={d}")
+    except Exception as e:
+        _check("T13 quality mirror", False, traceback.format_exc())
+    finally:
+        try:
+            if dlg13 is not None and dlg13.winfo_exists():
+                dlg13.destroy()
+        except tk.TclError:
+            pass
+
+    # ── Test 14: the v0.19.0 / v0.19.1 health-rule rows exist and save ───────
+    _NEW_RULES = ("image_file_too_small", "image_format_mismatch",          # v0.19.0
+                  "genre_only_in_xml", "genre_only_in_nfo", "genre_nfo_wrong_tags",   # v0.19.1
+                  "folder_optional_with_kodi_poster", "nfo_name_not_kodi")            # v0.19.1 B23
+    try:
+        dlg14 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
+        missing = [k for k in _NEW_RULES if k not in dlg14._hr_vars]
+        for k in _NEW_RULES:
+            if k in dlg14._hr_vars:
+                dlg14._hr_vars[k].set(False)
+        dlg14._save_close()
+        root.update()
+        saved = {k: fake_settings["health_rules"].get(k) for k in _NEW_RULES}
+        _check("T14 v0.19 health-rule rows exist and their OFF state is saved",
+               not missing and all(v is False for v in saved.values()),
+               f"missing={missing} saved={saved}")
+    except Exception as e:
+        _check("T14 v0.19 health-rule rows", False, traceback.format_exc())
+
+    # ── Test 16: B24 severity combos exist, save, and a change is a rule change ── ### NEW v0.19.1 B24 ###
+    try:
+        dlg16 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
+        hv = dlg16._hr_str_vars
+        present = all(k in hv for k in ("single_source_level", "no_source_level"))
+        defaults_ok = present and hv["single_source_level"].get() == "error" and hv["no_source_level"].get() == "error"
+        hv["single_source_level"].set("warning"); hv["no_source_level"].set("off")
+        ch = dlg16._rescan_changed()
+        dlg16._save_close(); root.update()
+        saved = (fake_settings["health_rules"].get("single_source_level"), fake_settings["health_rules"].get("no_source_level"))
+        _check("T16 single-source / no-source severity combos exist, save and count as a rule change",
+               present and defaults_ok and saved == ("warning", "off") and ch.get("health_rules") is True,
+               f"present={present} defaults_ok={defaults_ok} saved={saved} changed={ch}")
+    except Exception as e:
+        _check("T16 severity combos", False, traceback.format_exc())
+
+    # ── Test 15: the window-memory hook is called by the dialog ──────────────
+    _hook_calls = []
+    def _spy_hook(win, win_id, resizable):
+        _hook_calls.append((win, win_id, resizable))
+    try:
+        SettingsDialog._remember_window_hook = staticmethod(_spy_hook)
+        dlg15 = _in_loop(lambda: SettingsDialog(root, tab=0, ctx=ctx))
+        _check("T15 window-memory hook called once with (dialog, 'SettingsDialog', True)",
+               len(_hook_calls) == 1 and _hook_calls[0][0] is dlg15
+               and _hook_calls[0][1:] == ("SettingsDialog", True),
+               f"calls={[(c[1], c[2]) for c in _hook_calls]}")
+        dlg15.destroy()
+    except Exception as e:
+        _check("T15 window-memory hook", False, traceback.format_exc())
+    finally:
+        try:
+            del SettingsDialog._remember_window_hook
+        except AttributeError:
+            pass
+
+    # ── Test 17: fanart.tv key block (v0.19.1 I10) ────────────────────────────   ### NEW v0.19.1 I10 ###
+    _opened = []
+    try:
+        dlg17 = _in_loop(lambda: SettingsDialog(root, tab=1, ctx=ctx))
+        dlg17._open_url_fn = _opened.append
+        has_block = all(hasattr(dlg17, a) for a in ("_fanarttv_var", "_fanarttv_client_var", "_fanarttv_entry",
+                                                     "_fanarttv_client_entry", "_fanarttv_status", "_fanarttv_link"))
+        masked = has_block and dlg17._fanarttv_entry.cget("show") == "•" and dlg17._fanarttv_client_entry.cget("show") == "•"
+        link_ok = has_block and "fanart.tv" in dlg17._fanarttv_link.cget("text")
+        if has_block:
+            dlg17._fanarttv_link.event_generate("<Button-1>"); root.update()
+        _check("T17a fanart.tv block exists (masked key + client key) and its link opens the key page",
+               has_block and masked and link_ok and _opened == ["https://fanart.tv/get-an-api-key/"],
+               f"block={has_block} masked={masked} link={link_ok} opened={_opened}")
+        dlg17._fanarttv_var.set("FAKEKEY123"); dlg17._fanarttv_client_var.set("VIPKEY456")
+        ch = dlg17._rescan_changed()
+        dlg17._save_close(); root.update()
+        _check("T17b a key-only change → changed['any'] is False",
+               ch["any"] is False, f"got {ch}")
+        _check("T17c Save & Apply writes both fanart.tv keys",
+               fake_settings.get("fanarttv_api_key") == "FAKEKEY123" and fake_settings.get("fanarttv_client_key") == "VIPKEY456",
+               f"api={fake_settings.get('fanarttv_api_key')!r} client={fake_settings.get('fanarttv_client_key')!r}")
+    except Exception as e:
+        _check("T17 fanart.tv key block", False, traceback.format_exc())
 
     # ── Teardown ──────────────────────────────────────────────────────────────
     try:

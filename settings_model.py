@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_model.py
 # Metadata & MediaClinic — Pure Data Model
-# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
+# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -55,6 +55,8 @@ DEFAULT_SETTINGS = {
     # Phase 2 — API keys
     "tmdb_api_key":       "",
     "omdb_api_key":       "",
+    "fanarttv_api_key":    "",         # NEW v0.19.1 I10: personal fanart.tv API key
+    "fanarttv_client_key": "",         # NEW v0.19.1 I10: optional fanart.tv VIP (client) key
     # Phase 2 — Browser
     "default_browser":    "",          # path to browser exe; "" = system default
     # Phase 2 — Image minimum sizes (KB); 0 = skip check
@@ -98,6 +100,8 @@ DEFAULT_SETTINGS = {
     "library_folders":         [],       # NEW v0.19.0: library (root) folders; migrated from last_folder
     "library_filter":          "",       # NEW v0.19.0: "" = all libraries, else one root shown/scanned
     "window_geometry":         {},       # NEW v0.19.0: {window_id: {"geometry": "WxH+X+Y", "zoomed": bool}}
+    "api_pauses":              {},       # NEW v0.19.1 B22: {service: {"until": ISO time, "kind": …, "message": …}}
+    "ffprobe_cache_enabled":   True,     # NEW v0.19.1 I5: remember FFprobe results (ffprobe_cache.json)
     # v0.18.2 — Health Rules (configurable rule engine)        ### ADDED_BY_CLAUDE_v18.2 ###
     "health_rules": {
         # ── Group A: Critical Error Rules (default ON) ──────────────────────
@@ -112,6 +116,8 @@ DEFAULT_SETTINGS = {
         "missing_imdb_id":                 True,
         "corrupt_imdb_id":                 True,
         "missing_tmdb_id":                 True,
+        "single_source_level":             "error",   ### NEW v0.19.1 B24 — one of IMDb/TMDb missing: error | warning | off ###
+        "no_source_level":                 "error",   ### NEW v0.19.1 B24 — no IMDb and no TMDb: error | warning | off ###
         "corrupt_tmdb_id":                 True,
         "rating_conflict":                 True,
         "no_audio_tracks":                 True,
@@ -128,6 +134,8 @@ DEFAULT_SETTINGS = {
         "missing_poster":                  True,
         "missing_fanart":                  True,
         "missing_folder":                  True,
+        "folder_optional_with_kodi_poster": True,     ### NEW v0.19.1 B23 — no folder.jpg warning when a Kodi "<video>-poster" exists ###
+        "nfo_name_not_kodi":               True,      ### NEW v0.19.1 B23 — NFO only as <folder>.nfo while the video has another name ###
         "poster_proportion":               True,
         "fanart_proportion":               True,
         "folder_proportion":               True,
@@ -147,6 +155,9 @@ DEFAULT_SETTINGS = {
         "suspicious_rating":               True,
         "suspicious_rating_threshold":     1.0,
         "genre_warning":                   True,
+        "genre_only_in_xml":               True,      ### NEW v0.19.1 — NFO has no <genre>, XML has genres ###
+        "genre_only_in_nfo":               True,      ### NEW v0.19.1 — XML has no <Genre>, NFO has genres ###
+        "genre_nfo_wrong_tags":            True,      ### NEW v0.19.1 — <Genres>/<Genre> in the NFO ###
         "missing_votes":                   True,
         "votes_warning":                   True,
         "lang_not_ok":                     True,
@@ -231,6 +242,54 @@ ISO_639_1_TO_2 = {                                               ### ADDED_BY_CL
     "SW": "SWA", "SV": "SWE", "TH": "THA", "TR": "TUR", "UK": "UKR",
     "UR": "URD", "VI": "VIE",
 }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW v0.19.1 B22 — one message + one piece of advice per kind of online failure
+# (pure data, shared by the main app and the Settings → API Keys Validate buttons)
+# ══════════════════════════════════════════════════════════════════════════════
+API_FAILURE_KINDS = ("rate_limited", "daily_limit", "invalid_key", "offline", "server_error", "timeout")
+_API_FAILURE_TEXT = {
+    "rate_limited": ("{s} is receiving too many requests from this computer.",
+                     "Wait about a minute and try again."),
+    "daily_limit":  ("{s}: the free daily limit of 1,000 requests is used up.",
+                     "Try again in a few hours or tomorrow.{other}"),
+    "invalid_key":  ("{s} rejected the API key.",
+                     "Check Settings → API Keys (Validate)."),
+    "offline":      ("No internet connection, or {s} cannot be reached.",
+                     "Check the connection and try again."),
+    "server_error": ("{s} is not responding right now.",
+                     "Try again in a few minutes; if it persists, in a few hours."),
+    "timeout":      ("{s} did not answer in time.",
+                     "Try again in a few minutes; if it persists, in a few hours."),
+}
+# a pause (seconds) starts after these kinds; "invalid_key" / "offline" do not pause
+API_PAUSE_SECONDS = {"rate_limited": 60, "daily_limit": 2 * 3600, "server_error": 300, "timeout": 300}
+
+
+def api_failure_text(service_label, kind, other_note=""):
+    """(message, advice) for a failure kind; other_note is appended to the
+    daily-limit advice (e.g. " TMDb ratings still work.")."""
+    msg, adv = _API_FAILURE_TEXT.get(kind, ("{s} could not be reached.", "Try again later."))
+    return msg.format(s=service_label), adv.format(other=other_note)
+
+
+def classify_http_status(code, body_text=""):
+    """Failure kind for an HTTP status (None = not a service failure, e.g. 404)."""
+    b = (body_text or "").lower()
+    if code == 429:
+        return "rate_limited"
+    if code == 401:
+        return "daily_limit" if "limit" in b else "invalid_key"
+    if 500 <= code <= 599:
+        return "server_error"
+    return None
+
+
+def classify_network_reason(reason_text):
+    """Failure kind for a network error text: "timeout" or "offline"."""
+    r = (reason_text or "").lower()
+    return "timeout" if ("timed out" in r or "timeout" in r) else "offline"
 
 
 def normalize_lang_code(code: str) -> str:                       ### ADDED_BY_CLAUDE_v18.2 ###

@@ -1,695 +1,598 @@
 # =============================================================================
 # help_text.py
 # Metadata & MediaClinic — Help tab contents (pure text)
-# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
+# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # The Help dialog in the main script renders these strings.  Moved out of the
-# main script in v0.18.3 and refreshed so every shortcut, menu entry and
-# settings tab described here matches the code.
+# main script in v0.18.3.
+#
+# v0.19.1 — rewritten to one layout (B10) and reorganised (B9):
+#   • section titles in capitals at the left margin
+#   • body text indented by 2 spaces
+#   • bullets as "  •  " with continuation lines aligned under the text
+#   • key / description tables aligned in two columns
+#   • lines at most 72 characters, one blank line between sections
+# The Version History tab was removed; the history lives in the CHANGELOG at
+# the top of the main script and in README.md.
+# HELP_TABS gives the tab order used by BOTH the Help window and the Help
+# menu, so the two can never drift apart.
 # =============================================================================
 
-SEP = "─────────────────────────────────────────"
+SEP = "─" * 60
 
-TAB_START = f"""{SEP}
-  Metadata & MediaClinic  -  Getting Started
-{SEP}
 
+def _title(text):
+    return f"  {text}\n{SEP}\n"
+
+
+TAB_START = _title("Getting Started") + """
 WHAT IS THIS APP?
-  Metadata & MediaClinic is a KODI / Emby / Jellyfin media library
-  auditor and repair tool. It scans a root media folder, checks every
-  artwork file, metadata file, and video, then presents a colour-coded
-  health table so you can see at a glance what is missing or broken.
+  Metadata & MediaClinic audits and repairs KODI / Emby / Jellyfin
+  movie libraries. It scans your library folders, checks every
+  artwork file, metadata file and video, and shows a colour-coded
+  health table so you see at a glance what is missing or broken.
+  Most problems can be fixed from the same table.
 
-  One subfolder = one movie. Each subfolder should contain:
-    • poster.jpg       - portrait cover art (2:3 ratio)
-    • folder.jpg       - identical copy of poster.jpg for KODI
-    • fanart.jpg       - wide background art (16:9 ratio)
-    • backdrop.jpg, backdrop1.jpg ...  - scene frames
-    • MovieName.nfo    - KODI metadata in XML format
-    • movie.xml        - Emby/Jellyfin metadata in XML format
-    • MovieName.mkv    (or .mp4, .avi, etc.)
+LIBRARY LAYOUT
+  One subfolder = one movie. Each movie folder should contain:
+  •  MovieName.mkv (or .mp4, .avi …) — the video
+  •  MovieName.nfo — KODI metadata (XML)
+  •  movie.xml — Emby / Jellyfin metadata (XML)
+  •  poster.jpg — portrait cover art, 2:3
+  •  folder.jpg — identical copy of poster.jpg
+  •  fanart.jpg — wide background art, 16:9
+  •  backdrop.jpg, backdrop1.jpg … — extra backgrounds
+  •  MovieName.pt.srt … — optional external subtitles
 
-{SEP}
 FIRST RUN
-{SEP}
+  1.  Click Browse… and choose your movie folder. Add more folders
+      later with Libraries… (see the Scans & Libraries tab).
+  2.  Click Full Scan. The table fills in phases: folders, images,
+      metadata, then video (with FFprobe when the box is ticked).
+  3.  Each row shows the health of one movie:
+      green   no health rule triggered
+      yellow  one or more warning rules triggered
+      red     one or more error rules triggered
+  4.  The last scan is saved and restored on the next start.
 
-  1. Click  Browse...  and select your root media folder.
-  2. Click  Full Scan.
-     The table fills in phases: subfolders first, then images,
-     then metadata, then video (with FFprobe if enabled).
-  3. Each row shows the health of one movie:
-       GREEN row   - no health rule triggered
-       YELLOW row  - one or more warning rules triggered
-       RED row     - one or more error rules triggered
-     Which conditions count as error or warning is configurable in
-     Settings → Health Rules.
-  4. Your last scan is saved automatically and restored on startup.
-     Quick Scan re-reads only folders that were added, removed, or
-     whose files changed since the last scan.
-
-{SEP}
 QUICK-START CHECKLIST
-{SEP}
+  •  Settings → Tools: set the FFmpeg folder (video analysis and
+     backdrop extraction).
+  •  Settings → API Keys: add TMDb and OMDb keys (ratings, ID
+     search and verification, artwork); optional fanart.tv key
+     for more posters and backdrops.
+  •  Settings → Language: the Lang OK? target (default PT).
+  •  Settings → Health Rules: choose what counts as an error or a
+     warning.
+  •  Sort by "Health (Errors 1st)", click the Errors counter, or
+     tick "Problems only" to triage.
 
-  • Set your FFmpeg path in Settings → Tools
-    (enables video analysis and backdrop extraction)
-
-  • Add TMDb and/or OMDb API keys in Settings → API Keys
-    (enables online ratings sync, source search and image fetching)
-
-  • Configure your preferred browser in Settings → Browser
-
-  • Set the "Lang OK?" language target in Settings → Language
-    (default: PT - Portuguese)
-
-  • Run a scan, sort by "Health (Errors 1st)" to triage problems,
-    or type in the Filter box to narrow the table.
-
-{SEP}
 STATUS ICONS
-{SEP}
+  ⬤   OK — present and valid
+  ◐   warning — conflict, wrong proportions, minor issue
+  ○   missing
+  ✕   error — corrupt image, XML parse error, unreadable value
 
-  ⬤   OK / valid / present
-  ◐   Warning - conflict, proportion mismatch, or minor issue
-  ○   File missing
-  ✕   Error - parse error or corrupt data
-
-{SEP}
 AUTOMATIC BACKUPS
-{SEP}
+  Before the app changes a .nfo, .xml or image file, it copies the
+  original to backup/backup_MovieName_DATE_TIME/ next to the
+  program. Every NFO/XML write is atomic: a failed write never
+  leaves a half-written file. Settings → Backup limits the size.
+  Each backup folder has a manifest.json (where every file came
+  from, which action made it). Tools → Backup History / Undo…
+  lists the runs, newest first, and "Restore this run" puts the
+  files back: your current files are backed up first (so an undo
+  can be undone), files changed after the run are listed and can
+  be skipped, and the rows are refreshed. Backups made before
+  v0.19.1 have no manifest: restore those by hand.
 
-  Whenever the app modifies a .nfo, .xml or image file it creates a
-  silent backup before writing. Backups go in:
-
-    backup/backup_MovieName_YYYY-MM-DD_HH-MM-SS/
-
-  No popup is shown. Check logs/app.log for a full backup record.
-  Settings → Backup limits the total size of the backup folder.
-
-{SEP}
 FILES THE APP WRITES
-{SEP}
-
-  settings.json        - all settings (in %APPDATA%\\MediaMetadataClinic)
-  last_results.json    - the last scan, restored on startup (same folder)
-  logs/app.log         - rotating log next to the program
-  backup/              - automatic backups next to the program
+  settings.json       all settings (%APPDATA%\\MediaMetadataClinic)
+  last_results.json   the last scan, restored on start (same folder)
+  ffprobe_cache.json  remembered FFprobe results (same folder)
+  fanarttv_cache.json fanart.tv answers, kept 7 days (same
+                      folder, no key inside)
+  logs/app.log        rotating log next to the program (API keys
+                      are never written to it)
+  backup/             automatic backups next to the program
 """
 
-TAB_TABLE = f"""{SEP}
-  Table & Columns
-{SEP}
+TAB_TABLE = _title("Table & Columns") + """
+COLUMNS
+  Movie Name    NFO <title>, then XML <LocalTitle>, original
+                titles, folder name. Hover shows the folder and
+                its library. Double-click opens the folder.
+  Year          NFO <year> or XML <ProductionYear>.
+  Genres        NFO <genre> tags; when the NFO has none, the XML
+                <Genres> are shown (the tooltip names the source).
+  Rating        NFO <rating> (or the Kodi <ratings> block), XML
+                <IMDBrating> / <Rating>. Hover: value, votes,
+                source.
+  Votes         NFO <votes>, XML <Votes> / <VoteCount>.
+  Source        IMDb and TMDb IDs across all NFO/XML tags.
+                ⬤ all agree   ◐ partial or conflict   ○ missing
+                (also when all its tags are empty placeholders)
+                ✕ some tags filled, some empty. Hover shows the
+                last Verify IDs result. Double-click opens IMDb or
+                TMDb.
+  Poster        poster.jpg status and quality tier (2:3).
+  Folder        folder.jpg status and quality tier.
+  Fanart        fanart.jpg status and quality tier (16:9).
+  Backdrops     number of backdrop images; hover: average size.
+  .nfo / .xml   metadata file status. Hover lists the errors with
+                the exact line and tag names, e.g. "Line 12:
+                `<plot>` opened here is never closed (expected
+                `</plot>` before `</movie>` on line 40)" — the
+                first 5, then "n more"; an unescaped & is shown
+                as a note only. Double-click opens the file in
+                your editor.
+  Language      XML <Language>.
+  Video         container and size; Quality: resolution class.
+  Audio         FFprobe audio tracks, e.g. EN (5.1), PT (2.0).
+  Lang OK?      Y / N: target language in audio or subtitles.
+  Subtitles     embedded tracks (FFprobe) and external files.
+  Library       the library (root folder). Hidden by default:
+                Tools → Choose Columns….
 
-COLUMN REFERENCE
+FILTER AND VIEW
+  Type in the Filter box (Ctrl+F) to keep only movies whose name,
+  year, genre, language, quality, health status or any health
+  reason matches — "backdrops" lists every backdrop issue. Esc
+  clears it.
+  •  "Problems only" hides green rows.
+  •  Click the Errors or Warnings counter to show only those rows;
+     click again (or click Movies) to show everything.
+  •  The library box next to Libraries… shows one library or all.
+  •  Tools → Choose Columns… hides columns; the choice is kept.
 
-  Movie Name   - Title from NFO <title>, then XML <LocalTitle>,
-                 NFO <originaltitle>, XML <OriginalTitle>, folder name.
-                 Double-click opens the movie folder.
-
-  Year         - Year from NFO <year> or XML <ProductionYear>.
-
-  Genres       - Genres from NFO <genre> tags. Double-click opens .nfo.
-                 Hover shows each genre and its validation status.
-
-  Rating       - Rating from NFO <rating>, XML <IMDBrating>, or <Rating>.
-                 Icon: ⬤ OK, ◐ values differ, ○ missing, ✕ unreadable.
-                 Hover shows Rating, Votes, Source.
-
-  Votes        - Vote count from NFO <votes>, XML <Votes>, <VoteCount>.
-                 ◐ means NFO <votes> and XML <Votes> differ.
-
-  Source       - IMDB and TMDB IDs across all NFO/XML tags.
-                 ⬤ all tags agree  ◐ partial or conflict  ○ missing
-                 ✕ a tag exists but is empty or unreadable.
-                 Double-click opens the IMDB or TMDB website.
-
-  Poster       - Status and quality tier of poster.jpg (2:3 portrait).
-  Folder       - Status and quality tier of folder.jpg (copy of poster).
-  Fanart       - Status and quality tier of fanart.jpg (16:9 landscape).
-                 Hover shows dimensions, size, ratio, quality tier.
-
-  Backdrops    - Count of backdrop images. Hover shows average size.
-
-  .nfo / .xml  - Status of the metadata files. Double-click shows
-                 parse errors (with Open File) or opens the editor.
-
-  Language     - Language from XML <Language>.
-
-  Video        - Container format. Video Size - size on disk.
-  Quality      - Video resolution class (FFprobe).
-  Audio        - Audio tracks from FFprobe:  EN (5.1), PT (2.0)
-  Lang OK?     - Y/N: target language audio or subtitle present.
-  Subtitles    - Embedded tracks (FFprobe) and external .srt files.
-
-{SEP}
-FILTER BAR
-{SEP}
-
-  Type in the Filter box (Ctrl+F) to show only movies whose name,
-  year, genre, language, video quality, health status
-  (ok / warning / error) or any health reason matches — typing
-  "backdrops" lists every movie with a backdrop issue.
-  Esc clears the filter. The status bar shows "N of M shown".
-
-  Tick "Problems only" to hide green rows, or click the Errors /
-  Warnings counters in the status bar to show only those rows
-  (click again, or click Movies, to show everything).
-
-  Tools → Choose Columns… hides columns you do not need; the
-  choice is remembered.
-
-{SEP}
 IMAGE QUALITY TIERS
-{SEP}
+  Poster / Folder (2:3):  4K 2000×3000 · 1440p 1500×2250
+                          1080p 1000×1500 · 720p 666×1000
+                          540p 540×810 · 480p 480×720 · 360p
+  Fanart (16:9):          4K 3840×2160 · 1440p 2560×1440
+                          1080p 1920×1080 · 720p 1280×720
+                          540p 960×540 · 480p 854×480 · 360p
+  ±5 % tolerance. The minimum tier is one setting, shown in both
+  Settings → Health Rules and Settings → Image Sizes. Images below
+  it are warnings. "Corrupt" (✕) means the file cannot be decoded:
+  no JPEG/PNG signature, truncated data or 0 bytes. A PNG named
+  poster.jpg is still read and gets an "extension mismatch"
+  warning.
 
-  Poster / Folder (2:3 portrait):
-    4K 2000×3000 · 1440p 1500×2250 · 1080p 1000×1500 · 720p 666×1000
-    540p 540×810 · 480p 480×720 · 360p 360×540 (floor)
-
-  Fanart (16:9 landscape):
-    4K 3840×2160 · 1440p 2560×1440 · 1080p 1920×1080 · 720p 1280×720
-    540p 960×540 · 480p 854×480 · 360p 640×360 (floor)
-
-  ±5% tolerance. The minimum tier is ONE setting shown in both
-  Settings → Health Rules and Settings → Image Sizes (poster and
-  folder share it). Images below it are warnings, never "corrupt".
-  "Corrupt" (✕) means the file cannot be decoded: no JPEG/PNG
-  signature, truncated data or 0 bytes. The format is detected from
-  the file content, so a PNG named poster.jpg is still read; it gets
-  the warning "extension mismatch" instead.
-
-{SEP}
-COLUMN WIDTHS
-{SEP}
-
-  Drag a header separator to resize one column (neighbours keep
-  their width). Double-click a header to auto-size it.
-  Widths are remembered between sessions.
+COLUMN WIDTHS AND WINDOWS
+  Drag a header edge to resize one column; double-click a header
+  to fit it. Widths, window sizes and positions (and whether the
+  main window was maximised) are remembered.
 """
 
-TAB_ACTIONS = f"""{SEP}
-  Actions
-{SEP}
+TAB_SCANS = _title("Scans & Libraries") + """
+SCANS
+  Full Scan     re-reads every movie of the libraries in scope.
+  Quick Scan    reads only movies that were added, removed or
+                changed since the last scan.
+  FFprobe box   when ticked, scans also read video resolution,
+                audio tracks and embedded subtitles. A scan without
+                FFprobe keeps the previous FFprobe data.
+  Cancel / Esc  stops a running scan.
 
-DOUBLE-CLICK ACTIONS
+UPDATING SINGLE MOVIES
+  Right-click → Update (no FFprobe) re-reads one movie (or the
+  selection); Update (with FFprobe) also re-probes the video.
+  After every repair, sync, fetch, extract or delete the affected
+  rows refresh automatically, without FFprobe — no manual Update
+  is needed.
 
-  Movie Name    Movie folder in Windows Explorer
-  Genres        .nfo file in your text editor
-  Rating/Votes  .nfo file in your text editor
-  Source        Popup to choose IMDB or TMDB website
-  Poster/Folder/Fanart   The image in your image viewer
-  Backdrops     First backdrop image
-  .nfo / .xml   Parse-error dialog, or the file in your editor
-  Language      movie.xml in your editor
-  Video/Quality Plays the video
-  Subtitles     Subtitle tracks dialog
+LIBRARIES
+  You can scan several root folders. Browse… adds one folder;
+  Libraries… adds, removes and orders them. After the list
+  changes the app offers Full Scan, Quick Scan or Not now.
+  •  All libraries share one table; the Library column and the
+     Movie Name tooltip show where a movie lives.
+  •  The library box chooses what the table shows and what Full
+     and Quick Scan cover ("All libraries" or one of them).
+  •  Duplicates are found across libraries.
+  •  A library that cannot be reached (for example an unplugged
+     network share) keeps its last scan, is skipped by scans and
+     is shown as "(offline)".
 
-{SEP}
-RIGHT-CLICK MENU (SINGLE MOVIE)
-{SEP}
+MOVIES THAT DISAPPEAR
+  When a movie folder was deleted, Update or the automatic
+  refresh removes its row (its duplicate twin loses the warning).
+  Right-click → Remove from list drops rows without touching any
+  file; the next scan brings back movies that still exist.
 
-  Open Folder · Open poster/folder/fanart.jpg · Play Video
-  Extract Backdrop(s)   - Extract frames from the video (FFmpeg)
-  Subtitles…            - Show subtitle tracks
-  Open .nfo / movie.xml - Open in editor; "[!] errors" shows details
-  Open on IMDb / TMDb / Fanart.tv / OpenSubtitles.org
-  Copy Movie Name       - Copy the title to the clipboard
-  Open in Scraper       - Launch your configured scraper
+STARTUP
+  The last scan is loaded from last_results.json and the health
+  rules are applied again, so changed rules never leave old
+  reasons behind.
+"""
 
-  Run Improvements Check · Health Status Report
-  Sync Ratings          - Fetch rating/votes from TMDb and/or OMDb
-  Normalize Sources     - Repair IMDB/TMDB tags in XML/NFO
-  Search Sources        - Search TMDB online by title + year
-  Normalize Genres      - Fix capitalisation, synonyms, duplicates
-  Copy poster.jpg → folder.jpg - one-click fix when they differ
-  Fetch Poster/Folder · Fetch Fanart · Fetch Backdrops
-  Replace All Backdrops - Backup, delete, re-download all from TMDB
-  Add Custom Genre(s)   - Add detected custom genres to Settings
+TAB_ACTIONS = _title("Actions & Tools") + """
+DOUBLE-CLICK
+  Movie Name      the movie folder
+  Genres          the .nfo file in your editor
+  Rating, Votes   the .nfo file in your editor
+  Source          choose IMDb or TMDb website
+  Images          poster, folder or fanart in your viewer
+  Backdrops       the first backdrop
+  .nfo / .xml     the file in your editor (also when it has errors)
+  Language        movie.xml in your editor
+  Video, Quality  plays the video
+  Subtitles       subtitle tracks
+  Library         the library folder
 
-  Update (no FFprobe)   - Re-read metadata and images; keeps the
-                          previous FFprobe data; recomputes health
-  Update (with FFprobe) - Full re-read including video analysis
-  Refresh Icons
+RIGHT-CLICK — ONE MOVIE
+  •  Open folder, images, .nfo, movie.xml; "[!] errors" lists all
+     parse errors of a broken file.
+  •  Play video, Extract Backdrop(s), Subtitles….
+  •  Open on IMDb / TMDb / Fanart.tv / OpenSubtitles.org, Copy
+     Movie Name, Open in Scraper.
+  •  Run Improvements Check, Health Status Report.
+  •  Sync Ratings, Normalize Sources, Search Sources, Verify
+     IMDb/TMDb IDs, Normalize Genres, Auto Repair.
+  •  Fetch Poster/Folder, Fanart, Backdrops; Replace All
+     Backdrops; Copy poster.jpg → folder.jpg.
+  •  Update (no FFprobe / with FFprobe), Refresh Icons, Remove
+     from list.
 
-{SEP}
-RIGHT-CLICK MENU (MULTI-SELECTION)
-{SEP}
+RIGHT-CLICK — SEVERAL MOVIES
+  Select with Ctrl+click, Shift+click, Shift+arrows or
+  Shift+PageUp / PageDown / Home / End. Batch versions appear for
+  the actions above. Longer runs show a progress window with
+  Cancel.
 
-  Select rows with Ctrl+click, Shift+click or Shift+arrows.
-  Batch versions appear for Improvements Check, Health Report,
-  Sync Ratings, Normalize/Search Sources, Normalize Genres,
-  Fetch Poster/Fanart/Backdrops, Extract Backdrops, and both
-  Update commands. Ten or more movies show a progress window;
-  Cancel or Esc stops the batch.
-
-{SEP}
 TOOLS MENU
-{SEP}
+  Export Movie List…        CSV, TSV, text or Excel
+  Choose Columns…           show or hide columns
+  Library Statistics        health, quality, genres, decades
+  Duplicate Movies Report   same ID or title + year elsewhere
+  Recompute Health Status   re-apply the rules, no rescan
+  Save / Open Scan Results  a full scan to or from a file
+  All-movies versions of Sync Ratings, Normalize Sources, Search
+  Sources, Verify IDs, Normalize Genres, Auto Repair,
+  Improvements Check and Health Report; Copy poster.jpg →
+  folder.jpg; Delete extrafanart subfolders.
 
-  Export Movie List…         - CSV / TSV / text / Excel (see below)
-  Choose Columns…            - show / hide table columns
-  Library Statistics         - health, quality, genres, decades…
-  Duplicate Movies Report    - same ID or title + year elsewhere
-  Recompute Health Status    - re-apply the rules, no rescan
-  Save / Open Scan Results   - Full scan to and from a JSON file
-  Sync Ratings Online — All Movies
-  Normalize Sources — All Movies (only ◐ or ○ rows)
-  Search Sources — All Movies
-  Normalize Genres — All Movies
-  Run Improvements Check — All Movies  (report saved to .txt)
-  Health Status Report — All Movies
-  Refresh Icons — All Movies
-  Fix: Copy poster.jpg → folder.jpg — all movies with differences
-  Delete All extrafanart Subfolders (legacy) - preview + backup
+VERIFY IMDB/TMDB IDS
+  Checks on TMDb that the IDs in the NFO/XML belong to the movie
+  (any title language or alternative title, year ±1). Results:
+  OK, IMDb and TMDb point to different films, ID belongs to
+  another film, ID does not exist, NFO and XML disagree, no IDs.
+  The report sorts by any column and saves to .txt or .csv.
+  Nothing is written until you press Fix….
 
-{SEP}
+AUTO REPAIR
+  Applies every safe fix in one go: IDs (exact title + year
+  automatically, otherwise a chooser), ratings, genres, year,
+  titles, XML language. Artwork is never touched. A backup is
+  made first and a summary lists fixed, skipped and still
+  failing movies. "All Movies" offers a dry-run preview.
+
 EXPORT MOVIE LIST
-{SEP}
-
-  Tools → Export Movie List… (or the Export… button, Ctrl+Shift+E).
-
-  Columns:  Basic (Name, Year), Identify (Name, Year, IMDB link,
-            TMDB link, Outline), Standard, All, or tick your own.
-            IMDB Link / TMDB Link / Outline / Plot help the reader
-            of the file recognise each movie.
-  Rows:     All movies, or only the current filtered/sorted view.
-  Formats:
-    CSV (comma)      - default; movie names with commas are quoted
-                       so they never break the file
-    CSV (semicolon)  - for Excel in Swiss/German/Portuguese/French
-                       locales, where comma CSV opens in one column
-    Tab-separated    - .txt, pastes cleanly into spreadsheets
-    Plain text list  - one "Movie Name (Year)" per line
-    Excel .xlsx      - real workbook with a filter row (needs the
-                       openpyxl package; greyed out if absent)
+  Tools → Export Movie List… (Export… button, Ctrl+Shift+E).
+  •  Columns: Basic, Identify (links + outline), Standard, All, or
+     your own choice.
+  •  Rows: all movies or the current filtered view.
+  •  Formats: CSV comma (default), CSV semicolon (Excel in
+     CH/DE/PT/FR), tab-separated, plain list, Excel .xlsx.
 """
 
-TAB_RATINGS = f"""{SEP}
-  Ratings Sync
-{SEP}
+TAB_RATINGS = _title("Ratings & Genres") + """
+RATINGS SYNC
+  Fetches rating and votes from TMDb and/or OMDb (IMDb data) and
+  writes them to the NFO (<rating>, <votes>, Kodi <ratings>) and
+  the XML (<IMDBrating>, <Rating>, <Votes>, <VoteCount>).
+  •  The dialog shows both sources side by side. A rating of 0 or
+     0 votes counts as no data.
+  •  Several movies: "Apply this choice to all remaining movies"
+     or "Use the source with more votes" (equal votes → average)
+     is remembered for the run.
+  •  When both sources have no data, a second dialog asks once
+     for typed values or Skip, with "Apply this choice to all
+     remaining movies with zero votes and no rating".
+  •  When TMDb or OMDb cannot be reached (network, rate limit,
+     invalid key) the movie is skipped and listed at the end —
+     it is never treated as "no rating".
+  Defaults for the checkboxes: Settings → Ratings.
 
-  Fetches ratings and vote counts from TMDb and/or OMDb/IMDb and
-  writes them to NFO (<rating>, <votes>) and XML (<IMDBrating>,
-  <Rating>, <Votes>, <VoteCount>). Requires API keys.
-
-  Single movie:     Right-click → Sync Ratings from IMDb / TMDb
-  Selected movies:  Right-click → Sync Ratings (N movies)
-  All movies:       Tools → Sync Ratings Online — All Movies
-
-  The popup shows TMDb and OMDb/IMDb side by side. A source with
-  no data shows "Not Available". Zero ratings or zero votes count
-  as no data. "Type Values" lets you enter rating and votes by hand.
-
-  Batch checkboxes:
-    Apply this choice to all remaining movies
-    Use the source with more votes (equal votes → average)
-  Defaults for both live in Settings → Ratings.
-
-{SEP}
 RATING AND VOTES ICONS
-{SEP}
+  ⬤   found, NFO and XML agree
+  ◐   NFO and XML differ (conflict rule)
+  ○   no tag found
+  ✕   tag exists but is not a number
 
-  ⬤  value found, all sources agree
-  ◐  values differ between NFO and XML (health: conflict rule)
-  ○  no tag found
-  ✕  tag exists but is not a number (health: unreadable rule)
-
-{SEP}
 NORMALIZE GENRES
-{SEP}
+  Fixes genres in both files:
+  •  capitalisation ("action" → "Action"), synonyms ("Sci-Fi" →
+     "Science Fiction"), translations (PT, DE, FR, ES, IT, RU,
+     ZH, AR), duplicates, merged tags ("Family/Fantasy").
+  •  Copies the genres to the file that has none and converts
+     <Genres>/<Genre> in an NFO to Kodi <genre> tags.
+  •  Movies without genres in either file get them from TMDb
+     (then OMDb); you see a preview before anything is written.
+  Genres not in Settings → Genres are "custom": you choose to
+  keep or delete them, or Right-click → Add Custom Genre(s).
 
-  Standardises genre tags in NFO and XML:
-    • capitalisation   ("action" → "Action")
-    • synonyms         ("Sci-Fi" → "Science Fiction")
-    • translations     (PT, DE, FR, ES, IT, RU, ZH, AR → English)
-    • duplicates removed
-    • merged tags split on / \\ | , ;  ("Family/Fantasy")
-
-  Genres not in Settings → Genres are "custom". For each movie with
-  custom genres you are asked whether to delete or keep them.
-  Right-click → Add Custom Genre(s) adds them to the list instead.
-
-{SEP}
 SOURCE IDS
-{SEP}
-
-  Normalize Sources repairs IMDB/TMDB tags:
-    Case A: tags disagree only by omission → missing tags filled in
-    Case B: tags hold different IDs → choose the right one (titles
-            are looked up on TMDB to help you decide)
-    Case C: no ID anywhere → type one
-  Search Sources queries TMDB by title + year and offers Apply.
+  Normalize Sources fills tags that are missing, lets you choose
+  between conflicting IDs (titles looked up on TMDb) and asks for
+  an ID where there is none ("Skip all remaining" in batches).
+  When only one ID is known, every ID write (Normalize Sources,
+  Apply, Enter ID…, Fix…, Auto Repair) leaves EMPTY tags for the
+  other source, e.g. <tmdbid></tmdbid>, ready to fill in by hand.
+  Existing values are never blanked.
+  Settings → Health Rules decides how a missing ID is reported:
+  "Movie with ONE source only (IMDb or TMDb)" and "Movie with NO
+  source" can each be error, warning or off (not reported).
+  Search Sources looks the movie up on TMDb by title + year (in
+  English, in your library language and with the original title).
+  Each movie shows the IDs its files hold now ("Current: …") and,
+  as the first row, the film behind that ID. When the right film
+  is not listed, "Enter ID…" lets you type its IMDb (tt…) or TMDb
+  ID, shows title, year and poster, then writes both IDs.
+  Films that are on IMDb but not on TMDb: the first row reads
+  "IMDb tt… — not on TMDb" (with the OMDb title when an OMDb key
+  is set). "Confirm IMDb" (or Enter ID… with that IMDb ID) writes
+  the IMDb ID, leaves empty TMDb tags and marks the movie
+  "OK (IMDb only — not on TMDb)", so Verify IDs and Auto Repair
+  stop looking for it on TMDb.
 """
 
-TAB_AUDIO = f"""{SEP}
-  Audio, Subtitles & Images
-{SEP}
-
-AUDIO COLUMN
-  Shows FFprobe audio tracks as LANGUAGE (CHANNELS), sorted
-  alphabetically. Hover for codec and bitrate per track.
-  Populated only by scans or updates that run FFprobe; a scan
-  without FFprobe keeps the previous values.
+TAB_AUDIO = _title("Audio & Images") + """
+AUDIO
+  FFprobe audio tracks as LANGUAGE (CHANNELS); hover for codec and
+  bitrate. Filled only by scans or updates that run FFprobe.
+  FFprobe is always the primary source. A track it reports as UND
+  (no language tag) takes the language from the NFO
+  (<streamdetails><audio><language>, then <video><language>) or the
+  XML (<Audio><Language>): matched by position, or used when only
+  one language fits. Otherwise it stays UND. The tooltip then says
+  e.g. "POR — from NFO (FFprobe: undefined)". Nothing is written.
 
 SUBTITLES
   Embedded tracks (FFprobe) and external files in the folder.
-  External files are tagged by the language suffix: Movie.pt.srt.
+  External files are recognised by the language suffix, e.g.
+  Movie.pt.srt.
+  Hard-coded (burned-in) subtitles are part of the picture and
+  cannot be detected. Mark them with Right-click → Hard-coded
+  subtitles… (one movie or a selection): tick the language(s) or
+  type an ISO 639-2 code under "Other…". The app writes
+  <tag>Hardsub POR</tag> to the NFO and <Tags><Tag>Hardsub
+  POR</Tag></Tags> to the XML (other tags are kept); the column
+  shows "Hard: POR", and Lang OK? and the "Required subtitle
+  language" rule count it.
 
 LANG OK?
-  Y when the target language (Settings → Language) is found in
-  audio streams, embedded subs, external subs, XML <Language> /
-  <LanguageCode>, or NFO <language>.
+  Y when the target language (Settings → Language) is found in an
+  audio track, an embedded, external or hard-coded subtitle, XML
+  <Language> / <LanguageCode> or NFO <language>.
 
-{SEP}
 BACKDROPS
-{SEP}
+  Extract Backdrop(s)    FFmpeg frames spread over the film
+  Fetch Backdrops        pick TMDb / fanart.tv backdrops; replace
+                         a file or save as a new backdropN.jpg
+  Replace All Backdrops  shows your count vs the online count
+                         first (asks "Replace anyway" when you
+                         would end up with fewer), then backup,
+                         delete, download all from the source
+                         you chose
+  Health rules flag too few backdrops and very small ones.
 
-  Extract Backdrop(s)   - FFmpeg frames evenly spread over the film
-                          (count and timeout configurable in the popup)
-  Fetch Backdrops       - Pick TMDB backdrops; replace a local file
-                          or download as a new backdropN.jpg
-  Replace All Backdrops - Backs up and deletes all local backdrops,
-                          then downloads every TMDB backdrop
-  Health rules flag too few backdrops and suspiciously small ones.
+FRAMES FROM THE MOVIE
+  Fetch Fanart and Fetch Backdrops have a "🎞 Frames from movie"
+  button (shown when FFmpeg is set and the movie has a video).
+  •  10 frames from 10 %–90 % of the running time (no titles or
+     end credits); black or flat frames are replaced by a nearby
+     moment.
+  •  "More frames" gives a new set.
+  •  Use This / Replace / Download as New work as for online
+     images; the frame keeps the video's resolution and is marked
+     when it is below the fanart minimum quality.
+  •  The frames are temporary files, deleted when the window
+     closes.
+  •  No TMDB ID needed: without one, Fetch Fanart and Fetch
+     Backdrops open directly on the movie's frames (or fanart.tv
+     by IMDb ID). Fetch Poster/Folder needs a TMDB ID, or an IMDb
+     ID with a fanart.tv key. Replace All Backdrops needs a TMDB
+     ID.
 
-{SEP}
-POSTER / FANART FETCH
-{SEP}
+POSTER AND FANART
+  Fetch Poster/Folder shows your image next to the TMDb posters;
+  "Use This" downloads the full size to poster.jpg and folder.jpg
+  after a backup. Fetch Fanart does the same for fanart.jpg.
+  Copy poster.jpg → folder.jpg fixes folders that differ.
+  The Fetch windows close with "Done" (or Esc): images applied
+  before are kept. While a download runs, Done shows "Finishing…"
+  and closes when it ends.
 
-  Fetch Poster/Folder shows the local image next to TMDB posters
-  (highest resolution first). "Use This" downloads the original
-  size to poster.jpg and copies it to folder.jpg, after a backup.
-  Fetch Fanart does the same for fanart.jpg.
+FANART.TV
+  With a fanart.tv key (Settings → API Keys) the Fetch windows
+  and Replace All Backdrops get a Source choice: TMDb, fanart.tv
+  or Both (default Both; your choice is kept until you close the
+  app). Each image shows its source, size and, for fanart.tv,
+  its likes and language.
+  •  Posters: your library language first (Settings → Language),
+     then images without text, then English.
+  •  Backdrops: fanart.tv backgrounds (1920×1080); tick "include
+     landscape thumbs" for the smaller 1000×562 ones.
+  •  fanart.tv gives no pixel size: "~1920×1080" is its usual
+     size. The real size is checked after the download.
+  •  The movie is found by TMDb ID, then by IMDb ID.
+  •  Answers are kept 7 days in fanarttv_cache.json.
+  Replace All Backdrops shows the count of each source and of
+  both, and warns when the chosen one has fewer than you have.
+  The optional VIP client key gets newer images sooner.
 
-  "Copy poster.jpg → folder.jpg" (right-click, or Tools for the
-  whole library) overwrites folder.jpg with poster.jpg where the
-  two differ, after a backup.
+KODI NAMING
+  MediaClinic reads every name Kodi uses and shows the file Kodi
+  would pick (Kodi's order):
+  •  Poster: <video>-poster.jpg/.png, poster.jpg/.png,
+     <video>.tbn, movie.tbn
+  •  Fanart: <video>-fanart.jpg/.png, fanart.jpg/.png
+  •  NFO: <video>.nfo, movie.nfo (and <folder>.nfo)
+  •  Extra fanart counts as backdrops: fanart1.jpg…,
+     <video>-fanart1.jpg…, the extrafanart folder
+  <video> is the file name of the movie without its extension,
+  as Kodi's library export writes it. The poster and fanart
+  tooltips say which file was found. Fetch Poster/Folder, Fetch
+  Fanart and Copy poster → folder write in the style the folder
+  already uses: a Kodi folder gets <video>-poster.jpg, and no
+  folder.jpg unless one exists. A .png is replaced by the .jpg of
+  the same name (backed up first).
+  New backdrops (Extract Backdrop(s), Fetch Backdrops, Replace All
+  Backdrops) follow the same rule: <video>-fanart1.jpg, -fanart2…
+  in a Kodi folder, backdrop.jpg, backdrop1.jpg… otherwise.
+  DVD and Blu-ray folders: a VIDEO_TS (VIDEO_TS.IFO) or BDMV
+  (index.bdmv) structure is the movie. Kodi's names next to it
+  are read too: VIDEO_TS-poster.jpg, VIDEO_TS.nfo, index-poster.jpg,
+  index.nfo, and poster.jpg / movie.nfo in the movie folder.
+  FFprobe and frames use the largest .VOB / .m2ts file.
+  Health Rules: "folder.jpg optional when a Kodi poster exists"
+  and "NFO named after the folder, not read by Kodi" (both ON).
 
-PROPORTION CHECKS
-  Poster / Folder: 2:3 (optionally also 3:4).
-  Fanart: 16:9 (optionally also 16:8).
-  Wrong proportions are warnings, not errors.
+PROPORTIONS
+  Poster and folder 2:3 (3:4 optional), fanart 16:9 (16:8
+  optional). Wrong proportions are warnings.
 
-{SEP}
 SORTING
-{SEP}
-
-  Movie Name (accent-insensitive) · Year · Genre · Rating · Votes
-  Sources · Poster / Folder / Fanart Quality · Backdrops · Language
-  Video Quality · Video size · Lang OK? · Health (Errors / Warning /
-  OK first). Sorting is stable; the filter is applied after sorting.
+  Movie name (accent-insensitive), year, genre, rating, votes,
+  sources, poster / folder / fanart quality, backdrops, language,
+  video quality and size, Lang OK?, health (errors, warnings or
+  OK first).
 """
 
-TAB_SETTINGS = f"""{SEP}
-  Settings Reference
-{SEP}
-
+TAB_SETTINGS = _title("Settings") + """
 TOOLS
-  Text editor, FFmpeg folder (Test FFmpeg), default backdrop frame
-  count, parallel scanning (folder/metadata workers, default 6;
-  FFprobe processes, default 2), metadata source, optional
-  scraper executable.
+  Text editor, FFmpeg folder (Test FFmpeg), backdrop frame count,
+  parallel scanning (workers, default 6; FFprobe processes,
+  default 2), metadata source, optional scraper.
+  "Remember FFprobe results" (ON): each video is probed once
+  (one ffprobe call gives resolution, audio and subtitles) and
+  the result is kept in ffprobe_cache.json next to settings.json.
+  A scan with FFprobe of an unchanged video does not probe it
+  again; a changed video (size or date) is probed again, and
+  Update (with FFprobe) always probes.
 
 API KEYS
   TMDb and OMDb keys with Validate buttons and links to get them.
+  All online calls share one client with a rate limit and
+  automatic retries.
 
 BROWSER
-  Browser used for web links. Changing it never triggers a rescan.
+  Browser for web links. Changing it never asks for a rescan.
 
 LANGUAGE
   ISO 639-1 code for the Lang OK? column (default PT).
 
 IMPROVEMENTS
-  Toggles for the Improvements Check report and the NFO/XML
-  maximum sizes (also used by the "too large" health rule).
+  Checks of the Improvements report and the NFO/XML maximum
+  sizes (also used by the "too large" health rule).
 
 IMAGE SIZES
   Minimum quality tier (same value as Health Rules), 3:4 and 16:8
-  acceptance, minimum file sizes in KB (health rule "Image file
-  below minimum size"). Since v0.19.0 these changes are applied to
-  the table at once, without a rescan.
+  acceptance, minimum file sizes in KB. Applied to the table at
+  once, without a rescan.
 
 RATINGS
-  Defaults for the two batch checkboxes of the Ratings Sync popup.
+  Defaults of the two checkboxes of the Ratings Sync dialog.
 
 GENRES
-  The standard genre list (one per line). Anything else is custom.
+  The standard genre list, one per line. Others are custom.
 
 NFO / XML
-  Tag pairs compared by the Improvements Check (dot paths,
-  optional tolerance %).
+  Tag pairs compared by the Improvements Check.
 
 USER INTERFACE
-  Alternating row colours, header tooltips, compact mode
-  (smaller rows). Dark theme / auto-fit / image size are reserved.
+  Alternating row colours, header tooltips, compact mode.
 
 HEALTH RULES
-  Every condition that can turn a row red (error rules) or yellow
-  (warning rules) has its own checkbox; some have a level or
-  threshold. Save & Apply recomputes the health status of the
-  loaded movies immediately - no rescan needed. "Reset to
-  defaults" restores the shipped rule set.
+  Every condition that can turn a row red (errors) or yellow
+  (warnings) has a checkbox; some have a level or threshold.
+  Save & Apply recomputes the health at once. "Reset to
+  defaults" restores the shipped rules.
 
 BACKUP
-  Maximum backup folder size (oldest backups deleted first, 0 =
+  Maximum backup folder size (oldest deleted first, 0 =
   unlimited) and a button to delete all backups.
 
 SAVE & APPLY
-  Writes settings.json. Changes to Language, Genres or NFO/XML tags
-  offer an Update Scan (with or without FFprobe); health rule and
-  Image Sizes changes are applied to the table at once. The
-  Save & Apply / Cancel buttons are always visible at the bottom;
-  long tabs scroll with the mouse wheel. A blank numeric field is
-  saved as its default value.
+  Writes settings.json. Language, Genres or NFO/XML tag changes
+  offer an Update Scan; health rule and Image Sizes changes apply
+  at once. A blank number field is saved as its default.
 """
 
-TAB_SHORTCUTS = f"""{SEP}
-  Keyboard Shortcuts
-{SEP}
+TAB_SHORTCUTS = _title("Shortcuts") + """
+KEYBOARD
+  F1, Ctrl+H          Help
+  F5                  Full Scan
+  Esc                 cancel a scan; clear the Filter box
+  Ctrl+F              go to the Filter box
+  Ctrl+L              clear all results
+  Ctrl+S              Settings
+  Ctrl+O              open the selected movie's folder
+  Ctrl+E              open the selected movie's .nfo
+  Ctrl+R              Update selected movie (no FFprobe)
+  Ctrl+Shift+R        Update selected movie (with FFprobe)
+  Ctrl+I              refresh all icons
+  Ctrl+Shift+E        Export Movie List…
 
-  F1 / Ctrl+H     - Open Help
-  F5              - Full Scan
-  Esc             - Cancel a running scan; clear the Filter box
-  Ctrl+F          - Jump to the Filter box
-  Ctrl+L          - Clear All results
-  Ctrl+S          - Open Settings
-  Ctrl+O          - Open the selected movie's folder
-  Ctrl+E          - Open the selected movie's .nfo in the editor
-  Ctrl+R          - Update selected movie (no FFprobe)
-  Ctrl+Shift+R    - Update selected movie (with FFprobe)
-  Ctrl+I          - Refresh all icons
-  Ctrl+Shift+E    - Export Movie List…
+SELECTION
+  A–Z, 0–9            jump to the next movie with that letter
+                      (repeat to cycle)
+  PageUp, PageDown    move one page; Home / End: first / last
+  Shift+Up/Down       extend or shrink the selection
+  Shift+PageUp/Down   extend by one page
+  Shift+Home/End      extend to the first / last row
+  Ctrl+A              select all visible (filtered) movies; in the
+                      Filter box it selects the text
+  With more than one movie selected the status bar shows
+  "N selected".
+  Double-click        action of the column (Actions & Tools)
+  Right-click         menu for the selected movie(s)
 
-  A-Z, 0-9        - Jump to the next movie starting with that
-                    character (repeat the key to cycle)
-  Page Up/Down, Home, End   - Move the selection
-  Shift+Up/Down   - Extend or shrink the selection
-  Double-click    - Action depends on the column
-  Right-click     - Context menu for the selected row(s)
-
-{SEP}
 TROUBLESHOOTING
-{SEP}
-
   Audio column is empty
-    Requires FFprobe. Enable the FFprobe checkbox and run
-    "Update (with FFprobe)" on the affected movies.
-
-  Quick Scan says "No changes detected" after editing a file
-    Quick Scan compares each folder's newest file time with the
-    time recorded at the last scan. Run one Full Scan after
-    upgrading from v0.18.2 or earlier so the times are recorded.
-    Changed movies are probed with FFprobe when the box is ticked.
-
-  A movie shows a health reason that no longer applies
-    Tools → Recompute Health Status re-applies the current rules
-    to the loaded rows; this also happens automatically on startup.
-
-  Source column shows ✕ although the movie has an ID
-    A tag exists but is empty (for example <TMDB></TMDB>).
-    Normalize Sources fills it in.
-
-  Backdrop extraction produces no files
-    Check FFmpeg in Settings → Tools; raise the per-frame timeout.
-
-  Excel opens the CSV in a single column
-    Use Export Movie List → "CSV — semicolon separated", or .xlsx.
-
-  Application log
-    logs/app.log next to the program holds errors and backup records.
-
-{SEP}
-CREDITS
-{SEP}
-
-  Metadata & MediaClinic is developed by Luiz Junqueira with Claude AI.
-  Built to keep KODI / Emby / Jellyfin media libraries clean,
-  complete, and metadata-perfect.
+      Tick FFprobe and run Update (with FFprobe).
+  A health reason no longer applies
+      Tools → Recompute Health Status (also done at every start).
+  Source shows ✕ although the movie has an ID
+      Some tags are empty, e.g. <TMDB></TMDB>, while others
+      hold the ID; Normalize Sources fills them.
+  Ratings Sync skipped movies that "could not be reached"
+      TMDb/OMDb were offline, rate limited or the key is
+      invalid; run it again later. Details are in logs/app.log.
+  When TMDb or OMDb do not answer
+      IMDb is never asked directly: IMDb ratings come through
+      OMDb, IMDb IDs through TMDb. The message names the cause
+      and what to do. TMDb "too many requests": wait about a
+      minute. OMDb daily limit (1,000 requests on a free key):
+      try again in a few hours or tomorrow; TMDb still works.
+      Key rejected: Settings → API Keys → Validate. No
+      connection / not responding: check the internet, try
+      again in a few minutes.
+      In a batch the message comes once, with "Pause this run",
+      "Continue with the other source" and "Cancel". After a rate
+      limit, a daily limit or repeated server errors the service
+      is paused: the status bar shows "⚠ … paused" (click it to
+      see why or to end the pause), the next action asks "Try
+      anyway?", and the pause is kept when you restart.
+  Backdrop extraction makes no files
+      Check FFmpeg in Settings → Tools; raise the frame timeout.
+  Excel opens the CSV in one column
+      Export with "CSV — semicolon separated" or as .xlsx.
 """
 
-TAB_VERSION = f"""{SEP}
-  Version History  —  Metadata & MediaClinic
-{SEP}
-
-  v0.19.0 - FIX: false "Corrupt poster/fanart/folder image" for images
-                 that were only below the minimum resolution or size;
-                 "corrupt" now means "cannot be decoded" (signature,
-                 end marker, Pillow confirmation). Size, resolution,
-                 proportions and extension mismatch are separate
-                 warnings. One minimum-quality setting (Health Rules;
-                 Image Sizes mirrors it). Cached rows re-evaluated on
-                 load, so stale "corrupt" flags disappear.
-             NEW: health rules "Image file below minimum size" and
-                 "Image format mismatch" (PNG named .jpg is read).
-             FIX: Sync Ratings remembers the zero-votes fallback
-                 ("Apply this choice to all remaining movies with zero
-                 votes and no rating"); the primary choice wins wherever a
-                 source is valid; typed values + "apply to all" no longer
-                 skip the remaining movies; 0.0 / 0 is never written.
-             NEW: "Apply to all remaining" in the custom-genre dialog and
-                 "Skip all remaining" when typing missing IDs.
-             NEW: every window remembers its size and position (the main
-                 window also whether it was maximised); dialogs that cannot
-                 be resized remember their position. Windows that would
-                 land off-screen are moved back onto the desktop.
-             NEW: Verify IMDb/TMDb IDs (Tools and right-click): checks that
-                 the IDs in NFO/XML belong to the movie (title in any
-                 language or alternative title, year ±1) and classifies each
-                 movie: OK / IMDb and TMDb point to different films / ID
-                 belongs to another film / ID does not exist / NFO and XML
-                 disagree / no IDs. Sortable report, Save, Fix…; nothing is
-                 written until you choose to fix.
-             NEW: Auto Repair (right-click and Tools → All Movies, with a
-                 dry-run preview): applies every safe fix — IDs (exact
-                 title + year automatically, otherwise a chooser with poster
-                 thumbnails), ratings, genres, year and genres from a
-                 verified TMDb ID, title copy, XML Language. Never touches
-                 poster/folder/fanart/backdrops. Backup first, atomic
-                 writes, per-movie summary (fixed / skipped / still failing).
-             FIX: a missing ID tag is now inserted inside the XML root
-                 (movie.xml files with a <Title> root were made invalid).
-             NEW: rows refresh automatically after every repair, sync,
-                 normalize, fetch, extract, delete or Auto Repair (no
-                 manual Update needed). These refreshes do not run FFprobe
-                 and keep the audio/quality data; a batch tool refreshes
-                 once at the end.
-             NEW: several library folders: Libraries… button (add, remove,
-                 reorder) and a library filter next to Browse… that sets
-                 what the table shows and what Full / Quick Scan cover.
-                 One combined table; Library column (Tools → Choose
-                 Columns); duplicates found across libraries; a library
-                 that is offline keeps its last scan; Library export field.
-
-  v0.18.4 - FIX: Update (no FFprobe) re-reads external subtitles.
-             FIX: cached health reasons recomputed on startup / open
-                 (stale "title mismatch" from v0.18.2 disappears).
-             FIX: health report lists the warnings of red movies too.
-             FIX: title comparison tolerant to entities/quotes/Unicode.
-             NEW: export fields IMDB Link, TMDB Link, Outline, Plot and
-                 an "Identify" preset.
-             NEW: parallel scanning (Settings → Tools) and one directory
-                 listing per movie: several times faster on shares.
-             NEW: Quick Scan probes changed movies with FFprobe.
-             NEW: clickable Errors / Warnings counters, "Problems only",
-                 filter matches health reasons.
-             NEW: duplicate detection rule + Duplicate Movies Report.
-             NEW: Copy poster.jpg → folder.jpg (single, batch, Tools).
-             NEW: Library Statistics, Choose Columns…, Recompute Health
-                 Status, Kodi v17+ <ratings> block support.
-
-  v0.18.3 - NEW: Export Movie List… (Tools menu, Export… button,
-                 Ctrl+Shift+E): column presets, filtered view, CSV
-                 comma/semicolon, tab-separated, plain text, Excel.
-             NEW: Scan results stored in last_results.json instead of
-                 settings.json (settings file shrinks from MB to KB;
-                 scans no longer rewrite it every few rows).
-             NEW: Each NFO/XML and image header is read once per movie
-                 during a scan (metadata phase noticeably faster).
-             NEW: Health rules "IMDB/TMDb ID present in one file only".
-             NEW: Compact mode setting now reduces row height.
-             NEW: Esc cancels a running scan.
-             FIX: Tools → Run Improvements Check — All Movies failed
-                 with "name '_run_improvements_check' is not defined".
-             FIX: Settings menu opened the wrong tab (Ratings → Health
-                 Rules, Genres → Ratings, …); Health Rules entry added.
-             FIX: Quick Scan never detected modified movies, and
-                 computed health before restoring FFprobe data.
-             FIX: "Update Scan (no/with FFprobe)" after a settings save
-                 both followed the FFprobe checkbox instead of the button.
-             FIX: Full Scan without FFprobe dropped the Audio column.
-             FIX: Source/Rating/Votes health messages were swapped
-                 ("conflict" shown for an empty tag; real conflicts
-                 were silent).
-             FIX: Title mismatch compared all four title tags; now only
-                 NFO <title> vs XML <LocalTitle>.
-             FIX: TMDB image download never retried on 429/5xx/timeout
-                 (exception handlers were in the wrong order).
-             FIX: OMDb key validation accepted invalid keys.
-             FIX: Scroll-wheel bindings leaked after closing the Search
-                 Sources window and the Health Rules tab.
-             FIX: Column widths restored even without a saved session;
-                 startup log line reported the wrong version.
-             CODE: ~1,900 lines removed from the main script — duplicated
-                 settings/backup/quality code now imported from the
-                 settings modules; Help text and genre tables moved to
-                 help_text.py and genre_data.py; dead code removed.
-             DOC: Help rewritten to match the actual shortcuts and menus.
-
-  v0.18.2 - NEW: Configurable Health Rules engine (Settings → Health
-                 Rules) with error and warning groups, levels and
-                 thresholds; in-memory health update after save.
-             NEW: Health Status Report (right-click and Tools menu).
-             NEW: Filter bar above the table (Ctrl+F).
-             NEW: Required audio / subtitle language rules.
-
-  v0.18.0 - NEW: Column widths persisted between sessions.
-             NEW: Replace All Backdrops (backup, delete, re-download).
-             NEW: Open on Fanart.tv.
-             NEW: Resilient TMDB image downloader with retries.
-             NEW: Backdrop counting tolerates numbering gaps.
-             FIX: Scroll wheel scoped to the window under the pointer.
-
-  v0.17.x - NEW: Fetch Backdrops dialog (local vs TMDB, replace or add).
-             NEW: Full Scan / Quick Scan naming with tooltips.
-             NEW: Sources sort options; Type Values in Ratings Sync.
-             NEW: Progress popup for batch operations (≥10 movies).
-             NEW: Extrafanart deletion with preview and backup.
-             FIX: Column resize no longer shrinks neighbours.
-             FIX: Shift+Up/Down selection, jump-to-letter reliability.
-             FIX: FFprobe duration fallback chain for MP4/MKV.
-
-  v0.16.1 - Default sort Movie Name (A-Z); Shift+Arrow rewritten;
-             7-tier image quality system with automatic migration.
-
-  v0.16.0 - Votes and Source columns; Normalize Sources; Search
-             Sources; Fetch Poster/Folder and Fetch Fanart; Save/Open
-             Scan Results; multilingual genre translation.
-
-  v0.15.0 - Audio column; rating tooltip with votes and source;
-             per-movie custom genre dialog; Ratings settings tab;
-             redesigned Tools menu; accent-insensitive sorting.
-
-  v0.14.0 - Settings subsystem split into four modules; FFmpeg test
-             and browser detection off the UI thread; test harness.
-
-  v0.13.x - Browser-only change no longer prompts a rescan; merged
-             genre splitting; jump-to-letter; non-blocking settings save.
-
-  v0.12.0 - Merged image columns; Rating column; Backup tab; 3:4
-             acceptance; Add Custom Genre(s).
-
-  v0.11.0 - Silent backups before every write; image quality tiers;
-             16:8 acceptance; F1 help.
-
-  v0.10.x - COLUMN_MODEL architecture; settings_dialog.py extracted;
-             status bar, shortcuts, NFO/XML pre-validation.
-
-  v0.9.0  - Online Ratings Sync; Genre column; API keys; browser
-             selection; improvements report.
-
-  v0.8.0  - Settings menu, Improvements engine, IMDB/TMDb links,
-             FFprobe checkbox, language column, multi-selection.
-
-  v0.7.0 and earlier - original releases.
-"""
+# (menu / tab label, text) in display order.  The About tab is built by the
+# main script and always comes last.
+HELP_TABS = [
+    ("🚀  Getting Started",   TAB_START),
+    ("📊  Table & Columns",   TAB_TABLE),
+    ("🔄  Scans & Libraries", TAB_SCANS),
+    ("🖱  Actions & Tools",   TAB_ACTIONS),
+    ("⭐  Ratings & Genres",  TAB_RATINGS),
+    ("🎵  Audio & Images",    TAB_AUDIO),
+    ("⚙️  Settings",          TAB_SETTINGS),
+    ("⌨  Shortcuts",          TAB_SHORTCUTS),
+]
+ABOUT_LABEL = "ℹ️  About"

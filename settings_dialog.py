@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_dialog.py
 # Metadata & MediaClinic — Settings UI Module
-# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
+# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
 # v0.18.4 — Tools tab: Parallel Scanning section (scan_workers / ffprobe_workers);
 #            Health Rules: duplicate_movie rule.
 #            Fix: Save/Cancel bar packed at the bottom FIRST so it can never be
@@ -102,7 +102,17 @@ from settings_context import SettingsContext, run_async   # NEW v0.14.0
 from settings_model import (                                         ### ADDED_BY_CLAUDE_v18.2 ###
     VIDEO_QUALITY_LEVELS, POSTER_QUALITY_LEVELS, FANART_QUALITY_LEVELS,
     AUDIO_LANGUAGES, SUBTITLE_LANGUAGES,
+    api_failure_text, classify_http_status, classify_network_reason,   # v0.19.1 B22
 )
+
+
+FANARTTV_KEY_URL = "https://fanart.tv/get-an-api-key/"           ### NEW v0.19.1 I10 ###
+
+
+def _validate_failure_text(service_label, kind, other=""):        ### NEW v0.19.1 B22 ###
+    """'✗ <message> <advice>' — the same texts the main window uses."""
+    m, a = api_failure_text(service_label, kind, other)
+    return f"✗ {m} {a}"
 
 
 # ── Legacy quality tier name migration (v0.16.1) ─────────────────────────────
@@ -463,6 +473,12 @@ class SettingsDialog(tk.Toplevel):
         tk.Button(r, text="Test FFmpeg", font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
                   relief="flat", cursor="hand2",
                   command=self._test_ffmpeg_btn).pack(side="left", padx=(4, 0))
+        # NEW v0.19.1 I5 — FFprobe result cache
+        self._ffprobe_cache_var = tk.BooleanVar(value=bool(self._s.get("ffprobe_cache_enabled", True)))
+        tk.Checkbutton(f, text="Remember FFprobe results (ffprobe_cache.json): unchanged videos are not probed again",
+                       variable=self._ffprobe_cache_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=(4, 0))
 
         # Backdrop count
         self._section(f, "Backdrop Extraction")
@@ -580,7 +596,8 @@ class SettingsDialog(tk.Toplevel):
                   relief="flat", cursor="hand2",
                   command=self._validate_tmdb).pack(side="left", padx=(4, 0))
         self._tmdb_status = tk.Label(r, text="", font=("Helvetica", 9),
-                                     bg="#1e1e2e", fg="#a6adc8")
+                                     bg="#1e1e2e", fg="#a6adc8",
+                                     wraplength=380, justify="left")   # v0.19.1 B22 — longer messages
         self._tmdb_status.pack(side="left", padx=(6, 0))
 
         r2 = self._row(f)
@@ -621,7 +638,8 @@ class SettingsDialog(tk.Toplevel):
                   relief="flat", cursor="hand2",
                   command=self._validate_omdb).pack(side="left", padx=(4, 0))
         self._omdb_status = tk.Label(r, text="", font=("Helvetica", 9),
-                                     bg="#1e1e2e", fg="#a6adc8")
+                                     bg="#1e1e2e", fg="#a6adc8",
+                                     wraplength=380, justify="left")   # v0.19.1 B22 — longer messages
         self._omdb_status.pack(side="left", padx=(6, 0))
 
         r3 = self._row(f)
@@ -639,6 +657,55 @@ class SettingsDialog(tk.Toplevel):
                       "  2. Choose 'FREE' (1,000 req/day) and fill in your email\n"
                       "  3. Check your inbox for the activation email\n"
                       "  4. Click the activation link and copy your key here")
+
+        ### NEW v0.19.1 I10 — fanart.tv (second image source in the Fetch dialogs) ###
+        tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(12, 0))
+        self._section(f, "fanart.tv API Key (artwork)")
+        self._note(f, "Optional. Adds fanart.tv posters and backgrounds to Fetch Poster/Folder,\n"
+                      "Fetch Fanart, Fetch Backdrops and Replace All Backdrops.\n"
+                      "Your key is stored locally and never shared. Free personal key.")
+        self._fanarttv_var = tk.StringVar(value=self._s.get("fanarttv_api_key", ""))
+        r = self._row(f)
+        self._fanarttv_entry = tk.Entry(r, textvariable=self._fanarttv_var, font=("Consolas", 9),
+                 bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                 relief="flat", width=46, show="•")
+        self._fanarttv_entry.pack(side="left", fill="x", expand=True, ipady=4)
+        tk.Button(r, text="👁", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2", width=2,
+                  command=lambda: self._toggle_show(self._fanarttv_entry)
+                  ).pack(side="left", padx=(4, 0))
+        tk.Button(r, text="Validate", font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
+                  relief="flat", cursor="hand2",
+                  command=self._validate_fanarttv).pack(side="left", padx=(4, 0))
+        self._fanarttv_status = tk.Label(r, text="", font=("Helvetica", 9),
+                                         bg="#1e1e2e", fg="#a6adc8",
+                                         wraplength=380, justify="left")
+        self._fanarttv_status.pack(side="left", padx=(6, 0))
+
+        r4 = self._row(f)
+        tk.Label(r4, text="No key yet?", font=("Helvetica", 9),
+                 bg="#1e1e2e", fg="#a6adc8").pack(side="left")
+        self._fanarttv_link = tk.Label(r4, text=" ➜ Click here to get your free fanart.tv API key",
+                         font=("Helvetica", 9, "underline"), bg="#1e1e2e", fg="#89b4fa",
+                         cursor="hand2")
+        self._fanarttv_link.pack(side="left")
+        self._fanarttv_link.bind("<Button-1>", lambda e: self._open_url_fn(FANARTTV_KEY_URL)
+                                 if self._open_url_fn else None)
+        self._note(f, "The page asks you to log in or create a free fanart.tv account first.")
+
+        tk.Label(f, text="Client (VIP) key", font=("Helvetica", 9, "bold"),
+                 bg="#1e1e2e", fg="#cdd6f4").pack(anchor="w", padx=24, pady=(8, 0))
+        self._fanarttv_client_var = tk.StringVar(value=self._s.get("fanarttv_client_key", ""))
+        r5 = self._row(f)
+        self._fanarttv_client_entry = tk.Entry(r5, textvariable=self._fanarttv_client_var,
+                 font=("Consolas", 9), bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                 relief="flat", width=46, show="•")
+        self._fanarttv_client_entry.pack(side="left", fill="x", expand=True, ipady=4)
+        tk.Button(r5, text="👁", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2", width=2,
+                  command=lambda: self._toggle_show(self._fanarttv_client_entry)
+                  ).pack(side="left", padx=(4, 0))
+        self._note(f, "Optional — only for fanart.tv VIP members (newer images sooner).")
 
     @staticmethod
     def _toggle_show(entry):
@@ -681,20 +748,11 @@ class SettingsDialog(tk.Toplevel):
                     detail = body.get("status_message", e.reason)
                 except Exception:
                     detail = e.reason
-                if e.code == 401:
-                    msg = f"✗ Invalid key (HTTP 401): {detail}"
-                elif e.code == 429:
-                    msg = "✗ Rate limited (HTTP 429) — try again shortly"
-                else:
-                    msg = f"✗ HTTP {e.code}: {detail}"
+                kind = classify_http_status(e.code, str(detail))      ### MODIFIED v0.19.1 B22 ###
+                msg = (_validate_failure_text("TMDb", kind) if kind
+                       else f"✗ HTTP {e.code}: {detail}")
             except urllib.error.URLError as e:
-                r = str(e.reason)
-                if "timed out" in r.lower():
-                    msg = "✗ Timeout — TMDB unreachable"
-                elif any(k in r.lower() for k in ("nodename","getaddrinfo","resolve")):
-                    msg = "✗ No internet / DNS failure"
-                else:
-                    msg = f"✗ Network error: {r}"
+                msg = _validate_failure_text("TMDb", classify_network_reason(str(e.reason)))   ### MODIFIED v0.19.1 B22 ###
             except Exception as e:
                 msg = f"✗ Error: {type(e).__name__}: {e}"
             return (ok, msg)
@@ -703,6 +761,41 @@ class SettingsDialog(tk.Toplevel):
             self._tmdb_status.configure(text=msg, fg="#a6e3a1" if ok else "#f38ba8")
         run_async(_worker, callback=_tmdb_done, root=self)
 
+    def _validate_fanarttv(self):                                  ### NEW v0.19.1 I10 ###
+        key = self._fanarttv_var.get().strip()
+        if not key:
+            self._fanarttv_status.configure(text="No key entered", fg="#f38ba8"); return
+        self._fanarttv_status.configure(text="Testing…", fg="#a6adc8")
+        self.update_idletasks()
+        def _worker():
+            import urllib.request, urllib.error
+            lbl = "fanart.tv"
+            try:
+                url = f"https://webservice.fanart.tv/v3/movies/603?api_key={key}"
+                req = urllib.request.Request(url, headers={"User-Agent": "MediaClinic/0.19.1"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    data = json.loads(resp.read())
+                if isinstance(data, dict) and (data.get("tmdb_id") or data.get("name")):
+                    return True, "✓ Valid"
+                return False, "✗ Unexpected response"
+            except urllib.error.HTTPError as e:
+                try:
+                    _b = json.loads(e.read() or b"{}")
+                    detail = str(_b.get("error message") or _b.get("message") or "")
+                except Exception:
+                    detail = ""
+                kind = classify_http_status(e.code, detail)
+                return False, (_validate_failure_text(lbl, kind) if kind
+                               else f"✗ HTTP {e.code}: {detail}")
+            except urllib.error.URLError as e:
+                return False, _validate_failure_text(lbl, classify_network_reason(str(e.reason)))
+            except Exception as e:
+                return False, f"✗ Error: {type(e).__name__}"
+        def _done(result):
+            ok, msg = result
+            self._fanarttv_status.configure(text=msg, fg="#a6e3a1" if ok else "#f38ba8")
+        run_async(_worker, callback=_done, root=self)
+
     def _validate_omdb(self):
         key = self._omdb_var.get().strip()
         if not key:
@@ -710,21 +803,35 @@ class SettingsDialog(tk.Toplevel):
         self._omdb_status.configure(text="Testing…", fg="#a6adc8")
         self.update_idletasks()
         def _worker():  # MODIFIED_BY_CLAUDE_v18 - migrated from threading.Thread to run_async
+            ### MODIFIED v0.19.1 B22 — the same messages + advice as the main window ###
+            import urllib.request, urllib.error
+            lbl = "OMDb (IMDb data)"
             try:
-                import urllib.request
                 url = f"https://www.omdbapi.com/?apikey={key}&t=test&type=movie"
                 req = urllib.request.Request(url, headers={"User-Agent": "MediaClinic/0.10.1"})
                 with urllib.request.urlopen(req, timeout=8) as resp:
                     data = json.loads(resp.read())
-                ok = data.get("Response") != "False" or \
-                     "Unauthorized" not in data.get("Error", "")
-            except Exception:
-                ok = False
-            return ok
-        def _omdb_done(ok):
-            self._omdb_status.configure(
-                text="✓ Valid" if ok else "✗ Invalid or network error",
-                fg="#a6e3a1" if ok else "#f38ba8")
+                err = str(data.get("Error", "")).lower()
+                if data.get("Response") == "False" and "limit" in err:
+                    return False, _validate_failure_text(lbl, "daily_limit", " TMDb ratings still work.")
+                if data.get("Response") == "False" and ("invalid api key" in err or "unauthorized" in err):
+                    return False, _validate_failure_text(lbl, "invalid_key")
+                return True, "✓ Valid"
+            except urllib.error.HTTPError as e:
+                try:
+                    detail = str(json.loads(e.read() or b"{}").get("Error", ""))
+                except Exception:
+                    detail = ""
+                kind = classify_http_status(e.code, detail)
+                return False, (_validate_failure_text(lbl, kind, " TMDb ratings still work.") if kind
+                               else f"✗ HTTP {e.code}: {detail}")
+            except urllib.error.URLError as e:
+                return False, _validate_failure_text(lbl, classify_network_reason(str(e.reason)))
+            except Exception as e:
+                return False, f"✗ Error: {type(e).__name__}"
+        def _omdb_done(result):
+            ok, msg = result
+            self._omdb_status.configure(text=msg, fg="#a6e3a1" if ok else "#f38ba8")
         run_async(_worker, callback=_omdb_done, root=self)
 
     # ── Tab 2: Browser ────────────────────────────────────────────────────────
@@ -1552,6 +1659,20 @@ class SettingsDialog(tk.Toplevel):
             sv.trace_add("write", _upd_name)
             return bv, sv
 
+        # ── Helper: severity combobox (error / warning / off) ─── ### NEW v0.19.1 B24 ###
+        def _level_row(str_key, label_text, default_str):
+            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            s_val = hr_current.get(str_key, hr_defaults.get(str_key, default_str))
+            if s_val not in ("error", "warning", "off"):
+                s_val = default_str
+            sv = tk.StringVar(value=s_val)
+            self._hr_str_vars[str_key] = sv
+            tk.Label(row, text=label_text, font=("Helvetica", 10), bg="#1e1e2e",
+                     fg="#cdd6f4").pack(side="left")
+            ttk.Combobox(row, textvariable=sv, values=("error", "warning", "off"),
+                         state="readonly", width=9, font=("Helvetica", 10)).pack(side="left", padx=(6, 0))
+            return sv
+
         # ── Intro and reset button ─────────────────────────────────────────────
         tk.Label(f, text="Health Rules control which conditions affect each movie's\n"
                          "health status. Rules that are OFF are ignored and treated as OK.",
@@ -1588,6 +1709,11 @@ class SettingsDialog(tk.Toplevel):
         _check_row("missing_imdb_id",    "Missing IMDB ID (no tag, or all tags empty)")
         _check_row("corrupt_imdb_id",    "IMDB ID conflict between tags, or tag empty in one file")
         _check_row("missing_tmdb_id",    "Missing TMDb ID (no tag, or all tags empty)")
+        # ### NEW v0.19.1 B24 ### how a missing ID is reported (when the boxes above are ticked)
+        _level_row("single_source_level",
+                   "  ↳ Movie with ONE source only (IMDb or TMDb) — report as:", "error")
+        _level_row("no_source_level",
+                   "  ↳ Movie with NO source (no IMDb, no TMDb) — report as:", "error")
         _check_row("corrupt_tmdb_id",    "TMDb ID conflict between tags, or tag empty in one file")
         _check_row("rating_conflict",    "Rating conflict between NFO and XML (values differ)")
         _check_row("votes_conflict",     "Votes conflict between NFO <votes> and XML <Votes>")
@@ -1608,6 +1734,10 @@ class SettingsDialog(tk.Toplevel):
         _check_row("missing_poster",         "Missing poster")
         _check_row("missing_fanart",         "Missing fanart")
         _check_row("missing_folder",         "Missing folder image")
+        _check_row("folder_optional_with_kodi_poster",                        # NEW v0.19.1 B23
+                   "  ↳ folder.jpg optional when a Kodi poster (<video>-poster.jpg, .tbn) exists")
+        _check_row("nfo_name_not_kodi",                                       # NEW v0.19.1 B23
+                   "NFO named after the folder, not read by Kodi (<video>.nfo / movie.nfo)")
         _check_row("poster_proportion",      "Poster has wrong proportions")
         _check_row("fanart_proportion",      "Fanart has wrong proportions")
         _check_row("folder_proportion",      "Folder image has wrong proportions")
@@ -1629,6 +1759,9 @@ class SettingsDialog(tk.Toplevel):
         _check_spin_flt_row("suspicious_rating", "suspicious_rating_threshold",
                             "Suspicious rating value (below):", 1.0, 0.0, 10.0, incr=0.1, width=5)
         _check_row("genre_warning",          "Genre issues detected (non-standard genres)")
+        _check_row("genre_only_in_xml",      "Genres only in the XML (NFO has no <genre> tags)")          # NEW v0.19.1
+        _check_row("genre_only_in_nfo",      "Genres only in the NFO (XML has no <Genre> tags)")          # NEW v0.19.1
+        _check_row("genre_nfo_wrong_tags",   "NFO uses non-Kodi genre tags (<Genres>/<Genre>)")            # NEW v0.19.1
         _check_row("missing_votes",          "Missing votes count")
         _check_row("votes_warning",          "Votes tag unreadable (non-numeric value)")
         _check_row("lang_not_ok",            "Target language not found (Lang OK? column)")
@@ -2001,6 +2134,9 @@ class SettingsDialog(tk.Toplevel):
             _s["scraper_path"]     = self._scraper_var.get().strip()
             _s["tmdb_api_key"]     = self._tmdb_var.get().strip()
             _s["omdb_api_key"]     = self._omdb_var.get().strip()
+            if hasattr(self, "_fanarttv_var"):                  ### NEW v0.19.1 I10 — key only: no rescan ###
+                _s["fanarttv_api_key"]    = self._fanarttv_var.get().strip()
+                _s["fanarttv_client_key"] = self._fanarttv_client_var.get().strip()
             _s["default_browser"]  = self._browser_var.get().strip()
             _s["lang_ok_code"]     = self._lang_var.get().upper()
             _s["improve_checks"]   = {k: v.get() for k, v in self._ic_vars.items()}
@@ -2014,6 +2150,8 @@ class SettingsDialog(tk.Toplevel):
             _s["backdrop_count"]   = max(1, min(50, _num(self._backdrop_count_var, 10)))
             if hasattr(self, "_scan_workers_var"):                          ### NEW v0.18.4 ###
                 _s["scan_workers"]    = max(1, min(16, _num(self._scan_workers_var, 6)))
+            if hasattr(self, "_ffprobe_cache_var"):                         ### NEW v0.19.1 I5 ###
+                _s["ffprobe_cache_enabled"] = bool(self._ffprobe_cache_var.get())
             if hasattr(self, "_ffprobe_workers_var"):
                 _s["ffprobe_workers"] = max(1, min(8, _num(self._ffprobe_workers_var, 2)))
             _s["metadata_source"]  = self._meta_src_var.get()

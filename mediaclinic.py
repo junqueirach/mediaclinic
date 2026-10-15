@@ -1,12 +1,174 @@
 # =============================================================================
 # Metadata & MediaClinic
-# Version: 0.19.0                                              ### MODIFIED v0.19.0 ###
+# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
 # Author:  Luiz Junqueira & Claude AI
 # Contact: junqueira.ch@gmail.com
 #
 # CHANGELOG
 # ---------
-# v0.19.0 (current)                                         ### NEW v0.19.0 ###
+# v0.19.1 (current)                                         ### NEW v0.19.1 ###
+#   - New: one HTTP client for TMDb / OMDb (_http_get_json): rate limit per
+#          service, retries with backoff on 429/5xx/timeouts (Retry-After
+#          honoured); every TMDb/OMDb call goes through it (Ratings Sync, Search
+#          Sources, ID lookup, Fetch dialogs, Replace All Backdrops).  API keys
+#          are redacted from app.log and error messages.  Ratings Sync and Auto
+#          Repair tell "no rating" from "could not ask" and report skipped movies.
+#   - Fix: genres are read from the NFO (Kodi <genre>) with the XML <Genres> as
+#          fallback; new warnings "genres only in XML", "genres only in NFO",
+#          "NFO uses non-Kodi genre tags (<Genres>/<Genre>)"; Normalize Genres
+#          and Auto Repair sync both files and convert the non-Kodi tags.
+#   - Fix: a movie whose folder was deleted is removed from the table, cache
+#          and duplicate groups when Update / the automatic refresh finds it
+#          gone (an unreachable library keeps its rows); right-click "Remove
+#          from list".
+#   - Fix: library paths always shown and stored Windows-style (z:\\film_kids;
+#          the folder migrated from last_folder kept "/" in v0.19.0).
+#   - New: after the library list changes (Libraries… / Browse…) a prompt
+#          offers Full Scan / Quick Scan / Not now.
+#   - New: Normalize Genres fetches genres from TMDb (then OMDb) for movies
+#          that have none, shows them in one preview and writes them to the
+#          NFO and XML on confirmation (skipped without ID / for wrong-film IDs).
+#   - Fix: double-click on a ✕ NFO/XML opens the file in the editor (the
+#          errors are listed on hover and under right-click → [!] errors).
+#   - Fix: Shift+PageUp / PageDown / Home / End extend the selection; page
+#          size follows the visible rows.
+#   - New: "Enter ID…" in Search Sources (per movie) and in the TMDb chooser
+#          (Fix… / Auto Repair): type an IMDb and/or TMDb ID, look it up
+#          (title, original title, year, poster), Apply writes both IDs.
+#   - Help: Version History removed (tab and menu entry); the Help menu lists
+#          every Help tab in the order of the Help window (one list in
+#          help_text.HELP_TABS); new "Scans & Libraries" tab; all texts
+#          rewritten to one layout and updated for v0.19.x.
+#   - New: progress window with Cancel from 3 movies up (was 10) for every
+#          batch tool; Search Sources (selection and All Movies) shows
+#          progress and can be cancelled; Improvements Check for a selection
+#          runs in a worker; cancelling one frame extraction offers to skip
+#          the remaining movies; Replace All Backdrops shows progress after
+#          1 s (was 15 s); Cancel is checked between network calls.
+#   --- v0.19.1 final (items promised for v0.19.1, built before publishing) ---
+#   - Tests (I9): every UI step of the self-test runs on the Tk main thread
+#          (one on_ui helper; fixes an intermittent "Item not found" race);
+#          fixture IDs from their own range + same_ids_as for duplicates;
+#          harness T13-T15 (quality mirror, v0.19 rule rows, window hook);
+#          10,000-row startup timing; pytest wrapper test_mediaclinic.py.
+#   - New (B13): every ID write leaves EMPTY tags for the source that has no
+#          value anywhere (<tmdbid></tmdbid>, <id moviedb="tmdb"></id>, XML
+#          <TMDB>/<TMDbId>/<TMDB_ID>; IMDb incl. the bare <id>), ready to fill
+#          by hand; existing tags/values never touched.  A source whose tags
+#          are all empty shows ○ "Missing … ID (empty tags ready to fill)";
+#          some filled + some empty stays ✕.
+#   - Fix (B14): Search Sources shows the movie's current IDs and, as the
+#          first row, the film behind the current ID even when the title
+#          search finds nothing; an IMDb ID that TMDb does not know reads
+#          "IMDb tt… — not on TMDb" (+ OMDb title) with "Confirm IMDb", which
+#          writes the IMDb ID, leaves empty TMDb tags and records id_check
+#          "OK (IMDb only — not on TMDb)" (Verify IDs keeps it, Auto Repair
+#          no longer searches TMDb for it).  Enter ID… accepts such an IMDb
+#          ID.  The title search also runs in the library language and with
+#          the original title (merged, no duplicates).
+#   - New (B15): Right-click → "Hard-coded subtitles…" (one movie or a
+#          selection): tick the burned-in language(s) (+ "Other…" ISO 639-2);
+#          written as <tag>Hardsub XXX</tag> (NFO) and <Tags><Tag>Hardsub
+#          XXX</Tag></Tags> (XML), other tags kept, backup + atomic write.
+#          Read back into subs_hard; Subtitles column "Hard: XXX"; Lang OK?
+#          and the "Required subtitle language" rule count it; export too.
+#          No automatic detection (burned-in text is part of the picture).
+#   - Fix (B16): an audio track FFprobe reports as UND gets its language from
+#          the NFO (streamdetails/audio, then video/language) or the XML
+#          (Audio/Language): by position, single track + single language, or
+#          several listed languages that are all equal; otherwise it stays
+#          UND.  language_src kept ("from NFO/XML" in the tooltip); Lang OK?
+#          and the required-audio rule use it.  FFprobe stays primary;
+#          nothing is written to the files.
+#   - New (B17): Replace All Backdrops fetches the online list first and,
+#          before any backup or delete, shows "You have N backdrops. TMDb
+#          offers M." — fewer online needs "Replace anyway"; Cancel touches
+#          nothing.
+#   - Fix (B17, data loss): Replace All Backdrops passed an empty list as the
+#          batch-backup reference, so the backup silently failed (since
+#          v0.18.3) while the originals were deleted.  Now [None]; a failed
+#          backup stops the run before anything is deleted.
+#   - New (B24): Settings → Health Rules → "Movie with ONE source only (IMDb
+#          or TMDb)" and "Movie with NO source": each reported as error,
+#          warning or off (new keys health_rules.single_source_level /
+#          no_source_level, default "error" = unchanged).  Auto Repair does
+#          not search IDs for a movie whose level is "off".
+#   - UI (B18): Fetch Poster/Folder, Fetch Fanart and Fetch Backdrops close
+#          with "Done" (was "Cancel"; Esc / [X] the same).  During a
+#          download Done shows "Finishing…" and closes when it ends, so the
+#          row is still refreshed.
+#   - Kodi (B23): artwork and NFO are found with every name Kodi uses, in
+#          Kodi's order — <video>-poster/-fanart.jpg/.png, poster/fanart.jpg/
+#          .png, <video>.tbn / movie.tbn; NFO <video>.nfo, movie.nfo (and
+#          <folder>.nfo); extra fanart (fanart1.jpg, <video>-fanart1.jpg,
+#          extrafanart/) counts as backdrops.  Tooltips name the file found.
+#          Fetch Poster/Fanart and Copy poster → folder write in the
+#          folder's style (Kodi folder: <video>-poster.jpg, no new
+#          folder.jpg; .png replaced by .jpg; PNG/TBN converted when copied).
+#          New Health Rules folder_optional_with_kodi_poster and
+#          nfo_name_not_kodi (default ON).
+#          New backdrops (Extract, Fetch Backdrops, Replace All) are named in
+#          the folder's style: <video>-fanart1.jpg … in a Kodi folder (Replace
+#          All replaces the Kodi extra fanart there), backdrop*.jpg otherwise.
+#          DVD / Blu-ray folders (VIDEO_TS / BDMV) are the movie: no more
+#          'Missing video file'; VIDEO_TS-poster.jpg, VIDEO_TS.nfo, index-*
+#          and index.nfo are read; FFprobe uses the largest VOB / m2ts.
+#   - Kodi (B19): NFO <uniqueid type="imdb|tmdb"> tags are read (Kodi's
+#          default="true" one first) and conflicts with the other ID tags
+#          are reported; Apply / Normalize / Enter ID / Fix / Auto Repair
+#          update existing <uniqueid> tags (also <uniqueid …/>) but never add
+#          new ones.
+#   - New (B20): inside a batch run (Ratings Sync, Auto Repair, Normalize
+#          Genres) a service that answers "daily limit" or "invalid key" is
+#          not asked again until the run ends (ServiceUnavailable, no
+#          request); Ratings Sync uses the other source; the final message
+#          says it once.  Transient errors keep the per-movie behaviour.
+#   - New (B22): every TMDb/OMDb failure is classified (rate_limited,
+#          daily_limit, invalid_key, offline, server_error, timeout) into one
+#          message + advice used everywhere (Search Sources says "TMDb did not
+#          answer" instead of "No results", Normalize Sources tells "lookup
+#          failed" from "ID not found", Enter ID…, Validate).  A rate limit,
+#          daily limit or repeated server error pauses the service (status
+#          bar "⚠ … paused", "Try anyway?" before the next action), saved in
+#          the new key api_pauses so it survives a restart.  Batches ask once:
+#          [Pause this run] [Continue with the other source] [Cancel].
+#   - UI (B21): the status bar shows "N selected" when more than one movie
+#          is selected; Ctrl+A selects all visible (filtered) movies, but
+#          in the Filter box it selects the text.
+#   - Fix (B12): NFO/XML errors are found by a tag-stack scanner that reads
+#          the whole file: ALL errors with exact line and tag names (never
+#          closed, mismatched closing tag, missing '>', text after the root);
+#          an unescaped & is an info note.  The parser stays a cross-check.
+#   - New (I1): every backup folder has a manifest.json (original path,
+#          backup name, size, mtime, action, run id); Tools → Backup History
+#          / Undo… lists the runs and "Restore this run" puts the files back
+#          atomically (current files backed up first, files changed since
+#          the run listed / skippable, rows refreshed).  Older backups:
+#          "legacy (manual restore only)".
+#   - Speed (I5): ONE ffprobe per video (was 4: resolution, audio,
+#          subtitles, Lang OK?) and the result is cached in
+#          ffprobe_cache.json (path + size + mtime_ns): an unchanged library is
+#          not probed again; Update (with FFprobe) forces a probe; a corrupt
+#          cache is ignored.  New key ffprobe_cache_enabled (Tools tab).
+#   - New (I10): fanart.tv as a second image source.  Fetch Poster/Folder,
+#          Fetch Fanart, Fetch Backdrops and Replace All Backdrops get a
+#          Source choice TMDb / fanart.tv / Both (Both by default with a key);
+#          badges, likes, language order for posters; asked by TMDb ID, then
+#          IMDb ID; answers cached 7 days (fanarttv_cache.json, no key).  New
+#          keys fanarttv_api_key / fanarttv_client_key (API Keys tab: masked,
+#          Validate, "get a key" link).  Menu: "API Keys (fetchers)".
+#   - New (B11): "🎞 Frames from movie" in Fetch Fanart and Fetch Backdrops
+#          (FFmpeg + video): 10 frames from 10 %–90 % of the running time,
+#          black/flat frames replaced by a nearby moment, "More frames" = a
+#          new set; Use This / Replace / Download as New copy the frame (backup
+#          and naming as for online images); frames below the fanart minimum
+#          are marked; the temp frames are deleted when the window closes.
+#   - Fix (B25): a movie without TMDB ID no longer greys out Fetch Fanart /
+#          Fetch Backdrops (frames from the video, fanart.tv by IMDb ID) or
+#          Fetch Poster/Folder (fanart.tv by IMDb ID); with no online source
+#          the dialog opens on the movie's frames.  Replace All Backdrops
+#          still needs a TMDB ID.
+# v0.19.0 (previous)                                        ### NEW v0.19.0 ###
 #   - Fix: images below the minimum resolution / file size were reported
 #          as "Corrupt" (STATUS_ERROR).  Image status split into missing /
 #          corrupt (cannot be decoded) / below minimum size or KB / wrong
@@ -285,6 +447,8 @@ from settings_model import (
     DEFAULT_SETTINGS as _DEFAULT_SETTINGS, DEFAULT_TAG_PAIRS, WORLD_LANGUAGES,
     POSTER_QUALITY_TIERS, FANART_QUALITY_TIERS, _IMG_QUALITY_TOLERANCE,
     classify_image_quality, normalize_lang_code,
+    SUBTITLE_LANGUAGES,                  # v0.19.1 B15 — Hard-coded subtitles dialog
+    API_PAUSE_SECONDS, api_failure_text, classify_http_status, classify_network_reason,   # v0.19.1 B22
     poster_quality_sort_key              as _poster_quality_sort_key,
     fanart_quality_sort_key              as _fanart_quality_sort_key,
     poster_quality_sort_key_missing_last as _poster_quality_sort_key_missing_last,
@@ -307,7 +471,7 @@ import export_list as _export                                    ### NEW v0.18.3
 
 # ── App identity ──────────────────────────────────────────────────────────────
 APP_NAME    = "Metadata & MediaClinic"
-APP_VERSION = "0.19.0"                                           ### MODIFIED v0.19.0 ###
+APP_VERSION = "0.19.1"                                           ### MODIFIED v0.19.1 ###
 APP_AUTHOR  = "Luiz Junqueira & Claude AI"
 APP_EMAIL   = "junqueira.ch@gmail.com"
 _UA         = f"MediaClinic/{APP_VERSION}"   # User-Agent for all HTTP calls ### NEW v0.18.3 ###
@@ -530,6 +694,35 @@ FFMPEG_PATH, FFPROBE_PATH = _find_ffmpeg_ffprobe(SETTINGS.get("ffmpeg_path", "")
 _APP_DIR = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
             else os.path.dirname(os.path.abspath(__file__)))
 
+# ── API key redaction (v0.19.1) ───────────────────────────────────────────────  ### NEW v0.19.1 ###
+_KEY_RE = re.compile(r"((?:api_?key|client_key)=)[^&\s\"'<>]+", re.IGNORECASE)
+
+
+def _redact(text):
+    """Hide API keys in URLs / messages: api_key=abc → api_key=***."""
+    try:
+        return _KEY_RE.sub(r"\1***", str(text))
+    except Exception:
+        return text
+
+
+class _RedactFilter(logging.Filter):
+    """Removes API keys from every log record, including tracebacks."""
+    def filter(self, record):
+        try:
+            msg = record.getMessage()
+            red = _redact(msg)
+            if red != msg:
+                record.msg, record.args = red, None
+            if record.exc_info and not record.exc_text:
+                record.exc_text = _redact(logging.Formatter().formatException(record.exc_info))
+            elif record.exc_text:
+                record.exc_text = _redact(record.exc_text)
+        except Exception:
+            pass
+        return True
+
+
 ### NEW v0.10.0 — Rotating log setup ###
 def _setup_logging():
     """Configure rotating log file in logs/ subfolder next to the script."""
@@ -545,6 +738,9 @@ def _setup_logging():
     root.setLevel(logging.DEBUG)
     if not root.handlers:
         root.addHandler(handler)
+    for _h in root.handlers:                                   ### NEW v0.19.1 — never log API keys ###
+        if not any(isinstance(f, _RedactFilter) for f in _h.filters):
+            _h.addFilter(_RedactFilter())
     return log_path
 
 LOG_PATH = _setup_logging()
@@ -1163,6 +1359,39 @@ def _image_row_fields(key, image_type, path, exists):          ### NEW v0.19.0 #
             f"{key}_mismatch": pr["mismatch"], f"{key}_flags": flags}
 
 
+def _artwork_row_fields(lst):                                  ### NEW v0.19.1 B23 ###
+    """Row fields of poster / folder / fanart, found with Kodi's names
+    (resolve_artwork), plus <key>_style ("kodi"/"plain"), <key>_tried (names
+    looked for) and art_style (the folder's naming style)."""
+    vb = _video_basename(lst)
+    fields = {"art_style": artwork_style(lst, vb)}
+    for key in ("poster", "folder", "fanart"):
+        r = resolve_artwork(lst, key, vb)
+        fields.update(_image_row_fields(key, key, r["path"], r["exists"]))
+        fields[f"{key}_style"] = r["style"]
+        fields[f"{key}_tried"] = r["tried"]
+    return {"fields": fields, "vb": vb}
+
+
+def _art_found_line(d, key):                                   ### NEW v0.19.1 B23 ###
+    """Tooltip header: the file that was found (and whether it is Kodi naming)."""
+    name = os.path.basename(d.get(f"{key}_path") or "") or f"{key}.jpg"
+    return f"Found: {name}" + ("  (Kodi naming)" if d.get(f"{key}_style") == "kodi" else "")
+
+
+def _art_missing_tip(d, key, expected):                        ### NEW v0.19.1 B23 ###
+    """Tooltip for a missing poster / folder / fanart: where it would be
+    written and every name Kodi (and MediaClinic) accepts."""
+    lines = [f"{os.path.basename(expected) or key + '.jpg'}", "[MISSING]", f"Expected: {expected}"]
+    tried = d.get(f"{key}_tried") or []
+    if tried:
+        lines.append("Looked for: " + ", ".join(tried))
+    if key == "folder" and d.get("poster_exists") and d.get("poster_style") == "kodi":
+        lines.append("Optional: Kodi uses the '<video>-poster' image "
+                     "(Settings → Health Rules → folder.jpg optional)")
+    return "\n".join(lines)
+
+
 def reevaluate_row_images(row, settings=None):                 ### NEW v0.19.0 ###
     """Re-derive status / description / corrupt / quality of the three artwork
     files from the facts already stored on the row (no disk access).  Used on
@@ -1203,17 +1432,21 @@ class _FolderListing:                                          ### NEW v0.18.4 #
     on a network share every listing is a round-trip.  Lookups are case-
     insensitive so "Poster.JPG" is found on Linux too.
     """
-    __slots__ = ("path", "files")
+    __slots__ = ("path", "files", "dirs", "disc_cache")
 
     def __init__(self, sub_path):
         self.path  = sub_path
         self.files = {}          # lower name -> (name, path, size, mtime)
+        self.dirs  = {}          # lower name -> path (sub-folders, e.g. extrafanart)  ### NEW v0.19.1 B23 ###
+        self.disc_cache = False  # _disc_info() result (False = not computed yet)      ### NEW v0.19.1 B23 ###
         try:
             for e in os.scandir(sub_path):
                 try:
                     if e.is_file():
                         st = e.stat()
                         self.files[e.name.lower()] = (e.name, e.path, st.st_size, st.st_mtime)
+                    elif e.is_dir():
+                        self.dirs[e.name.lower()] = e.path
                 except OSError:
                     pass
         except OSError:
@@ -1238,31 +1471,333 @@ class _FolderListing:                                          ### NEW v0.18.4 #
                 if os.path.splitext(f[0])[1].lower() in exts]
 
 
-def _subs_summary(subs_internal, subs_external, video_path):   ### NEW v0.18.4 ###
+def _subs_summary(subs_internal, subs_external, video_path, subs_hard=None):   ### NEW v0.18.4, subs_hard v0.19.1 B15 ###
     parts = []
     if subs_internal:
         parts.append("Int: " + ", ".join(s["lang"] for s in subs_internal))
     if subs_external:
         parts.append("Ext: " + ", ".join(s["lang"] for s in subs_external))
+    if subs_hard:
+        parts.append("Hard: " + ", ".join(subs_hard))
     return " | ".join(parts) if parts else ("None" if video_path else "—")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW v0.19.1 B23 — Kodi naming (artwork + NFO), one resolver used everywhere
+# ══════════════════════════════════════════════════════════════════════════════
+# Kodi looks for local movie artwork in this order (CVideoThumbLoader; Kodi
+# wiki "Movie artwork"): "<video file name>-<type>.<ext>" first, then — for a
+# movie in its own folder — "<type>.<ext>"; the legacy poster ("thumb") also
+# comes from "<video file name>.tbn" / "movie.tbn" (and folder.jpg).  Kodi's
+# library export ("separate files") writes the "<video file name>-<type>"
+# form.  The NFO is "<video file name>.nfo" or "movie.nfo".  MediaClinic now
+# reads every one of these forms, shows the one Kodi would use, and writes in
+# the naming style the folder already uses.
+_ART_EXTS = (".jpg", ".png")
+_KODI_ART_TYPES = ("poster", "fanart", "thumb", "landscape", "banner", "clearlogo",
+                   "clearart", "discart", "keyart", "characterart")
+
+
+def _video_basename(lst):
+    """File name (without extension) of the main video — the largest one, as
+    scan_video_files picks it — or None."""
+    videos = sorted(lst.by_ext(VIDEO_EXTENSIONS), key=lambda f: f[2], reverse=True)
+    return os.path.splitext(videos[0][0])[0] if videos else None
+
+
+def _disc_info(lst):                                             ### NEW v0.19.1 B23 ###
+    """DVD / Blu-ray folder structure of a movie folder, or None:
+      {"type": "DVD"|"BD", "dir", "listing", "vb" ("VIDEO_TS"/"index"),
+       "marker" (VIDEO_TS.IFO / index.bdmv), "probe" (largest .VOB / .m2ts,
+       used for FFprobe and frames), "bytes" (total of those files)}.
+    Kodi treats VIDEO_TS.IFO / index.bdmv as the movie file: file-based names
+    (VIDEO_TS-poster.jpg, VIDEO_TS.nfo, index-poster.jpg, index.nfo) live
+    next to it, folder-based names (poster.jpg, movie.nfo) in the movie
+    folder.  A VIDEO_TS.IFO directly in the movie folder is a DVD too.
+    Cached on the listing (one extra directory listing, only for disc folders)."""
+    if lst.disc_cache is not False:
+        return lst.disc_cache
+    info = None
+    try:
+        for dname, kind, vb, marker, exts in (("video_ts", "DVD", "VIDEO_TS", "video_ts.ifo", (".vob",)),
+                                               ("bdmv", "BD", "index", "index.bdmv", (".m2ts",))):
+            if dname == "video_ts" and lst.has("video_ts.ifo"):
+                dl = lst
+            elif lst.dirs.get(dname):
+                dl = _FolderListing(lst.dirs[dname])
+            else:
+                continue
+            if not dl.has(marker):
+                continue
+            media_l = dl
+            if kind == "BD" and dl.dirs.get("stream"):
+                media_l = _FolderListing(dl.dirs["stream"])
+            media = sorted(media_l.by_ext(set(exts)), key=lambda f: f[2], reverse=True)
+            info = {"type": kind, "dir": dl.path, "listing": dl, "vb": vb,
+                    "marker": dl.path_of(marker),
+                    "probe": media[0][1] if media else dl.path_of(marker),
+                    "bytes": sum(f[2] for f in media)}
+            break
+    except OSError:
+        info = None
+    lst.disc_cache = info
+    return info
+
+
+def artwork_style(lst, vb=None):
+    """"kodi" when the folder already holds file-based Kodi artwork
+    ("<video>-<type>.jpg/png", or "VIDEO_TS-<type>" / "index-<type>" next to
+    a disc structure), else "plain" (poster.jpg / fanart.jpg)."""
+    disc = _disc_info(lst)
+    if disc:
+        dl, dvb = disc["listing"], disc["vb"]
+        return "kodi" if any(dl.has(f"{dvb}-{t}{e}") for t in _KODI_ART_TYPES for e in _ART_EXTS) else "plain"
+    vb = vb if vb is not None else _video_basename(lst)
+    if not vb:
+        return "plain"
+    return "kodi" if any(lst.has(f"{vb}-{t}{e}") for t in _KODI_ART_TYPES for e in _ART_EXTS) else "plain"
+
+
+def _art_candidates(lst, kind, vb):
+    """[(listing, name, kodi_style)] Kodi accepts for kind, in Kodi's order."""
+    if kind == "folder":
+        return [(lst, f"folder{e}", False) for e in _ART_EXTS]
+    disc = _disc_info(lst)
+    out = []
+    if disc:
+        out += [(disc["listing"], f"{disc['vb']}-{kind}{e}", True) for e in _ART_EXTS]
+    elif vb:
+        out += [(lst, f"{vb}-{kind}{e}", True) for e in _ART_EXTS]
+    out += [(lst, f"{kind}{e}", False) for e in _ART_EXTS]
+    if kind == "poster":
+        if disc:
+            out.append((disc["listing"], f"{disc['vb']}.tbn", True))
+        elif vb:
+            out.append((lst, f"{vb}.tbn", True))
+        out.append((lst, "movie.tbn", True))
+    return out
+
+
+def _cand_label(lst, cl, name):
+    """Name as shown in tooltips: relative to the movie folder."""
+    return name if cl is lst else os.path.join(os.path.basename(cl.path), name)
+
+
+def resolve_artwork(lst, kind, vb=None):
+    """{path, exists, name, style, tried} for poster / fanart / folder.
+    Missing → path is where it would be written in the folder's style."""
+    vb = vb if vb is not None else _video_basename(lst)
+    cands = _art_candidates(lst, kind, vb)
+    tried = [_cand_label(lst, cl, n) for cl, n, _k in cands]
+    for cl, n, kodi in cands:
+        if cl.has(n):
+            return {"path": cl.path_of(n), "exists": True, "name": cl.files[n.lower()][0],
+                    "style": "kodi" if kodi else "plain", "tried": tried}
+    disc = _disc_info(lst)
+    if kind != "folder" and artwork_style(lst, vb) == "kodi":
+        if disc:
+            path = os.path.join(disc["dir"], f"{disc['vb']}-{kind}.jpg")
+        else:
+            path = os.path.join(lst.path, f"{vb}-{kind}.jpg")
+        style = "kodi"
+    else:
+        path, style = os.path.join(lst.path, f"{kind}.jpg"), "plain"
+    return {"path": path, "exists": False, "name": os.path.basename(path), "style": style, "tried": tried}
+
+
+def artwork_write_target(sub_path, kind):
+    """(target_path, path_to_remove_after_success | None) for writing a new
+    JPEG poster / fanart / folder image in the folder's naming style:
+    an existing .jpg is overwritten; an existing .png is replaced by the
+    .jpg of the same name (the .png is removed after the download, so Kodi
+    does not keep showing it); a legacy .tbn poster is kept and the modern
+    file-based name ("<video>-poster.jpg", "VIDEO_TS-poster.jpg",
+    "index-poster.jpg") is written, which Kodi prefers."""
+    lst = _FolderListing(sub_path)
+    vb = _video_basename(lst)
+    r = resolve_artwork(lst, kind, vb)
+    if r["exists"]:
+        base, ext = os.path.splitext(r["path"])
+        if ext.lower() == ".jpg":
+            return r["path"], None
+        if ext.lower() == ".png":
+            return base + ".jpg", r["path"]
+        disc = _disc_info(lst)                          # .tbn → keep it, write the modern name
+        if disc:
+            return os.path.join(disc["dir"], f"{disc['vb']}-{kind}.jpg"), None
+        if vb:
+            return os.path.join(sub_path, f"{vb}-{kind}.jpg"), None
+        return os.path.join(sub_path, f"{kind}.jpg"), None
+    return r["path"], None
+
+
+def artwork_targets_for_fetch(sub_path, mode):                 ### NEW v0.19.1 B23 ###
+    """(targets, to_remove) for Fetch Poster/Folder (mode "poster") or Fetch
+    Fanart (mode "fanart"): the poster/fanart in the folder's naming style;
+    folder.jpg too in poster mode when it exists, when the folder uses the
+    plain style, or when Health Rules → "folder.jpg optional" is off."""
+    kind = "poster" if mode == "poster" else "fanart"
+    main, rm = artwork_write_target(sub_path, kind)
+    targets, to_remove = [main], ([rm] if rm else [])
+    if kind == "poster":
+        lst = _FolderListing(sub_path)
+        fold = resolve_artwork(lst, "folder")
+        rules = SETTINGS.get("health_rules", {}) or {}
+        if fold["exists"] or artwork_style(lst) == "plain" or not rules.get("folder_optional_with_kodi_poster", True):
+            ft, frm = artwork_write_target(sub_path, "folder")
+            targets.append(ft)
+            if frm:
+                to_remove.append(frm)
+    return targets, to_remove
+
+
+def _poster_folder_differ(row):                                ### NEW v0.19.1 B23 ###
+    """True when poster and folder image (both present) are different images:
+    different byte sizes — except when the formats differ (a Kodi poster.png
+    or movie.tbn next to folder.jpg can never share a byte size), where the
+    same dimensions count as the same image."""
+    pb, fb = row.get("poster_bytes", 0), row.get("folder_bytes", 0)
+    if not (pb and fb) or pb == fb:
+        return False
+    pf, ff = row.get("poster_format"), row.get("folder_format")
+    if pf and ff and pf != ff and row.get("poster_dim") and row.get("poster_dim") == row.get("folder_dim"):
+        return False
+    return True
+
+
+def _copy_image_as(src, dest):                                 ### NEW v0.19.1 B23 ###
+    """Copy an image; when the destination extension needs another format
+    (e.g. a Kodi poster.png or movie.tbn copied to folder.jpg) it is
+    re-encoded with Pillow instead of copied byte for byte (no extension
+    mismatch).  Written atomically through a temp file."""
+    want = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG"}.get(os.path.splitext(dest)[1].lower())
+    have = (probe_image(src) or {}).get("format")
+    if not want or want == have or not _PIL_AVAILABLE:
+        shutil.copy2(src, dest)
+        return
+    tmp = dest + ".mctmp"
+    with _PILImage.open(src) as im:
+        im = im.convert("RGB") if want == "JPEG" else im
+        im.save(tmp, want, **({"quality": 95} if want == "JPEG" else {}))
+    os.replace(tmp, dest)
+
+
+def resolve_nfo(lst, sub_name, vb=None):
+    """(path, exists, name, kodi_reads_it).  Kodi reads "<video>.nfo" or
+    "movie.nfo" (for a disc structure "VIDEO_TS.nfo" / "index.nfo" next to
+    VIDEO_TS.IFO / index.bdmv, or movie.nfo in the movie folder); MediaClinic
+    also accepts "<folder name>.nfo" (its own layout, identical to the Kodi
+    name when the video is named like the folder).  kodi_reads_it is False
+    when only a folder-named NFO exists and Kodi would look for another name."""
+    disc = _disc_info(lst)
+    vb = vb if vb is not None else _video_basename(lst)
+    order = []
+    if disc:
+        order.append((disc["listing"], f"{disc['vb']}.nfo", True))
+    elif vb:
+        order.append((lst, f"{vb}.nfo", True))
+    order += [(lst, "movie.nfo", True), (lst, f"{sub_name}.nfo", None)]
+    for cl, n, kodi in order:
+        if cl.has(n):
+            real = cl.files[n.lower()][0]
+            if kodi is None:            # folder-named NFO: Kodi reads it only when it IS the video name
+                kodi = (not disc) and ((not vb) or real.lower() == f"{vb.lower()}.nfo")
+            return cl.path_of(n), True, real, kodi
+    return lst.path_of(f"{sub_name}.nfo"), False, f"{sub_name}.nfo", True
+
+
+def backdrop_naming(sub_path):                                  ### NEW v0.19.1 B23 ###
+    """("plain"|"kodi", listing, video basename) — how new backdrops are named."""
+    lst = _FolderListing(sub_path)
+    vb = _video_basename(lst)
+    return artwork_style(lst, vb), lst, vb
+
+
+def new_backdrop_paths(sub_path, n):                            ### NEW v0.19.1 B23 ###
+    """n free paths for new backdrops in the folder's naming style:
+    plain (Emby/Jellyfin) → backdrop.jpg, backdrop1.jpg …;
+    Kodi → "<video>-fanart1.jpg" … (a disc structure: fanart1.jpg … in the
+    movie folder).  Numbers already used by any backdrop/fanart name are
+    skipped."""
+    style, lst, vb = backdrop_naming(sub_path)
+    names = set(lst.files)
+    out = []
+    if style == "kodi":
+        prefix = "" if (_disc_info(lst) or not vb) else f"{vb}-"
+        used = set()
+        for f in names:
+            m = re.match(r'^(?:.*-)?fanart(\d+)\.(?:jpg|png)$', f)
+            if m:
+                used.add(int(m.group(1)))
+        k = 1
+        while len(out) < n:
+            if k not in used:
+                out.append(os.path.join(sub_path, f"{prefix}fanart{k}.jpg"))
+            k += 1
+        return out
+    used = {int(m.group(1)) for f in names for m in [re.match(r'^backdrop(\d+)\.jpg$', f)] if m}
+    if "backdrop.jpg" not in names and len(out) < n:
+        out.append(os.path.join(sub_path, "backdrop.jpg"))
+    k = 1
+    while len(out) < n:
+        if k not in used:
+            out.append(os.path.join(sub_path, f"backdrop{k}.jpg"))
+        k += 1
+    return out
+
+
+def replaceable_backdrops(sub_path):                            ### NEW v0.19.1 B23 ###
+    """The backdrop files Replace All Backdrops replaces: backdrop*.jpg in a
+    plain folder; Kodi extra fanart (fanartN, "<video>-fanartN", the
+    extrafanart folder) in a Kodi-style folder.  Never the main fanart."""
+    style, lst, vb = backdrop_naming(sub_path)
+    _n, paths, _a = count_backdrops(sub_path, listing=lst)
+    if style == "kodi":
+        return [p for p in paths if not re.match(r'^backdrop\d*\.jpg$', os.path.basename(p).lower())]
+    return [p for p in paths if re.match(r'^backdrop\d*\.jpg$', os.path.basename(p).lower())
+            and os.path.dirname(p) == sub_path]
 
 
 def count_backdrops(sub_path, listing=None):                     ### MODIFIED v0.18.4 — listing ###
     ### UPDATED v0.18.0 — scan all backdrop*.jpg; no longer stops at first gap ###
+    ### MODIFIED v0.19.1 B23 — Kodi extra fanart counts too: fanart1.jpg…,
+    ### "<video>-fanart1.jpg"…, and the images in an "extrafanart" sub-folder ###
     lst = listing or _FolderListing(sub_path)
+    vb = (_video_basename(lst) or "").lower()
     paths = []
     sizes = {}
+    _kodi_rx = re.compile(r'^(?:' + (re.escape(vb) + '-' if vb else '') + r')?fanart(\d+)\.(?:jpg|png)$') if vb \
+        else re.compile(r'^fanart(\d+)\.(?:jpg|png)$')
     for name, path, size, _m in lst.files.values():
         n = name.lower()
-        if n == "backdrop.jpg" or re.match(r'^backdrop\d+\.jpg$', n):
+        if n == "backdrop.jpg" or re.match(r'^backdrop\d+\.jpg$', n) or _kodi_rx.match(n):
             paths.append(path); sizes[path] = size
-    # Sort deterministically: backdrop.jpg first, then backdrop1.jpg, backdrop2.jpg…
+    _disc = _disc_info(lst)                                      ### NEW v0.19.1 B23 — VIDEO_TS-fanart1.jpg … ###
+    if _disc and _disc["listing"] is not lst:
+        _drx = re.compile(r'^' + re.escape(_disc["vb"].lower()) + r'-fanart(\d+)\.(?:jpg|png)$')
+        for name, path, size, _m in _disc["listing"].files.values():
+            if _drx.match(name.lower()):
+                paths.append(path); sizes[path] = size
+    _xf = lst.dirs.get("extrafanart")
+    if _xf:
+        try:
+            for e in os.scandir(_xf):
+                if e.is_file() and os.path.splitext(e.name)[1].lower() in _ART_EXTS:
+                    paths.append(e.path); sizes[e.path] = e.stat().st_size
+        except OSError:
+            pass
+    # Sort deterministically: backdrop.jpg, backdrop1…, then Kodi fanart1…, then extrafanart
     def _sort_key(p):
         n = os.path.basename(p).lower()
+        if os.path.dirname(p) != lst.path and os.path.basename(os.path.dirname(p)).lower() == "extrafanart":
+            return (3, n)
         if n == "backdrop.jpg":
-            return -1
+            return (0, -1)
         m = re.match(r'^backdrop(\d+)\.jpg$', n)
-        return int(m.group(1)) if m else 9999
+        if m:
+            return (0, int(m.group(1)))
+        m = _kodi_rx.match(n)
+        return (2, int(m.group(1))) if m else (9, n)
     paths.sort(key=_sort_key)
     count = len(paths)
     total_bytes = sum(sizes.get(p, 0) for p in paths)
@@ -1311,6 +1846,14 @@ def scan_video_files(sub_path, listing=None):                  ### MODIFIED v0.1
     lst = listing or _FolderListing(sub_path)
     videos = sorted(lst.by_ext(VIDEO_EXTENSIONS), key=lambda f: f[2], reverse=True)
     if not videos:
+        disc = _disc_info(lst)                                   ### NEW v0.19.1 B23 — DVD / Blu-ray folders ###
+        if disc:
+            rel = os.path.relpath(disc["marker"], sub_path)
+            return {"video_count":1,"video_files":[rel],
+                    "video_ext":"DVD" if disc["type"] == "DVD" else "BLU-RAY",
+                    "video_path":disc["probe"],"video_bytes":disc["bytes"],
+                    "video_size":format_size(disc["bytes"]),
+                    "video_width":None,"video_height":None,"video_quality":"—"}
         return {"video_count":0,"video_files":[],"video_ext":"—",
                 "video_path":None,"video_bytes":0,"video_size":"—",
                 "video_width":None,"video_height":None,"video_quality":"—"}
@@ -1330,40 +1873,113 @@ def _ffprobe_enabled(flag=None):
     return bool(SETTINGS.get("use_ffprobe", True)) if flag is None else bool(flag)
 
 
-def _get_video_resolution(video_path, use_ffprobe=None):
-    """Return (width, height) of first video stream, or (None, None)."""
-    if not _ffprobe_enabled(use_ffprobe):
-        return None, None
-    try:
-        r = subprocess.run(
-            [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
-             "-show_streams", "-select_streams", "v:0", video_path],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        if r.returncode == 0 and r.stdout.strip():
-            streams = json.loads(r.stdout).get("streams", [])
-            if streams:
-                w = streams[0].get("width"); h = streams[0].get("height")
-                if w and h: return int(w), int(h)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception):
-        pass
-    return None, None
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW v0.19.1 I5 — ONE ffprobe per video, cached (ffprobe_cache.json)
+# ══════════════════════════════════════════════════════════════════════════════
+# v0.19.0 ran four ffprobe processes per video and scan (resolution, audio,
+# subtitles, the Lang OK? audio check).  Now one "-show_streams -show_format"
+# call gives everything, and the result is kept per path + size + mtime_ns, so
+# an unchanged video is never probed again (network shares!).  "Update (with
+# FFprobe)" forces a fresh probe.  Setting: ffprobe_cache_enabled.
+_FFPROBE_CACHE = None                       # loaded lazily from settings_controller
+_FFPROBE_LOCK = threading.Lock()
+_FFPROBE_DIRTY = [False]
+_FFPROBE_STATS = {"runs": 0, "hits": 0}     # self-test spy
+_FFPROBE_MEMO = {}                          # cache OFF: result kept ~10 s (one movie's scan), never saved
+_FFPROBE_MEMO_TTL = 10.0
 
-def _get_ffprobe_full(video_path, use_ffprobe=None):
-    """Return full ffprobe JSON dict (format + streams), or {}."""
-    if not _ffprobe_enabled(use_ffprobe):
-        return {}
+
+def _ffprobe_cache():
+    global _FFPROBE_CACHE
+    with _FFPROBE_LOCK:
+        if _FFPROBE_CACHE is None:
+            _FFPROBE_CACHE = _sc.load_ffprobe_cache()
+        return _FFPROBE_CACHE
+
+
+def _run_ffprobe_json(video_path, timeout=30):
+    """The one ffprobe process: -show_streams -show_format → dict ({} on failure)."""
+    _FFPROBE_STATS["runs"] += 1
     try:
         r = subprocess.run(
             [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
              "-show_streams", "-show_format", video_path],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if r.returncode == 0 and r.stdout.strip():
-            return json.loads(r.stdout)
+            d = json.loads(r.stdout)
+            return d if isinstance(d, dict) else {}
     except Exception:
         pass
     return {}
+
+
+def _probe_json(video_path, use_ffprobe=None, force=False):     ### NEW v0.19.1 I5 ###
+    """FFprobe data of *video_path* (format + streams), from the cache when
+    the file's size and mtime_ns are unchanged.  force=True probes again."""
+    if not video_path or not _ffprobe_enabled(use_ffprobe):
+        return {}
+    try:
+        st = os.stat(video_path)
+    except OSError:
+        return {}
+    key = os.path.normcase(os.path.abspath(video_path))
+    use_cache = bool(SETTINGS.get("ffprobe_cache_enabled", True))
+    if use_cache and not force:
+        e = _ffprobe_cache().get(key)
+        if e and e.get("size") == st.st_size and e.get("mtime_ns") == st.st_mtime_ns:
+            _FFPROBE_STATS["hits"] += 1
+            return e["data"]
+    if not use_cache and not force:                     # still ONE probe per video and scan
+        m = _FFPROBE_MEMO.get(key)
+        if m and m[0] == (st.st_size, st.st_mtime_ns) and time.time() - m[1] < _FFPROBE_MEMO_TTL:
+            return m[2]
+    data = _run_ffprobe_json(video_path)
+    if data and not use_cache:
+        _FFPROBE_MEMO[key] = ((st.st_size, st.st_mtime_ns), time.time(), data)
+        if len(_FFPROBE_MEMO) > 256:
+            _FFPROBE_MEMO.clear()
+    if data and use_cache:
+        c = _ffprobe_cache()
+        with _FFPROBE_LOCK:
+            c[key] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "data": data}
+            _FFPROBE_DIRTY[0] = True
+    return data
+
+
+def _ffprobe_cache_flush():                                     ### NEW v0.19.1 I5 ###
+    """Save the cache when it changed (worker threads; called after scans)."""
+    if not _FFPROBE_DIRTY[0] or _FFPROBE_CACHE is None:
+        return
+    with _FFPROBE_LOCK:
+        snap = dict(_FFPROBE_CACHE)
+        _FFPROBE_DIRTY[0] = False
+    try:
+        _sc.save_ffprobe_cache(snap)
+    except Exception as ex:
+        logger.warning(f"ffprobe_cache.json not saved: {ex}")
+
+
+def _probe_streams(video_path, kind, use_ffprobe=None):         ### NEW v0.19.1 I5 ###
+    """Streams of one codec_type ("video" / "audio" / "subtitle")."""
+    return [s for s in (_probe_json(video_path, use_ffprobe).get("streams") or [])
+            if s.get("codec_type") == kind]
+
+
+def _get_video_resolution(video_path, use_ffprobe=None):
+    """Return (width, height) of first video stream, or (None, None).
+    ### MODIFIED v0.19.1 I5 — from the one cached probe ###"""
+    for s in _probe_streams(video_path, "video", use_ffprobe):
+        w = s.get("width"); h = s.get("height")
+        if w and h:
+            return int(w), int(h)
+        break
+    return None, None
+
+def _get_ffprobe_full(video_path, use_ffprobe=None):
+    """Return full ffprobe JSON dict (format + streams), or {}.
+    ### MODIFIED v0.19.1 I5 — the one cached probe ###"""
+    return _probe_json(video_path, use_ffprobe)
 
 def scan_subtitles(sub_path, video_path, use_ffprobe=None, listing=None):  ### MODIFIED v0.18.4 — listing ###
     result = {"subs_internal":[],"subs_external":[],"subs_summary":"—"}
@@ -1373,21 +1989,95 @@ def scan_subtitles(sub_path, video_path, use_ffprobe=None, listing=None):  ### M
         lang = parts[-1] if len(parts) > 1 and len(parts[-1]) <= 20 else "unknown"
         result["subs_external"].append({"lang": lang, "file": name})
     if video_path and _ffprobe_enabled(use_ffprobe):
-        try:
-            proc = subprocess.run(
-                [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
-                 "-show_streams", "-select_streams", "s", video_path],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            if proc.returncode == 0 and proc.stdout.strip():
-                for stream in json.loads(proc.stdout).get("streams", []):
-                    tags = stream.get("tags", {})
-                    result["subs_internal"].append({
-                        "lang":  tags.get("language") or tags.get("LANGUAGE") or "und",
-                        "title": tags.get("title")    or tags.get("TITLE")    or ""})
-        except Exception: pass
+        for stream in _probe_streams(video_path, "subtitle", use_ffprobe):   ### MODIFIED v0.19.1 I5 ###
+            tags = stream.get("tags", {})
+            result["subs_internal"].append({
+                "lang":  tags.get("language") or tags.get("LANGUAGE") or "und",
+                "title": tags.get("title")    or tags.get("TITLE")    or ""})
     result["subs_summary"] = _subs_summary(result["subs_internal"], result["subs_external"], video_path)
     return result
+def _lang3(value):                                              ### NEW v0.19.1 B16 ###
+    """'por' / 'pt' / 'Portuguese' / 'pt-BR' → 'POR'; None when unknown or undefined."""
+    v = (value or "").strip().lower()
+    if not v or v in ("und", "undefined", "unknown", "zxx", "mis", "mul"):
+        return None
+    if re.fullmatch(r"[a-z]{3}", v):
+        return v.upper()
+    for iso2, aliases in _LANG_ALIASES.items():
+        if v in aliases:
+            return normalize_lang_code(iso2)
+    if re.fullmatch(r"[a-z]{2}", v):
+        return normalize_lang_code(v)
+    return None
+
+
+def _file_audio_langs(nfo_path, xml_path):                      ### NEW v0.19.1 B16 ###
+    """Audio-language candidate lists from the files, in order of trust:
+    [("NFO", fileinfo/streamdetails/audio/language…), ("XML", Audio/Language…),
+     ("NFO", video/language…)].  Unknown / undefined values are dropped."""
+    out = []
+    nroot = _parse_root(nfo_path) if nfo_path and os.path.isfile(nfo_path) else None
+    xroot = _parse_root(xml_path) if xml_path and os.path.isfile(xml_path) else None
+    if nroot is not None:
+        out.append(("NFO", [c for c in (_lang3(a.findtext("language")) for a in nroot.iter("audio")) if c]))
+    if xroot is not None:
+        out.append(("XML", [c for c in (_lang3(a.findtext("Language")) for a in xroot.iter("Audio")) if c]))
+    if nroot is not None:
+        out.append(("NFO", [c for c in (_lang3(v.findtext("language")) for v in nroot.iter("video")) if c]))
+    return [(src, lst) for src, lst in out if lst]
+
+
+def fill_audio_lang_from_files(tracks, nfo_path, xml_path):     ### NEW v0.19.1 B16 ###
+    """FFprobe stays primary: only tracks whose language is UND/empty get one
+    from the NFO/XML — by position when the file lists as many languages as
+    there are tracks, the single language when there is one undefined track
+    and one language, or the common language when all listed ones are equal.
+    Otherwise the track stays UND (no guessing).  A filled track carries
+    language_src ("NFO"/"XML") and language_raw (what FFprobe said), so it is
+    re-filled from scratch every time (an edited NFO is picked up).  Nothing
+    is written to the files.  Returns a new list."""
+    base = []
+    for t in tracks or []:
+        t = dict(t)
+        if t.get("language_src"):                    # undo an earlier fill
+            t["language"] = t.pop("language_raw", "UND") or "UND"
+            t.pop("language_src", None)
+        base.append(t)
+    und = [i for i, t in enumerate(base) if (t.get("language") or "UND").upper() in ("UND", "")]
+    if not und:
+        return base
+    for src, langs in _file_audio_langs(nfo_path, xml_path):
+        if len(langs) == len(base):
+            pick = {i: langs[i] for i in und}
+        elif len(und) == 1 and len(langs) == 1:
+            pick = {und[0]: langs[0]}
+        elif len(langs) >= 2 and len(set(langs)) == 1:   # several listed, all equal
+            pick = {i: langs[0] for i in und}
+        else:
+            continue
+        for i, code in pick.items():
+            base[i]["language_raw"] = base[i].get("language") or "UND"
+            base[i]["language"] = code
+            base[i]["language_src"] = src
+        return base
+    return base
+
+
+def _refill_audio_row(r):                                       ### NEW v0.19.1 B16 ###
+    """Apply fill_audio_lang_from_files to a row; a filled target-language
+    track also makes Lang OK? = Y."""
+    nfo = r.get("nfo_path") if r.get("nfo_exists") else None
+    xml = r.get("xml_path") if r.get("xml_exists") else None
+    if not r.get("audio_tracks"):
+        return r
+    r["audio_tracks"] = fill_audio_lang_from_files(r["audio_tracks"], nfo, xml)
+    if r.get("video_path") and r.get("lang_ok") == "N":
+        iso = SETTINGS.get("lang_ok_code", "PT")
+        if any(t.get("language_src") and is_target_lang(t["language"], iso) for t in r["audio_tracks"]):
+            r["lang_ok"] = "Y"
+    return r
+
+
 def scan_audio_tracks(video_path, use_ffprobe=None):             ### NEW v0.15.0 ###
     """
     Extract audio tracks from video_path using ffprobe.
@@ -1397,15 +2087,8 @@ def scan_audio_tracks(video_path, use_ffprobe=None):             ### NEW v0.15.0
     if not video_path or not _ffprobe_enabled(use_ffprobe):
         return []
     try:
-        proc = subprocess.run(
-            [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
-             "-show_streams", "-select_streams", "a", video_path],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        if proc.returncode != 0 or not proc.stdout.strip():
-            return []
         tracks = []
-        for stream in json.loads(proc.stdout).get("streams", []):
+        for stream in _probe_streams(video_path, "audio", True):   ### MODIFIED v0.19.1 I5 — the one cached probe ###
             tags    = stream.get("tags", {})
             lang    = (tags.get("language") or tags.get("LANGUAGE") or
                        tags.get("lang") or "und").upper()
@@ -1443,30 +2126,28 @@ def scan_audio_tracks(video_path, use_ffprobe=None):             ### NEW v0.15.0
 
 
 def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path,
-                    iso_code="PT", use_ffprobe=None):
+                    iso_code="PT", use_ffprobe=None, subs_hard=None):
     """
     Y  — target language audio OR subtitle is present (ffprobe + XML + NFO)
     N  — video present but no target language found
     —  — no video file
+    subs_hard — hard-coded subtitle codes marked by the user (v0.19.1 B15)
     """
     if not video_path:
         return "—"
 
-    # 1. FFprobe audio streams
+    # 0. Hard-coded subtitles marked by the user (no probe needed) ### NEW v0.19.1 B15 ###
+    for c in (subs_hard or []):
+        if is_target_lang(c, iso_code):
+            return "Y"
+
+    # 1. FFprobe audio streams (the one cached probe — v0.19.1 I5)
     if _ffprobe_enabled(use_ffprobe):
-        try:
-            r = subprocess.run(
-                [FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
-                 "-show_streams", "-select_streams", "a", video_path],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            if r.returncode == 0 and r.stdout.strip():
-                for stream in json.loads(r.stdout).get("streams", []):
-                    tags = stream.get("tags", {})
-                    lang = tags.get("language") or tags.get("LANGUAGE") or ""
-                    if is_target_lang(lang, iso_code):
-                        return "Y"
-        except Exception: pass
+        for stream in _probe_streams(video_path, "audio", use_ffprobe):
+            tags = stream.get("tags", {})
+            lang = tags.get("language") or tags.get("LANGUAGE") or ""
+            if is_target_lang(lang, iso_code):
+                return "Y"
 
     # 2. Internal subtitles (ffprobe)
     for s in subs_internal:
@@ -1543,8 +2224,141 @@ def _fast_precheck_xml(filepath):
         return False, str(e)
 
 
-def validate_xml_file(filepath, is_nfo=False):
-    """Validate XML/NFO structure. Returns list of error dicts."""
+_ENTITY_RE = re.compile(r'&(?:amp|lt|gt|quot|apos|#\d+|#x[0-9A-Fa-f]+);')     ### NEW v0.19.1 B12 ###
+_TAGNAME_RE = re.compile(r'[A-Za-z_][\w.\-:]*')
+
+
+def scan_xml_structure(content):                                ### NEW v0.19.1 B12 ###
+    """Tolerant tag-stack scan of an NFO/XML text that does NOT stop at the
+    first problem (Python's parser does).  Returns (errors, infos), lists of
+    {"line", "col", "message"} (1-based line/col; the message never starts
+    with "Line …", the displays add that):
+      • "`<plot>` opened here is never closed (expected `</plot>` before
+        `</movie>` on line 40)" / "… before the end of the file"
+      • "closing `</titel>` does not match the open `<title>` (line 27)"
+      • "`<rating` missing `>`" / "closing `</rating` missing `>`"
+      • "closing `</x>` without an opening tag"
+      • "text after the root element `</movie>`"
+      • info: "`&` not escaped (Kodi accepts it, Emby may not)"
+    Comments, <?…?>, <!DOCTYPE …> and CDATA are skipped; quotes inside a tag
+    are respected."""
+    errors, infos = [], []
+    n = len(content)
+    starts = [0]
+    for i, ch in enumerate(content):
+        if ch == "\n":
+            starts.append(i + 1)
+    import bisect
+
+    def lc(pos):
+        ln = bisect.bisect_right(starts, pos)
+        return ln, pos - starts[ln - 1] + 1
+
+    def err(pos, msg):
+        ln, col = lc(pos)
+        errors.append({"line": ln, "col": col, "message": msg})
+
+    stack = []                 # (name, pos)
+    root_closed_at = None      # (name, pos) once the root element is closed
+    after_root_reported = False
+    amp_lines = set()
+    i = 0
+    while i < n:
+        ch = content[i]
+        if ch != "<":
+            if ch == "&" and not _ENTITY_RE.match(content, i):
+                ln, col = lc(i)
+                if ln not in amp_lines:
+                    amp_lines.add(ln)
+                    infos.append({"line": ln, "col": col,
+                                  "message": "`&` not escaped (Kodi accepts it, Emby may not)"})
+            if (root_closed_at and not after_root_reported and not ch.isspace()):
+                err(i, f"text after the root element `</{root_closed_at[0]}>`")
+                after_root_reported = True
+            i += 1
+            continue
+        # ── markup ────────────────────────────────────────────────────────────
+        if content.startswith("<!--", i):
+            j = content.find("-->", i + 4)
+            i = n if j == -1 else j + 3
+            continue
+        if content.startswith("<![CDATA[", i):
+            j = content.find("]]>", i + 9)
+            i = n if j == -1 else j + 3
+            continue
+        if content.startswith("<?", i) or content.startswith("<!", i):
+            j = content.find(">", i + 2)
+            i = n if j == -1 else j + 1
+            continue
+        closing = content.startswith("</", i)
+        k = i + (2 if closing else 1)
+        m = _TAGNAME_RE.match(content, k)
+        if not m:
+            err(i, "`<` that does not start a tag (write `&lt;` in text)")
+            i += 1
+            continue
+        name = m.group(0)
+        # find the end of the tag, honouring quotes; stop at a '<' (missing '>')
+        j, quote = m.end(), None
+        while j < n:
+            c = content[j]
+            if quote:
+                if c == quote:
+                    quote = None
+            elif c in "\"'":
+                quote = c
+            elif c == ">" or c == "<":
+                break
+            j += 1
+        if j >= n or content[j] == "<":
+            err(i, f"closing `</{name}` missing `>`" if closing else f"`<{name}` missing `>`")
+            end = j                                  # recover: the tag ends here
+            self_closing = False
+        else:
+            end = j + 1
+            self_closing = (not closing) and content[j - 1] == "/"
+        if root_closed_at and not after_root_reported:
+            err(i, f"text after the root element `</{root_closed_at[0]}>`")
+            after_root_reported = True
+        if closing:
+            if not stack:
+                if not root_closed_at:
+                    err(i, f"closing `</{name}>` without an opening tag")
+            elif stack[-1][0] == name:
+                stack.pop()
+                if not stack:
+                    root_closed_at = (name, i)
+            elif any(s[0] == name for s in stack):
+                cl_line = lc(i)[0]
+                while stack and stack[-1][0] != name:
+                    oname, opos = stack.pop()
+                    err(opos, f"`<{oname}>` opened here is never closed "
+                              f"(expected `</{oname}>` before `</{name}>` on line {cl_line})")
+                stack.pop()
+                if not stack:
+                    root_closed_at = (name, i)
+            else:                                    # most likely a typo of the open tag:
+                oname, opos = stack.pop()            # report it once and treat it as its close
+                err(i, f"closing `</{name}>` does not match the open `<{oname}>` (line {lc(opos)[0]})")
+                if not stack:
+                    root_closed_at = (oname, i)
+        elif not self_closing:
+            stack.append((name, i))
+        i = end
+    for oname, opos in reversed(stack):
+        err(opos, f"`<{oname}>` opened here is never closed (expected `</{oname}>` before the end of the file)")
+    errors.sort(key=lambda e: (e["line"], e["col"]))
+    return errors, infos
+
+
+def validate_xml_file(filepath, is_nfo=False, infos=None):     ### REWRITTEN v0.19.1 B12 ###
+    """Validate XML/NFO structure.  Returns the list of error dicts
+    {line, col, message} — ALL of them, with the exact line and the tag names
+    (scan_xml_structure).  Python's parser stays a cross-check: a file the
+    parser rejects is never "OK" (its error is added when the scanner found
+    nothing), and a file the parser accepts gets no scanner errors (no false
+    alarms).  *infos* (a list), when given, receives info-level notes
+    (unescaped `&`), which never make the file an error."""
     errors = []
     if not os.path.isfile(filepath): return errors
     ### NEW v0.10.0 — fast pre-check before heavy parse ###
@@ -1558,55 +2372,25 @@ def validate_xml_file(filepath, is_nfo=False):
     if is_nfo and _is_url_only_nfo(content): return errors
     if content.startswith('\ufeff'): content = content[1:]
 
+    scan_errors, scan_infos = scan_xml_structure(content)
+    if infos is not None:
+        infos.extend(scan_infos)
+
     # Strip & / &amp; for parse — do NOT report as error (KODI-safe)
     parse_content = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;|#)', '&amp;', content)
-
+    parser_error = None
     try:
         ET.fromstring(parse_content)
     except ET.ParseError as e:
         line, col = e.position if hasattr(e, 'position') else (0, 0)
-        raw_msg = str(e)
-        src_lines = content.splitlines()
-        if 0 < line <= len(src_lines):
-            offending = src_lines[line - 1]
-            if "mismatched tag" in raw_msg:
-                raw_msg = (f"Mismatched tag at line {line} — "
-                           "likely caused by a broken tag earlier in the file")
-        # Filter out & errors entirely
-        if "undefined entity" not in raw_msg.lower():
-            errors.append({"line":line,"col":col,"message":raw_msg})
+        if "undefined entity" not in str(e).lower():
+            parser_error = {"line": line, "col": col, "message": f"XML parser: {e}"}
 
-    lines = content.splitlines()
-    for ln, lt in enumerate(lines, 1):
-        sl = lt.strip()
-        if sl.startswith('<?') or sl.startswith('<!--'): continue
-        for b in re.findall(r'<([A-Za-z_][\w.\-]*)(?=[^>]*(?:<|$))', lt):
-            seg = lt[lt.index(f"<{b}"):]
-            at = seg[1:]; nlt = at.find('<'); ngt = at.find('>')
-            if ngt == -1 or (nlt != -1 and nlt < ngt):
-                ml = False
-                if ngt == -1:
-                    for pk in range(ln, min(ln+5, len(lines))):
-                        pl = lines[pk]
-                        if '>' in pl:
-                            gp = pl.index('>'); lp = pl.find('<')
-                            if lp == -1 or gp < lp: ml = True
-                            break
-                        if '<' in pl: break
-                if not ml and not any(e["line"] == ln for e in errors):
-                    errors.append({"line":ln,"col":lt.index(f"<{b}")+1,
-                                   "message":f"Malformed tag '<{b}…' — missing '>'"})
-        stripped = lt.rstrip()
-        if re.search(r'</[A-Za-z_][\w.\-]*\s*$', stripped) and not stripped.endswith('>'):
-            if not any(e["line"] == ln for e in errors):
-                errors.append({"line":ln,"col":len(stripped),
-                               "message":"Closing tag missing '>'"})
-    seen = set(); unique = []
-    for e in errors:
-        k = (e["line"], e["message"][:60])
-        if k not in seen: seen.add(k); unique.append(e)
-    unique.sort(key=lambda e: (e["line"], e["col"]))
-    return unique
+    if parser_error is None:
+        return []                                  # the parser accepts it → no false alarms
+    errors = scan_errors or [parser_error]
+    return sorted(errors, key=lambda e: (e["line"], e["col"]))
+
 
 def _parse_xml_to_dict(filepath):
     """
@@ -2026,6 +2810,10 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
     imdb_xml = []; tmdb_xml = []
     imdb_nfo = []; tmdb_nfo = []
     imdb_error = False; tmdb_error = False
+    # ### NEW v0.19.1 B13 ### an EMPTY tag is tracked apart from a parse error:
+    # all tags of a source empty → MISSING ("empty tags ready to fill"); some
+    # filled + some empty → ERROR as before.
+    imdb_empty = False; tmdb_empty = False
 
     # ── XML ──────────────────────────────────────────────────────────────────
     if xml_path and os.path.isfile(xml_path):
@@ -2038,13 +2826,13 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
                 if el is not None:
                     txt = (el.text or "").strip()
                     if txt: imdb_xml.append(txt)
-                    else: imdb_error = True
+                    else: imdb_empty = True                    ### MODIFIED v0.19.1 B13 ###
             for tag in ["TMDB", "TMDbId", "TMDB_ID"]:
                 el = root.find(tag)
                 if el is not None:
                     txt = (el.text or "").strip()
                     if txt: tmdb_xml.append(txt)
-                    else: tmdb_error = True
+                    else: tmdb_empty = True                    ### MODIFIED v0.19.1 B13 ###
         except Exception:
             imdb_error = True; tmdb_error = True
 
@@ -2059,20 +2847,30 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
                 txt = (el.text or "").strip()
                 if mdb.lower() == "imdb":
                     if txt: imdb_nfo.append(txt)
-                    else: imdb_error = True
+                    else: imdb_empty = True                    ### MODIFIED v0.19.1 B13 ###
                 elif mdb.lower() in ("tmdb", "themoviedb"):
                     if txt: tmdb_nfo.append(txt)
-                    else: tmdb_error = True
+                    else: tmdb_empty = True                    ### MODIFIED v0.19.1 B13 ###
                 elif not mdb and txt.startswith("tt"):
                     imdb_nfo.append(txt)
             for el in root_nfo.findall("imdbid"):
                 txt = (el.text or "").strip()
                 if txt: imdb_nfo.append(txt)
-                else: imdb_error = True
+                else: imdb_empty = True                        ### MODIFIED v0.19.1 B13 ###
             for el in root_nfo.findall("tmdbid"):
                 txt = (el.text or "").strip()
                 if txt: tmdb_nfo.append(txt)
-                else: tmdb_error = True
+                else: tmdb_empty = True                        ### MODIFIED v0.19.1 B13 ###
+            # ### NEW v0.19.1 B19 ### Kodi v18+ <uniqueid type="imdb|tmdb" default="true">
+            for el in root_nfo.findall("uniqueid"):
+                typ = (el.get("type") or "").strip().lower()
+                txt = (el.text or "").strip()
+                if typ == "imdb":
+                    if txt: imdb_nfo.append(txt)
+                    else: imdb_empty = True
+                elif typ in ("tmdb", "themoviedb"):
+                    if txt: tmdb_nfo.append(txt)
+                    else: tmdb_empty = True
         except Exception:
             # Malformed NFO — regex fallback
             try:
@@ -2089,6 +2887,10 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
                         r'<id[^>]*moviedb=["\']?(?:tmdb|themoviedb)["\']?[^>]*>([^<]+)</id>',
                         content, re.IGNORECASE):
                     tmdb_nfo.append(m.group(1).strip())
+                for m in re.finditer(                          ### NEW v0.19.1 B19 ###
+                        r'<uniqueid[^>]*type=["\']?(imdb|tmdb|themoviedb)["\']?[^>]*>([^<]+)</uniqueid>',
+                        content, re.IGNORECASE):
+                    (imdb_nfo if m.group(1).lower() == "imdb" else tmdb_nfo).append(m.group(2).strip())
             except Exception:
                 imdb_error = True; tmdb_error = True
 
@@ -2111,7 +2913,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
         (bool(imdb_nfo) and not imdb_xml and xml_path and os.path.isfile(xml_path))
     )
 
-    if imdb_error:
+    if imdb_error or (imdb_empty and imdb_all):                ### MODIFIED v0.19.1 B13 ###
         imdb_val    = imdb_all[0] if imdb_all else None
         imdb_status = STATUS_ERROR
     elif not imdb_all:
@@ -2130,7 +2932,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
         (bool(tmdb_nfo) and not tmdb_xml and xml_path and os.path.isfile(xml_path))
     )
 
-    if tmdb_error:
+    if tmdb_error or (tmdb_empty and tmdb_all):                ### MODIFIED v0.19.1 B13 ###
         tmdb_val    = tmdb_all[0] if tmdb_all else None
         tmdb_status = STATUS_ERROR
     elif not tmdb_all:
@@ -2146,6 +2948,9 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
     return {
         "imdb_val": imdb_val, "imdb_status": imdb_status, "imdb_all_vals": imdb_all,
         "tmdb_val": tmdb_val, "tmdb_status": tmdb_status, "tmdb_all_vals": tmdb_all,
+        # ### NEW v0.19.1 B13 ### True = the source has tags, all of them empty
+        "imdb_empty_tags": bool(imdb_empty and not imdb_all and not imdb_error),
+        "tmdb_empty_tags": bool(tmdb_empty and not tmdb_all and not tmdb_error),
     }
 
 
@@ -2233,6 +3038,16 @@ def get_movie_ids_robust(nfo_path, xml_path):
 
         if root is not None:
             if is_nfo:
+                # ### NEW v0.19.1 B19 ### Kodi <uniqueid type=…> first — Kodi uses it first
+                _uids = sorted(root.findall('uniqueid'),
+                               key=lambda e: (e.get('default', '').lower() != 'true'))
+                for el in _uids:
+                    v = (el.text or "").strip()
+                    typ = (el.get('type') or '').strip().lower()
+                    if v and typ == 'imdb':
+                        imdb_id = imdb_id or v
+                    elif v and typ in ('tmdb', 'themoviedb'):
+                        tmdb_id = tmdb_id or v
                 # NFO: <imdbid>, <id moviedb="imdb">, <id>tt…</id>
                 for tag in ['imdbid']:
                     el = root.find(tag)
@@ -2463,8 +3278,8 @@ def normalize_genre_list(genres):
     return result, (result != genres)
 
 def get_genres_from_nfo(nfo_path):
-    """Extract all <genre> values from an NFO file. Returns list.
-    v0.10.2: HTML entities decoded via html.unescape().
+    """Extract all Kodi <genre> values (lowercase, as Kodi reads them) from an
+    NFO file. Returns list.  v0.10.2: HTML entities decoded via html.unescape().
     """
     if not nfo_path or not os.path.isfile(nfo_path):
         return []
@@ -2473,6 +3288,75 @@ def get_genres_from_nfo(nfo_path):
         return [html.unescape(el.text.strip()) for el in root.iter('genre')
                 if el.text and el.text.strip()]  # v0.10.2 — decode &amp; etc.
     return [html.unescape(g) for g in fb.get("genres", [])]  # v0.10.2
+
+
+def get_nfo_wrong_genre_tags(nfo_path):                         ### NEW v0.19.1 ###
+    """Genres written in an NFO with non-Kodi tags: <Genres><Genre>…</Genre>
+    or a capitalised <Genre>.  Kodi only reads lowercase <genre>, so these are
+    invisible to Kodi and are converted by Normalize Genres."""
+    if not nfo_path or not os.path.isfile(nfo_path):
+        return []
+    root = _parse_root(nfo_path)
+    if root is not None:
+        return [html.unescape(el.text.strip()) for el in root.iter("Genre")
+                if el.text and el.text.strip()]
+    content = _read_text(nfo_path) or ""
+    return [html.unescape(m.group(1).strip())
+            for m in re.finditer(r"<Genre>([^<]+)</Genre>", content) if m.group(1).strip()]
+
+
+def get_genres_from_xml(xml_path):                              ### NEW v0.19.1 ###
+    """Genres from an Emby/Jellyfin movie.xml (<Genres><Genre>…</Genre></Genres>)."""
+    if not xml_path or not os.path.isfile(xml_path):
+        return []
+    root = _parse_root(xml_path)
+    if root is not None:
+        out = []
+        for blk in root.iter("Genres"):
+            out += [html.unescape(el.text.strip()) for el in blk.iter("Genre")
+                    if el.text and el.text.strip()]
+        return out
+    content = _read_text(xml_path) or ""
+    return [html.unescape(m.group(1).strip())
+            for m in re.finditer(r"<Genre>([^<]+)</Genre>", content) if m.group(1).strip()]
+
+
+def resolve_movie_genres(nfo_path, xml_path):                   ### NEW v0.19.1 ###
+    """
+    Genres of a movie from both files.  The NFO (Kodi <genre>) wins; when it
+    has none, genres written with non-Kodi tags in the NFO are used, then the
+    XML genres (fallback).  Returns a dict:
+      genres        effective list (shown in the table)
+      source        "nfo" | "nfo_tags" | "xml" | "none"
+      nfo, xml      genres found in each file
+      nfo_wrong     genres in the NFO under <Genres>/<Genre> (non-Kodi)
+      only_in_xml   NFO exists but has no <genre> tags while the XML has genres
+      only_in_nfo   XML exists but has no <Genre> tags while the NFO has genres
+    """
+    nfo_ok = bool(nfo_path and os.path.isfile(nfo_path))
+    xml_ok = bool(xml_path and os.path.isfile(xml_path))
+    nfo  = get_genres_from_nfo(nfo_path) if nfo_ok else []
+    bad  = get_nfo_wrong_genre_tags(nfo_path) if nfo_ok else []
+    xmlg = get_genres_from_xml(xml_path) if xml_ok else []
+    if nfo:
+        genres, src = nfo, "nfo"
+    elif bad:
+        genres, src = bad, "nfo_tags"
+    elif xmlg:
+        genres, src = xmlg, "xml"
+    else:
+        genres, src = [], "none"
+    return {"genres": list(genres), "source": src, "nfo": nfo, "xml": xmlg, "nfo_wrong": bad,
+            "only_in_xml": bool(nfo_ok and not nfo and not bad and xmlg),
+            "only_in_nfo": bool(xml_ok and not xmlg and (nfo or bad))}
+
+
+def _genre_row_fields(nfo_path, xml_path):                      ### NEW v0.19.1 ###
+    info = resolve_movie_genres(nfo_path, xml_path)
+    gd, gs = classify_genres(info["genres"])
+    return {"genres": info["genres"], "genre_display": gd, "genre_status": gs,
+            "genre_source": info["source"], "genre_only_in_xml": info["only_in_xml"],
+            "genre_only_in_nfo": info["only_in_nfo"], "genre_nfo_wrong_tags": bool(info["nfo_wrong"])}
 
 def classify_genres(genres):
     r"""
@@ -2525,6 +3409,17 @@ def write_genres_to_nfo(nfo_path, genres):
     try:
         with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
             file_lines = f.readlines()
+
+        # v0.19.1 — a non-Kodi <Genres><Genre>…</Genre></Genres> block becomes
+        # plain <genre> lines at the indent of the <Genres> line.  ### NEW v0.19.1 ###
+        _txt = "".join(file_lines)
+        def _flatten(m):
+            ind = m.group(1)
+            inner = re.findall(r"<Genre>([^<]*)</Genre>", m.group(2), re.IGNORECASE)
+            return "".join(f"{ind}<genre>{g.strip()}</genre>\n" for g in inner if g.strip())
+        _txt2 = re.sub(r"(?m)^([ \t]*)<Genres\s*>(.*?)</Genres\s*>[ \t]*\r?\n?", _flatten, _txt, flags=re.S)
+        if _txt2 != _txt:
+            file_lines = _txt2.splitlines(keepends=True)
 
         # Locate all existing <genre> lines (line index + detected indent)
         genre_pattern = re.compile(r'(^[ \t]*)<genre>[^<]*</genre>\s*$',
@@ -2581,16 +3476,9 @@ def write_genres_to_nfo(nfo_path, genres):
                 if m:
                     indent = m.group(1)
                     break
-            new_lines = [f"{indent}<genre>{g}</genre>\n" for g in genres]
-            insert_at = None
-            for i, line in enumerate(file_lines):
-                if re.search(r'</movie>', line, re.IGNORECASE):
-                    insert_at = i
-                    break
-            if insert_at is not None:
-                file_lines[insert_at:insert_at] = new_lines
-            else:
-                file_lines.extend(new_lines)
+            for g in genres:                                    ### MODIFIED v0.19.1 — inside the root ###
+                file_lines = _insert_line_before_root_close(
+                    file_lines, f"{indent}<genre>{g}</genre>\n", preferred=("movie",))
 
         _atomic_write_text(nfo_path, "".join(file_lines))        ### MODIFIED v0.19.0 — atomic ###
         return True, ""
@@ -2700,37 +3588,448 @@ def _tmdb_fetch_json(url, timeout=15):                         ### NEW v0.17.0-b
         return json.loads(raw.decode("latin-1"))
 
 
-def _tmdb_error_message(exc):                                  ### NEW v0.17.0-bug2 ###
-    """Convert a urllib/network exception into a human-readable TMDB error string."""
-    import urllib.error as _ue
+# ══════════════════════════════════════════════════════════════════════════════
+# One HTTP client for TMDb / OMDb (v0.19.1)                     ### NEW v0.19.1 ###
+# ══════════════════════════════════════════════════════════════════════════════
+# Every TMDb/OMDb API call goes through _http_get_json(service, url): a token
+# bucket per service, retries with backoff on 429 / 5xx / timeouts / resets
+# (Retry-After honoured), no retry on 4xx.  Call it from worker threads only.
+_HTTP_LIMITS = {"tmdb": (40, 10.0), "omdb": (5, 1.0), "fanarttv": (5, 1.0)}   # fanarttv: v0.19.1 I10
+_HTTP_RETRIES = 3
+_HTTP_BACKOFF = (1.0, 2.0, 4.0)
+_HTTP_RETRY_AFTER_MAX = 30.0
+_HTTP_TIMES = {}                                   # service -> deque of request times
+_HTTP_LOCK  = threading.Lock()
+
+
+def _http_rate_wait(service):
+    n_max, window = _HTTP_LIMITS.get(service, (10, 1.0))
+    dq = _HTTP_TIMES.setdefault(service, collections.deque())
+    while True:
+        with _HTTP_LOCK:
+            now = time.time()
+            while dq and now - dq[0] > window:
+                dq.popleft()
+            if len(dq) < n_max:
+                dq.append(now)
+                return
+            wait = dq[0] + window - now + 0.05
+        time.sleep(wait)
+
+
+def _http_retry_delay(exc, attempt):
+    """Seconds to wait before retrying *exc*, or None when it must not be retried."""
+    import urllib.error as _ue, socket as _so
     if isinstance(exc, _ue.HTTPError):
+        if exc.code not in (429, 500, 502, 503, 504):
+            return None
+        ra = None
         try:
-            import json as _j
-            body = _j.loads(exc.read())
-            reason = body.get("status_message", str(exc))
+            ra = float((exc.headers or {}).get("Retry-After") or "")
+        except (TypeError, ValueError):
+            ra = None
+        if ra is not None:
+            return max(0.0, min(ra, _HTTP_RETRY_AFTER_MAX))
+        return _HTTP_BACKOFF[min(attempt, len(_HTTP_BACKOFF) - 1)]
+    if isinstance(exc, _ue.URLError):
+        r = str(exc.reason).lower()
+        if "timed out" in r or "reset" in r or "10054" in r or "temporarily" in r:
+            return _HTTP_BACKOFF[min(attempt, len(_HTTP_BACKOFF) - 1)]
+        return None
+    if isinstance(exc, (TimeoutError, ConnectionResetError, _so.timeout)):
+        return _HTTP_BACKOFF[min(attempt, len(_HTTP_BACKOFF) - 1)]
+    return None
+
+
+# ── v0.19.1 B20 + B22: refusals, failure kinds, pauses ──────────────────────────
+# B20: inside a batch run a service that REFUSES (daily limit / invalid key)
+# is not asked again until the run ends.  The run state lives in thread-local
+# storage (per run, per worker thread); single-movie actions are never inside
+# a run.
+# B22: every failure is classified (rate_limited, daily_limit, invalid_key,
+# offline, server_error, timeout) into ONE message + advice; a rate limit,
+# daily limit or repeated server error starts a per-service PAUSE that is saved
+# in settings.json ("api_pauses") and survives a restart; a batch run asks the
+# user ONCE per service what to do (pause this run / continue with the other
+# source / cancel) when a run-level callback is installed.
+_RUN = threading.local()
+_SERVICE_LABEL = {"tmdb": "TMDb", "omdb": "OMDb (IMDb data)", "fanarttv": "fanart.tv"}
+_REFUSAL_TEXT = {"daily_limit": "daily request limit reached", "invalid_key": "API key rejected",
+                 "rate_limited": "too many requests", "offline": "no connection",
+                 "server_error": "not responding", "timeout": "no answer in time"}
+_REFUSAL_KINDS = ("daily_limit", "invalid_key")
+
+
+def api_failure_message(service, kind):                         ### NEW v0.19.1 B22 ###
+    """"<message> <advice>" for a service + failure kind (never contains a key)."""
+    other = " TMDb ratings still work." if service == "omdb" else ""
+    m, a = api_failure_text(_SERVICE_LABEL.get(service, service), kind, other)
+    return f"{m} {a}"
+
+
+def classify_api_failure(service, exc=None, data=None):          ### NEW v0.19.1 B22 ###
+    """Failure kind of a request (None = no service failure, e.g. HTTP 404 or
+    "movie not found")."""
+    import urllib.error as _ue, socket as _so
+    if isinstance(exc, ServiceUnavailable):
+        return exc.kind
+    if data is not None:
+        if isinstance(data, dict) and str(data.get("Response", "")).lower() == "false":
+            el = str(data.get("Error") or "").lower()
+            if "limit" in el:
+                return "daily_limit"
+            if "invalid api key" in el or "no api key" in el:
+                return "invalid_key"
+        return None
+    if isinstance(exc, _ue.HTTPError):
+        body = _http_error_body(exc)
+        return classify_http_status(exc.code, str(body.get("Error") or body.get("status_message")
+                                                  or body.get("error message") or ""))   # "error message": fanart.tv
+    if isinstance(exc, _ue.URLError):
+        return classify_network_reason(str(exc.reason))
+    if isinstance(exc, (TimeoutError, _so.timeout)):
+        return "timeout"
+    if isinstance(exc, (ConnectionError, OSError)):
+        return "offline"
+    return None
+
+
+class ServiceUnavailable(Exception):                             ### NEW v0.19.1 B20 ###
+    """Raised instead of a request when the service refused / failed earlier in
+    this run (or is paused), so no request is made."""
+    def __init__(self, service, kind):
+        self.service, self.kind = service, kind
+        super().__init__(f"{_SERVICE_LABEL.get(service, service)} unavailable "
+                         f"({_REFUSAL_TEXT.get(kind, kind)})")
+
+
+# ── B22: per-service pause, saved in settings.json ────────────────────────────
+_API_PAUSES = {}
+_PAUSE_LOCK = threading.RLock()
+_PAUSE_LISTENERS = []                 # callables, called (any thread) after a pause starts / ends
+
+
+def _pause_notify():
+    for cb in list(_PAUSE_LISTENERS):
+        try:
+            cb()
         except Exception:
-            reason = f"{exc.reason}"
-        if exc.code == 401:
-            return (f"TMDB API key invalid or expired (HTTP 401).\n"
-                    f"Go to Settings → API Keys and verify your key.\n"
-                    f"Detail: {reason}")
+            pass
+
+
+def _pause_persist():
+    SETTINGS["api_pauses"] = {k: dict(v) for k, v in _API_PAUSES.items()}
+    try:
+        _save_settings(SETTINGS)
+    except Exception as ex:
+        logger.warning(f"api_pauses not saved: {_redact(ex)}")
+
+
+def api_pause_start(service, kind):                              ### NEW v0.19.1 B22 ###
+    """Pause *service* for API_PAUSE_SECONDS[kind] (no pause for other kinds)."""
+    secs = API_PAUSE_SECONDS.get(kind)
+    if not secs:
+        return None
+    until = datetime.datetime.now() + datetime.timedelta(seconds=secs)
+    entry = {"until": until.isoformat(timespec="seconds"), "kind": kind,
+             "message": api_failure_message(service, kind)}
+    with _PAUSE_LOCK:
+        _API_PAUSES[service] = entry
+        _pause_persist()
+    logger.warning(f"{_SERVICE_LABEL.get(service, service)} paused until {entry['until']} ({kind})")
+    _pause_notify()
+    return entry
+
+
+def api_pause_end(service):                                      ### NEW v0.19.1 B22 ###
+    with _PAUSE_LOCK:
+        if _API_PAUSES.pop(service, None) is None:
+            return False
+        _pause_persist()
+    logger.info(f"{_SERVICE_LABEL.get(service, service)} pause ended")
+    _pause_notify()
+    return True
+
+
+def api_pause_get(service):                                      ### NEW v0.19.1 B22 ###
+    """The active pause entry of *service* (an expired one is dropped), or None."""
+    with _PAUSE_LOCK:
+        e = _API_PAUSES.get(service)
+        if not e:
+            return None
+        try:
+            expired = datetime.datetime.fromisoformat(e["until"]) <= datetime.datetime.now()
+        except Exception:
+            expired = True
+    if expired:
+        api_pause_end(service)
+        return None
+    return e
+
+
+def api_pauses_active():                                         ### NEW v0.19.1 B22 ###
+    return {s: e for s in list(_API_PAUSES) for e in [api_pause_get(s)] if e}
+
+
+def api_pauses_load():                                           ### NEW v0.19.1 B22 ###
+    """On start: restore the saved pauses, drop the expired ones."""
+    with _PAUSE_LOCK:
+        _API_PAUSES.clear()
+        for s, e in (SETTINGS.get("api_pauses") or {}).items():
+            if isinstance(e, dict) and e.get("until"):
+                _API_PAUSES[s] = dict(e)
+        before = set(_API_PAUSES)
+    active = api_pauses_active()
+    if set(active) != before:
+        with _PAUSE_LOCK:
+            _pause_persist()
+    return active
+
+
+def _api_pauses_clear():                                         ### NEW v0.19.1 B22 — self-test helper ###
+    with _PAUSE_LOCK:
+        had = bool(_API_PAUSES)
+        _API_PAUSES.clear()
+        if had or SETTINGS.get("api_pauses"):
+            _pause_persist()
+    _pause_notify()
+
+
+# ── run state ─────────────────────────────────────────────────────────────────
+def _service_run_begin(on_failure=None, alternatives=None, cancel_check=None):   ### NEW v0.19.1 B20, B22 ###
+    """Start a batch run.  on_failure(service, kind, other_label) → "pause" |
+    "continue" | "cancel" is asked once per service at its first failure."""
+    _RUN.blocked = {}
+    _RUN.skipped = collections.Counter()
+    _RUN.decided = set()
+    _RUN.on_failure = on_failure
+    _RUN.alternatives = dict(alternatives or {})
+    _RUN.cancel_check = cancel_check
+    _RUN.cancelled = False
+
+
+def _service_blocked(service):                                  ### NEW v0.19.1 B20 ###
+    """The refusal kind when *service* is blocked in the current run, else None."""
+    return (getattr(_RUN, "blocked", None) or {}).get(service)
+
+
+def _service_run_cancelled():                                   ### NEW v0.19.1 B22 ###
+    return bool(getattr(_RUN, "cancelled", False))
+
+
+def _service_run_summary():                                     ### NEW v0.19.1 B20, MODIFIED B22 ###
+    """One line per service blocked in this run (for the final message)."""
+    out = []
+    for svc, kind in (getattr(_RUN, "blocked", None) or {}).items():
+        n = (getattr(_RUN, "skipped", None) or {}).get(svc, 0)
+        out.append(f"{_SERVICE_LABEL.get(svc, svc)} unavailable for the rest of this run "
+                   f"({_REFUSAL_TEXT.get(kind, kind)}) — not asked again"
+                   + (f" ({n} request(s) saved)." if n else ".")
+                   + f"\n  {api_failure_message(svc, kind)}")
+    return out
+
+
+def _service_run_end():                                         ### NEW v0.19.1 B20 ###
+    for k in ("blocked", "skipped", "decided", "on_failure", "alternatives", "cancel_check"):
+        setattr(_RUN, k, None)
+    _RUN.cancelled = False
+
+
+def _http_error_body(exc):                                      ### NEW v0.19.1 B20 ###
+    """The JSON body of an HTTPError, read once and cached on the exception
+    (an HTTPError body can only be read one time)."""
+    if not hasattr(exc, "_mc_body"):
+        try:
+            exc._mc_body = json.loads(exc.read() or b"{}")
+        except Exception:
+            exc._mc_body = {}
+    return exc._mc_body
+
+
+def _refusal_kind(service, exc=None, data=None):                ### NEW v0.19.1 B20 ###
+    """'daily_limit' | 'invalid_key' | None for an answer / failure."""
+    k = classify_api_failure(service, exc=exc, data=data)
+    return k if k in _REFUSAL_KINDS else None
+
+
+def _run_on_failure(service, kind):                             ### NEW v0.19.1 B22 ###
+    """Inside a run: the user's decision for the first failure of *service*:
+    "pause" / "continue" / "cancel", or None (no callback → B20 rules)."""
+    if getattr(_RUN, "blocked", None) is None:
+        return None
+    if service in _RUN.decided:
+        return "continue"
+    cb = getattr(_RUN, "on_failure", None)
+    if not cb:
+        return None
+    _RUN.decided.add(service)
+    try:
+        return cb(service, kind, (_RUN.alternatives or {}).get(service)) or "continue"
+    except Exception as ex:
+        logger.error(f"service failure callback: {ex}")
+        return "continue"
+
+
+def _wait_for_pause(service):                                   ### NEW v0.19.1 B22 ###
+    """Worker thread: sleep until *service*'s pause ends (Cancel aborts).
+    Returns False when the run was cancelled."""
+    while True:
+        e = api_pause_get(service)
+        if not e:
+            return True
+        cc = getattr(_RUN, "cancel_check", None)
+        if cc and cc():
+            _RUN.cancelled = True
+            return False
+        time.sleep(1.0)
+
+
+def _http_get_json(service, url, timeout=15, _waited=False):
+    """GET *url* (TMDb or OMDb API) and return the decoded JSON, with the
+    service's rate limit and retries.  Raises the last exception on failure
+    (its text never contains the API key).
+    ### MODIFIED v0.19.1 B20 / B22 ### inside a batch run a blocked or paused
+    service raises ServiceUnavailable without a request; failures are
+    classified, start a pause when due, and the run asks the user once."""
+    if getattr(_RUN, "blocked", None) is not None:
+        _blk = _service_blocked(service)
+        if _blk:
+            _RUN.skipped[service] += 1
+            raise ServiceUnavailable(service, _blk)
+        _p = api_pause_get(service)
+        if _p and not _waited:                    # paused while the run was going (other thread / earlier failure)
+            dec = _run_on_failure(service, _p.get("kind", "server_error"))
+            if dec == "pause" and _wait_for_pause(service):
+                return _http_get_json(service, url, timeout, _waited=True)
+            _RUN.blocked[service] = _p.get("kind", "server_error")
+            if dec == "cancel":
+                _RUN.cancelled = True
+            _RUN.skipped[service] += 1
+            raise ServiceUnavailable(service, _RUN.blocked[service])
+    last = None
+    for attempt in range(_HTTP_RETRIES + 1):
+        _http_rate_wait(service)
+        try:
+            data = _tmdb_fetch_json(url, timeout=timeout)
+            _k = classify_api_failure(service, data=data)
+            if _k:
+                dec = _handle_failure(service, _k)
+                if dec == "pause" and not _waited and _wait_for_pause(service):
+                    return _http_get_json(service, url, timeout, _waited=True)
+            return data
+        except Exception as ex:
+            last = ex
+            delay = _http_retry_delay(ex, attempt)
+            if delay is None or attempt >= _HTTP_RETRIES:
+                break
+            logger.warning(f"{service.upper()} request retry {attempt + 1}/{_HTTP_RETRIES} in {delay:.1f}s: "
+                           f"{_redact(ex)}  [{_redact(url)}]")
+            time.sleep(delay)
+    _k = classify_api_failure(service, exc=last)
+    if _k:
+        dec = _handle_failure(service, _k)
+        if dec == "pause" and not _waited and _wait_for_pause(service):
+            return _http_get_json(service, url, timeout, _waited=True)
+    raise last
+
+
+def _handle_failure(service, kind):                             ### NEW v0.19.1 B22 ###
+    """Bookkeeping for one classified failure: start the pause when due, and
+    inside a run block the service (refusals always; other kinds when the
+    user chose "continue" / "cancel").  Returns the run decision or None."""
+    if kind in API_PAUSE_SECONDS:
+        api_pause_start(service, kind)
+    if getattr(_RUN, "blocked", None) is None:
+        return None
+    dec = _run_on_failure(service, kind)
+    if dec is None:                               # no callback: B20 rules
+        if kind in _REFUSAL_KINDS:
+            _RUN.blocked[service] = kind
+            logger.warning(f"{_SERVICE_LABEL.get(service, service)}: {_REFUSAL_TEXT[kind]} — "
+                           f"not asked again in this run")
+        return None
+    if dec == "pause" and kind in API_PAUSE_SECONDS:
+        return "pause"
+    _RUN.blocked[service] = kind
+    if dec == "cancel":
+        _RUN.cancelled = True
+    logger.warning(f"{_SERVICE_LABEL.get(service, service)}: {_REFUSAL_TEXT.get(kind, kind)} — "
+                   f"not asked again in this run ({dec})")
+    return dec
+
+
+# Per-thread record of the last failed rating fetch, so Ratings Sync can tell
+# "the source has no rating" from "the source could not be asked".
+_FETCH_STATE = threading.local()
+
+
+def _note_fetch_error(service, exc):
+    msgs = getattr(_FETCH_STATE, "errors", None)
+    if msgs is None:
+        msgs = _FETCH_STATE.errors = []
+    msgs.append(f"{service}: {_api_error_message(exc, service)}".splitlines()[0])
+
+
+def _take_fetch_errors():
+    msgs = list(getattr(_FETCH_STATE, "errors", None) or [])
+    _FETCH_STATE.errors = []
+    return msgs
+
+
+def _api_error_message(exc, service="TMDb"):                    ### NEW v0.19.1, MODIFIED B22 ###
+    """Human-readable message + advice for a TMDb or OMDb failure (no API key in it)."""
+    import urllib.error as _ue
+    if isinstance(exc, ServiceUnavailable):                     ### NEW v0.19.1 B20 ###
+        return str(exc)
+    if service.lower() == "omdb":
+        if isinstance(exc, _ue.HTTPError):
+            kind = classify_api_failure("omdb", exc=exc)
+            if kind:
+                return f"{api_failure_message('omdb', kind)} (HTTP {exc.code})"
+            body = _http_error_body(exc)
+            return _redact(f"OMDb returned HTTP {exc.code}: {body.get('Error') or exc.reason}")
+        kind = classify_api_failure("omdb", exc=exc)
+        if kind:
+            return api_failure_message("omdb", kind)
+        el = str(exc).lower()                                   # OMDb refusal given as a JSON answer
+        if "limit" in el:
+            return api_failure_message("omdb", "daily_limit")
+        if "invalid api key" in el:
+            return api_failure_message("omdb", "invalid_key")
+        return _redact(f"Unexpected OMDb error: {type(exc).__name__}: {exc}")
+    return _tmdb_error_message(exc)
+
+
+def _tmdb_error_message(exc):                                  ### NEW v0.17.0-bug2 ###
+    """Convert a urllib/network exception into a human-readable TMDB error string.
+    ### MODIFIED v0.19.1 — never contains the API key ###"""
+    return _redact(_tmdb_error_message_raw(exc))
+
+
+def _tmdb_error_message_raw(exc):
+    """### MODIFIED v0.19.1 B22 — one message + advice per failure kind ###"""
+    import urllib.error as _ue
+    if isinstance(exc, ServiceUnavailable):                     ### NEW v0.19.1 B20 ###
+        return f"{exc}. {api_failure_message(exc.service, exc.kind)}"
+    if isinstance(exc, _ue.HTTPError):
+        body = _http_error_body(exc)                            ### MODIFIED v0.19.1 B20 — body read once ###
+        reason = body.get("status_message") or f"{exc.reason}"
         if exc.code == 404:
             return (f"Movie not found on TMDB (HTTP 404).\n"
                     f"The TMDB ID in your file may be incorrect.\n"
                     f"Detail: {reason}")
-        if exc.code == 429:
-            return "TMDB rate limit reached (HTTP 429). Wait a moment and try again."
+        kind = classify_api_failure("tmdb", exc=exc)
+        if kind:
+            return f"{api_failure_message('tmdb', kind)} (HTTP {exc.code})"
         return f"TMDB returned HTTP {exc.code}: {reason}"
     if isinstance(exc, _ue.URLError):
         r = str(exc.reason)
         if "SSL" in r or "certificate" in r.lower():
             return "Network error: SSL certificate problem — check your internet connection."
-        if "timed out" in r.lower():
-            return "Network error: Connection timed out — TMDB may be temporarily unreachable."
-        if any(k in r.lower() for k in ("nodename", "getaddrinfo", "name or service", "resolve")):
-            return ("Network error: Cannot resolve api.themoviedb.org.\n"
-                    "Check that you have an active internet connection.")
-        return f"Network error connecting to TMDB: {r}"
+        return api_failure_message("tmdb", classify_api_failure("tmdb", exc=exc))
+    kind = classify_api_failure("tmdb", exc=exc)
+    if kind:
+        return api_failure_message("tmdb", kind)
     return f"Unexpected error: {type(exc).__name__}: {exc}"
 
 
@@ -2832,13 +4131,15 @@ def _fetch_tmdb_rating(tmdb_id, api_key):
     try:
         url = (f"https://api.themoviedb.org/3/movie/{tmdb_id}"
                f"?api_key={api_key}&language=en-US")
-        data = _tmdb_fetch_json(url, timeout=10)              ### FIX v0.17.0-bug2 ###
+        data = _tmdb_rate_limited_fetch(url, timeout=10)      ### MODIFIED v0.19.1 — shared client ###
         rating = data.get("vote_average")
         votes  = data.get("vote_count")
         if rating is not None and votes is not None:
             return f"{rating:.1f}", str(int(votes))
-    except Exception:
-        pass
+    except Exception as ex:
+        if not _is_http_404(ex):                              ### NEW v0.19.1 — "could not ask" ###
+            _note_fetch_error("TMDb", ex)
+            logger.warning(f"TMDb rating for {tmdb_id}: {_api_error_message(ex, 'TMDb')}")
     return None, None
 
 def _fetch_omdb_rating(imdb_id, api_key):
@@ -2849,18 +4150,21 @@ def _fetch_omdb_rating(imdb_id, api_key):
     if not imdb_id or not api_key:
         return None, None
     try:
-        import urllib.request
         url = f"https://www.omdbapi.com/?apikey={api_key}&i={imdb_id}&type=movie"
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
+        data = _http_get_json("omdb", url, timeout=10)        ### MODIFIED v0.19.1 — shared client ###
         if data.get("Response") == "True":
             rating = data.get("imdbRating")
-            votes  = data.get("imdbVotes", "").replace(",", "")
-            if rating and rating != "N/A" and votes:
+            votes  = (data.get("imdbVotes") or "").replace(",", "")
+            if rating and rating != "N/A" and votes and votes != "N/A":
                 return rating, votes
-    except Exception:
-        pass
+        else:
+            err = str(data.get("Error") or "")
+            if "limit" in err.lower() or "invalid api key" in err.lower():
+                _note_fetch_error("OMDb", RuntimeError(err))
+                logger.warning(f"OMDb rating for {imdb_id}: {err}")
+    except Exception as ex:
+        _note_fetch_error("OMDb", ex)                         ### NEW v0.19.1 — "could not ask" ###
+        logger.warning(f"OMDb rating for {imdb_id}: {_api_error_message(ex, 'OMDb')}")
     return None, None
 
 def write_rating_to_files(nfo_path, xml_path, rating, votes, movie_name="rating_sync"):  ### MODIFIED v0.18.3 ###
@@ -2991,32 +4295,24 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         use_ffprobe = SETTINGS.get("use_ffprobe", True)
 
     lst = _FolderListing(sub_path)
-    poster_path = lst.path_of("poster.jpg")
-    fanart_path = lst.path_of("fanart.jpg")
-    folder_path = lst.path_of("folder.jpg")
-
-    pe  = lst.has("poster.jpg")
-    fe  = lst.has("fanart.jpg")
-    fle = lst.has("folder.jpg")
-
-    # Artwork facts + evaluation (probe_image / evaluate_image)  ### MODIFIED v0.19.0 ###
-    _img_fields = {}
-    _img_fields.update(_image_row_fields("poster", "poster", poster_path, pe))
-    _img_fields.update(_image_row_fields("folder", "folder", folder_path, fle))
-    _img_fields.update(_image_row_fields("fanart", "fanart", fanart_path, fe))
+    if force_ffprobe:                                           ### NEW v0.19.1 I5 — Update (with FFprobe): fresh probe ###
+        _vf = scan_video_files(sub_path, listing=lst).get("video_path")
+        if _vf:
+            _probe_json(_vf, True, force=True)
+    _art = _artwork_row_fields(lst)                             ### MODIFIED v0.19.1 B23 — Kodi names ###
+    _img_fields = _art["fields"]
 
     bc, bp, bc_avg_bytes = count_backdrops(sub_path, listing=lst)
 
-    nfo_name = sub_name + ".nfo"
-    nfo_path = lst.path_of(nfo_name)
-    ne  = lst.has(nfo_name)
-    nb  = lst.size(nfo_name)
-    nerr = validate_xml_file(nfo_path, is_nfo=True) if ne else []
+    nfo_path, ne, nfo_name, nfo_kodi = resolve_nfo(lst, sub_name, _art["vb"])   ### MODIFIED v0.19.1 B23 ###
+    nb  = lst.size(nfo_name) if ne else 0
+    ninfo = []; xinfo = []                                     ### NEW v0.19.1 B12 — info notes (unescaped &) ###
+    nerr = validate_xml_file(nfo_path, is_nfo=True, infos=ninfo) if ne else []
 
     xml_path = lst.path_of("movie.xml")
     xe  = lst.has("movie.xml")
     xb  = lst.size("movie.xml")
-    xerr = validate_xml_file(xml_path, is_nfo=False) if xe else []
+    xerr = validate_xml_file(xml_path, is_nfo=False, infos=xinfo) if xe else []
     lang = extract_language_from_xml(xml_path) if xe else "—"
 
     ns = (STATUS_ERROR if nerr else STATUS_OK) if ne else STATUS_MISSING
@@ -3037,16 +4333,19 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         audio_tracks = scan_audio_tracks(vi["video_path"], use_ffprobe=True)
 
     iso = SETTINGS.get("lang_ok_code", "PT")
+    subs_hard = get_hardsub_langs(nfo_path if ne else None, xml_path if xe else None)   ### NEW v0.19.1 B15 ###
+    if subs_hard:
+        si["subs_summary"] = _subs_summary(si["subs_internal"], si["subs_external"], vi["video_path"], subs_hard)
     lang_ok = compute_lang_ok(vi["video_path"], si["subs_internal"], si["subs_external"],
                                nfo_path if ne else None,
                                xml_path if xe else None,
-                               iso_code=iso, use_ffprobe=use_ffprobe)
+                               iso_code=iso, use_ffprobe=use_ffprobe, subs_hard=subs_hard)
 
     vs = (STATUS_MISSING if vi["video_count"] == 0
           else STATUS_ERROR if vi["video_count"] > 1 else STATUS_OK)
 
-    genres = get_genres_from_nfo(nfo_path if ne else None)
-    genre_display, genre_status = classify_genres(genres)
+    _gf = _genre_row_fields(nfo_path if ne else None, xml_path if xe else None)   ### MODIFIED v0.19.1 — NFO + XML ###
+    genres, genre_display, genre_status = _gf["genres"], _gf["genre_display"], _gf["genre_status"]
 
     rating_str, rating_status, rating_value, rating_votes, rating_votes_src, rating_src = (
         extract_rating_from_files(nfo_path if ne else None, xml_path if xe else None))
@@ -3070,7 +4369,7 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
 
     _row = {
         "subfolder": sub_name, "subfolder_path": sub_path,
-        "library_root": os.path.dirname(sub_path),             ### NEW v0.19.0 ###
+        "library_root": _norm_lib(os.path.dirname(sub_path)),  ### NEW v0.19.0, normpath v0.19.1 ###
         "movie_name": movie_name, "movie_year": movie_year,
         "movie_title_raw": titles,
         "movie_year_raw": movie_year_raw,
@@ -3079,11 +4378,12 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         **_img_fields,                                          ### MODIFIED v0.19.0 ###
         "backdrop_count": bc, "backdrop_paths": bp, "backdrop_avg_bytes": bc_avg_bytes,
         "nfo_exists": ne, "nfo_path": nfo_path,
+        "nfo_kodi_name": nfo_kodi,                             ### NEW v0.19.1 B23 ###
         "nfo_bytes": nb, "nfo_size": format_size(nb) if ne else "—",
-        "nfo_status": ns, "nfo_errors": nerr,
+        "nfo_status": ns, "nfo_errors": nerr, "nfo_infos": ninfo,   ### v0.19.1 B12 ###
         "xml_exists": xe, "xml_path": xml_path,
         "xml_bytes": xb, "xml_size": format_size(xb) if xe else "—",
-        "xml_status": xs, "xml_errors": xerr,
+        "xml_status": xs, "xml_errors": xerr, "xml_infos": xinfo,   ### v0.19.1 B12 ###
         "language": lang,
         "video_count": vi["video_count"], "video_files": vi["video_files"],
         "video_ext": vi["video_ext"], "video_path": vi["video_path"],
@@ -3092,10 +4392,13 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         "video_quality": vi["video_quality"], "video_status": vs,
         "subs_internal": si["subs_internal"], "subs_external": si["subs_external"],
         "subs_summary": si["subs_summary"],
+        "subs_hard": subs_hard,                                ### NEW v0.19.1 B15 ###
         "audio_tracks": audio_tracks,
         "ffprobe_ran": ffprobe_ran,
         "lang_ok": lang_ok,
         "genres": genres, "genre_display": genre_display, "genre_status": genre_status,
+        "genre_source": _gf["genre_source"], "genre_only_in_xml": _gf["genre_only_in_xml"],   ### NEW v0.19.1 ###
+        "genre_only_in_nfo": _gf["genre_only_in_nfo"], "genre_nfo_wrong_tags": _gf["genre_nfo_wrong_tags"],
         "rating_str": rating_str, "rating_status": rating_status,
         "rating_value": rating_value,
         "rating_votes": rating_votes, "rating_votes_src": rating_votes_src,
@@ -3108,8 +4411,11 @@ def scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=False
         "source_tmdb_val": src_ids["tmdb_val"],
         "source_tmdb_status": src_ids["tmdb_status"],
         "source_tmdb_all": src_ids["tmdb_all_vals"],
+        "source_imdb_empty": src_ids["imdb_empty_tags"],       ### NEW v0.19.1 B13 ###
+        "source_tmdb_empty": src_ids["tmdb_empty_tags"],       ### NEW v0.19.1 B13 ###
         "duplicate_of": [],
     }
+    _refill_audio_row(_row)                                    ### NEW v0.19.1 B16 ###
     _apply_health(_row)
     return _row
 
@@ -3148,6 +4454,8 @@ def _results_from_json(data):
         "folder_format": None, "folder_decode_ok": None, "folder_mismatch": False, "folder_flags": {},
         "fanart_format": None, "fanart_decode_ok": None, "fanart_mismatch": False, "fanart_flags": {},
         "id_check": None,                                       ### NEW v0.19.0 ###
+        "genre_source": "", "genre_only_in_xml": False,          ### NEW v0.19.1 ###
+        "genre_only_in_nfo": False, "genre_nfo_wrong_tags": False,
     }
     out = []
     for r in data:
@@ -3156,8 +4464,8 @@ def _results_from_json(data):
         # Migrate old pt_ok → lang_ok if needed
         if "pt_ok" in row and "lang_ok" not in row:
             row["lang_ok"] = row["pt_ok"]
-        if not row.get("library_root"):                         ### NEW v0.19.0 ###
-            row["library_root"] = os.path.dirname(row.get("subfolder_path") or "")
+        row["library_root"] = _norm_lib(row.get("library_root")             ### MODIFIED v0.19.1 — normpath ###
+                                        or os.path.dirname(row.get("subfolder_path") or ""))
         out.append(row)
     return out
 
@@ -3469,12 +4777,11 @@ def get_video_duration(video_path):                            ### UPDATED v0.17
         except Exception:
             return "", -1
 
-    # Step 1 — JSON format probe (all containers)
-    out, rc = _run([FFPROBE_PATH, "-v", "quiet", "-print_format", "json",
-                    "-show_format", video_path])
-    if rc == 0 and out:
+    # Step 1 — JSON format probe (all containers) — the one cached probe (v0.19.1 I5)
+    _pj = _probe_json(video_path, True)
+    if _pj:
         try:
-            dur = float(json.loads(out).get("format", {}).get("duration", 0) or 0)
+            dur = float((_pj.get("format") or {}).get("duration", 0) or 0)
             if dur > 0:
                 return dur, False
         except Exception:
@@ -3537,7 +4844,7 @@ def get_video_duration(video_path):                            ### UPDATED v0.17
     try:
         sub_dir = os.path.dirname(video_path)
         sub_name = os.path.basename(sub_dir)
-        nfo_path = os.path.join(sub_dir, sub_name + ".nfo")
+        nfo_path = resolve_nfo(_FolderListing(sub_dir), sub_name)[0]   ### MODIFIED v0.19.1 B23 ###
         xml_path = os.path.join(sub_dir, "movie.xml")
         runtime_min = None
         for fpath, tag in [(nfo_path, "runtime"), (xml_path, "RunningTime")]:
@@ -3610,6 +4917,12 @@ def _virtual_screen(win):
         return 0, 0, win.winfo_screenwidth(), win.winfo_screenheight()
     except Exception:
         return 0, 0, 1920, 1080
+
+
+def _norm_lib(path):                                            ### NEW v0.19.1 ###
+    """Windows-style library path (z:/film_kids → z:\\film_kids); '' stays ''."""
+    path = (path or "").strip()
+    return os.path.normpath(path) if path else ""
 
 
 def _clamp_geometry(geom, win):
@@ -3870,15 +5183,14 @@ class FrameExtractionDialog(tk.Toplevel):
         divisor    = max(1, n_frames - 1) if n_frames > 1 else 1
         interval   = (end_sec - start_sec) / divisor if end_sec > start_sec else 1
         timestamps = [start_sec + i * interval for i in range(n_frames)]
-        start_num  = next_backdrop_number(sub)
+        _new_paths = new_backdrop_paths(sub, n_frames)          ### MODIFIED v0.19.1 B23 — folder's naming style ###
         extracted  = []; failed = []
         frame_times = []
 
         for i, ts in enumerate(timestamps):
             if self._cancelled: break
-            num   = start_num + i
-            fname = ("backdrop.jpg" if num == 0 else f"backdrop{num}.jpg")
-            out_p = os.path.join(sub, fname)
+            out_p = _new_paths[i]                                ### MODIFIED v0.19.1 B23 ###
+            fname = os.path.basename(out_p)
             mins  = int(ts // 60); secs_r = int(ts % 60)
 
             pct_per_frame = 100.0 / n_frames
@@ -3931,12 +5243,8 @@ class FrameExtractionDialog(tk.Toplevel):
             if n_ok == 1:
                 only_fname = extracted[0][0]
                 files_str = only_fname
-            elif start_num == 0:
-                # First file is backdrop.jpg, rest are backdrop1.jpg … backdropN.jpg
-                last_num = n_ok - 1
-                files_str = f"backdrop.jpg / backdrop1.jpg → backdrop{last_num}.jpg"
-            else:
-                files_str = f"backdrop{start_num}.jpg → backdrop{start_num + n_ok - 1}.jpg"
+            else:                                                ### MODIFIED v0.19.1 B23 — real names (Kodi or plain) ###
+                files_str = f"{extracted[0][0]} → {extracted[-1][0]}"
             msg = (f"Done! All {n_frames} frame(s) extracted!\n\n"
                    f"Saved to: {sub}\n"
                    f"Files: {files_str}")
@@ -4923,15 +6231,12 @@ class HelpDialog(tk.Toplevel):
                   background=[("selected","#45475a")],
                   foreground=[("selected","#89b4fa")])
 
-        self._add_tab(nb, "🚀  Getting Started",   _help.TAB_START)      ### MODIFIED v0.18.3 — help_text.py ###
-        self._add_tab(nb, "📊  Table & Columns",   _help.TAB_TABLE)
-        self._add_tab(nb, "🖱  Actions & Tools",   _help.TAB_ACTIONS)
-        self._add_tab(nb, "⭐  Ratings & Genres",  _help.TAB_RATINGS)
-        self._add_tab(nb, "🎵  Audio & Images",    _help.TAB_AUDIO)
-        self._add_tab(nb, "⚙️  Settings",          _help.TAB_SETTINGS)
-        self._add_tab(nb, "⌨  Shortcuts & Help",   _help.TAB_SHORTCUTS)
-        self._add_tab(nb, "📋  Version History",   _help.TAB_VERSION)
+        # v0.19.1 — tabs and their order come from help_text.HELP_TABS (the
+        # Help menu uses the same list); Version History removed.  ### MODIFIED v0.19.1 ###
+        for _lbl, _txt in _help.HELP_TABS:
+            self._add_tab(nb, _lbl, _txt)
         self._add_about_tab(nb)
+        self._nb = nb
 
         # Select requested tab (0-based index)               ### NEW v0.16.0 ###
         tabs = nb.tabs()
@@ -4975,7 +6280,7 @@ class HelpDialog(tk.Toplevel):
 
     def _add_about_tab(self, nb):
         ### UPDATED v0.16.0 — About tab shows app identity only; version history moved to Version History tab ###
-        frame = tk.Frame(nb, bg="#1e1e2e"); nb.add(frame, text="ℹ️  About")
+        frame = tk.Frame(nb, bg="#1e1e2e"); nb.add(frame, text=_help.ABOUT_LABEL)   ### MODIFIED v0.19.1 ###
         about = (
             f"  {APP_NAME}\n"
             f"  Version {APP_VERSION}\n\n"
@@ -4986,18 +6291,16 @@ class HelpDialog(tk.Toplevel):
             "  clean, complete, and metadata-perfect.\n\n"
             "  ─────────────────────────────────────────\n\n"
             "  What it does:\n\n"
-            "  • Scans a root media folder (one subfolder = one movie)\n"
-            "  • Validates artwork files: poster.jpg, folder.jpg, fanart.jpg\n"
-            "  • Validates metadata files: .nfo (KODI) and movie.xml (Emby/Jellyfin)\n"
-            "  • Detects parse errors in XML/NFO with clear explanations\n"
-            "  • Shows video quality, audio tracks, and subtitle info via FFprobe\n"
-            "  • Checks IMDB and TMDB source IDs across all metadata tags\n"
-            "  • Normalizes genres, ratings, and source IDs with one click\n"
-            "  • Fetches poster and fanart images directly from TMDB\n"
-            "  • Saves and restores scan results between sessions\n\n"
-            "  ─────────────────────────────────────────\n\n"
-            "  Full version history:\n"
-            "  Help → Version History\n\n"
+            "  •  Scans one or more library folders (one subfolder = one movie)\n"     ### MODIFIED v0.19.1 ###
+            "  •  Validates artwork: poster.jpg, folder.jpg, fanart.jpg, backdrops\n"
+            "  •  Validates metadata: .nfo (KODI) and movie.xml (Emby/Jellyfin)\n"
+            "  •  Shows video quality, audio tracks and subtitles via FFprobe\n"
+            "  •  Checks and verifies IMDb / TMDb IDs\n"
+            "  •  Repairs genres, ratings and IDs; Auto Repair does it in one go\n"
+            "  •  Fetches posters, fanart and backdrops from TMDb\n"
+            "  •  Remembers scans, window sizes and positions between sessions\n\n"
+            "  The version history is in README.md and in the CHANGELOG at the\n"
+            "  top of the program file.\n\n"
             "  ─────────────────────────────────────────\n\n"
             "  Feedback and bug reports welcome at:\n"
             f"  {APP_EMAIL}\n"
@@ -5162,6 +6465,22 @@ def _write_tag_in_files(nfo_path, xml_path, nfo_tag, xml_tag, value):   ### NEW 
     return (not errors), "; ".join(errors)
 
 
+def _update_uniqueid_lines(lines, id_type, value):               ### NEW v0.19.1 B19 ###
+    """Set every EXISTING Kodi <uniqueid type="imdb"> (id_type "IMDB") or
+    <uniqueid type="tmdb"|"themoviedb"> ("TMDB") to *value* — also the
+    self-closing form.  Never adds a uniqueid: NFOs that never had them stay
+    as they are.  Other attributes (default="true") are kept."""
+    types = "imdb" if id_type == "IMDB" else "(?:tmdb|themoviedb)"
+    pair = re.compile(rf'(<uniqueid\b[^>]*\btype=["\']?{types}["\']?[^>/]*>)[^<]*(</\s*uniqueid\s*>)', re.IGNORECASE)
+    single = re.compile(rf'<uniqueid\b([^>]*\btype=["\']?{types}["\']?[^>]*?)\s*/>', re.IGNORECASE)
+    out = []
+    for ln in lines:
+        ln = pair.sub(lambda m: f"{m.group(1)}{value}{m.group(2)}", ln)
+        ln = single.sub(lambda m: f"<uniqueid{m.group(1)}>{value}</uniqueid>", ln)
+        out.append(ln)
+    return out
+
+
 def _write_source_id_to_files(nfo_path, xml_path, id_type, chosen_id):  ### FIXED v0.16.0 ###
     """
     Write chosen_id to ALL relevant tags for id_type in both NFO and XML.
@@ -5238,6 +6557,7 @@ def _write_source_id_to_files(nfo_path, xml_path, id_type, chosen_id):  ### FIXE
             with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
 
+            lines = _update_uniqueid_lines(lines, id_type, chosen_id)   ### NEW v0.19.1 B19 ###
             if id_type == "IMDB":
                 # Write <imdbid>
                 lines, found = _replace_tag_in_lines(lines, "imdbid", chosen_id)
@@ -5282,6 +6602,58 @@ def _write_source_id_to_files(nfo_path, xml_path, id_type, chosen_id):  ### FIXE
 
     if errors:
         return False, "; ".join(errors)
+    # ### NEW v0.19.1 B13 ### the other source gets empty placeholder tags when
+    # it has no value anywhere, so the user can fill it in by hand.
+    return _write_empty_source_tags(nfo_path, xml_path, "TMDB" if id_type == "IMDB" else "IMDB")
+
+
+_EMPTY_ID_TAGS = {                                             ### NEW v0.19.1 B13 ###
+    # (file kind, line to insert, regex that detects an existing tag — any value)
+    "IMDB": [("xml", "<IMDB></IMDB>",       r"<IMDB(\s[^>]*)?/?>"),
+             ("xml", "<IMDbId></IMDbId>",   r"<IMDbId(\s[^>]*)?/?>"),
+             ("xml", "<IMDB_ID></IMDB_ID>", r"<IMDB_ID(\s[^>]*)?/?>"),
+             ("nfo", "<imdbid></imdbid>",   r"<imdbid(\s[^>]*)?/?>"),
+             ("nfo", '<id moviedb="imdb"></id>', r"""<id\s[^>]*moviedb=["']?imdb["']?"""),
+             ("nfo", "<id></id>",           r"<id\s*/?>")],
+    "TMDB": [("xml", "<TMDB></TMDB>",       r"<TMDB(\s[^>]*)?/?>"),
+             ("xml", "<TMDbId></TMDbId>",   r"<TMDbId(\s[^>]*)?/?>"),
+             ("xml", "<TMDB_ID></TMDB_ID>", r"<TMDB_ID(\s[^>]*)?/?>"),
+             ("nfo", "<tmdbid></tmdbid>",   r"<tmdbid(\s[^>]*)?/?>"),
+             ("nfo", '<id moviedb="tmdb"></id>', r"""<id\s[^>]*moviedb=["']?(?:tmdb|themoviedb)["']?""")],
+}
+
+
+def _write_empty_source_tags(nfo_path, xml_path, id_type):    ### NEW v0.19.1 B13 ###
+    """Insert EMPTY tags for id_type ("IMDB"/"TMDB") inside the root of both
+    files — placeholders the user can fill in by hand.  Only when that source
+    has no value in any tag of either file (a value elsewhere is a "partial"
+    ID, which Normalize Sources copies instead).  Existing tags, empty or not,
+    are never touched; an unparseable file is left alone; a file is written
+    (atomically) only when a tag was added.  Returns (ok, error_str)."""
+    src = extract_source_ids_from_files(nfo_path, xml_path)
+    if src[f"{id_type.lower()}_all_vals"]:
+        return True, ""
+    errors = []
+    for kind, path, roots in (("xml", xml_path, ("Item",)), ("nfo", nfo_path, ("movie",))):
+        if not (path and os.path.isfile(path)) or _parse_root(path) is None:
+            continue
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+            text = "".join(lines)
+            indent = next((m.group(1) for m in (re.match(r'^([ \t]+)<', ln) for ln in lines) if m), "  ")
+            added = False
+            for k, new_tag, rx in _EMPTY_ID_TAGS[id_type]:
+                if k != kind or re.search(rx, text, re.IGNORECASE):
+                    continue
+                lines = _insert_line_before_root_close(lines, f"{indent}{new_tag}\n", preferred=roots)
+                added = True
+            if added:
+                _atomic_write_text(path, "".join(lines))
+        except Exception as e:
+            errors.append(f"{kind.upper()}: {e}")
+    if errors:
+        return False, "; ".join(errors)
     return True, ""
 
 
@@ -5289,7 +6661,8 @@ def _write_both_source_ids(nfo_path, xml_path, imdb_id, tmdb_id):  ### NEW v0.16
     """
     Write both IMDB and TMDB IDs to NFO and XML in one call.
     Backs up files before writing. Returns (ok, error_str).
-    Skips whichever ID is None/empty.
+    Skips whichever ID is None/empty — since v0.19.1 (B13) the missing source
+    gets empty placeholder tags (written by _write_source_id_to_files).
     """
     errors = []
     if imdb_id:
@@ -5303,10 +6676,113 @@ def _write_both_source_ids(nfo_path, xml_path, imdb_id, tmdb_id):  ### NEW v0.16
     return True, ""
 
 # ══════════════════════════════════════════════════════════════════════════════
+# NEW v0.19.1 B15 — hard-coded (burned-in) subtitles, marked by the user
+# ══════════════════════════════════════════════════════════════════════════════
+# Burned-in subtitles are part of the picture, so FFprobe cannot see them and
+# there is no reliable automatic detection (OCR would be slow and often wrong).
+# The user marks them; the mark is a standard user tag that Kodi and
+# Emby/Jellyfin keep:  NFO <tag>Hardsub POR</tag>,  XML <Tags><Tag>Hardsub POR</Tag></Tags>.
+_HARDSUB_RE = re.compile(r"^\s*hardsub\s+([a-z]{3})\s*$", re.IGNORECASE)
+
+
+def get_hardsub_langs(nfo_path, xml_path):
+    """Sorted ISO 639-2 codes marked as hard-coded subtitles in the NFO or XML."""
+    codes = set()
+    for p, find in ((nfo_path, lambda r: r.findall("tag")),
+                    (xml_path, lambda r: (r.find("Tags").findall("Tag") if r.find("Tags") is not None else []))):
+        if p and os.path.isfile(p):
+            root = _parse_root(p)
+            if root is None:
+                continue
+            for el in find(root):
+                m = _HARDSUB_RE.match(el.text or "")
+                if m:
+                    codes.add(m.group(1).upper())
+    return sorted(codes)
+
+
+def _write_hardsub_tags(nfo_path, xml_path, langs):
+    """Make the files hold EXACTLY the Hardsub tags of *langs* (ISO 639-2
+    codes): existing 'Hardsub XXX' tags are removed, one tag per language is
+    added; every other <tag>/<Tag> is kept.  NFO tags go before </movie>;
+    XML tags go into <Tags> (created before the root's end when absent; an
+    emptied <Tags> block is removed).  Atomic writes; a file whose result
+    would not parse is left untouched.  Returns (ok, error_str)."""
+    langs = sorted({(c or "").strip().upper() for c in langs if re.fullmatch(r"[A-Za-z]{3}", (c or "").strip())})
+    errors = []
+
+    def _indent_of(lines, default="\t"):
+        return next((m.group(1) for m in (re.match(r'^([ \t]+)<', ln) for ln in lines) if m), default)
+
+    def _check_and_write(path, before, after):
+        if after == before:
+            return
+        if _parse_root(path) is not None:            # only guard files that parsed before
+            try:
+                ET.fromstring(_AMP_FIX_RE.sub("&amp;", after))
+            except Exception as ex:
+                raise ValueError(f"result would not be valid XML ({ex})")
+        _atomic_write_text(path, after)
+
+    if nfo_path and os.path.isfile(nfo_path):
+        try:
+            with open(nfo_path, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            new = re.sub(r"[ \t]*<tag>\s*hardsub\s+[a-z]{3}\s*</tag>[ \t]*\r?\n?", "", text, flags=re.IGNORECASE)
+            lines = new.splitlines(keepends=True)
+            ind = _indent_of(lines)
+            for c in langs:
+                lines = _insert_line_before_root_close(lines, f"{ind}<tag>Hardsub {c}</tag>\n", preferred=("movie",))
+            _check_and_write(nfo_path, text, "".join(lines))
+        except Exception as e:
+            errors.append(f"NFO: {e}")
+
+    if xml_path and os.path.isfile(xml_path):
+        try:
+            with open(xml_path, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+            new = re.sub(r"[ \t]*<Tag>\s*hardsub\s+[a-z]{3}\s*</Tag>[ \t]*\r?\n?", "", text, flags=re.IGNORECASE)
+            removed = new != text
+            lines = new.splitlines(keepends=True)
+            ind = _indent_of(lines)
+            new_tags = "".join(f"{ind}{ind}<Tag>Hardsub {c}</Tag>\n" for c in langs)
+            if langs:
+                if re.search(r"<Tags\s*/>", new):
+                    new = re.sub(r"<Tags\s*/>", lambda m: "<Tags>\n" + new_tags + f"{ind}</Tags>", new, count=1)
+                elif re.search(r"</Tags\s*>", new):
+                    m = re.search(r"^([ \t]*)</Tags\s*>", new, re.MULTILINE)
+                    if m:                                   # </Tags> on its own line
+                        new = new[:m.start()] + new_tags + new[m.start():]
+                    else:                                   # one-line <Tags>…</Tags>
+                        inline = "".join(f"<Tag>Hardsub {c}</Tag>" for c in langs)
+                        new = re.sub(r"</Tags\s*>", lambda mm: inline + "</Tags>", new, count=1)
+                else:
+                    lines = new.splitlines(keepends=True)
+                    lines = _insert_line_before_root_close(lines, f"{ind}<Tags>\n{new_tags}{ind}</Tags>\n",
+                                                           preferred=("Item",))
+                    new = "".join(lines)
+            elif removed:
+                new = re.sub(r"[ \t]*<Tags>\s*</Tags>[ \t]*\r?\n?", "", new)
+            _check_and_write(xml_path, text, new)
+        except Exception as e:
+            errors.append(f"XML: {e}")
+
+    if errors:
+        return False, "; ".join(errors)
+    return True, ""
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # NEW v0.16.0 — Normalize Sources helpers + dialogs
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _lookup_id_info(id_type, id_val):                      ### NEW v0.16.0 ###
+    """(title, year) or (None, None) — see _lookup_id_info_ex."""
+    title, year, _err = _lookup_id_info_ex(id_type, id_val)
+    return title, year
+
+
+def _lookup_id_info_ex(id_type, id_val):                      ### NEW v0.19.1 B22 — tells "not found" from "no answer" ###
     """
     Look up movie title + year for an IMDB or TMDB ID via TMDB API.
     Returns (title_str, year_str) or (None, None) if unavailable.
@@ -5315,7 +6791,7 @@ def _lookup_id_info(id_type, id_val):                      ### NEW v0.16.0 ###
     import urllib.request
     key = SETTINGS.get("tmdb_api_key", "").strip()
     if not key or not id_val:
-        return None, None
+        return None, None, None
     try:
         if id_type == "TMDB":
             url = (f"https://api.themoviedb.org/3/movie/{id_val}"
@@ -5323,19 +6799,21 @@ def _lookup_id_info(id_type, id_val):                      ### NEW v0.16.0 ###
         else:
             url = (f"https://api.themoviedb.org/3/find/{id_val}"
                    f"?api_key={key}&external_source=imdb_id&language=en-US")
-        data = _tmdb_fetch_json(url, timeout=8)               ### FIX v0.17.0-bug2 ###
+        data = _tmdb_rate_limited_fetch(url, timeout=8)       ### MODIFIED v0.19.1 — shared client ###
         if id_type == "TMDB":
             title = data.get("title") or data.get("name") or ""
             year  = (data.get("release_date") or "")[:4]
         else:
             results = data.get("movie_results", [])
             if not results:
-                return None, None
+                return None, None, None
             title = results[0].get("title", "")
             year  = (results[0].get("release_date", "") or "")[:4]
-        return (title.strip() or None), (year.strip() or None)
-    except Exception:
-        return None, None
+        return (title.strip() or None), (year.strip() or None), None
+    except Exception as ex:
+        if _is_http_404(ex):
+            return None, None, None
+        return None, None, _tmdb_error_message(ex).replace("\n", " ")
 
 
 
@@ -5349,23 +6827,375 @@ _TMDB_RATE_LOCK  = threading.Lock()
 
 
 def _tmdb_rate_limited_fetch(url, timeout=15):
-    """_tmdb_fetch_json behind a shared token bucket (40 requests / 10 s) so
-    the verification and Auto Repair workers never trip TMDb's limit."""
-    n_max, window = _TMDB_RATE_LIMIT
-    while True:
-        with _TMDB_RATE_LOCK:
-            now = time.time()
-            while _TMDB_RATE_TIMES and now - _TMDB_RATE_TIMES[0] > window:
-                _TMDB_RATE_TIMES.popleft()
-            if len(_TMDB_RATE_TIMES) < n_max:
-                _TMDB_RATE_TIMES.append(now)
-                wait = 0.0
-            else:
-                wait = _TMDB_RATE_TIMES[0] + window - now + 0.05
-        if wait <= 0:
+    """TMDb API call through the shared client (40 requests / 10 s, retries).
+    ### MODIFIED v0.19.1 — thin wrapper over _http_get_json ###"""
+    _HTTP_TIMES["tmdb"] = _TMDB_RATE_TIMES          # one bucket for every TMDb caller
+    return _http_get_json("tmdb", url, timeout=timeout)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v0.19.1 I10 — fanart.tv as a second image source                ### NEW v0.19.1 I10 ###
+# ══════════════════════════════════════════════════════════════════════════════
+# One request per movie (TMDb ID first, then IMDb ID) returns every image type
+# with URL, language and likes, but no pixel size: fanart.tv's published sizes
+# are used (backgrounds 1920×1080, posters 1000×1426, thumbs 1000×562).
+# Answers are cached for 7 days in fanarttv_cache.json (no key inside).
+_FANARTTV_API     = "https://webservice.fanart.tv/v3/movies/"
+_FANARTTV_ASSETS  = "https://assets.fanart.tv"
+_FANARTTV_TYPICAL = {"moviebackground": (1920, 1080), "movieposter": (1000, 1426),
+                     "moviethumb": (1000, 562)}
+_FANARTTV_CACHE   = None
+_FANARTTV_LOCK    = threading.Lock()
+IMAGE_SOURCE_LABEL = {"tmdb": "TMDb", "fanarttv": "fanart.tv", "both": "Both", "frames": "Movie frames"}
+_LAST_IMAGE_SOURCE = [None]          # the choice made in a Fetch dialog, for this session
+
+
+def fanarttv_key():
+    return str(SETTINGS.get("fanarttv_api_key", "") or "").strip()
+
+
+def fanarttv_abs_url(u):
+    """Absolute https URL; some answers carry a bare path (reported by Emby
+    users, Nov 2025), which is put on the assets host."""
+    u = str(u or "").strip()
+    if not u:
+        return ""
+    if u.startswith("//"):
+        return "https:" + u
+    if u.lower().startswith(("http://", "https://")):
+        return "https://" + u.split("://", 1)[1]
+    return _FANARTTV_ASSETS + "/" + u.lstrip("/")
+
+
+def fanarttv_preview_url(u):
+    """fanart.tv's small preview of an image (…/preview/… instead of …/fanart/…)."""
+    return u.replace("/fanart/", "/preview/", 1) if "/fanart/" in u else u
+
+
+def tmdb_image_entries(imgs):
+    """TMDb image dicts → the common entry format of the Fetch dialogs."""
+    out = []
+    for i in imgs or []:
+        fp = i.get("file_path") or ""
+        if not fp:
+            continue
+        out.append({"source": "tmdb", "file_path": fp,
+                    "width": i.get("width", 0) or 0, "height": i.get("height", 0) or 0,
+                    "file_size": i.get("file_size", 0) or 0,
+                    "votes": i.get("vote_count", 0) or 0, "likes": 0,
+                    "lang": i.get("iso_639_1") or "", "dims_typical": False,
+                    "url": "https://image.tmdb.org/t/p/original" + fp,
+                    "thumbs": ("https://image.tmdb.org/t/p/w500" + fp,
+                               "https://image.tmdb.org/t/p/w300" + fp)})
+    out.sort(key=lambda x: x["width"] * x["height"], reverse=True)   # as before v0.19.1 I10
+    return out
+
+
+def fanarttv_image_entries(data, mode, lang="", include_thumbs=False):
+    """fanart.tv answer → entries.  mode "poster": movieposter, your library
+    language first, then no language, then English, then the rest (each by
+    likes).  Otherwise moviebackground (+ moviethumb when asked), by likes."""
+    kinds = ["movieposter"] if mode == "poster" else \
+        (["moviebackground"] + (["moviethumb"] if include_thumbs else []))
+    out, seen = [], set()
+    for k in kinds:
+        w, h = _FANARTTV_TYPICAL[k]
+        for i in (data or {}).get(k) or []:
+            if not isinstance(i, dict):
+                continue
+            u = fanarttv_abs_url(i.get("url"))
+            if not u or u in seen:
+                continue
+            seen.add(u)
+            try:
+                likes = int(i.get("likes") or 0)
+            except (TypeError, ValueError):
+                likes = 0
+            out.append({"source": "fanarttv", "kind": k, "width": w, "height": h,
+                        "file_size": 0, "votes": 0, "likes": likes,
+                        "lang": str(i.get("lang") or "").lower(), "dims_typical": True,
+                        "url": u, "thumbs": (fanarttv_preview_url(u), u)})
+    if mode == "poster":
+        pref = (lang or "").lower()[:2]
+        def _rank(e):
+            l = e["lang"]
+            g = 0 if (pref and l == pref) else 1 if l in ("", "00") else 2 if l == "en" else 3
+            return (g, -e["likes"])
+        out.sort(key=_rank)
+    else:
+        out.sort(key=lambda e: (-(e["width"] * e["height"]), -e["likes"]))
+    return out
+
+
+def merge_image_sources(tmdb_entries, fanart_entries):
+    """"Both": one list sorted by resolution, then TMDb votes / fanart.tv likes;
+    the same image URL is listed once."""
+    seen, out = set(), []
+    for e in list(tmdb_entries) + list(fanart_entries):
+        if e["url"] in seen:
+            continue
+        seen.add(e["url"])
+        out.append(e)
+    out.sort(key=lambda e: (-(e["width"] * e["height"]), -(e.get("votes") or e.get("likes") or 0)))
+    return out
+
+
+def image_entry_text(e):
+    """(badge, detail) for one entry: "TMDb" / "fanart.tv", "1920×1080 (16:9) …"."""
+    w, h = e.get("width", 0), e.get("height", 0)
+    dims = f"{'~' if e.get('dims_typical') else ''}{w}×{h} ({_friendly_ratio(w, h)})"
+    if e.get("source") == "frame":                                   ### v0.19.1 B11 ###
+        low = f"  ⚠ below the {e.get('min_level', '1080p')} minimum" if e.get("low_res") else ""
+        return "Frame", f"{w}×{h} ({_friendly_ratio(w, h)})  at {_fmt_time(e.get('time'))}{low}"
+    if e.get("source") == "fanarttv":
+        extra = f"  ♥{e.get('likes', 0)}"
+        if e.get("lang") not in ("", "00", None):
+            extra += f"  {e['lang']}"
+        if e.get("kind") == "moviethumb":
+            extra += "  thumb"
+        return "fanart.tv", dims + extra
+    sz = e.get("file_size", 0)
+    return "TMDb", dims + (f"  {format_size(sz)}" if sz else "")
+
+
+def _fanarttv_cache():
+    global _FANARTTV_CACHE
+    with _FANARTTV_LOCK:
+        if _FANARTTV_CACHE is None:
+            _FANARTTV_CACHE = _sc.load_fanarttv_cache()
+        return _FANARTTV_CACHE
+
+
+def _fanarttv_error_message(exc):
+    if isinstance(exc, ServiceUnavailable):
+        return f"{exc}. {api_failure_message(exc.service, exc.kind)}"
+    kind = classify_api_failure("fanarttv", exc=exc)
+    if kind:
+        return api_failure_message("fanarttv", kind)
+    return _redact(f"fanart.tv error: {type(exc).__name__}: {exc}")
+
+
+def fanarttv_fetch(tmdb_id=None, imdb_id=None):
+    """Worker thread.  (data, None) | ({}, None) when fanart.tv has nothing |
+    ({}, message) on a failure.  Asks by TMDb ID, then by IMDb ID."""
+    import urllib.error as _ue, urllib.parse as _up
+    key = fanarttv_key()
+    if not key:
+        return {}, "No fanart.tv API key — Settings → API Keys."
+    ids = []
+    if tmdb_id:
+        ids.append((f"tmdb:{tmdb_id}", str(tmdb_id)))
+    if imdb_id and str(imdb_id).lower().startswith("tt"):
+        ids.append((f"imdb:{str(imdb_id).lower()}", str(imdb_id).lower()))
+    if not ids:
+        return {}, "The movie has no TMDb or IMDb ID — fanart.tv cannot be asked."
+    cache = _fanarttv_cache()
+    client = str(SETTINGS.get("fanarttv_client_key", "") or "").strip()
+    for ck, mid in ids:
+        with _FANARTTV_LOCK:
+            e = cache.get(ck)
+        if e and time.time() - e["t"] < _sc.FANARTTV_CACHE_DAYS * 86400:
+            if e["data"]:
+                return e["data"], None
+            continue                                   # cached "not on fanart.tv"
+        url = (_FANARTTV_API + _up.quote(mid) + "?api_key=" + _up.quote(key)
+               + ("&client_key=" + _up.quote(client) if client else ""))
+        try:
+            data = _http_get_json("fanarttv", url)
+        except _ue.HTTPError as ex:
+            if ex.code != 404:
+                return {}, _fanarttv_error_message(ex)
+            data = {}
+        except Exception as ex:
+            return {}, _fanarttv_error_message(ex)
+        if not isinstance(data, dict) or str(data.get("status", "")).lower() == "error":
+            data = {}
+        with _FANARTTV_LOCK:
+            cache[ck] = {"t": time.time(), "data": data}
+            snap = dict(cache)
+        try:
+            _sc.save_fanarttv_cache(snap)
+        except Exception as ex:
+            logger.warning(f"fanart.tv cache not saved: {ex}")
+        if data:
+            return data, None
+    return {}, None
+
+
+def default_image_source(tmdb_ok=True):
+    """Both when a fanart.tv key is set, otherwise TMDb; the choice made in a
+    Fetch dialog is kept for the session."""
+    fk = bool(fanarttv_key())
+    if not tmdb_ok:
+        return "fanarttv" if fk else "tmdb"
+    last = _LAST_IMAGE_SOURCE[0]
+    if last in ("tmdb", "fanarttv", "both") and (fk or last == "tmdb"):
+        return last
+    return "both" if fk else "tmdb"
+
+
+def load_online_images(mode, source, tmdb_key, tmdb_id, imdb_id=None, include_thumbs=False):
+    """Worker thread: (entries, errors) for mode "poster" | "fanart" from TMDb,
+    fanart.tv or both."""
+    tm, fa, errs = [], [], []
+    if source in ("tmdb", "both"):
+        if tmdb_key and tmdb_id:
+            try:
+                data = _tmdb_rate_limited_fetch(
+                    f"https://api.themoviedb.org/3/movie/{tmdb_id}/images?api_key={tmdb_key}", timeout=15)
+                tm = tmdb_image_entries(data.get("posters" if mode == "poster" else "backdrops", []))
+            except Exception as e:
+                errs.append(_tmdb_error_message(e))
+        elif source == "tmdb":
+            errs.append("No TMDb API key." if not tmdb_key else "No TMDB ID.")
+    if source in ("fanarttv", "both"):
+        data, err = fanarttv_fetch(tmdb_id, imdb_id)
+        if err:
+            errs.append("fanart.tv: " + err)
+        else:
+            fa = fanarttv_image_entries(data, mode, SETTINGS.get("lang_ok_code", ""), include_thumbs)
+    if source == "both":
+        return merge_image_sources(tm, fa), errs
+    return (tm if source == "tmdb" else fa), errs
+
+
+def _download_preview(entry):
+    """Thumbnail bytes for an entry (first URL that answers) or None."""
+    import urllib.request
+    if entry.get("local"):                                    ### v0.19.1 B11 — a frame on disk ###
+        try:
+            with open(entry["url"], "rb") as f:
+                return f.read()
+        except OSError:
+            return None
+    for u in entry.get("thumbs") or ():
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": _UA})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return resp.read()
+        except Exception:
+            continue
+    return None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v0.19.1 B11 — frames from the movie file in Fetch Fanart / Backdrops  ### NEW v0.19.1 B11 ###
+# ══════════════════════════════════════════════════════════════════════════════
+B11_FRAME_COUNT = 10
+
+
+def frame_times(duration, n=B11_FRAME_COUNT, rng=None):
+    """n times spread evenly over 10 %–90 % of *duration* (skips titles and
+    credits), each moved by a small random offset so a new set differs."""
+    import random as _rnd
+    rng = rng or _rnd
+    if not duration or duration <= 0:
+        return []
+    lo, hi = duration * 0.10, duration * 0.90
+    step = (hi - lo) / n
+    return [min(hi, max(lo, lo + step * (i + 0.5) + rng.uniform(-0.3, 0.3) * step)) for i in range(n)]
+
+
+def frame_is_flat(path, dark=18, bright=240, min_std=10.0):
+    """True for a black / white / near-uniform frame (fades, cuts): mean
+    brightness outside dark…bright or almost no contrast.  Unreadable = flat."""
+    try:
+        from PIL import ImageStat
+        with _PILImage.open(path) as im:
+            g = im.convert("L")
+            g.thumbnail((160, 90))
+            st = ImageStat.Stat(g)
+        mean, std = st.mean[0], st.stddev[0]
+        return mean < dark or mean > bright or std < min_std
+    except Exception:
+        return True
+
+
+def extract_movie_frames(video_path, out_dir, n=B11_FRAME_COUNT, cancel=None):
+    """Worker thread: up to n frames of *video_path* as image entries (local
+    JPEG files in *out_dir*).  A flat frame is replaced by a nearby time (2
+    tries).  Returns (entries, error or None)."""
+    dur = get_video_duration(video_path) if video_path else None
+    dur = dur[0] if isinstance(dur, tuple) else dur
+    if not dur:
+        return [], "The running time of the video cannot be read (FFprobe)."
+    os.makedirs(out_dir, exist_ok=True)
+    step = dur * 0.80 / n
+    min_level = _min_quality_level("fanart")
+    out, last_err = [], None
+    for i, t0 in enumerate(frame_times(dur, n)):
+        if cancel and cancel():
             break
-        time.sleep(wait)
-    return _tmdb_fetch_json(url, timeout=timeout)
+        for k, shift in enumerate((0.0, 0.35, -0.35)):
+            ts = min(dur * 0.95, max(dur * 0.05, t0 + shift * step))
+            fp = os.path.join(out_dir, f"frame_{i:02d}_{k}.jpg")
+            ok, err = extract_single_frame(video_path, f"{ts:.3f}", fp)
+            if not ok:
+                last_err = err
+                break
+            if not frame_is_flat(fp):
+                w, h = get_image_wh(fp)
+                label = classify_image_quality(w, h, "fanart") if (w and h) else ""
+                low = bool(label) and label != "—" and _fanart_quality_sort_key(label) > _fanart_quality_sort_key(min_level)
+                out.append({"source": "frame", "local": True, "url": fp, "time": ts,
+                            "width": w or 0, "height": h or 0, "file_size": os.path.getsize(fp),
+                            "votes": 0, "likes": 0, "lang": "", "dims_typical": False,
+                            "low_res": low, "min_level": min_level, "thumbs": ()})
+                break
+            try:
+                os.remove(fp)
+            except OSError:
+                pass
+    if not out:
+        return [], ("FFmpeg could not extract frames: " + (last_err or "every frame was black or flat"))
+    return out, None
+
+
+def _fmt_time(sec):
+    sec = int(sec or 0)
+    return f"{sec // 3600}:{sec % 3600 // 60:02d}:{sec % 60:02d}"
+
+
+def _save_image_from(src, dest):                                ### NEW v0.19.1 B11 ###
+    """Copy a local frame, or download a URL (TMDb / fanart.tv)."""
+    if src and os.path.isfile(src):
+        try:
+            shutil.copy2(src, dest)
+            return True, None
+        except OSError as e:
+            return False, f"Could not copy the frame: {e}"
+    return _tmdb_download_image(src, dest)
+
+
+def frames_available(row):
+    """The Frames button is shown only with FFmpeg and a video."""
+    return bool(FFMPEG_PATH and row.get("video_path"))
+
+
+def image_sources_for(row, mode, tmdb_key=None):                ### NEW v0.19.1 B25 ###
+    """The image sources that can serve this movie: "tmdb" (key + TMDB ID),
+    "fanarttv" (key + TMDB or IMDb ID), "frames" (FFmpeg + video; not for
+    posters).  mode: "poster" | "fanart" | "backdrops"."""
+    key = SETTINGS.get("tmdb_api_key", "").strip() if tmdb_key is None else tmdb_key
+    tmdb_id = row.get("source_tmdb_val")
+    imdb_id = str(row.get("source_imdb_val") or "").lower()
+    out = []
+    if key and tmdb_id:
+        out.append("tmdb")
+    if fanarttv_key() and (tmdb_id or imdb_id.startswith("tt")):
+        out.append("fanarttv")
+    if mode != "poster" and frames_available(row):
+        out.append("frames")
+    return out
+
+
+def image_sources_tip(mode):                                    ### NEW v0.19.1 B25 ###
+    """Menu suffix when no source can serve the selection."""
+    if mode == "poster":
+        if not SETTINGS.get("tmdb_api_key", "").strip() and not fanarttv_key():
+            return " (no TMDB / fanart.tv API key)"
+        return " (no TMDB ID — or IMDb ID with a fanart.tv key)"
+    return " (no TMDB ID, no fanart.tv source, no video for frames)"
 
 
 _TMDB_LANG_FOR_ISO = {
@@ -5462,7 +7292,36 @@ ID_OTHER     = "ID belongs to another film"
 ID_NOT_FOUND = "ID does not exist"
 ID_DISAGREE  = "NFO and XML disagree"
 ID_NONE      = "no IDs"
-ID_RESULTS   = (ID_OK, ID_DIFFERENT, ID_OTHER, ID_NOT_FOUND, ID_DISAGREE, ID_NONE)
+ID_IMDB_ONLY = "OK (IMDb only — not on TMDb)"                  ### NEW v0.19.1 B14 — confirmed by the user ###
+ID_RESULTS   = (ID_OK, ID_DIFFERENT, ID_OTHER, ID_NOT_FOUND, ID_DISAGREE, ID_NONE, ID_IMDB_ONLY)
+ID_GOOD      = (ID_OK, ID_IMDB_ONLY)                            ### NEW v0.19.1 B14 ###
+
+
+def _source_missing(row, k):                                   ### NEW v0.19.1 B24 ###
+    """True when the movie has no value for source k ("imdb"/"tmdb")."""
+    st = row.get(f"source_{k}_status", STATUS_MISSING)
+    vals = [v for v in (row.get(f"source_{k}_all") or []) if v]
+    return st == STATUS_MISSING or (st == STATUS_ERROR and not vals)
+
+
+def source_missing_level(row, rules):                          ### NEW v0.19.1 B24 ###
+    """'error' | 'warning' | 'off' for the missing-ID reasons of this movie:
+    health_rules.single_source_level when one of IMDb/TMDb is missing,
+    health_rules.no_source_level when both are.  None when nothing is missing."""
+    n = sum(1 for k in ("imdb", "tmdb") if _source_missing(row, k))
+    if n == 0:
+        return None
+    lvl = rules.get("no_source_level" if n == 2 else "single_source_level", "error")
+    return lvl if lvl in ("error", "warning", "off") else "error"
+
+
+def _imdb_only_check(imdb_id, title="", year="", detail=None):  ### NEW v0.19.1 B14 ###
+    """The id_check stored when the user confirms an IMDb-only film."""
+    return {"result": ID_IMDB_ONLY,
+            "detail": detail or "Confirmed by you: this film is not on TMDb",
+            "imdb_id": imdb_id, "tmdb_id": None, "tmdb_title": title or "", "tmdb_year": year or "",
+            "find_tmdb_id": None, "ratio": 0.0,
+            "when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
 
 
 def _local_titles_for(row):
@@ -5554,6 +7413,15 @@ def verify_movie_ids(row, api_key, lang="en-US", fetch=None):
         res["tmdb_year"]  = (tmdb_data.get("release_date") or "")[:4]
     if find_results:
         res["find_tmdb_id"] = str(find_results[0].get("id") or "")
+
+    # ### NEW v0.19.1 B14 ### an IMDb-only film the user confirmed stays OK as
+    # long as TMDb still does not know the IMDb ID and no TMDb ID was added
+    _prev = row.get("id_check") or {}
+    if (imdb_missing and not tmdb_id and _prev.get("result") == ID_IMDB_ONLY
+            and _prev.get("imdb_id") == imdb_id):
+        keep = dict(_prev); keep["when"] = res["when"]
+        keep["detail"] = "IMDb only — still not on TMDb (confirmed by you)"
+        return keep
 
     if tmdb_missing or imdb_missing:
         which = []
@@ -5709,17 +7577,19 @@ class _SourceDisagreementDialog(tk.Toplevel):              ### UPDATED v0.16.0 #
 
     def _lookup_all(self, id_type, values):
         for v in values:
-            title, year = _lookup_id_info(id_type, v)
+            title, year, err = _lookup_id_info_ex(id_type, v)          ### MODIFIED v0.19.1 B22 ###
             if title:
                 text = f"{title}  ({year})" if year else title
+            elif err:
+                text = f"lookup failed — TMDb did not answer: {err}"
             else:
-                text = "ID invalid or lookup failed"
+                text = "ID not found on TMDb (invalid ID)"
             def _update(lbl=self._row_labels.get(v), t=text):
                 if lbl and lbl.winfo_exists():
                     lbl.configure(
                         text=t,
-                        fg="#cdd6f4" if "invalid" not in t else "#f38ba8",
-                        font=("Helvetica", 9, "italic" if "invalid" in t else "normal"))
+                        fg="#cdd6f4" if ("invalid" not in t and "failed" not in t) else "#f38ba8",
+                        font=("Helvetica", 9, "italic" if ("invalid" in t or "failed" in t) else "normal"))
                     # Resize dialog to fit new content
                     self.update_idletasks()
             self.after(0, _update)
@@ -5866,6 +7736,8 @@ class _SearchSourcesResultDialog(tk.Toplevel):             ### REBUILT v0.16.0 #
         self._canvas.bind("<Leave>", lambda e: self._canvas.unbind_all("<MouseWheel>"))
         self.bind("<Destroy>", lambda e: self._canvas.unbind_all("<MouseWheel>"), add="+")
 
+        self._labels = []          # texts shown (header lines, pinned rows) — read by the self-test   ### NEW v0.19.1 B14 ###
+        self._pinned_btns = {}     # movie name → (button text, button)                              ### NEW v0.19.1 B14 ###
         self._build_content()
 
         # ── Footer buttons ────────────────────────────────────────────────────
@@ -5904,11 +7776,29 @@ class _SearchSourcesResultDialog(tk.Toplevel):             ### REBUILT v0.16.0 #
                      font=("Helvetica", 10, "bold"),
                      bg=self._C_HDR, fg=self._C_BLU,
                      anchor="w").pack(side="left", padx=8, pady=5)
+            tk.Button(hrow, text="Enter ID…", bg="#fab387", fg="#1e1e2e",          ### NEW v0.19.1 ###
+                      command=lambda rd=row_data, n=mn: self._enter_id(rd, n),
+                      **self._BTN).pack(side="right", padx=8, pady=3)
+            ### NEW v0.19.1 B14 — the IDs the files hold right now ###
+            cur = entry.get("current") or {"imdb": existing_imdb, "tmdb": existing_tmdb}
+            cur_txt = f"Current: IMDb {cur.get('imdb') or '—'} · TMDb {cur.get('tmdb') or '—'}"
+            self._labels.append(cur_txt)
+            tk.Label(hrow, text=cur_txt, font=("Consolas", 9), bg=self._C_HDR,
+                     fg=self._C_YEL).pack(side="right", padx=8)
+
+            pinned = entry.get("pinned")                                  ### NEW v0.19.1 B14 ###
+            if pinned:
+                self._build_pinned_row(row_data, pinned)
 
             matches = entry.get("matches", [])
             if not matches:
                 nf = tk.Frame(self._inner, bg=self._C_ROW); nf.pack(fill="x", padx=2, pady=1)
-                tk.Label(nf, text="   No results found on TMDB",
+                _nr = ("   No other results found on TMDB (title search)" if pinned   ### MODIFIED v0.19.1 B14 ###
+                       else "   No results found on TMDB")
+                if entry.get("search_error"):                               ### NEW v0.19.1 B22 ###
+                    _nr = "   TMDb did not answer — " + entry["search_error"].replace("\n", " ")
+                self._labels.append(_nr.strip())
+                tk.Label(nf, text=_nr,
                          font=("Helvetica", 9, "italic"),
                          bg=self._C_ROW, fg=self._C_RED, anchor="w").pack(
                          side="left", padx=10, pady=6)
@@ -6004,8 +7894,76 @@ class _SearchSourcesResultDialog(tk.Toplevel):             ### REBUILT v0.16.0 #
                  font=("Helvetica", 8, "italic"),
                  bg=self._C_BG, fg=self._C_YEL).pack(pady=(2, 10))
 
-    def _apply(self, row_data, tmdb_id, imdb_id):
-        """Write both IDs to NFO/XML then re-validate the row silently."""
+    def _build_pinned_row(self, row_data, pinned):                ### NEW v0.19.1 B14 ###
+        """First row of a movie block: the film behind the CURRENT ID, shown
+        even when the title search finds nothing."""
+        bg = "#2b3a33"
+        mn = row_data.get("movie_name", row_data.get("subfolder", "?"))
+        prow = tk.Frame(self._inner, bg=bg); prow.pack(fill="x", padx=2, pady=1)
+        cand = pinned.get("cand")
+        btn_frame = tk.Frame(prow, bg=bg); btn_frame.pack(side="right", padx=6, pady=4)
+        if cand and cand.get("imdb_only"):
+            iid = cand["imdb_id"]
+            txt = f"IMDb {iid} — not on TMDb"
+            if cand.get("title"):
+                txt += f" · {cand['title']} ({cand.get('year') or '?'})"
+            fg = self._C_YEL
+            tk.Button(btn_frame, text="Open IMDB", bg=self._C_YEL, fg="#1e1e2e", width=10,
+                      command=lambda: open_url_with_browser(f"https://www.imdb.com/title/{iid}"),
+                      **self._BTN).pack(side="left", padx=(0, 3))
+            b = tk.Button(btn_frame, text="✓ Confirm IMDb", bg=self._C_GRN, fg="#1e1e2e", width=13,
+                          command=lambda: self._confirm_imdb(row_data, iid, cand.get("title"), cand.get("year")),
+                          **self._BTN)
+            b.pack(side="left"); self._pinned_btns[mn] = ("Confirm IMDb", b)
+        elif cand:
+            txt = (f"From your current {pinned['from']} ID:  {cand.get('title')}  ({cand.get('year') or '?'})"
+                   f"   TMDB: {cand.get('tmdb_id') or '—'}   IMDB: {cand.get('imdb_id') or '—'}")
+            fg = self._C_TXT
+            b = tk.Button(btn_frame, text="✓ Apply", bg=self._C_GRN, fg="#1e1e2e", width=9,
+                          command=lambda: self._apply(row_data, cand.get("tmdb_id"), cand.get("imdb_id")),
+                          **self._BTN)
+            b.pack(side="left"); self._pinned_btns[mn] = ("Apply", b)
+        else:
+            txt = f"Current {pinned.get('from')} ID: {pinned.get('msg') or 'lookup failed'}"
+            fg = self._C_RED
+        self._labels.append(txt)
+        tk.Label(prow, text=" ★ ", font=("Consolas", 9, "bold"), bg=bg, fg=self._C_YEL,
+                 width=4).pack(side="left", padx=(6, 2), pady=6)
+        tk.Label(prow, text=txt, font=("Consolas", 9), bg=bg, fg=fg, anchor="w",
+                 wraplength=560, justify="left").pack(side="left", padx=(4, 0), pady=6)
+
+    def _confirm_imdb(self, row_data, imdb_id, title="", year=""):   ### NEW v0.19.1 B14 ###
+        """IMDb-only film: write the IMDb ID to every IMDb tag of both files
+        (empty TMDb tags come from B13), remember 'IMDb only — not on TMDb' in
+        id_check so Verify IDs / Auto Repair stop proposing a TMDb search."""
+        if not self._apply(row_data, None, imdb_id, close=False, quiet=True):
+            return
+        chk = _imdb_only_check(imdb_id, title, year, "Confirmed by you in Search Sources: not on TMDb")
+        row_data["id_check"] = chk
+        app = self._parent_app
+        for r in getattr(app, "_results", []):          # the table may hold a newer row object
+            if r.get("subfolder_path") == row_data.get("subfolder_path"):
+                r["id_check"] = chk
+        movie = row_data.get("movie_name", row_data.get("subfolder", "?"))
+        messagebox.showinfo("Confirmed",
+            f"{movie}\nIMDb: {imdb_id}\nTMDb: — (not on TMDb; empty tags left to fill)\n"
+            "Written to NFO and XML.", parent=self)
+        self.destroy()
+
+    def _enter_id(self, row_data, movie_name):                   ### NEW v0.19.1 ###
+        """Type an IMDb/TMDb ID for this movie, look it up, then Apply."""
+        dlg = _EnterIdDialog(self, movie_name,
+                             imdb=row_data.get("source_imdb_val") or "",
+                             tmdb=row_data.get("source_tmdb_val") or "")
+        self.wait_window(dlg)
+        if dlg.result and dlg.result.get("imdb_only"):                   ### NEW v0.19.1 B14 ###
+            self._confirm_imdb(row_data, dlg.result.get("imdb_id"), dlg.result.get("title"), dlg.result.get("year"))
+        elif dlg.result:
+            self._apply(row_data, dlg.result.get("tmdb_id"), dlg.result.get("imdb_id"))
+
+    def _apply(self, row_data, tmdb_id, imdb_id, close=True, quiet=False):   ### MODIFIED v0.19.1 B14 — close/quiet for Confirm IMDb ###
+        """Write both IDs to NFO/XML then re-validate the row silently.
+        Returns True when written."""
         nfo_path = row_data.get("nfo_path") if row_data.get("nfo_exists") else None
         xml_path = row_data.get("xml_path") if row_data.get("xml_exists") else None
         movie    = row_data.get("movie_name", row_data.get("subfolder", "?"))
@@ -6013,26 +7971,31 @@ class _SearchSourcesResultDialog(tk.Toplevel):             ### REBUILT v0.16.0 #
         if not nfo_path and not xml_path:
             messagebox.showwarning("Apply",
                 f"{movie}\nNo NFO or XML file found — nothing to write.")
-            return
+            return False
 
-        _make_backup(movie,
-                     *[p for p in [nfo_path, xml_path]
-                       if p and os.path.isfile(p)])
+        with _sc.backup_action("Search Sources"):                   ### NEW v0.19.1 I1 ###
+            _make_backup(movie,
+                         *[p for p in [nfo_path, xml_path]
+                           if p and os.path.isfile(p)])
 
         ok, err = _write_both_source_ids(nfo_path, xml_path, imdb_id, tmdb_id)
         if not ok:
             messagebox.showerror("Apply Failed", f"{movie}\n{err}")
-            return
+            return False
 
         # Re-validate silently
         self._parent_app.after(0, lambda rd=row_data:
                                self._parent_app._reval_by_path(rd))
+        if quiet:
+            return True
         messagebox.showinfo("Applied",
             f"{movie}\n"
             f"TMDB: {tmdb_id or '—'}\n"
             f"IMDB: {imdb_id or '—'}\n"
             "Written to NFO and XML.")
-        self.destroy()   ### FIX v0.16.0 — close the results dialog after apply ###
+        if close:
+            self.destroy()   ### FIX v0.16.0 — close the results dialog after apply ###
+        return True
 
     def _export_txt(self):
         p = filedialog.asksaveasfilename(
@@ -6048,8 +8011,20 @@ class _SearchSourcesResultDialog(tk.Toplevel):             ### REBUILT v0.16.0 #
                 for entry in self._results:
                     mn  = entry["movie_name"]; yr = entry.get("year", "")
                     f.write(f"{mn} ({yr})\n" if yr and yr != "-" else f"{mn}\n")
+                    cur = entry.get("current") or {}                   ### NEW v0.19.1 B14 ###
+                    if cur:
+                        f.write(f"  Current: IMDb {cur.get('imdb') or '—'} · TMDb {cur.get('tmdb') or '—'}\n")
+                    pc = (entry.get("pinned") or {}).get("cand")
+                    if pc and pc.get("imdb_only"):
+                        f.write(f"  [Current]  IMDb {pc['imdb_id']} — not on TMDb"
+                                + (f" · {pc['title']} ({pc.get('year') or '?'})" if pc.get("title") else "") + "\n")
+                    elif pc:
+                        f.write(f"  [Current]  TMDB: {pc.get('tmdb_id')}  IMDB: {pc.get('imdb_id') or '—'}  "
+                                f"{pc.get('title')} ({pc.get('year')})\n")
                     matches = entry.get("matches", [])
-                    if not matches:
+                    if not matches and entry.get("search_error"):           ### NEW v0.19.1 B22 ###
+                        f.write("  TMDb did not answer — " + entry["search_error"].replace("\n", " ") + "\n")
+                    elif not matches:
                         f.write("  No results found.\n")
                     else:
                         for i, m in enumerate(matches):
@@ -6158,7 +8133,7 @@ _AR_LABELS = {
     "ids_search":  "Look up IMDb/TMDb IDs on TMDb (exact title + year applies automatically, otherwise ask)",
     "ids_partial": "Copy the IMDb/TMDb ID to the other file",
     "ratings":     "Sync rating and votes online (TMDb/OMDb)",
-    "genres":      "Normalize genres (custom genres kept)",
+    "genres":      "Normalize genres and sync them between NFO and XML (custom genres kept)",
     "genres_tmdb": "Fill genres from TMDb (verified TMDb ID required)",
     "year_tmdb":   "Fill the year from TMDb (verified TMDb ID required)",
     "title_copy":  "Copy the title between NFO <title> and XML <LocalTitle>",
@@ -6182,7 +8157,8 @@ def _auto_repair_plan(row, settings=None, rules=None):
         if distinct > 1 and on(f"corrupt_{k}_id"):
             conflict = True
         if on(f"missing_{k}_id") and (st == STATUS_MISSING or (st == STATUS_ERROR and not vals)):
-            missing = True
+            if not (k == "tmdb" and chk == ID_IMDB_ONLY) and source_missing_level(row, rules) != "off":   ### v0.19.1 B14 / B24 ###
+                missing = True
         if on(f"{k}_id_partial") and st == STATUS_WARN and distinct == 1:
             partial = True
     if conflict:
@@ -6201,7 +8177,10 @@ def _auto_repair_plan(row, settings=None, rules=None):
         if row.get("nfo_exists") or row.get("xml_exists"):
             plan.append(("ratings", _AR_LABELS["ratings"]))
     gs = row.get("genre_status")
-    if gs == STATUS_WARN and on("genre_warning") and row.get("nfo_exists"):
+    _gsync = ((on("genre_only_in_xml") and row.get("genre_only_in_xml"))          ### NEW v0.19.1 ###
+              or (on("genre_only_in_nfo") and row.get("genre_only_in_nfo"))
+              or (on("genre_nfo_wrong_tags") and row.get("genre_nfo_wrong_tags")))
+    if ((gs == STATUS_WARN and on("genre_warning")) or _gsync) and (row.get("nfo_exists") or row.get("xml_exists")):
         plan.append(("genres", _AR_LABELS["genres"]))
     if gs == STATUS_ERROR and on("genre_missing") and (row.get("nfo_exists") or row.get("xml_exists")):
         plan.append(("genres_tmdb", _AR_LABELS["genres_tmdb"]))
@@ -6330,7 +8309,7 @@ class _IdVerifyReportDialog(tk.Toplevel):                       ### NEW v0.19.0 
         c = r.get("id_check") or {}
         col = self._sort_col
         if col == "result":
-            order = {k: i for i, k in enumerate((ID_DIFFERENT, ID_OTHER, ID_NOT_FOUND, ID_DISAGREE, ID_NONE, ID_OK))}
+            order = {k: i for i, k in enumerate((ID_DIFFERENT, ID_OTHER, ID_NOT_FOUND, ID_DISAGREE, ID_NONE, ID_IMDB_ONLY, ID_OK))}   # v0.19.1 B14
             return (order.get(c.get("result"), 99), (r.get("movie_name") or "").lower())
         if col == "year":
             return (str(r.get("movie_year", "-")), (r.get("movie_name") or "").lower())
@@ -6342,7 +8321,7 @@ class _IdVerifyReportDialog(tk.Toplevel):                       ### NEW v0.19.0 
         self._iid_rows = {}
         for r in sorted(self._rows, key=self._sort_key, reverse=self._sort_rev):
             res = (r.get("id_check") or {}).get("result")
-            tag = "ok" if res == ID_OK else ("warn" if res in (ID_NONE, ID_DISAGREE) else "bad")
+            tag = "ok" if res in ID_GOOD else ("warn" if res in (ID_NONE, ID_DISAGREE) else "bad")   # v0.19.1 B14
             iid = self._tree.insert("", "end", values=self._values(r), tags=(tag,))
             self._iid_rows[iid] = r
         for cid, label, _w in self._COLS:
@@ -6367,13 +8346,13 @@ class _IdVerifyReportDialog(tk.Toplevel):                       ### NEW v0.19.0 
 
     def _update_fix_state(self):
         r = self._selected_row()
-        ok = bool(r) and (r.get("id_check") or {}).get("result") != ID_OK
+        ok = bool(r) and (r.get("id_check") or {}).get("result") not in ID_GOOD   # v0.19.1 B14
         self._fix_btn.configure(state="normal" if ok else "disabled")
 
     # ── actions ───────────────────────────────────────────────────────────────
     def _fix(self):
         r = self._selected_row()
-        if not r or (r.get("id_check") or {}).get("result") == ID_OK:
+        if not r or (r.get("id_check") or {}).get("result") in ID_GOOD:   # v0.19.1 B14
             return
         fixer = getattr(self._app, "_fix_ids_for", None)
         if fixer:
@@ -6410,6 +8389,283 @@ class _IdVerifyReportDialog(tk.Toplevel):                       ### NEW v0.19.0 
             with open(path, "w", encoding="utf-8") as f:
                 f.write(format_id_verify_report(self._rows))
 
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Type an IMDb / TMDb ID yourself (v0.19.1 B8)                  ### NEW v0.19.1 ###
+# ══════════════════════════════════════════════════════════════════════════════
+_IMDB_ID_RE = re.compile(r"^tt\d{7,9}$")
+
+
+def _omdb_title_year(imdb_id, omdb_key, omdb_fetch=None):      ### NEW v0.19.1 B14 ###
+    """(title, year) from OMDb for an IMDb ID, ("", "") when there is no key or
+    no answer.  Never raises; worker threads only."""
+    if not (imdb_id and omdb_key):
+        return "", ""
+    try:
+        url = f"https://www.omdbapi.com/?i={imdb_id}&apikey={omdb_key}"
+        data = omdb_fetch(url) if omdb_fetch else _http_get_json("omdb", url)
+        if (data or {}).get("Response") == "True":
+            return (data.get("Title") or "").strip(), (data.get("Year") or "").strip()[:4]
+    except Exception as ex:
+        logger.info(f"OMDb title lookup for {imdb_id} failed: {_redact(str(ex))}")
+    return "", ""
+
+
+def lookup_typed_ids(imdb_id, tmdb_id, api_key, fetch=None, omdb_key=None, omdb_fetch=None):
+    """Resolve IDs typed by the user to one TMDb film.
+    Returns (candidate | None, message).  candidate = {tmdb_id, imdb_id,
+    title, original_title, year, poster_path}.  Never writes anything.
+    ### MODIFIED v0.19.1 B14 ### an IMDb ID that TMDb does not know (and no
+    TMDb ID typed) gives an IMDb-only candidate (imdb_only=True, tmdb_id "",
+    title/year from OMDb when omdb_key is set) instead of an error."""
+    fetch = fetch or _tmdb_rate_limited_fetch
+    imdb_id = (imdb_id or "").strip()
+    tmdb_id = (tmdb_id or "").strip()
+    if not imdb_id and not tmdb_id:
+        return None, "Type an IMDb ID (tt…) and/or a TMDb ID."
+    if imdb_id and not _IMDB_ID_RE.match(imdb_id):
+        return None, f"'{imdb_id}' is not an IMDb ID (expected tt followed by 7–9 digits)."
+    if tmdb_id and not tmdb_id.isdigit():
+        return None, f"'{tmdb_id}' is not a TMDb ID (digits only)."
+    if not api_key:
+        return None, "No TMDb API key configured (Settings → API Keys)."
+    try:
+        if not tmdb_id:
+            fr = _tmdb_find_imdb(imdb_id, api_key, fetch)
+            if not fr:                                         ### MODIFIED v0.19.1 B14 ###
+                t, y = _omdb_title_year(imdb_id, omdb_key, omdb_fetch)
+                cand = {"tmdb_id": "", "imdb_id": imdb_id, "title": t, "original_title": "",
+                        "year": y, "poster_path": "", "exact": False, "overview": "",
+                        "imdb_only": True}
+                return cand, "Not on TMDb — IMDb only"
+            tmdb_id = str(fr[0].get("id"))
+        data = fetch(f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={api_key}"
+                     f"&append_to_response=external_ids")
+    except Exception as ex:
+        if _is_http_404(ex):
+            return None, f"TMDb {tmdb_id} does not exist."
+        return None, _tmdb_error_message(ex)
+    ext_imdb = ((data.get("external_ids") or {}).get("imdb_id") or data.get("imdb_id") or "").strip()
+    if imdb_id and ext_imdb and ext_imdb != imdb_id:
+        return None, (f"These IDs point to different films: TMDb {tmdb_id} is "
+                      f"'{data.get('title')}' with IMDb {ext_imdb}, not {imdb_id}.")
+    cand = {"tmdb_id": str(data.get("id") or tmdb_id), "imdb_id": imdb_id or ext_imdb,
+            "title": data.get("title") or "", "original_title": data.get("original_title") or "",
+            "year": (data.get("release_date") or "")[:4], "poster_path": data.get("poster_path") or "",
+            "exact": False, "overview": (data.get("overview") or "")[:200]}
+    return cand, f"Found: {cand['title']} ({cand['year'] or '?'})"
+
+
+def _original_title_from_files(nfo_path, xml_path):            ### NEW v0.19.1 B14 ###
+    """<originaltitle> (NFO) or <OriginalTitle> (XML), '' when absent."""
+    for p, tag in ((nfo_path, "originaltitle"), (xml_path, "OriginalTitle")):
+        if p and os.path.isfile(p):
+            root = _parse_root(p)
+            if root is not None:
+                t = (root.findtext(tag) or "").strip()
+                if t:
+                    return t
+    return ""
+
+
+def _search_sources_for_row(d, tmdb_key, lib_lang="en-US", omdb_key="", fetch=None,
+                            omdb_fetch=None, cancelled=None, limit=8):   ### NEW v0.19.1 B14 ###
+    """Search Sources for one movie (worker thread).  Returns
+      {movie_name, year, current: {imdb, tmdb}, pinned, matches}
+    current — the IDs found in the NFO/XML right now;
+    pinned  — the film behind the current ID (lookup_typed_ids: TMDb ID first,
+              then IMDb ID), shown first even when the title search finds
+              nothing: {"from": "TMDb"/"IMDb", "cand": candidate|None, "msg"};
+              an IMDb ID unknown to TMDb gives an imdb_only candidate;
+    matches — title search in en-US, in the library language and with the
+              original title, merged without duplicates (and without the
+              pinned film)."""
+    import urllib.parse
+    fetch = fetch or _tmdb_rate_limited_fetch
+    cancelled = cancelled or (lambda: False)
+    nfo = d.get("nfo_path") if d.get("nfo_exists") else None
+    xml = d.get("xml_path") if d.get("xml_exists") else None
+    movie_name = d.get("movie_name", d.get("subfolder", "?"))
+    year = d.get("movie_year", "")
+    src = extract_source_ids_from_files(nfo, xml)
+    cur_imdb = (src.get("imdb_val") or "").strip()
+    cur_tmdb = (src.get("tmdb_val") or "").strip()
+
+    pinned = None
+    for frm, im, tm in (("TMDb", "", cur_tmdb), ("IMDb", cur_imdb, "")):
+        if not (im or tm) or cancelled():
+            continue
+        cand, msg = lookup_typed_ids(im, tm, tmdb_key, fetch, omdb_key=omdb_key, omdb_fetch=omdb_fetch)
+        if cand and frm == "TMDb" and cur_imdb and not cand.get("imdb_id"):
+            cand["imdb_id"] = cur_imdb
+        pinned = {"from": frm, "cand": cand, "msg": msg}
+        if cand:
+            break                     # a failed TMDb lookup falls through to the IMDb ID
+
+    queries = [(movie_name, "en-US")]
+    if lib_lang and lib_lang != "en-US":
+        queries.append((movie_name, lib_lang))
+    orig = _original_title_from_files(nfo, xml)
+    if orig and orig.strip().lower() != (movie_name or "").strip().lower():
+        queries.append((orig, lib_lang or "en-US"))
+    skip = {((pinned or {}).get("cand") or {}).get("tmdb_id") or None}
+    items, seen = [], set()
+    search_error = None                                          ### NEW v0.19.1 B22 ###
+    yr_param = f"&year={year}" if year and year != "-" else ""
+    for q, lang in queries:
+        if cancelled() or len(items) >= limit:
+            break
+        try:
+            url = (f"https://api.themoviedb.org/3/search/movie?api_key={tmdb_key}"
+                   f"&query={urllib.parse.quote(q)}{yr_param}&language={lang}")
+            data = fetch(url, timeout=10)
+        except Exception as e:
+            logger.warning(f"Search Sources: TMDB search failed for '{q}': {_tmdb_error_message(e)}")
+            search_error = search_error or _tmdb_error_message(e)       ### NEW v0.19.1 B22 ###
+            continue
+        for item in (data.get("results") or [])[:5]:
+            tid = str(item.get("id", ""))
+            if not tid or tid in seen or tid in skip:
+                continue
+            seen.add(tid); items.append(item)
+            if len(items) >= limit:
+                break
+    matches = []
+    for item in items:
+        if cancelled():
+            break
+        tid = str(item.get("id", ""))
+        imdb_id = ""
+        try:
+            edata = fetch(f"https://api.themoviedb.org/3/movie/{tid}/external_ids?api_key={tmdb_key}", timeout=8)
+            imdb_id = edata.get("imdb_id", "") or ""
+        except Exception:
+            pass
+        matches.append({"tmdb_id": tid, "imdb_id": imdb_id, "title": item.get("title", ""),
+                        "year": (item.get("release_date", "")[:4] if item.get("release_date") else ""),
+                        "popularity": item.get("popularity", 0)})
+    return {"movie_name": movie_name, "year": year, "matches": matches,
+            "current": {"imdb": cur_imdb, "tmdb": cur_tmdb}, "pinned": pinned,
+            "search_error": search_error if not matches else None}    ### NEW v0.19.1 B22 ###
+
+
+class _EnterIdDialog(tk.Toplevel):                              ### NEW v0.19.1 ###
+    """Type an IMDb and/or TMDb ID, look it up on TMDb (title, original title,
+    year, poster), then Apply.  result = candidate dict or None."""
+    def __init__(self, parent, movie_name, imdb="", tmdb=""):
+        super().__init__(parent)
+        self.result = None
+        self._cand = None
+        self._photo = None
+        self.title("Enter IMDb / TMDb ID")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.grab_set()
+        self.resizable(False, False)
+        tk.Label(self, text=movie_name, bg="#1e1e2e", fg="#89b4fa",
+                 font=("Helvetica", 11, "bold"), wraplength=520).pack(padx=18, pady=(14, 2))
+        tk.Label(self, text="Type the IMDb ID (tt…) and/or the TMDb ID of the right film, then Look up.",
+                 bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9)).pack(padx=18, pady=(0, 8))
+        g = tk.Frame(self, bg="#1e1e2e"); g.pack(padx=18)
+        self._imdb_var = tk.StringVar(value=imdb or "")
+        self._tmdb_var = tk.StringVar(value=tmdb or "")
+        for r, (lbl, var) in enumerate((("IMDb ID", self._imdb_var), ("TMDb ID", self._tmdb_var))):
+            tk.Label(g, text=lbl, bg="#1e1e2e", fg="#cdd6f4", font=("Helvetica", 10),
+                     width=9, anchor="e").grid(row=r, column=0, padx=(0, 6), pady=3)
+            tk.Entry(g, textvariable=var, width=18, font=("Consolas", 11), bg="#313244", fg="#cdd6f4",
+                     insertbackground="#cdd6f4", relief="flat").grid(row=r, column=1, pady=3)
+        tk.Button(g, text="  Look up  ", bg="#89b4fa", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  font=("Helvetica", 9, "bold"), command=self.lookup).grid(row=0, column=2, rowspan=2, padx=(10, 0))
+        res = tk.Frame(self, bg="#252535"); res.pack(fill="x", padx=18, pady=(10, 4))
+        self._thumb = tk.Label(res, bg="#313244", width=10, height=7); self._thumb.pack(side="left", padx=6, pady=6)
+        self._info = tk.Label(res, text="", bg="#252535", fg="#cdd6f4", font=("Helvetica", 10),
+                              justify="left", anchor="w", wraplength=380)
+        self._info.pack(side="left", fill="x", expand=True, padx=6)
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(8, 14))
+        self._apply_btn = tk.Button(bf, text="  Apply  ", bg="#a6e3a1", fg="#1e1e2e", relief="flat",
+                                    cursor="hand2", font=("Helvetica", 10, "bold"), state="disabled",
+                                    command=self._apply)
+        self._apply_btn.pack(side="left", padx=(0, 8))
+        tk.Button(bf, text="  Cancel  ", bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  font=("Helvetica", 10), command=self.destroy).pack(side="left")
+        self.bind("<Return>", lambda e: self._apply() if self._cand else self.lookup())
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.update_idletasks()
+        try:
+            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        _remember_window(self, "_EnterIdDialog", resizable=False)
+
+    def lookup(self, fetch=None, sync=False):
+        """Look the typed IDs up in a worker thread (sync=True for tests)."""
+        im, tm = self._imdb_var.get().strip(), self._tmdb_var.get().strip()
+        key = SETTINGS.get("tmdb_api_key", "").strip()
+        okey = SETTINGS.get("omdb_api_key", "").strip()                  ### NEW v0.19.1 B14 ###
+        self._cand = None
+        self._apply_btn.configure(state="disabled")
+        self._info.configure(text="Looking up…", fg="#a6adc8")
+        def _work():
+            cand, msg = lookup_typed_ids(im, tm, key, fetch, omdb_key=okey,
+                                         omdb_fetch=getattr(self, "_omdb_fetch", None))
+            def _ui():
+                try:
+                    if not self.winfo_exists():
+                        return
+                except tk.TclError:
+                    return
+                self._cand = cand
+                if cand and cand.get("imdb_only"):                       ### NEW v0.19.1 B14 ###
+                    txt = f"Not on TMDb — IMDb only\nIMDb {cand['imdb_id']}"
+                    if cand["title"]:
+                        txt += f"\nOMDb: {cand['title']}  ({cand['year'] or '?'})"
+                    txt += "\nApply writes the IMDb ID and leaves the TMDb tags empty."
+                    self._info.configure(text=txt, fg="#f9e2af")
+                    self._apply_btn.configure(state="normal")
+                elif cand:
+                    txt = f"{cand['title']}  ({cand['year'] or '?'})"
+                    if cand["original_title"] and cand["original_title"] != cand["title"]:
+                        txt += f"\nOriginal title: {cand['original_title']}"
+                    txt += f"\nTMDb {cand['tmdb_id']}    IMDb {cand['imdb_id'] or '—'}"
+                    self._info.configure(text=txt, fg="#cdd6f4")
+                    self._apply_btn.configure(state="normal")
+                    if cand.get("poster_path") and _PIL_AVAILABLE and not sync:
+                        threading.Thread(target=self._load_thumb, args=(cand["poster_path"],), daemon=True).start()
+                else:
+                    self._info.configure(text=msg, fg="#f38ba8")
+            if sync:
+                _ui()
+            else:
+                self.after(0, _ui)
+        if sync:
+            _work()
+        else:
+            threading.Thread(target=_work, daemon=True).start()
+
+    def _load_thumb(self, pp):
+        try:
+            import urllib.request, io as _io
+            req = urllib.request.Request("https://image.tmdb.org/t/p/w92" + pp, headers={"User-Agent": _UA})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = resp.read()
+            im = _PILImage.open(_io.BytesIO(data)); im.thumbnail((92, 138))
+            def _set():
+                try:
+                    self._photo = _PILImageTk.PhotoImage(im)
+                    self._thumb.configure(image=self._photo, width=92, height=138)
+                except Exception:
+                    pass
+            self.after(0, _set)
+        except Exception:
+            pass
+
+    def _apply(self):
+        if self._cand:
+            self.result = self._cand
+            self.destroy()
 
 
 class _IdChooserDialog(tk.Toplevel):                            ### NEW v0.19.0 ###
@@ -6487,6 +8743,8 @@ class _IdChooserDialog(tk.Toplevel):                            ### NEW v0.19.0 
                   font=("Helvetica", 10, "bold"), command=self._apply).pack(side="left", padx=(0, 8))
         tk.Button(bf, text="  Skip  ", bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self._skip).pack(side="left")
+        tk.Button(bf, text="  Enter ID…  ", bg="#fab387", fg="#1e1e2e", relief="flat", cursor="hand2",   ### NEW v0.19.1 ###
+                  font=("Helvetica", 10, "bold"), command=self._enter_id).pack(side="left", padx=(8, 0))
         self.bind("<Escape>", lambda e: self._skip())
         self.bind("<Return>", lambda e: self._apply())
         self.geometry("820x520")
@@ -6535,6 +8793,420 @@ class _IdChooserDialog(tk.Toplevel):                            ### NEW v0.19.0 
     def _skip(self):
         self.result = None
         self.skip_all = bool(self._skip_all_var.get())
+        self.destroy()
+
+    def _enter_id(self):                                          ### NEW v0.19.1 ###
+        dlg = _EnterIdDialog(self, self.title())
+        self.wait_window(dlg)
+        if dlg.result:
+            self.result = dlg.result
+            self.skip_all = False
+            self.destroy()
+
+
+def _labelled_backups(label):                                    ### NEW v0.19.1 I1 ###
+    """Decorator: every backup made by the method is labelled *label*."""
+    def deco(fn):
+        import functools
+        @functools.wraps(fn)
+        def wrapper(*a, **k):
+            with _sc.backup_action(label):
+                return fn(*a, **k)
+        return wrapper
+    return deco
+
+
+def _with_backup_action(label, fn, *args):                       ### NEW v0.19.1 I1 ###
+    """Run fn(*args) with every backup it makes labelled *label* (manifest)."""
+    with _sc.backup_action(label):
+        return fn(*args)
+
+
+class BackupHistoryDialog(tk.Toplevel):                          ### NEW v0.19.1 I1 ###
+    """Tools → Backup History / Undo…: every backup run (newest first) with its
+    files; "Restore this run" puts the files back (current files are backed
+    up first, files changed since the run are listed and can be skipped)."""
+    _COLS = (("created", "Date", 150), ("action", "Action", 230), ("movies", "Movies", 70),
+             ("files", "Files", 60), ("state", "Restore", 170))
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self._app = parent
+        self._runs = []
+        self.title("Backup History / Undo")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent)
+        self.geometry("880x560"); self.minsize(700, 420)
+        tk.Label(self, text="Each line is one run that changed files (a batch, or one action on one movie).",
+                 bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9)).pack(anchor="w", padx=14, pady=(10, 4))
+        top = tk.Frame(self, bg="#1e1e2e"); top.pack(fill="both", expand=True, padx=12)
+        self._tree = ttk.Treeview(top, columns=[c for c, _l, _w in self._COLS], show="headings", height=10)
+        for c, l, w in self._COLS:
+            self._tree.heading(c, text=l); self._tree.column(c, width=w, anchor="w")
+        self._tree.pack(fill="both", expand=True)
+        self._tree.bind("<<TreeviewSelect>>", lambda e: self._show_files())
+        tk.Label(self, text="Files of the selected run:", bg="#1e1e2e", fg="#cdd6f4",
+                 font=("Helvetica", 9, "bold")).pack(anchor="w", padx=14, pady=(8, 2))
+        self._files = tk.Text(self, height=8, bg="#252535", fg="#cdd6f4", font=("Consolas", 9), wrap="none")
+        self._files.pack(fill="both", expand=False, padx=12)
+        self._status = tk.Label(self, text="Loading…", bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9))
+        self._status.pack(anchor="w", padx=14, pady=(4, 0))
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(6, 12))
+        self._restore_btn = tk.Button(bf, text="  ↶ Restore this run  ", bg="#fab387", fg="#1e1e2e",
+                                      relief="flat", cursor="hand2", font=("Helvetica", 10, "bold"),
+                                      state="disabled", command=self._restore)
+        self._restore_btn.pack(side="left", padx=4)
+        tk.Button(bf, text="  Open folder  ", bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  font=("Helvetica", 10), command=self._open_folder).pack(side="left", padx=4)
+        tk.Button(bf, text="  Close  ", bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  font=("Helvetica", 10), command=self.destroy).pack(side="left", padx=4)
+        self.bind("<Escape>", lambda e: self.destroy())
+        _remember_window(self, "BackupHistoryDialog", resizable=True)
+        self.load()
+
+    # listing (worker thread — many folders on a network share)
+    def load(self, sync=False):
+        def _work():
+            runs = _sc.list_backup_runs(_BACKUP_ROOT)
+            for r in runs:
+                r["changed"] = [f["original"] for f in r["files"] if _sc.file_changed_since_run(f)]
+            def _ui():
+                try:
+                    if self.winfo_exists():
+                        self._fill(runs)
+                except tk.TclError:
+                    pass
+            if sync:
+                _ui()
+            else:
+                self.after(0, _ui)
+        if sync:
+            _work()
+        else:
+            threading.Thread(target=_work, daemon=True).start()
+
+    def _fill(self, runs):
+        self._runs = runs
+        self._tree.delete(*self._tree.get_children())
+        for i, r in enumerate(runs):
+            if r["legacy"]:
+                vals = (r["created"], "(made before v0.19.1)", "—", r.get("n_files", "—"), "legacy (manual restore only)")
+            else:
+                st = f"{len(r['changed'])} changed since" if r["changed"] else "ready"
+                vals = (r["created"], r["action"], r["movies"], len(r["files"]), st)
+            self._tree.insert("", "end", iid=str(i), values=vals)
+        self._status.configure(text=f"{len(runs)} backup run(s) in {_BACKUP_ROOT}")
+        if runs:
+            self._tree.selection_set("0")
+
+    def selected_run(self):
+        sel = self._tree.selection()
+        return self._runs[int(sel[0])] if sel else None
+
+    def _show_files(self):
+        r = self.selected_run()
+        self._files.delete("1.0", "end")
+        if not r:
+            self._restore_btn.configure(state="disabled"); return
+        if r["legacy"]:
+            self._files.insert("end", "This backup was made before v0.19.1 and has no manifest:\n"
+                                      "the files can only be copied back by hand (Open folder).")
+            self._restore_btn.configure(state="disabled"); return
+        for f in r["files"]:
+            mark = "  ⚠ changed since the run" if f["original"] in r["changed"] else ""
+            self._files.insert("end", f"{f['original']}   ({f['backup']}){mark}\n")
+        self._restore_btn.configure(state="normal")
+
+    def _open_folder(self):
+        r = self.selected_run()
+        if r:
+            os_open(r["folder"])
+
+    def ask_skip_changed(self, changed):
+        """UI: files changed since the run → which to skip.  Returns a set, or
+        None to cancel (tests replace this)."""
+        ans = messagebox.askyesnocancel(
+            "Restore — files changed since the run",
+            f"{len(changed)} file(s) were changed after this run:\n\n"
+            + "\n".join(os.path.basename(x) for x in changed[:12])
+            + ("\n…" if len(changed) > 12 else "")
+            + "\n\nYes = restore them too (your later changes are backed up first)\n"
+              "No = skip these files\nCancel = do nothing", parent=self)
+        if ans is None:
+            return None
+        return set() if ans else set(changed)
+
+    def _restore(self, sync=False):
+        r = self.selected_run()
+        if not r or r["legacy"]:
+            return
+        skip = set()
+        if r["changed"]:
+            skip = self.ask_skip_changed(r["changed"])
+            if skip is None:
+                return
+        elif not sync and not messagebox.askyesno(
+                "Restore this run", f"Put back {len(r['files'])} file(s) as they were before "
+                f"\"{r['action']}\" ({r['created']})?\n\nThe current files are backed up first.", parent=self):
+            return
+        self._restore_btn.configure(state="disabled", text="  Restoring…  ")
+        def _work():
+            restored, errors, safety = _sc.restore_backup_run(_BACKUP_ROOT, r["folder"], skip, logger=logger)
+            movie_dirs = sorted({os.path.dirname(x) for x in restored})
+            self._app._schedule_refresh(movie_dirs, need_ffprobe=False)
+            def _ui():
+                self.last_result = (restored, errors, safety)
+                try:
+                    if self.winfo_exists():
+                        self._restore_btn.configure(text="  ↶ Restore this run  ")
+                        self.load()
+                except tk.TclError:
+                    pass
+                msg = f"{len(restored)} file(s) restored."
+                if skip:
+                    msg += f"\n{len(skip)} changed file(s) skipped."
+                if safety:
+                    msg += f"\nThe files as they were before the undo are in:\n{safety}"
+                if errors:
+                    msg += "\n\nErrors:\n" + "\n".join(errors[:8])
+                messagebox.showinfo("Restore", msg, parent=self._app)
+            if sync:
+                _ui()
+            else:
+                self.after(0, _ui)
+        if sync:
+            _work()
+        else:
+            threading.Thread(target=_work, daemon=True).start()
+
+
+class _PauseAskDialog(tk.Toplevel):                              ### NEW v0.19.1 B22 ###
+    """A paused service is needed: message + advice, [Try anyway] [Cancel]."""
+    def __init__(self, parent, service, entry):
+        super().__init__(parent)
+        self.result = False
+        label = _SERVICE_LABEL.get(service, service)
+        try:
+            until = datetime.datetime.fromisoformat(entry["until"]).strftime("%H:%M")
+        except Exception:
+            until = "?"
+        self.text = (f"{label} is paused until about {until}.\n\n"
+                     f"{entry.get('message') or api_failure_message(service, entry.get('kind'))}")
+        self.title("Online service paused")
+        self.configure(bg="#1e1e2e"); self.transient(parent); self.resizable(False, False)
+        tk.Label(self, text=self.text, bg="#1e1e2e", fg="#f9e2af", font=("Helvetica", 10),
+                 justify="left", wraplength=440).pack(padx=18, pady=(16, 10))
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(0, 14))
+        tk.Button(bf, text="  Try anyway  ", bg="#fab387", fg="#1e1e2e", relief="flat", cursor="hand2",
+                  font=("Helvetica", 10, "bold"), command=self._try).pack(side="left", padx=4)
+        tk.Button(bf, text="  Cancel  ", bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  font=("Helvetica", 10), command=self.destroy).pack(side="left", padx=4)
+        self.bind("<Escape>", lambda e: self.destroy())
+        _remember_window(self, "_PauseAskDialog", resizable=False)
+
+    def _try(self):
+        self.result = True
+        self.destroy()
+
+
+class _ServiceFailureDialog(tk.Toplevel):                        ### NEW v0.19.1 B22 ###
+    """First failure of a service in a batch run: message + advice and
+    [Pause this run] [Continue with the other source / without <service>] [Cancel]."""
+    def __init__(self, parent, service, kind, other_label=None):
+        super().__init__(parent)
+        self.result = "continue"
+        label = _SERVICE_LABEL.get(service, service)
+        self.text = api_failure_message(service, kind)
+        self.title(f"{label} — not available")
+        self.configure(bg="#1e1e2e"); self.transient(parent); self.resizable(False, False)
+        tk.Label(self, text=self.text, bg="#1e1e2e", fg="#f9e2af", font=("Helvetica", 10),
+                 justify="left", wraplength=460).pack(padx=18, pady=(16, 6))
+        tk.Label(self, text="This is asked once for this run.", bg="#1e1e2e", fg="#6c7086",
+                 font=("Helvetica", 8)).pack(padx=18)
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(10, 14))
+        self.buttons = {}
+        secs = API_PAUSE_SECONDS.get(kind)
+        if secs:
+            until = (datetime.datetime.now() + datetime.timedelta(seconds=secs)).strftime("%H:%M")
+            self.buttons["pause"] = tk.Button(bf, text=f"  Pause this run (until about {until})  ",
+                                              bg="#fab387", fg="#1e1e2e", relief="flat", cursor="hand2",
+                                              font=("Helvetica", 9, "bold"), command=lambda: self._go("pause"))
+        cont = f"  Continue with {other_label}  " if other_label else f"  Continue without {label}  "
+        self.buttons["continue"] = tk.Button(bf, text=cont, bg="#a6e3a1", fg="#1e1e2e", relief="flat",
+                                             cursor="hand2", font=("Helvetica", 9, "bold"),
+                                             command=lambda: self._go("continue"))
+        self.buttons["cancel"] = tk.Button(bf, text="  Cancel  ", bg="#45475a", fg="#cdd6f4", relief="flat",
+                                           cursor="hand2", font=("Helvetica", 9), command=lambda: self._go("cancel"))
+        for b in self.buttons.values():
+            b.pack(side="left", padx=4)
+        self.protocol("WM_DELETE_WINDOW", lambda: self._go("continue"))
+        _remember_window(self, "_ServiceFailureDialog", resizable=False)
+
+    def _go(self, what):
+        self.result = what
+        self.destroy()
+
+
+class _HardsubDialog(tk.Toplevel):                              ### NEW v0.19.1 B15 ###
+    """Right-click → Hard-coded subtitles…: the user ticks the language(s)
+    burned into the picture (common list + "Other…" ISO 639-2 codes).
+    on_done(sorted codes) is called on Apply; Cancel / [X] calls nothing."""
+    def __init__(self, parent, movie_names, current=(), on_done=None):
+        super().__init__(parent)
+        self.result = None
+        self._on_done = on_done
+        n = len(movie_names)
+        self.title("Hard-coded subtitles")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.resizable(False, False)
+        head = movie_names[0] if n == 1 else f"{n} movies"
+        tk.Label(self, text=head, bg="#1e1e2e", fg="#89b4fa", font=("Helvetica", 11, "bold"),
+                 wraplength=460).pack(padx=18, pady=(14, 2))
+        tk.Label(self, text="Tick the subtitle language(s) burned into the picture.\n"
+                            "They cannot be detected automatically, so you mark them here.",
+                 bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9), justify="center").pack(padx=18, pady=(0, 8))
+        cur = {c.upper() for c in current}
+        known = [c for c, _n in SUBTITLE_LANGUAGES]
+        g = tk.Frame(self, bg="#1e1e2e"); g.pack(padx=18)
+        self._vars = {}
+        for i, (code, name) in enumerate(SUBTITLE_LANGUAGES):
+            v = tk.BooleanVar(value=code in cur); self._vars[code] = v
+            tk.Checkbutton(g, text=f"{code}  {name}", variable=v, bg="#1e1e2e", fg="#cdd6f4",
+                           selectcolor="#313244", activebackground="#1e1e2e", activeforeground="#cdd6f4",
+                           font=("Helvetica", 9), anchor="w", width=20).grid(row=i // 3, column=i % 3, sticky="w")
+        of = tk.Frame(self, bg="#1e1e2e"); of.pack(padx=18, pady=(8, 0), fill="x")
+        tk.Label(of, text="Other… (ISO 639-2, e.g. CAT, HEB):", bg="#1e1e2e", fg="#cdd6f4",
+                 font=("Helvetica", 9)).pack(side="left")
+        self._other_var = tk.StringVar(value=", ".join(sorted(c for c in cur if c not in known)))
+        tk.Entry(of, textvariable=self._other_var, width=18, font=("Consolas", 10), bg="#313244", fg="#cdd6f4",
+                 insertbackground="#cdd6f4", relief="flat").pack(side="left", padx=6)
+        self._msg = tk.Label(self, text="", bg="#1e1e2e", fg="#f38ba8", font=("Helvetica", 9))
+        self._msg.pack(padx=18, pady=(4, 0))
+        if n > 1:
+            tk.Label(self, text="Each selected movie gets exactly the ticked languages.",
+                     bg="#1e1e2e", fg="#f9e2af", font=("Helvetica", 9, "italic")).pack(padx=18)
+        tk.Label(self, text="Written as <tag>Hardsub POR</tag> (NFO) and <Tags><Tag>Hardsub POR</Tag></Tags> (XML).",
+                 bg="#1e1e2e", fg="#6c7086", font=("Helvetica", 8)).pack(padx=18, pady=(4, 0))
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(10, 14))
+        for txt, bg, fg, cmd in (("  Apply  ", "#a6e3a1", "#1e1e2e", self._apply),
+                                 ("  None  ", "#fab387", "#1e1e2e", self._none),
+                                 ("  Cancel  ", "#45475a", "#cdd6f4", self.destroy)):
+            tk.Button(bf, text=txt, bg=bg, fg=fg, relief="flat", cursor="hand2",
+                      font=("Helvetica", 10, "bold"), command=cmd).pack(side="left", padx=4)
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.update_idletasks()
+        try:
+            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        _remember_window(self, "_HardsubDialog", resizable=False)
+
+    def selected(self):
+        """Ticked codes + the 'Other…' codes, or None when an Other code is invalid."""
+        codes = {c for c, v in self._vars.items() if v.get()}
+        for tok in re.split(r"[\s,;]+", self._other_var.get().strip()):
+            if not tok:
+                continue
+            if not re.fullmatch(r"[A-Za-z]{3}", tok):
+                self._msg.configure(text=f"'{tok}' is not a 3-letter ISO 639-2 code.")
+                return None
+            codes.add(tok.upper())
+        return sorted(codes)
+
+    def _none(self):
+        for v in self._vars.values():
+            v.set(False)
+        self._other_var.set("")
+
+    def _apply(self):
+        codes = self.selected()
+        if codes is None:
+            return
+        self.result = codes
+        self.destroy()
+        if self._on_done:
+            self._on_done(codes)
+
+
+def backdrop_count_message(local_n, online_n, source="TMDb"):   ### NEW v0.19.1 B17 ###
+    """(text, button label, warn) for the Replace All Backdrops confirmation."""
+    if online_n < local_n:
+        return (f"You have {local_n} backdrops. {source} offers {online_n}.\n"
+                f"Replacing would leave you with {online_n} ({local_n - online_n} fewer).",
+                "Replace anyway", True)
+    gain = online_n - local_n
+    extra = f" ({gain} more)" if gain else " (the same number)"
+    return (f"You have {local_n} backdrops. {source} offers {online_n}.\n"
+            f"Replacing gives you {online_n}{extra}.", "Replace", False)
+
+
+class _BackdropCountDialog(tk.Toplevel):                        ### NEW v0.19.1 B17 ###
+    """Replace All Backdrops: local vs online counts; result True = replace."""
+    def __init__(self, parent, movie, local_n, online_n, source="TMDb", sources=None):
+        super().__init__(parent)
+        self.result = False
+        ### NEW v0.19.1 I10 — sources={"tmdb": n, "fanarttv": m}: choose the source;
+        ### the counts (and the warning) follow the choice; result = "tmdb" | "fanarttv" | "both" ###
+        self._local_n, self._sources = local_n, sources
+        if sources:
+            avail = [s for s in ("tmdb", "fanarttv") if sources.get(s)] or ["tmdb"]
+            if len(avail) == 2:
+                avail.append("both")
+            first = default_image_source()
+            self.choice = tk.StringVar(value=first if first in avail else avail[0])
+            online_n, source = self._count(self.choice.get()), IMAGE_SOURCE_LABEL[self.choice.get()]
+        text, btn, warn = backdrop_count_message(local_n, online_n, source)
+        self.message = text; self.button_label = btn
+        self.title("Replace All Backdrops")
+        self.configure(bg="#1e1e2e")
+        self.transient(parent); self.resizable(False, False)
+        tk.Label(self, text=movie, bg="#1e1e2e", fg="#89b4fa", font=("Helvetica", 11, "bold"),
+                 wraplength=440).pack(padx=18, pady=(14, 4))
+        if sources:
+            sf = tk.Frame(self, bg="#1e1e2e"); sf.pack(padx=18, pady=(0, 6))
+            tk.Label(sf, text="Source:", bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9)).pack(side="left")
+            for s in avail:
+                tk.Radiobutton(sf, text=f"{IMAGE_SOURCE_LABEL[s]} ({self._count(s)})", value=s,
+                               variable=self.choice, command=self._recount, bg="#1e1e2e", fg="#cdd6f4",
+                               selectcolor="#313244", activebackground="#1e1e2e",
+                               font=("Helvetica", 9)).pack(side="left", padx=(6, 0))
+        self._msg_lbl = tk.Label(self, text=text, bg="#1e1e2e", fg="#f9e2af" if warn else "#cdd6f4",
+                 font=("Helvetica", 10), justify="left", wraplength=440)
+        self._msg_lbl.pack(padx=18, pady=(0, 6))
+        tk.Label(self, text="Your current backdrops are backed up before they are deleted.",
+                 bg="#1e1e2e", fg="#6c7086", font=("Helvetica", 8)).pack(padx=18)
+        bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(10, 14))
+        self._ok_btn = tk.Button(bf, text=f"  {btn}  ", bg="#f38ba8" if warn else "#a6e3a1", fg="#1e1e2e",
+                                 relief="flat", cursor="hand2", font=("Helvetica", 10, "bold"), command=self._ok)
+        self._ok_btn.pack(side="left", padx=4)
+        tk.Button(bf, text="  Cancel  ", bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  font=("Helvetica", 10), command=self.destroy).pack(side="left", padx=4)
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.update_idletasks()
+        try:
+            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        _remember_window(self, "_BackdropCountDialog", resizable=False)
+
+    def _count(self, s):                                         ### NEW v0.19.1 I10 ###
+        src = self._sources or {}
+        return src.get("tmdb", 0) + src.get("fanarttv", 0) if s == "both" else src.get(s, 0)
+
+    def _recount(self):                                          ### NEW v0.19.1 I10 ###
+        s = self.choice.get()
+        text, btn, warn = backdrop_count_message(self._local_n, self._count(s), IMAGE_SOURCE_LABEL[s])
+        self.message = text; self.button_label = btn
+        self._msg_lbl.configure(text=text, fg="#f9e2af" if warn else "#cdd6f4")
+        self._ok_btn.configure(text=f"  {btn}  ", bg="#f38ba8" if warn else "#a6e3a1")
+
+    def _ok(self):
+        self.result = self.choice.get() if self._sources else True   ### v0.19.1 I10 ###
+        _LAST_IMAGE_SOURCE[0] = self.result if self._sources else _LAST_IMAGE_SOURCE[0]
         self.destroy()
 
 
@@ -6590,6 +9262,9 @@ class _AutoRepairOptionsDialog(tk.Toplevel):                    ### NEW v0.19.0 
     def _ok(self):
         self.result = {"rating_pref": self._rating.get(), "dry_run": bool(self._dry.get())}
         self.destroy()
+
+
+_PROGRESS_MIN = 3        # v0.19.1 — progress window from 3 movies up (was 10)  ### NEW v0.19.1 ###
 
 
 class _BatchProgressDialog(tk.Toplevel):                       ### NEW v0.17.0 ###
@@ -6740,7 +9415,119 @@ class _BatchProgressDialog(tk.Toplevel):                       ### NEW v0.17.0 #
             pass
 
 
-class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 ###
+class _DoneWhenIdle:                                             ### NEW v0.19.1 B18 ###
+    """Footer "Done" for the Fetch dialogs (was "Cancel": images applied
+    before are kept, so nothing is cancelled).  Esc and the window [X] do the
+    same.  While a download runs, Done shows "Finishing…" and the window
+    closes when the download ends, so the caller still sees applied=True and
+    refreshes the row."""
+    def _dl_begin(self):
+        self._dl_busy = getattr(self, "_dl_busy", 0) + 1
+
+    def _dl_end(self):
+        """UI thread, after a download finished (ok or not)."""
+        self._dl_busy = max(0, getattr(self, "_dl_busy", 0) - 1)
+        if self._dl_busy == 0 and getattr(self, "_close_pending", False):
+            self.destroy()
+
+    def _done(self):
+        if getattr(self, "_dl_busy", 0) > 0:
+            self._close_pending = True
+            try:
+                self._done_btn.configure(text="  Finishing…  ", state="disabled")
+            except Exception:
+                pass
+            return
+        self.destroy()
+
+    def _make_done_button(self, parent, **kw):
+        self._done_btn = tk.Button(parent, text="  Done  ", command=self._done, **kw)
+        self.protocol("WM_DELETE_WINDOW", self._done)
+        self.bind("<Escape>", lambda e: self._done())
+        return self._done_btn
+
+
+def _initial_source(online, frames_ok):                          ### NEW v0.19.1 B25 ###
+    """The source a Fetch dialog opens with: the usual default among the
+    online sources this movie has; the movie's frames when it has none."""
+    if not online:
+        return "frames" if frames_ok else "tmdb"
+    if len(online) == 1:
+        return online[0]
+    return default_image_source()
+
+
+def _image_list_title(source, mode):                            ### NEW v0.19.1 I10 ###
+    if source == "frames":                                       ### v0.19.1 B11 ###
+        return "Frames from the movie  (10 %–90 % of the running time)"
+    what = "Posters" if mode == "poster" else "Backdrops" if mode == "backdrops" else "Images"
+    if source == "fanarttv":
+        order = "your library language first" if mode == "poster" else "most liked first"
+        return f"fanart.tv {what}  ({order})"
+    if source == "both":
+        return f"TMDb + fanart.tv {what}  (by resolution, then votes / likes)"
+    return f"TMDB {what}  (sorted by resolution, highest first)"
+
+
+def _image_source_bar(dlg, source, tmdb_ok, on_change, with_thumbs=False, frames=False, online=None):   ### NEW v0.19.1 I10 ###
+    """"Source: [TMDb | fanart.tv | Both]" (+ "include landscape thumbs") above
+    the image list.  on_change(source, thumbs) runs on the UI thread."""
+    fk = bool(fanarttv_key())
+    bar = tk.Frame(dlg, bg="#1e1e2e"); bar.pack(pady=(4, 0))
+    tk.Label(bar, text="Source:", bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9)).pack(side="left")
+    if online is None:
+        online = [s for s in (("tmdb",) if tmdb_ok else ()) + (("fanarttv",) if fk else ())] or ["tmdb"]
+    codes = list(online) + (["both"] if len(online) == 2 else [])            ### v0.19.1 B25 ###
+    labels = [IMAGE_SOURCE_LABEL[s] for s in codes] or [IMAGE_SOURCE_LABEL["frames"]]
+    var = tk.StringVar(value=IMAGE_SOURCE_LABEL[source])
+    cb = ttk.Combobox(bar, textvariable=var, values=labels, state="readonly", width=10)
+    cb.pack(side="left", padx=(6, 0))
+    thumbs = tk.BooleanVar(value=False)
+    def _fire(*_):
+        src = {v: k for k, v in IMAGE_SOURCE_LABEL.items()}.get(var.get(), "tmdb")
+        on_change(src, bool(thumbs.get()))
+    cb.bind("<<ComboboxSelected>>", _fire)
+    if with_thumbs and fk:
+        tk.Checkbutton(bar, text="include landscape thumbs (fanart.tv, 1000×562)", variable=thumbs,
+                       command=_fire, bg="#1e1e2e", fg="#a6adc8", selectcolor="#313244",
+                       activebackground="#1e1e2e", font=("Helvetica", 8)).pack(side="left", padx=(10, 0))
+    if not fk:
+        tk.Label(bar, text="  (fanart.tv: add a key in Settings → API Keys)", bg="#1e1e2e",
+                 fg="#6c7086", font=("Helvetica", 8)).pack(side="left")
+    if frames:                                                   ### NEW v0.19.1 B11 ###
+        def _frames():
+            var.set(IMAGE_SOURCE_LABEL["frames"])
+            dlg._frames_btn.configure(text="🎞  More frames")
+            on_change("frames", bool(thumbs.get()))
+        dlg._frames_btn = tk.Button(bar, text=("🎞  More frames" if source == "frames" else "🎞  Frames from movie"), command=_frames,
+                                    bg="#45475a", fg="#f9e2af", relief="flat", cursor="hand2",
+                                    font=("Helvetica", 9, "bold"), padx=8, pady=2)
+        dlg._frames_btn.pack(side="left", padx=(12, 0))
+    return var, thumbs
+
+
+class _FramesMixin:                                              ### NEW v0.19.1 B11 ###
+    """Temp folder for the frames of one Fetch dialog, deleted on close."""
+    def _frames_init(self):
+        self._frames_root = None
+        self.bind("<Destroy>", lambda e: self._frames_cleanup() if e.widget is self else None, add="+")
+
+    def _frames_load(self):
+        """Worker: a NEW set of frames in a new sub-folder → (entries, errors)."""
+        import tempfile
+        if not self._frames_root:
+            self._frames_root = tempfile.mkdtemp(prefix="mediaclinic_frames_")
+        d = tempfile.mkdtemp(dir=self._frames_root)
+        imgs, err = extract_movie_frames(self._row.get("video_path"), d)
+        return imgs, ([err] if err else [])
+
+    def _frames_cleanup(self):
+        if self._frames_root:
+            shutil.rmtree(self._frames_root, ignore_errors=True)
+            self._frames_root = None
+
+
+class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, tk.Toplevel):       ### REBUILT v0.16.0, Done v0.19.1 B18, frames B11 ###
     """
     Fetch Poster/Folder or Fetch Fanart.
     Poster mode:  4-column × 2-row grid (8 images per page), paginated.
@@ -6758,13 +9545,18 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
     _TMDB_FALLBACK_THUMB = "https://image.tmdb.org/t/p/w300"
     _TMDB_BASE_ORIG      = "https://image.tmdb.org/t/p/original"
 
-    def __init__(self, parent, row_data, image_mode, tmdb_key, tmdb_id):
+    def __init__(self, parent, row_data, image_mode, tmdb_key, tmdb_id, imdb_id=None):
         super().__init__(parent)
         self.applied     = False
         self._row        = row_data
         self._mode       = image_mode
         self._key        = tmdb_key
         self._tmdb       = tmdb_id
+        self._imdb       = imdb_id or row_data.get("source_imdb_val")          ### v0.19.1 I10 ###
+        self._online     = [s for s in image_sources_for(dict(row_data, source_tmdb_val=tmdb_id, source_imdb_val=self._imdb), image_mode, tmdb_key) if s != "frames"]   ### v0.19.1 B25 ###
+        self._source     = _initial_source(self._online, image_mode != "poster" and frames_available(row_data))
+        self._thumbs     = False
+        self._gen        = 0
         self._images     = []
         self._page       = 0
         self._photo_refs       = []   # TMDB thumbnail PhotoImages (cleared on page change)
@@ -6782,13 +9574,18 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
         # ── Header ────────────────────────────────────────────────────────────
         tk.Label(self,
                  text=f"{title_str}  ·  "
-                      f"{row_data.get('movie_name', '')}  ·  TMDB ID: {tmdb_id}",
+                      f"{row_data.get('movie_name', '')}  ·  TMDB ID: {tmdb_id or '—'}",
                  font=("Helvetica", 10, "bold"),
                  bg="#1e1e2e", fg="#cdd6f4").pack(pady=(10, 2))
-        self._status_lbl = tk.Label(self, text="Loading TMDB images…",
+        self._status_lbl = tk.Label(self, text="Loading images…",
                                      font=("Helvetica", 8),
                                      bg="#1e1e2e", fg="#6c7086")
         self._status_lbl.pack()
+        self._frames_init()                                                ### v0.19.1 B11 ###
+        self._src_var, self._thumbs_var = _image_source_bar(               ### NEW v0.19.1 I10 ###
+            self, self._source, bool(tmdb_key and tmdb_id), self._on_source_change,
+            with_thumbs=(image_mode != "poster"),
+            frames=(image_mode != "poster" and frames_available(row_data)), online=self._online)
 
         # ── Body ──────────────────────────────────────────────────────────────
         body = tk.Frame(self, bg="#1e1e2e")
@@ -6811,10 +9608,11 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
         # Right — TMDB images panel
         rf = tk.Frame(body, bg="#1e1e2e")
         rf.pack(side="left", fill="both", expand=True)
-        tk.Label(rf,
-                 text="TMDB Images  (sorted by resolution, highest first)",
+        self._list_title = tk.Label(rf,                                   ### MODIFIED v0.19.1 I10 ###
+                 text=_image_list_title(self._source, image_mode),
                  font=("Helvetica", 9, "bold"),
-                 bg="#1e1e2e", fg="#89b4fa").pack(pady=(0, 4))
+                 bg="#1e1e2e", fg="#89b4fa")
+        self._list_title.pack(pady=(0, 4))
 
         # Scrollable canvas
         cf = tk.Frame(rf, bg="#1e1e2e")
@@ -6847,7 +9645,8 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
                 self._canvas.unbind_all("<Button-4>"),
                 self._canvas.unbind_all("<Button-5>")))
         self._loading_lbl = tk.Label(self._grid_frame,
-                                      text="Fetching from TMDB…",
+                                      text=("Extracting frames from the movie…" if self._source == "frames"
+                                            else f"Fetching from {IMAGE_SOURCE_LABEL[self._source]}…"),
                                       bg="#1e1e2e", fg="#6c7086",
                                       font=("Helvetica", 10, "italic"))
         self._loading_lbl.pack(pady=30)
@@ -6870,12 +9669,11 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
                                     state="disabled",
                                     command=self._page_more)
         self._more_btn.pack(side="left", padx=6)
-        tk.Button(bf, text="  Cancel  ",
-                  bg="#f38ba8", fg="#1e1e2e",
+        self._make_done_button(bf,                              ### MODIFIED v0.19.1 B18 — was "Cancel" ###
+                  bg="#a6e3a1", fg="#1e1e2e",
                   relief="flat", cursor="hand2",
                   font=("Helvetica", 9, "bold"),
-                  padx=10, pady=4,
-                  command=self.destroy).pack(side="left", padx=6)
+                  padx=10, pady=4).pack(side="left", padx=6)
 
         # ── Sizing ────────────────────────────────────────────────────────────
         # Poster: 4 cols × (160+button) ≈ 870px right + 240 left = ~1130
@@ -6899,13 +9697,12 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
 
     def _load_local_image(self):
         if self._mode == "poster":
-            path, exists, fname = (self._row.get("poster_path",""),
-                                   self._row.get("poster_exists", False),
-                                   "poster.jpg")
+            path, exists = (self._row.get("poster_path",""),
+                            self._row.get("poster_exists", False))
         else:
-            path, exists, fname = (self._row.get("fanart_path",""),
-                                   self._row.get("fanart_exists", False),
-                                   "fanart.jpg")
+            path, exists = (self._row.get("fanart_path",""),
+                            self._row.get("fanart_exists", False))
+        fname = os.path.basename(path) or ("poster.jpg" if self._mode == "poster" else "fanart.jpg")   ### v0.19.1 B23 ###
 
         if not exists or not path or not os.path.isfile(path):
             self.after(0, lambda: self._local_info_lbl.configure(
@@ -6918,6 +9715,8 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
             ratio = _friendly_ratio(w, h)
             info  = f"{fname}\n{w}×{h}  ({ratio})\n{format_size(sz)}"
             def _show(p=photo, t=info):
+                if not self.winfo_exists():        # v0.19.1 I10: closed before the preview loaded
+                    return
                 self._local_photo_refs.append(p)   # FIX: separate list, never cleared
                 self._local_img_lbl.configure(image=p)
                 self._local_info_lbl.configure(text=t)
@@ -6926,29 +9725,48 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
             self.after(0, lambda: self._local_info_lbl.configure(
                 text=f"{fname}\n\n[Preview error]"))
 
-    # ── TMDB image list (async) ───────────────────────────────────────────────
+    # ── Online image list (async) ─────────────────────────────────────────────
     def _load_tmdb_images(self):
-        key_name = "posters" if self._mode == "poster" else "backdrops"
-        try:
-            url = (f"https://api.themoviedb.org/3/movie/{self._tmdb}"
-                   f"/images?api_key={self._key}")
-            data = _tmdb_fetch_json(url, timeout=15)          ### FIX v0.17.0-bug2 ###
-            imgs = data.get(key_name, [])
-            imgs.sort(key=lambda x: x.get("width",0)*x.get("height",0),
-                      reverse=True)
-            self._images = imgs
-        except Exception as e:
-            err_msg = _tmdb_error_message(e)
+        ### MODIFIED v0.19.1 I10 — TMDb, fanart.tv or both (name kept) ###
+        gen = self._gen
+        if self._source == "frames":                                       ### v0.19.1 B11 ###
+            imgs, errs = self._frames_load()
+        else:
+            imgs, errs = load_online_images(self._mode, self._source, self._key, self._tmdb,
+                                            self._imdb, self._thumbs)
+        if gen != self._gen:                       # the source was changed meanwhile
+            return
+        self._images = imgs
+        if not imgs and errs:
+            err_msg = "\n".join(errs)
             logger.warning(f"FetchImageDialog: {err_msg}")
-            self._images = []
             self.after(0, lambda m=err_msg: (
                 self._loading_lbl.configure(text=m, fg="#f38ba8"),
                 self._status_lbl.configure(text="Load failed")))
             return
-
+        note = ("  ·  " + "; ".join(e.splitlines()[0] for e in errs)) if errs else ""
         self.after(0, lambda: self._status_lbl.configure(
-            text=f"{len(self._images)} image(s) found — downloading thumbnails…"))
+            text=f"{len(self._images)} image(s) found — downloading thumbnails…{note}"))
         self._render_page()
+
+    def _on_source_change(self, source, thumbs):                ### NEW v0.19.1 I10 ###
+        self._source, self._thumbs = source, thumbs
+        if source != "frames":                                   # B11: frames are never the default
+            _LAST_IMAGE_SOURCE[0] = source
+        self._gen += 1
+        self._page, self._images = 0, []
+        for w in self._grid_frame.winfo_children():
+            w.destroy()
+        self._photo_refs.clear()
+        self._list_title.configure(text=_image_list_title(source, self._mode))
+        self._loading_lbl = tk.Label(self._grid_frame,
+                                     text=("Extracting frames from the movie…" if source == "frames"
+                                           else f"Fetching from {IMAGE_SOURCE_LABEL[source]}…"),
+                                     bg="#1e1e2e", fg="#6c7086", font=("Helvetica", 10, "italic"))
+        self._loading_lbl.pack(pady=30)
+        self._status_lbl.configure(text="Loading images…")
+        self._back_btn.configure(state="disabled"); self._more_btn.configure(state="disabled")
+        threading.Thread(target=self._load_tmdb_images, daemon=True).start()
 
     # ── Pagination ────────────────────────────────────────────────────────────
     def _page_more(self):
@@ -7003,8 +9821,7 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
         page_imgs = self._images[start: start + self._page_size]
         photos = []
         for img in page_imgs:
-            fp  = img.get("file_path", "")
-            raw = self._download_thumb(fp) if fp else None
+            raw = _download_preview(img)                       ### MODIFIED v0.19.1 I10 ###
             photos.append((img, raw))
 
         def _build(ph=photos):
@@ -7016,7 +9833,7 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
 
             if not ph:
                 tk.Label(self._grid_frame,
-                         text="No poster images found on TMDB.",
+                         text=f"No poster images found on {IMAGE_SOURCE_LABEL[self._source]}.",
                          bg="#1e1e2e", fg="#f38ba8",
                          font=("Helvetica", 10)
                          ).grid(row=0, column=0, columnspan=4,
@@ -7028,12 +9845,9 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
             total = start + len(ph)
             for idx, (img, raw) in enumerate(ph):
                 r, c   = divmod(idx, 4)
-                w2, h2 = img.get("width", 0), img.get("height", 0)
-                sz     = img.get("file_size", 0)
-                fp     = img.get("file_path", "")
-                orig   = self._TMDB_BASE_ORIG + fp
+                orig   = img["url"]                                  ### MODIFIED v0.19.1 I10 ###
                 rank   = start + idx + 1
-                ratio  = _friendly_ratio(w2, h2)
+                badge, detail = image_entry_text(img)
 
                 cell = tk.Frame(self._grid_frame, bg="#252535", relief="flat")
                 cell.grid(row=r, column=c, padx=5, pady=5, sticky="n")
@@ -7059,9 +9873,8 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
                              width=14, height=8,
                              font=("Helvetica",8)).pack(padx=4, pady=(6,2))
 
-                sz_txt = f"  {format_size(sz)}" if sz else ""
                 tk.Label(cell,
-                         text=f"#{rank}  {w2}×{h2} ({ratio}){sz_txt}",
+                         text=f"#{rank}  [{badge}]\n{detail}",           ### MODIFIED v0.19.1 I10 ###
                          bg="#252535", fg="#a6adc8",
                          font=("Consolas", 7)).pack()
                 tk.Button(cell, text="✓ Use This",
@@ -7087,8 +9900,7 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
         page_imgs = self._images[start: start + self._page_size]
         photos = []
         for img in page_imgs:
-            fp  = img.get("file_path", "")
-            raw = self._download_thumb(fp) if fp else None
+            raw = _download_preview(img)                       ### MODIFIED v0.19.1 I10 ###
             photos.append((img, raw))
 
         def _build(ph=photos):
@@ -7099,7 +9911,7 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
 
             if not ph:
                 tk.Label(self._grid_frame,
-                         text="No backdrop images found on TMDB.",
+                         text=f"No backdrop images found on {IMAGE_SOURCE_LABEL[self._source]}.",
                          bg="#1e1e2e", fg="#f38ba8",
                          font=("Helvetica", 10)).pack(padx=20, pady=20)
                 self._status_lbl.configure(text="No images")
@@ -7108,12 +9920,9 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
             count = 0
             total = start + len(ph)
             for idx, (img, raw) in enumerate(ph):
-                w2, h2  = img.get("width", 0), img.get("height", 0)
-                sz      = img.get("file_size", 0)
-                fp      = img.get("file_path", "")
-                orig    = self._TMDB_BASE_ORIG + fp
+                orig    = img["url"]                                 ### MODIFIED v0.19.1 I10 ###
                 rank    = start + idx + 1
-                ratio   = _friendly_ratio(w2, h2)
+                badge, detail = image_entry_text(img)
                 row_bg  = "#252535" if idx % 2 == 0 else "#2a2a3e"
 
                 row_f = tk.Frame(self._grid_frame, bg=row_bg)
@@ -7142,9 +9951,8 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
 
                 info_f = tk.Frame(row_f, bg=row_bg)
                 info_f.pack(side="left", fill="both", expand=True, pady=6)
-                sz_txt = f"  ·  ~{format_size(sz)}" if sz else ""
                 tk.Label(info_f,
-                         text=f"#{rank}   {w2}×{h2} ({ratio}){sz_txt}",
+                         text=f"#{rank}   [{badge}]   {detail}",             ### MODIFIED v0.19.1 I10 ###
                          bg=row_bg, fg="#cdd6f4",
                          font=("Consolas", 9), anchor="w"
                          ).pack(fill="x", padx=4, pady=(6,2))
@@ -7170,15 +9978,12 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
         movie = self._row.get("movie_name", self._row.get("subfolder","?"))
         sp    = self._row.get("subfolder_path", "")
 
-        if self._mode == "poster":
-            targets = [os.path.join(sp, "poster.jpg"),
-                       os.path.join(sp, "folder.jpg")]
-        else:
-            targets = [os.path.join(sp, "fanart.jpg")]
+        targets, to_remove = artwork_targets_for_fetch(sp, self._mode)   ### MODIFIED v0.19.1 B23 — Kodi naming ###
 
-        existing = [t for t in targets if os.path.isfile(t)]
+        existing = [t for t in targets + to_remove if os.path.isfile(t)]
         if existing:
-            _make_backup(movie, *existing)
+            with _sc.backup_action("Fetch Poster/Folder" if self._mode == "poster" else "Fetch Fanart"):   ### I1 ###
+                _make_backup(movie, *existing)
 
         self._status_lbl.configure(text="Downloading full resolution…")
         self.update_idletasks()
@@ -7186,11 +9991,12 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
         def _worker():
             # Download to first target, then copy to additional targets
             primary = targets[0]
-            ok, err = _tmdb_download_image(image_url, primary)
+            ok, err = _save_image_from(image_url, primary)              ### v0.19.1 B11 — frame or URL ###
             if not ok:
                 self.after(0, lambda m=err: (
                     messagebox.showerror("Download Failed", m),
-                    self._status_lbl.configure(text="Download failed")))
+                    self._status_lbl.configure(text="Download failed"),
+                    self._dl_end()))                                   ### v0.19.1 B18 ###
                 return
             # Copy to remaining targets (poster → folder.jpg)
             try:
@@ -7199,13 +10005,21 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
                     _shutil.copy2(primary, extra)
             except Exception as ce:
                 logger.warning(f"_apply_image: could not copy to extra target: {ce}")
+            for old in to_remove:                     ### NEW v0.19.1 B23 — stale .png replaced by the .jpg (backed up above) ###
+                try:
+                    if os.path.isfile(old) and old not in targets:
+                        os.remove(old)
+                except OSError as re_:
+                    logger.warning(f"_apply_image: could not remove {old}: {re_}")
             self.applied = True
             logger.info(f"Fetched image for '{movie}': {image_url}")
             self.after(0, lambda: (
                 messagebox.showinfo("Fetch Complete",
                     "Saved:\n" + "\n".join(os.path.basename(t) for t in targets)),
+                self._dl_end(),                                        ### v0.19.1 B18 ###
                 self.destroy()))
 
+        self._dl_begin()                                               ### v0.19.1 B18 ###
         threading.Thread(target=_worker, daemon=True).start()
 
 
@@ -7217,7 +10031,7 @@ class _FetchImageDialog(tk.Toplevel):                      ### REBUILT v0.16.0 #
 # NEW v0.17.0 / REBUILT v0.17.2 — Fetch Backdrop Dialog
 # ══════════════════════════════════════════════════════════════════════════════
 
-class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17.2 ###
+class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, tk.Toplevel):        ### REBUILT v0.17.2, Done v0.19.1 B18, frames B11 ###
     """
     Fetch Backdrops — download and manage TMDB backdrops for one movie.
 
@@ -7253,13 +10067,18 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
     _TMDB_BASE_THUMB = "https://image.tmdb.org/t/p/w500"
     _TMDB_BASE_ORIG  = "https://image.tmdb.org/t/p/original"
 
-    def __init__(self, parent, row_data, tmdb_key, tmdb_id):
+    def __init__(self, parent, row_data, tmdb_key, tmdb_id, imdb_id=None):
         super().__init__(parent)
         self.applied  = False
         self._row     = row_data
         self._key     = tmdb_key
         self._tmdb    = tmdb_id
-        self._images  = []          # TMDB backdrop dicts
+        self._imdb    = imdb_id or row_data.get("source_imdb_val")          ### v0.19.1 I10 ###
+        self._online  = [s for s in image_sources_for(dict(row_data, source_tmdb_val=tmdb_id, source_imdb_val=self._imdb), "backdrops", tmdb_key) if s != "frames"]   ### v0.19.1 B25 ###
+        self._source  = _initial_source(self._online, frames_available(row_data))
+        self._thumbs  = False
+        self._gen     = 0
+        self._images  = []          # online backdrop entries (TMDb / fanart.tv)
         self._local   = []          # list of (filename, abs_path)
         self._page_r  = 0           # TMDB page index
         self._sel_idx = None        # currently selected TMDB image index
@@ -7278,12 +10097,16 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
 
         # ── Header ────────────────────────────────────────────────────────────
         tk.Label(self,
-                 text=f"Fetch Backdrops  ·  {movie_name}  ·  TMDB ID: {tmdb_id}",
+                 text=f"Fetch Backdrops  ·  {movie_name}  ·  TMDB ID: {tmdb_id or '—'}",
                  font=("Helvetica", 10, "bold"), bg=self._BG, fg=self._TXT
                  ).pack(pady=(10, 2))
         self._status_lbl = tk.Label(self, text="Loading…",
                                     font=("Helvetica", 8), bg=self._BG, fg=self._DIM)
         self._status_lbl.pack()
+        self._frames_init()                                                ### v0.19.1 B11 ###
+        self._src_var, self._thumbs_var = _image_source_bar(               ### NEW v0.19.1 I10 ###
+            self, self._source, bool(tmdb_key and tmdb_id), self._on_source_change, with_thumbs=True,
+            frames=frames_available(row_data), online=self._online)
 
         # ── Body ──────────────────────────────────────────────────────────────
         body = tk.Frame(self, bg=self._BG)
@@ -7298,7 +10121,7 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
                  font=("Helvetica", 9, "bold"), bg=self._PANEL, fg=self._BLU
                  ).pack(pady=(8, 2))
         tk.Label(left_outer,
-                 text="Select a TMDB image on the right,\nthen click Replace to overwrite a local file.",
+                 text="Select an online image on the right,\nthen click Replace to overwrite a local file.",
                  bg=self._PANEL, fg=self._DIM,
                  font=("Helvetica", 8), wraplength=280, justify="center"
                  ).pack(padx=6, pady=(0, 6))
@@ -7345,9 +10168,9 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
         # ── RIGHT — TMDB backdrops (scrollable canvas, paginated) ─────────────
         rf = tk.Frame(body, bg=self._BG)
         rf.pack(side="left", fill="both", expand=True)
-        tk.Label(rf, text="TMDB Backdrops  (sorted by resolution, highest first)",
-                 font=("Helvetica", 9, "bold"), bg=self._BG, fg=self._BLU
-                 ).pack(pady=(0, 4))
+        self._list_title = tk.Label(rf, text=_image_list_title(self._source, "backdrops"),   ### v0.19.1 I10 ###
+                 font=("Helvetica", 9, "bold"), bg=self._BG, fg=self._BLU)
+        self._list_title.pack(pady=(0, 4))
 
         cf = tk.Frame(rf, bg=self._BG); cf.pack(fill="both", expand=True)
         cf.columnconfigure(0, weight=1); cf.rowconfigure(0, weight=1)
@@ -7376,7 +10199,7 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
                 self._canvas.unbind_all("<Button-4>"),                     ### NEW v0.18.0 ###
                 self._canvas.unbind_all("<Button-5>")))
 
-        tk.Label(rf, text="Click a TMDB backdrop to select it.",
+        tk.Label(rf, text="Click a backdrop to select it.",
                  bg=self._BG, fg=self._DIM, font=("Helvetica", 8)
                  ).pack(anchor="w", padx=4, pady=(4, 0))
 
@@ -7406,11 +10229,10 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
                                   padx=10, pady=5, state="disabled",
                                   command=self._download_new)
         self._new_btn.pack(side="left", padx=6)
-        tk.Button(bf, text="  Cancel  ",
-                  bg="#45475a", fg=self._TXT, relief="flat",
+        self._make_done_button(bf,                              ### MODIFIED v0.19.1 B18 — was "Cancel" ###
+                  bg="#a6e3a1", fg="#1e1e2e", relief="flat",
                   cursor="hand2", font=("Helvetica", 10, "bold"),
-                  padx=10, pady=5,
-                  command=self.destroy).pack(side="left", padx=6)
+                  padx=10, pady=5).pack(side="left", padx=6)
 
         # Position dialog
         self.update_idletasks()
@@ -7525,25 +10347,47 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
             except Exception:
                 pass
 
-    # ── TMDB backdrops ────────────────────────────────────────────────────────
+    # ── Online backdrops (TMDb / fanart.tv) ───────────────────────────────────
     def _load_tmdb(self):
-        try:
-            url = (f"https://api.themoviedb.org/3/movie/{self._tmdb}"
-                   f"/images?api_key={self._key}")
-            data = _tmdb_fetch_json(url, timeout=15)
-            imgs = data.get("backdrops", [])
-            imgs.sort(key=lambda x: x.get("width", 0) * x.get("height", 0), reverse=True)
-            self._images = imgs
-        except Exception as e:
-            err_msg = _tmdb_error_message(e)
+        ### MODIFIED v0.19.1 I10 — TMDb, fanart.tv or both (name kept) ###
+        gen = self._gen
+        if self._source == "frames":                                       ### v0.19.1 B11 ###
+            imgs, errs = self._frames_load()
+        else:
+            imgs, errs = load_online_images("fanart", self._source, self._key, self._tmdb,
+                                            self._imdb, self._thumbs)
+        if gen != self._gen:
+            return
+        self._images = imgs
+        if not imgs and errs:
+            err_msg = "\n".join(errs)
             logger.warning(f"FetchBackdropDialog: {err_msg}")
-            self._images = []
             self.after(0, lambda m=err_msg: self._status_lbl.configure(
                 text=m, fg=self._RED))
             return
+        note = ("  ·  " + "; ".join(e.splitlines()[0] for e in errs)) if errs else ""
         self.after(0, lambda: self._status_lbl.configure(
-            text=f"{len(self._images)} TMDB backdrop(s) found."))
+            text=f"{len(self._images)} {IMAGE_SOURCE_LABEL[self._source]} backdrop(s) found.{note}",
+            fg=self._DIM))
         self.after(0, self._render_tmdb)
+
+    def _on_source_change(self, source, thumbs):                ### NEW v0.19.1 I10 ###
+        self._source, self._thumbs = source, thumbs
+        if source != "frames":                                   # B11: frames are never the default
+            _LAST_IMAGE_SOURCE[0] = source
+        self._gen += 1
+        self._page_r, self._sel_idx, self._images = 0, None, []
+        self._new_btn.configure(state="disabled")
+        self._list_title.configure(text=_image_list_title(source, "backdrops"))
+        for w in self._grid_frame.winfo_children():
+            w.destroy()
+        self._photo_tmdb.clear()
+        tk.Label(self._grid_frame, text=("Extracting frames from the movie…" if source == "frames"
+                                         else f"Fetching from {IMAGE_SOURCE_LABEL[source]}…"),
+                 bg=self._BG, fg=self._DIM, font=("Helvetica", 10, "italic")).pack(pady=30)
+        self._status_lbl.configure(text="Loading…", fg=self._DIM)
+        self._render_local()                       # Replace buttons back to disabled
+        threading.Thread(target=self._load_tmdb, daemon=True).start()
 
     def _render_tmdb(self):
         if not self.winfo_exists():
@@ -7556,16 +10400,13 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
         page  = self._images[start: start + self._PAGE_SIZE]
 
         if not page:
-            tk.Label(self._grid_frame, text="No TMDB backdrops found.",
+            tk.Label(self._grid_frame, text=f"No {IMAGE_SOURCE_LABEL[self._source]} backdrops found.",
                      bg=self._BG, fg=self._RED,
                      font=("Helvetica", 10)).pack(padx=20, pady=20)
             return
 
         for idx, img in enumerate(page):
             global_idx = start + idx
-            fp   = img.get("file_path", "")
-            w2   = img.get("width", 0); h2 = img.get("height", 0)
-            sz   = img.get("file_size", 0)
             rank = global_idx + 1
             is_sel = (self._sel_idx == global_idx)
             row_bg = self._SEL_BG if is_sel else (self._ROW_A if idx % 2 == 0 else self._ROW_B)
@@ -7585,10 +10426,9 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
             info_f.pack(side="left", fill="both", expand=True, pady=6)
             info_f.bind("<Button-1>", lambda e, gi=global_idx: self._select_tmdb(gi))
 
-            sz_txt = f"  ·  ~{format_size(sz)}" if sz else ""
-            ratio  = _friendly_ratio(w2, h2)
+            badge, detail = image_entry_text(img)                    ### MODIFIED v0.19.1 I10 ###
             tk.Label(info_f,
-                     text=f"#{rank}   {w2}×{h2} ({ratio}){sz_txt}",
+                     text=f"#{rank}   [{badge}]   {detail}",
                      bg=row_bg, fg=self._TXT,
                      font=("Consolas", 9), anchor="w",
                      cursor="hand2").pack(fill="x", padx=4, pady=(6, 2))
@@ -7597,15 +10437,11 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
                          bg=row_bg, fg=self._GRN,
                          font=("Helvetica", 8, "bold"), anchor="w").pack(fill="x", padx=4)
 
-            def _load_thumb(fl=fp, lbl=thumb_lbl, rbg=row_bg, gi=global_idx):
-                import urllib.request, io
+            def _load_thumb(ent=img, lbl=thumb_lbl, rbg=row_bg, gi=global_idx):
+                import io
                 try:
-                    req = urllib.request.Request(
-                        self._TMDB_BASE_THUMB + fl,
-                        headers={"User-Agent": _UA})
-                    with urllib.request.urlopen(req, timeout=15) as resp:
-                        raw = resp.read()
-                    if _PIL_AVAILABLE:
+                    raw = _download_preview(ent)                       ### MODIFIED v0.19.1 I10 ###
+                    if raw and _PIL_AVAILABLE:
                         img_pil = _PILImage.open(io.BytesIO(raw))
                         img_pil.thumbnail((self._THUMB_W, self._THUMB_H),
                                           _PILImage.LANCZOS)
@@ -7640,33 +10476,36 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
 
     # ── Download actions ──────────────────────────────────────────────────────
     def _get_selected_image_url(self):
-        """Return the original-size URL of the currently selected TMDB backdrop."""
+        """Return the full-size URL of the currently selected online backdrop."""
         if self._sel_idx is None or self._sel_idx >= len(self._images):
             return None
-        return self._TMDB_BASE_ORIG + self._images[self._sel_idx].get("file_path", "")
+        e = self._images[self._sel_idx]                              ### MODIFIED v0.19.1 I10 ###
+        return e.get("url") or (self._TMDB_BASE_ORIG + e["file_path"] if e.get("file_path") else None)
 
     def _download_to(self, target_path, on_done):
         """Download selected TMDB image to target_path using resilient downloader."""  ### UPDATED v0.18.0 ###
         url = self._get_selected_image_url()
         if not url:
-            on_done(False, "No TMDB image selected.")
+            on_done(False, "No online image selected.")
             return
         self._status_lbl.configure(text="Downloading…")
         self.update_idletasks()
 
         def _worker():
-            ok, err = _tmdb_download_image(url, target_path)
+            ok, err = _save_image_from(url, target_path)                  ### v0.19.1 B11 — frame or URL ###
             if ok:
                 self.applied = True
-            self.after(0, lambda: on_done(ok, target_path if ok else err))
+            self.after(0, lambda: (on_done(ok, target_path if ok else err),
+                                   self._dl_end()))                    ### v0.19.1 B18 ###
 
+        self._dl_begin()                                               ### v0.19.1 B18 ###
         threading.Thread(target=_worker, daemon=True).start()
 
     def _replace_local(self, fname, fpath):
         """Replace a specific local file with the selected TMDB backdrop."""
         if self._sel_idx is None:
             messagebox.showwarning("No Selection",
-                "Please click a TMDB backdrop on the right first.")
+                "Please click an online backdrop on the right first.")
             return
         sp    = self._row.get("subfolder_path", "")
         movie = self._row.get("movie_name", self._row.get("subfolder", "?"))
@@ -7688,12 +10527,11 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
         """Download selected TMDB backdrop as a new backdropN.jpg file."""
         if self._sel_idx is None:
             messagebox.showwarning("No Selection",
-                "Please click a TMDB backdrop on the right first.")
+                "Please click an online backdrop on the right first.")
             return
         sp    = self._row.get("subfolder_path", "")
-        n     = next_backdrop_number(sp)
-        fname = "backdrop.jpg" if n == 0 else f"backdrop{n}.jpg"
-        fpath = os.path.join(sp, fname)
+        fpath = new_backdrop_paths(sp, 1)[0]                     ### MODIFIED v0.19.1 B23 — folder's naming style ###
+        fname = os.path.basename(fpath)
 
         def _done(ok, msg):
             if ok:
@@ -7727,7 +10565,7 @@ class _FetchBackdropDialog(tk.Toplevel):                       ### REBUILT v0.17
 # ══════════════════════════════════════════════════════════════════════════════
 _SETTINGS_MENU_ITEMS = [
     ("🔧", "Tools (Editor / FFmpeg / Backdrop)", "Tools"),
-    ("🔑", "API Keys (TMDb / OMDb)",             "API Keys"),
+    ("🔑", "API Keys (fetchers)",                "API Keys"),   # v0.19.1 I10 — label only
     ("🌐", "Browser Selection",                  "Browser"),
     ("🌍", "Language OK?",                       "Language"),
     ("🔍", "Improvements",                       "Improvements"),
@@ -8090,7 +10928,7 @@ class _LibrariesDialog(tk.Toplevel):                            ### NEW v0.19.0 
         tk.Button(side, text="Remove", bg="#f38ba8", fg="#1e1e2e", command=self._remove, **bkw).pack(pady=4)
         tk.Button(side, text="Up",     bg="#45475a", fg="#cdd6f4", command=lambda: self._move(-1), **bkw).pack(pady=4)
         tk.Button(side, text="Down",   bg="#45475a", fg="#cdd6f4", command=lambda: self._move(1), **bkw).pack(pady=4)
-        self._items = list(parent._libraries())
+        self._items = [_norm_lib(x) for x in parent._libraries()]   ### MODIFIED v0.19.1 ###
         self._redraw()
         bf = tk.Frame(self, bg="#1e1e2e"); bf.pack(pady=(10, 14))
         tk.Button(bf, text="  OK  ", bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
@@ -8116,7 +10954,7 @@ class _LibrariesDialog(tk.Toplevel):                            ### NEW v0.19.0 
 
     def add_path(self, p):
         if p and _pkey(p) not in {_pkey(x) for x in self._items}:
-            self._items.append(os.path.normpath(p))
+            self._items.append(_norm_lib(p))
             self._redraw()
 
     def _add(self):
@@ -8140,8 +10978,10 @@ class _LibrariesDialog(tk.Toplevel):                            ### NEW v0.19.0 
             self._redraw(); self._lb.selection_set(j)
 
     def _ok(self):
-        self._app._set_libraries(self._items)
+        res = self._app._set_libraries(self._items)
         self.destroy()
+        if res and (res[0] or res[1]):                          ### NEW v0.19.1 — offer a scan ###
+            self._app._offer_library_scan(added=bool(res[0]))
 
 
 class App(tk.Tk):
@@ -8179,6 +11019,10 @@ class App(tk.Tk):
         _remember_window(self, "App", resizable=True)          ### NEW v0.19.0 — size/position/zoomed memory ###
         self.protocol("WM_DELETE_WINDOW", self._on_app_close)   ### NEW v0.18.0 — save column widths on close ###
         self.after(200, self._restore_last_session)
+        ### NEW v0.19.1 B22 — API pauses saved in settings.json survive a restart ###
+        api_pauses_load()
+        _PAUSE_LISTENERS.append(lambda: self._safe_after(0, self._refresh_pause_indicator))
+        self.after(300, self._refresh_pause_indicator)
         threading.Thread(target=self._async_test_ffmpeg, daemon=True).start()  ### FIX v0.16.0 ###
         # Backup cleanup at startup (moved here from _restore_last_session) ### MODIFIED v0.18.3 ###
         threading.Thread(target=clean_backup_folder_if_needed, daemon=True).start()
@@ -8222,6 +11066,8 @@ class App(tk.Tk):
         ### NEW v0.16.0 — Save/Open Scan Results (first, separated by divider) ###
         tools_menu.add_command(label="💾  Save Scan Results",
                                command=self._save_scan_results)
+        tools_menu.add_command(label="🕘  Backup History / Undo…",                ### NEW v0.19.1 I1 ###
+                               command=lambda: BackupHistoryDialog(self))
         tools_menu.add_command(label="📂  Open Scan Results",
                                command=self._open_scan_results)
         tools_menu.add_separator()
@@ -8255,10 +11101,14 @@ class App(tk.Tk):
         help_menu = tk.Menu(menubar, tearoff=0, bg="#313244", fg="#cdd6f4",
                             activebackground="#585b70", activeforeground="#cdd6f4")
         menubar.add_cascade(label="Help", menu=help_menu)
-        help_menu.add_command(label="📖  Help…  (F1)", command=lambda: HelpDialog(self))
-        ### NEW v0.16.0 — Version History in its own Help menu entry ###
-        help_menu.add_command(label="📋  Version History…",
-                              command=lambda: HelpDialog(self, tab=7))
+        # v0.19.1 — one entry per Help tab, same order as the Help window  ### MODIFIED v0.19.1 ###
+        for _i, (_lbl, _t) in enumerate(_help.HELP_TABS):
+            help_menu.add_command(label=_lbl + ("   (F1)" if _i == 0 else ""),
+                                  command=lambda i=_i: HelpDialog(self, tab=i))
+        help_menu.add_separator()
+        help_menu.add_command(label=_help.ABOUT_LABEL,
+                              command=lambda: HelpDialog(self, tab=len(_help.HELP_TABS)))
+        self._help_menu = help_menu
 
         ### NEW v0.10.0 — Top-level tab notebook for Movies / Series / future ###
         self._main_nb = ttk.Notebook(self)
@@ -8425,12 +11275,19 @@ class App(tk.Tk):
         self._sb_errors  = tk.Label(sb_frame, text="  Errors: 0", font=("Helvetica",9),
                                     bg="#252535", fg="#f38ba8", anchor="w")
         self._sb_errors.pack(side="left", padx=(12,0))
+        self._sb_sel     = tk.Label(sb_frame, text="", font=("Helvetica",9,"bold"),       ### NEW v0.19.1 B21 ###
+                                    bg="#252535", fg="#89dceb", anchor="w")
+        self._sb_sel.pack(side="left", padx=(12,0))
         self._sb_action  = tk.Label(sb_frame, text="", font=("Helvetica",9,"italic"),
                                     bg="#252535", fg="#89b4fa", anchor="w")
         self._sb_action.pack(side="left", padx=(16,0))
         self._sb_sort    = tk.Label(sb_frame, text="", font=("Helvetica",9),
                                     bg="#252535", fg="#6c7086", anchor="e")
         self._sb_sort.pack(side="right", padx=(0,12))
+        self._sb_pause   = tk.Label(sb_frame, text="", font=("Helvetica",9,"bold"),       ### NEW v0.19.1 B22 ###
+                                    bg="#252535", fg="#fab387", anchor="e", cursor="hand2")
+        self._sb_pause.pack(side="right", padx=(0,12))
+        self._sb_pause.bind("<Button-1>", lambda e: self._show_pause_info())
         # Clickable counters: filter the table by health (v0.18.4)  ### NEW v0.18.4 ###
         for _lbl, _kind in ((self._sb_errors, "error"), (self._sb_warn, "warning"),
                             (self._sb_movies, None)):
@@ -8499,6 +11356,8 @@ class App(tk.Tk):
         # Shift+Arrow multi-select
         self.tree.bind("<Shift-Up>",   self._shift_up)
         self.tree.bind("<Shift-Down>", self._shift_down)
+        for _k in ("<Shift-Prior>", "<Shift-Next>", "<Shift-Home>", "<Shift-End>"):   ### NEW v0.19.1 ###
+            self.tree.bind(_k, self._shift_page)
         self.tree.bind("<Button-1>",   self._reset_sel_anchor, add="+")  ### NEW v0.16.1 ###
 
         ### NEW v0.17.0 — Custom column resize: only active column changes width ###
@@ -8550,6 +11409,14 @@ class App(tk.Tk):
         # v0.18.2 — Filter bar shortcuts                      ### ADDED_BY_CLAUDE_v18.2 ###
         self.bind("<Control-f>", lambda e: self._filter_entry.focus_set())
         self.bind("<Control-F>", lambda e: self._filter_entry.focus_set())
+        ### NEW v0.19.1 B21 — "N selected" + Ctrl+A ###
+        self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_sel_count(), add="+")
+        for _k in ("<Control-a>", "<Control-A>"):
+            self.bind(_k, self._select_all_visible)
+            # in the Filter box Ctrl+A keeps selecting its TEXT (Tk's default
+            # moves to the line start)
+            self._filter_entry.bind(_k, lambda e: (self._filter_entry.select_range(0, "end"),
+                                                   self._filter_entry.icursor("end"), "break")[2])
         self._filter_entry.bind("<Escape>", lambda e: self._clear_filter())
         # v0.18.3 — Esc cancels a running scan; Ctrl+Shift+E exports    ### NEW v0.18.3 ###
         self.bind("<Escape>", lambda e: self._cancel() if self._scanning else None)
@@ -8600,13 +11467,14 @@ class App(tk.Tk):
             self.tree.selection_set(first); self.tree.see(first); return
         cur_idx = list(children).index(sel[-1])
         key = event.keysym
-        if key == "Prior":  new_idx = max(0, cur_idx - 20)
-        elif key == "Next": new_idx = min(len(children)-1, cur_idx+20)
+        if key == "Prior":  new_idx = max(0, cur_idx - self._page_rows())                ### MODIFIED v0.19.1 ###
+        elif key == "Next": new_idx = min(len(children)-1, cur_idx + self._page_rows())
         elif key == "Home": new_idx = 0
         elif key == "End":  new_idx = len(children)-1
         else: return
         target = children[new_idx]
         self.tree.selection_set(target); self.tree.see(target)
+        self._sel_anchor = None; self._sel_active_idx = None   ### v0.19.1 — next Shift starts here ###
         return "break"
 
     ### NEW v0.13.1 — Jump-to-letter / digit on the Movie Name column ###
@@ -8621,6 +11489,33 @@ class App(tk.Tk):
         return "".join(c for c in nfkd if not unicodedata.combining(c))
 
     ### NEW v0.17.2 — Jump-to-Letter Final Fix ###
+    def _update_sel_count(self):                                  ### NEW v0.19.1 B21 ###
+        """Status bar: "N selected" when more than one row is selected."""
+        try:
+            n = len(self.tree.selection())
+            self._sb_sel.configure(text=f"  {n} selected" if n > 1 else "")
+        except tk.TclError:
+            pass
+
+    def _select_all_visible(self, event=None):                    ### NEW v0.19.1 B21 ###
+        """Ctrl+A: select every visible (filtered) row.  Not while a text box
+        (Filter box, any Entry/Text/Spinbox/Combobox) has the focus — there
+        Ctrl+A keeps working on the text."""
+        try:
+            fw = self.focus_get()
+        except Exception:
+            fw = None
+        if fw is not None and isinstance(fw, (tk.Entry, tk.Text, tk.Spinbox, ttk.Entry, ttk.Combobox)):
+            return None
+        kids = self.tree.get_children()
+        if not kids:
+            return "break"
+        self.tree.selection_set(kids)
+        self.tree.focus(kids[0])
+        self._reset_sel_anchor()
+        self._update_sel_count()
+        return "break"
+
     def _kb_jump_to_letter(self, event):
         """Jump selection to the next row whose movie name starts with the
         pressed key (A–Z, a–z, 0–9).  Cycles per-character on repeat press.
@@ -8763,6 +11658,39 @@ class App(tk.Tk):
 
         lo = min(anchor, new_active)
         hi = max(anchor, new_active)
+        self.tree.selection_set(children[lo:hi + 1])
+        self.tree.see(children[new_active])
+        return "break"
+
+    def _page_rows(self):                                      ### NEW v0.19.1 ###
+        """Rows visible in the table (page size for PageUp/PageDown)."""
+        try:
+            rh = int(ttk.Style(self).lookup("Treeview", "rowheight") or 26)
+            return max(1, self.tree.winfo_height() // max(rh, 1) - 1)
+        except Exception:
+            return 20
+
+    def _shift_page(self, event):                              ### NEW v0.19.1 ###
+        """Shift+PageUp/PageDown/Home/End: extend the selection from the anchor
+        by one page or to the first/last row (same anchor logic as Shift+Up/Down)."""
+        children = list(self.tree.get_children())
+        if not children: return "break"
+        sel = self.tree.selection()
+        if not sel:
+            self.tree.selection_set(children[0]); return "break"
+        if self._sel_anchor is None:
+            self._sel_anchor = children.index(sel[0])
+        if self._sel_active_idx is None:
+            self._sel_active_idx = children.index(sel[-1])
+        page = self._page_rows()
+        k = event.keysym
+        if k == "Prior":  new_active = max(0, self._sel_active_idx - page)
+        elif k == "Next": new_active = min(len(children) - 1, self._sel_active_idx + page)
+        elif k == "Home": new_active = 0
+        elif k == "End":  new_active = len(children) - 1
+        else: return None
+        self._sel_active_idx = new_active
+        lo, hi = min(self._sel_anchor, new_active), max(self._sel_anchor, new_active)
         self.tree.selection_set(children[lo:hi + 1])
         self.tree.see(children[new_active])
         return "break"
@@ -8951,7 +11879,7 @@ class App(tk.Tk):
                             r.get("subs_external", []),
                             r.get("nfo_path") if r.get("nfo_exists") else None,
                             r.get("xml_path") if r.get("xml_exists") else None,
-                            iso_code=iso)
+                            iso_code=iso, subs_hard=r.get("subs_hard"))   ### v0.19.1 B15 ###
                     except Exception:
                         pass
 
@@ -9116,22 +12044,22 @@ class App(tk.Tk):
             imdb_all = d.get("source_imdb_all", [])
             tmdb_all = d.get("source_tmdb_all", [])
             lines = []
-            if imdb_st == STATUS_ERROR:
-                lines.append("IMDB: ✕ parse error")
-            elif imdb_v:
-                lines.append(f"IMDB: {imdb_v}")
-                if len(imdb_all) > 1:
-                    lines.append(f"  (conflict: {', '.join(imdb_all)})")
-            else:
-                lines.append("IMDB: Not Available")
-            if tmdb_st == STATUS_ERROR:
-                lines.append("TMDB: ✕ parse error")
-            elif tmdb_v:
-                lines.append(f"TMDB: {tmdb_v}")
-                if len(tmdb_all) > 1:
-                    lines.append(f"  (conflict: {', '.join(tmdb_all)})")
-            else:
-                lines.append("TMDB: Not Available")
+            # ### MODIFIED v0.19.1 B13 ### ✕ with a value = some tags empty;
+            # ○ with only empty tags = placeholders ready to fill
+            for _lb, _st, _v, _all, _emp in (("IMDB", imdb_st, imdb_v, imdb_all, d.get("source_imdb_empty")),
+                                             ("TMDB", tmdb_st, tmdb_v, tmdb_all, d.get("source_tmdb_empty"))):
+                if _st == STATUS_ERROR and not _v:
+                    lines.append(f"{_lb}: ✕ parse error")
+                elif _v:
+                    lines.append(f"{_lb}: {_v}")
+                    if len(_all) > 1:
+                        lines.append(f"  (conflict: {', '.join(_all)})")
+                    elif _st == STATUS_ERROR:
+                        lines.append("  (some tags are empty)")
+                elif _emp:
+                    lines.append(f"{_lb}: — (empty tags ready to fill)")
+                else:
+                    lines.append(f"{_lb}: Not Available")
             _chk = d.get("id_check") or {}                           ### NEW v0.19.0 ###
             if _chk.get("result"):
                 lines.append(f"Verified {_chk.get('when', '')}: {_chk['result']}")
@@ -9144,8 +12072,8 @@ class App(tk.Tk):
         if ci == COL_POSTER:
             if not d["poster_exists"]:
                 _ep = d['poster_path'].replace("/", "\\")  ### NEW v0.15.0 ###
-                return f"poster.jpg\n[MISSING]\nExpected: {_ep}"
-            lines = ["poster.jpg", f"Size: {d['poster_size']}"]
+                return _art_missing_tip(d, "poster", _ep)          ### MODIFIED v0.19.1 B23 ###
+            lines = [_art_found_line(d, "poster"), f"Size: {d['poster_size']}"]
             if d.get("poster_dim"): lines.append(f"Dimensions: {d['poster_dim']}")
             w, h = get_image_wh(d["poster_path"])
             if w and h:
@@ -9168,8 +12096,8 @@ class App(tk.Tk):
         if ci == COL_FOLDER:
             if not d["folder_exists"]:
                 _ep = d['folder_path'].replace("/", "\\")  ### NEW v0.15.0 ###
-                return f"folder.jpg\n[MISSING]\nExpected: {_ep}"
-            lines = ["folder.jpg", f"Size: {d['folder_size']}"]
+                return _art_missing_tip(d, "folder", _ep)          ### MODIFIED v0.19.1 B23 ###
+            lines = [_art_found_line(d, "folder"), f"Size: {d['folder_size']}"]
             if d.get("folder_dim"): lines.append(f"Dimensions: {d['folder_dim']}")
             w, h = get_image_wh(d["folder_path"])
             if w and h:
@@ -9193,8 +12121,8 @@ class App(tk.Tk):
         if ci == COL_FANART:
             if not d["fanart_exists"]:
                 _ep = d['fanart_path'].replace("/", "\\")  ### NEW v0.15.0 ###
-                return f"fanart.jpg\n[MISSING]\nExpected: {_ep}"
-            lines = ["fanart.jpg", f"Size: {d['fanart_size']}"]
+                return _art_missing_tip(d, "fanart", _ep)          ### MODIFIED v0.19.1 B23 ###
+            lines = [_art_found_line(d, "fanart"), f"Size: {d['fanart_size']}"]
             if d.get("fanart_dim"): lines.append(f"Dimensions: {d['fanart_dim']}")
             w, h = get_image_wh(d["fanart_path"])
             if w and h:
@@ -9229,15 +12157,18 @@ class App(tk.Tk):
             lines = [f"{os.path.basename(d['nfo_path'])}", f"Size: {d['nfo_size']}"]
             if d["nfo_errors"]:
                 lines.append(f"[!] {len(d['nfo_errors'])} parse error(s) found")
-                errs = d["nfo_errors"][:3]
+                errs = d["nfo_errors"][:5]                                ### MODIFIED v0.19.1 B12 — first 5 + n more ###
                 for e in errs:
                     lines.append(f"  Line {e['line']}: {e['message']}")
-                if len(d["nfo_errors"]) > 3:
-                    lines.append(f"  ... {len(d['nfo_errors'])-3} more")
-                lines.append("Double-click to see full error list and open file")
+                if len(d["nfo_errors"]) > 5:
+                    lines.append(f"  ... {len(d['nfo_errors'])-5} more")
+                lines.append("Double-click to open the file in the editor")
+                lines.append("Right-click → [!] NFO errors for the full list")
             else:
                 lines.append("XML valid")
                 lines.append("Double-click to open in editor")
+            for e in (d.get("nfo_infos") or [])[:3]:                       ### NEW v0.19.1 B12 — info notes ###
+                lines.append(f"  (i) Line {e['line']}: {e['message']}")
             return "\n".join(lines)
 
         # XML unified (v0.10.4)
@@ -9247,15 +12178,18 @@ class App(tk.Tk):
             lines = ["movie.xml", f"Size: {d['xml_size']}"]
             if d["xml_errors"]:
                 lines.append(f"[!] {len(d['xml_errors'])} parse error(s) found")
-                errs = d["xml_errors"][:3]
+                errs = d["xml_errors"][:5]                                ### MODIFIED v0.19.1 B12 — first 5 + n more ###
                 for e in errs:
                     lines.append(f"  Line {e['line']}: {e['message']}")
-                if len(d["xml_errors"]) > 3:
-                    lines.append(f"  ... {len(d['xml_errors'])-3} more")
-                lines.append("Double-click to see full error list and open file")
+                if len(d["xml_errors"]) > 5:
+                    lines.append(f"  ... {len(d['xml_errors'])-5} more")
+                lines.append("Double-click to open the file in the editor")
+                lines.append("Right-click → [!] XML errors for the full list")
             else:
                 lines.append("XML valid")
                 lines.append("Double-click to open in editor")
+            for e in (d.get("xml_infos") or [])[:3]:                       ### NEW v0.19.1 B12 — info notes ###
+                lines.append(f"  (i) Line {e['line']}: {e['message']}")
             return "\n".join(lines)
 
         # Video / Quality / Size
@@ -9297,7 +12231,10 @@ class App(tk.Tk):
                 if idx > 1:
                     lines.append("")
                 lines.append(f"Track {idx}:")
-                lines.append(f"  Language: {lang}")
+                if t.get("language_src"):                                   ### NEW v0.19.1 B16 ###
+                    lines.append(f"  Language: {lang} — from {t['language_src']} (FFprobe: undefined)")
+                else:
+                    lines.append(f"  Language: {lang}")
                 lines.append(f"  Codec: {codec}")
                 lines.append(f"  Channels: {channels}")
                 lines.append(f"  Bitrate: {bitrate_str}")
@@ -9327,15 +12264,22 @@ class App(tk.Tk):
                 lines.append(f"External ({len(d['subs_external'])} file(s)):")
                 for s in d["subs_external"][:5]:
                     lines.append(f"  {s['lang']} → {s['file']}")
-            return "\n".join(lines) if lines else "No subtitles found"
+            if d.get("subs_hard"):                                    ### NEW v0.19.1 B15 ###
+                lines.append(f"Hard-coded: {', '.join(d['subs_hard'])} — burned into the picture (marked by you)")
+            if not lines:
+                lines.append("No subtitles found")
+            lines.append("Right-click → Hard-coded subtitles… marks burned-in subtitles")   ### NEW v0.19.1 B15 ###
+            return "\n".join(lines)
 
         # Genre (Phase 3)
         if ci == COL_GENRE:
             genres = d.get("genres", [])
             if not genres:
-                return "No <genre> tags found in NFO\nRight-click → Normalize Genres"
+                return "No genres in the NFO <genre> tags or the XML <Genres>\nRight-click → Normalize Genres"
             valid = _get_valid_genres()
-            lines = [f"{len(genres)} genre(s):"]
+            _src = {"nfo": "NFO <genre>", "nfo_tags": "NFO <Genres>/<Genre> (not read by Kodi)",
+                    "xml": "XML <Genres> (the NFO has none)"}.get(d.get("genre_source", ""), "")   ### NEW v0.19.1 ###
+            lines = [f"{len(genres)} genre(s)" + (f" — from {_src}" if _src else "") + ":"]
             for g in genres:
                 n = normalize_genre(g)
                 canonical = _GENRE_SYNONYMS.get(g.lower())
@@ -9411,14 +12355,11 @@ class App(tk.Tk):
                 open_in_editor(d["nfo_path"])
 
         # v0.10.4 — unified: show errors first with Open button, else open editor
-        def _open_nfo_unified(app, d):
+        def _open_nfo_unified(app, d):                           ### MODIFIED v0.19.1 — always open the file ###
             if not d["nfo_exists"]:
                 messagebox.showinfo("Missing", f"Expected: {os.path.basename(d['nfo_path'])}")
-            elif d["nfo_errors"]:
-                ErrorDialog(app, f"NFO Errors - {d.get('movie_name', d['subfolder'])}",
-                            d["nfo_path"], d["nfo_errors"])
             else:
-                open_in_editor(d["nfo_path"])
+                open_in_editor(d["nfo_path"])     # errors: hover, or right-click → [!] NFO errors
 
         def _open_xml(app, d):
             if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
@@ -9433,13 +12374,10 @@ class App(tk.Tk):
                 open_in_editor(d["xml_path"])
 
         # v0.10.4 — unified: show errors first with Open button, else open editor
-        def _open_xml_unified(app, d):
+        def _open_xml_unified(app, d):                           ### MODIFIED v0.19.1 — always open the file ###
             if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
-            elif d["xml_errors"]:
-                ErrorDialog(app, f"XML Errors - {d.get('movie_name', d['subfolder'])}",
-                            d["xml_path"], d["xml_errors"])
             else:
-                open_in_editor(d["xml_path"])
+                open_in_editor(d["xml_path"])     # errors: hover, or right-click → [!] XML errors
 
         def _open_xml_lang(app, d):
             if d["xml_exists"]: open_in_editor(d["xml_path"])
@@ -9571,10 +12509,11 @@ class App(tk.Tk):
             m.add_command(label="📂  Open Folder",
                           command=lambda: os_open(d["subfolder_path"]))
             m.add_separator()
-            for lb, ke, kp in [("🖼  Open poster.jpg",  "poster_exists", "poster_path"),
+            for lb, ke, kp in [("🖼  Open poster",      "poster_exists", "poster_path"),   ### MODIFIED v0.19.1 B23 — any name ###
                                 ("🖼  Open folder.jpg",  "folder_exists", "folder_path"),
                                 ("🖼  Open fanart.jpg",  "fanart_exists", "fanart_path")]:
-                if d[ke]:  m.add_command(label=lb, command=lambda p=d[kp]: os_open(p))
+                if d[ke]:  m.add_command(label=f"🖼  Open {os.path.basename(d[kp])}",   # v0.19.1 B23 — real name
+                                         command=lambda p=d[kp]: os_open(p))
                 else:      m.add_command(label=lb + " (missing)", state="disabled")
 
             # FIX v0.16.0 — use cached FFmpeg status; never block _rclick
@@ -9677,34 +12616,41 @@ class App(tk.Tk):
                       else "🎬  Normalize Genres"
         m.add_command(label=label_genre,
                       command=lambda dd=sel_data: self._normalize_genres_for(dd))
+        label_hs = (f"🔤  Hard-coded subtitles… ({len(sel_data)} movies)" if multi
+                    else "🔤  Hard-coded subtitles…")                          ### NEW v0.19.1 B15 ###
+        m.add_command(label=label_hs,
+                      command=lambda dd=sel_data: self._hardsubs_for(dd))
 
         _tmdb_key_set = bool(SETTINGS.get("tmdb_api_key", "").strip())
         _has_tmdb_id  = any(dd.get("source_tmdb_val") for dd in sel_data)
         _tip = " (no TMDB API key)" if not _tmdb_key_set else " (no TMDB ID found)"
 
+        ### MODIFIED v0.19.1 B25 — enabled when any source can serve the selection:
+        ### TMDb, fanart.tv (key + TMDB/IMDb ID) or, for fanart/backdrops, the movie's frames ###
+        _src_ok = lambda mode: any(image_sources_for(dd, mode) for dd in sel_data)
         label_fp = f"🖼  Fetch Poster/Folder ({len(sel_data)} movies)" if multi \
                    else "🖼  Fetch Poster/Folder"
-        if _tmdb_key_set and _has_tmdb_id:
+        if _src_ok("poster"):
             m.add_command(label=label_fp,
                           command=lambda dd=sel_data: self._fetch_poster_folder(dd))
         else:
-            m.add_command(label=label_fp + _tip, state="disabled")
+            m.add_command(label=label_fp + image_sources_tip("poster"), state="disabled")
 
         label_ff2 = f"🎨  Fetch Fanart ({len(sel_data)} movies)" if multi \
                     else "🎨  Fetch Fanart"
-        if _tmdb_key_set and _has_tmdb_id:
+        if _src_ok("fanart"):
             m.add_command(label=label_ff2,
                           command=lambda dd=sel_data: self._fetch_fanart(dd))
         else:
-            m.add_command(label=label_ff2 + _tip, state="disabled")
+            m.add_command(label=label_ff2 + image_sources_tip("fanart"), state="disabled")
 
         label_fb = f"🖼  Fetch Backdrops ({len(sel_data)} movies)" if multi \
                    else "🖼  Fetch Backdrops"
-        if _tmdb_key_set and _has_tmdb_id:
+        if _src_ok("backdrops"):
             m.add_command(label=label_fb,
                           command=lambda dd=sel_data: self._fetch_backdrops(dd))
         else:
-            m.add_command(label=label_fb + _tip, state="disabled")
+            m.add_command(label=label_fb + image_sources_tip("backdrops"), state="disabled")
 
         # Replace All Backdrops — single movie only (folder + TMDB ID required) ### NEW v0.18.0 ###
         if not multi:
@@ -9760,6 +12706,9 @@ class App(tk.Tk):
 
         m.add_command(label="🔁  Refresh Icons",
                       command=lambda: self._refresh_icons())
+        m.add_command(label=(f"✖  Remove from list ({len(sel_data)} movies)" if multi       ### NEW v0.19.1 ###
+                             else "✖  Remove from list"),
+                      command=lambda dd=sel_data: self._remove_from_list(dd))
 
         m.tk_popup(e.x_root, e.y_root)
 
@@ -9779,34 +12728,64 @@ class App(tk.Tk):
         else:
             CopyMovieNameDialog(self, unique)
 
-    def _run_improvements_on(self, data_list):
+    def _run_improvements_on(self, data_list):                  ### MODIFIED v0.19.1 — worker + progress ###
+        """Improvements Check for the selection.  It may run FFprobe per movie,
+        so it runs in a worker thread with a progress window (3+ movies)."""
         checks = SETTINGS.get("improve_checks", _DEFAULT_SETTINGS["improve_checks"])
-        results = run_improvements(data_list, checks)
-        # Collect scan errors (item 3)
-        error_rows = []
-        for d in data_list:
-            errs = []
-            for e in d.get("nfo_errors", []):
-                errs.append(f"NFO Line {e['line']}: {e['message']}")
-            for e in d.get("xml_errors", []):
-                errs.append(f"XML Line {e['line']}: {e['message']}")
-            if errs:
-                error_rows.append((d.get("movie_name", d["subfolder"]), errs))
-        report = format_improvements_report(results, error_rows)
-        ImprovementsDialog(self, report, len(data_list))
+        data_list = list(data_list)
+        prog = _BatchProgressDialog(self, "Improvements Check…", total=len(data_list)) \
+               if len(data_list) >= _PROGRESS_MIN else None
+        def _worker():
+            results, done = [], []
+            for i, d in enumerate(data_list):
+                if prog and prog.cancelled:
+                    break
+                try:
+                    results += run_improvements([d], checks)
+                except Exception as ex:
+                    logger.error(f"Improvements check '{d.get('subfolder')}': {ex}")
+                done.append(d)
+                if prog:
+                    prog.update(i + 1)
+            if prog:
+                prog.close()
+            error_rows = []
+            for d in done:
+                errs = []
+                for e in d.get("nfo_errors", []):
+                    errs.append(f"NFO Line {e['line']}: {e['message']}")
+                for e in d.get("xml_errors", []):
+                    errs.append(f"XML Line {e['line']}: {e['message']}")
+                for e in d.get("nfo_infos", []) or []:                ### NEW v0.19.1 B12 ###
+                    errs.append(f"NFO Line {e['line']} (info): {e['message']}")
+                for e in d.get("xml_infos", []) or []:
+                    errs.append(f"XML Line {e['line']} (info): {e['message']}")
+                if errs:
+                    error_rows.append((d.get("movie_name", d["subfolder"]), errs))
+            report = format_improvements_report(results, error_rows)
+            self.after(0, lambda: ImprovementsDialog(self, report, len(done)))
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _extract_multi(self, data_list):
         # FIX v0.16.0 — use cached FFmpeg status; never block on main thread  ### FIX v0.16.0 ###
         ff_ok = self._ffmpeg_status[0] if self._ffmpeg_status else False
         if not ff_ok:
             messagebox.showerror("FFmpeg missing", "FFmpeg not available."); return
-        for d in data_list:
-            if d.get("video_path"):
-                timeout = SETTINGS.get("extract_timeout", 60)
-                dlg = FrameExtractionDialog(self, d["video_path"], d["subfolder_path"],
-                                            timeout_sec=timeout)
-                self.wait_window(dlg)
-        self._schedule_refresh([d["subfolder_path"] for d in data_list if d.get("video_path")],
+        todo = [d for d in data_list if d.get("video_path")]
+        done = []
+        for n, d in enumerate(todo):
+            timeout = SETTINGS.get("extract_timeout", 60)
+            dlg = FrameExtractionDialog(self, d["video_path"], d["subfolder_path"],
+                                        timeout_sec=timeout)
+            self.wait_window(dlg)
+            done.append(d)
+            left = len(todo) - n - 1
+            if getattr(dlg, "_cancelled", False) and left > 0:            ### NEW v0.19.1 — cancel remaining ###
+                if messagebox.askyesno("Extract Backdrop(s)",
+                                       f"Extraction cancelled.\n\nSkip the remaining {left} movie(s) too?",
+                                       parent=self):
+                    break
+        self._schedule_refresh([d["subfolder_path"] for d in done],
                                need_ffprobe=False)                 ### NEW v0.19.0 ###
 
     # v0.10.4 — batch re-validate (no FFMPEG) for multi-selection
@@ -9820,6 +12799,66 @@ class App(tk.Tk):
         self._incremental_save(self._results)                  ### NEW v0.18.0 ###
         logger.info(f"Batch re-validate (no FFMPEG): {len(data_list)} movies")
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # NEW v0.19.1 — rows whose movie folder was deleted
+    # ══════════════════════════════════════════════════════════════════════════
+    def _folder_gone(self, d):
+        """'present' | 'deleted' | 'offline' for the movie folder of row *d*.
+        A missing folder under a REACHABLE library root was deleted; when the
+        root itself is unreachable the library is offline and nothing is lost."""
+        sp = d.get("subfolder_path") or ""
+        if sp and os.path.isdir(sp):
+            return "present"
+        root = d.get("library_root") or os.path.dirname(sp)
+        if root and os.path.isdir(root):
+            return "deleted"
+        return "offline"
+
+    def _remove_rows(self, rows, why="no longer exists"):
+        """Drop *rows* from the results, the table and the cache; recompute the
+        duplicate groups so their twins lose the duplicate warning."""
+        keys = {_pkey(r.get("subfolder_path") or "") for r in rows if r}
+        if not keys:
+            return 0
+        before = len(self._results)
+        self._results = [r for r in self._results if _pkey(r.get("subfolder_path") or "") not in keys]
+        n = before - len(self._results)
+        if not n:
+            return 0
+        finalize_results(self._results)
+        self._refresh_table()
+        self._update_stats()
+        self._incremental_save(self._results)
+        names = ", ".join((r.get("movie_name") or r.get("subfolder") or "?") for r in rows[:3])
+        more = f" (+{len(rows) - 3} more)" if len(rows) > 3 else ""
+        txt = f"Removed {n} movie(s) whose folder {why}: {names}{more}"
+        try:
+            self._sb_action.configure(text=f"  {txt}")
+        except Exception:
+            pass
+        logger.info(txt)
+        return n
+
+    def _handle_missing_folder(self, d):
+        """Called when an action finds the folder of *d* missing.  Returns True
+        when the caller must stop (row removed or library offline)."""
+        st = self._folder_gone(d)
+        if st == "present":
+            return False
+        if st == "deleted":
+            self._remove_rows([d])
+        else:
+            root = d.get("library_root") or os.path.dirname(d.get("subfolder_path") or "")
+            self._note_offline([root])
+            messagebox.showinfo("Library offline",
+                                f"The library folder is not reachable:\n{root}\n\n"
+                                "The row is kept with its last scan.", parent=self)
+        return True
+
+    def _remove_from_list(self, data_list):
+        """Right-click → Remove from list (files are not touched)."""
+        self._remove_rows(list(data_list), why="was removed from the list")
+
     ### NEW v0.10.0 — _reval_no_ffmpeg: re-validate without FFMPEG ###
     def _reval_no_ffmpeg(self, iid, data):
         """Re-validate all columns that do not require FFMPEG.
@@ -9828,7 +12867,7 @@ class App(tk.Tk):
         from the previous scan — they are NOT cleared.        ### NEW v0.11.0 ###
         """
         sp, sn = data["subfolder_path"], data["subfolder"]
-        if not os.path.isdir(sp): messagebox.showerror("Error","Folder gone."); return
+        if not os.path.isdir(sp) and self._handle_missing_folder(data): return   ### MODIFIED v0.19.1 ###
         r = scan_one_subfolder(sp, sn, use_ffprobe=False)
         # Keep only the FFprobe-derived data from the previous probe; external
         # subtitle files are always re-read (v0.18.3 restored them as well, so
@@ -9838,7 +12877,8 @@ class App(tk.Tk):
                         "subs_internal", "audio_tracks", "ffprobe_ran"):
                 if data.get(key) is not None:
                     r[key] = data[key]
-            r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"))
+            r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"), r.get("subs_hard"))
+            _refill_audio_row(r)                        ### NEW v0.19.1 B16 ###
             if data.get("lang_ok") == "Y" and r.get("video_path"):
                 r["lang_ok"] = "Y"       # audio match found by the earlier probe
         r["duplicate_of"] = list(data.get("duplicate_of") or [])
@@ -9853,7 +12893,7 @@ class App(tk.Tk):
         self._incremental_save(self._results)                  ### NEW v0.18.0 — persist updated row ###
     def _reval(self, iid, data):
         sp, sn = data["subfolder_path"], data["subfolder"]
-        if not os.path.isdir(sp): messagebox.showerror("Error","Folder gone."); return
+        if not os.path.isdir(sp) and self._handle_missing_folder(data): return   ### MODIFIED v0.19.1 ###
         r = self._rescan_row(data)                             ### MODIFIED v0.18.4 ###
         self._item_map[iid] = r
         for i, o in enumerate(self._results):
@@ -9878,8 +12918,7 @@ class App(tk.Tk):
                           does NOT depend on global use_ffprobe setting. ###
         """
         sp, sn = data["subfolder_path"], data["subfolder"]
-        if not os.path.isdir(sp):
-            messagebox.showerror("Error", "Folder gone."); return
+        if not os.path.isdir(sp) and self._handle_missing_folder(data): return   ### MODIFIED v0.19.1 ###
 
         def _worker():
             try:
@@ -9910,10 +12949,12 @@ class App(tk.Tk):
     def _reval_multi_ffmpeg(self, iids, data_list):
         """Re-validate multiple rows with FFprobe — full revalidation. ### NEW v0.12.0 ###"""
         def _worker():
-            done = 0
+            done = 0; gone = []                                  ### v0.19.1 ###
             for iid, data in zip(iids, data_list):
                 sp, sn = data["subfolder_path"], data["subfolder"]
                 if not os.path.isdir(sp):
+                    if self._folder_gone(data) == "deleted":
+                        gone.append(data)
                     continue
                 try:
                     r = self._rescan_row(data, force_ffprobe=True)   ### MODIFIED v0.18.4 ###
@@ -9929,6 +12970,8 @@ class App(tk.Tk):
                 except Exception as e:
                     logger.error(f"FFprobe batch error for {sn}: {e}")
             def _finish(n=done):
+                if gone:                                         ### NEW v0.19.1 ###
+                    self._remove_rows(gone)
                 self._update_stats()
                 self._incremental_save(self._results)          ### NEW v0.18.0 ###
                 messagebox.showinfo("FFprobe Done",
@@ -10009,6 +13052,8 @@ class App(tk.Tk):
     # ── Online Ratings Sync (item 2) ───────────────────────────────────────────
     def _sync_ratings(self, data_list):
         """Launch ratings sync for one or more movies in a background thread."""
+        if not self._confirm_services(("tmdb", "omdb")):          ### NEW v0.19.1 B22 — paused service: Try anyway? ###
+            return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         omdb_key = SETTINGS.get("omdb_api_key", "").strip()
         if not tmdb_key and not omdb_key:
@@ -10018,7 +13063,7 @@ class App(tk.Tk):
             return
         # Show progress dialog immediately for ≥10 movies          ### NEW v0.17.0 ###
         prog = None
-        if len(data_list) >= 10:
+        if len(data_list) >= _PROGRESS_MIN:                     ### MODIFIED v0.19.1 — was 10 ###
             prog = _BatchProgressDialog(self, "Processing Movies… (Ratings Sync)",
                                         total=len(data_list))
         threading.Thread(target=self._sync_ratings_worker,
@@ -10091,7 +13136,17 @@ class App(tk.Tk):
         except Exception:
             return tr, tv, "TMDb"
 
-    def _sync_ratings_worker(self, data_list, tmdb_key, omdb_key, prog=None):  ### REWRITTEN v0.19.0 ###
+    def _sync_ratings_worker(self, data_list, tmdb_key, omdb_key, prog=None):        ### NEW v0.19.1 B20 — one service run ###
+        """Runs _sync_ratings_worker_run inside a service run (B20): a service that refuses
+        (daily limit / invalid key) is not asked again until the run ends."""
+        _service_run_begin(**self._service_run_args(prog, {"omdb": "TMDb", "tmdb": "OMDb (IMDb data)"}))   ### B22 ###
+        try:
+            with _sc.backup_action("Ratings Sync"):                     ### NEW v0.19.1 I1 ###
+                return self._sync_ratings_worker_run(data_list, tmdb_key, omdb_key, prog)
+        finally:
+            _service_run_end()
+
+    def _sync_ratings_worker_run(self, data_list, tmdb_key, omdb_key, prog=None):  ### REWRITTEN v0.19.0 ###
         """
         Background worker for ratings sync.
 
@@ -10113,6 +13168,7 @@ class App(tk.Tk):
         multi = len(data_list) > 1
         written = 0
         changed_paths = []                                      ### v0.19.0 — one refresh at the end ###
+        unreachable = []                                        ### NEW v0.19.1 — sources that could not be asked ###
 
         def _from_primary(pr, tr, tv, tok, or_, ov, ook):
             kind = pr[0]
@@ -10128,17 +13184,39 @@ class App(tk.Tk):
             return (or_, ov, "OMDb/IMDb") if ook else (tr, tv, "TMDb")
 
         for _idx, d in enumerate(data_list):
-            if prog and prog.cancelled:
+            if (prog and prog.cancelled) or _service_run_cancelled():   # B22
                 break
             name = d.get("movie_name") or d["subfolder"]
             nfo_path = d.get("nfo_path") if d.get("nfo_exists") else None
             xml_path = d.get("xml_path") if d.get("xml_exists") else None
             imdb_id, tmdb_id = get_movie_ids_robust(nfo_path, xml_path)
 
-            tmdb_r, tmdb_v = _fetch_tmdb_rating(tmdb_id, tmdb_key) if tmdb_key else (None, None)
-            omdb_r, omdb_v = _fetch_omdb_rating(imdb_id, omdb_key) if omdb_key else (None, None)
+            _take_fetch_errors()
+            ### NEW v0.19.1 B20 — a service that refused earlier in this run is not asked;
+            ### the other source is used, or the movie is skipped when neither is left
+            _use_t = bool(tmdb_key) and not _service_blocked("tmdb")
+            _use_o = bool(omdb_key) and not _service_blocked("omdb")
+            if (tmdb_key or omdb_key) and not (_use_t or _use_o):
+                unreachable.append(f"{name}: " + "; ".join(
+                    str(ServiceUnavailable(s, k)) for s, k in (("tmdb", _service_blocked("tmdb")),
+                                                              ("omdb", _service_blocked("omdb"))) if k))
+                if prog:
+                    prog.update(_idx + 1)
+                continue
+            tmdb_r, tmdb_v = _fetch_tmdb_rating(tmdb_id, tmdb_key) if _use_t else (None, None)
+            if (prog and prog.cancelled) or _service_run_cancelled():   # B22                         ### NEW v0.19.1 — cancel between calls ###
+                break
+            omdb_r, omdb_v = _fetch_omdb_rating(imdb_id, omdb_key) if _use_o else (None, None)
             tok = self._rating_valid(tmdb_r, tmdb_v)
             ook = self._rating_valid(omdb_r, omdb_v)
+            _errs = _take_fetch_errors()                      ### NEW v0.19.1 ###
+            if _errs:
+                # a source could not be asked (network / rate limit / key):
+                # never treat that as "no rating" and never write a partial choice
+                unreachable.append(f"{name}: {_errs[0]}")
+                if prog:
+                    prog.update(_idx + 1)
+                continue
 
             chosen = None   # (rating_str, votes_str, source_label)
 
@@ -10215,8 +13293,14 @@ class App(tk.Tk):
         if prog:
             prog.close()
         self._schedule_refresh(changed_paths, need_ffprobe=False)   ### v0.19.0 ###
-        self.after(0, lambda n=written: messagebox.showinfo("Ratings Sync Complete",
-            f"Ratings sync finished for {len(data_list)} movie(s); {n} updated."))
+        _msg = f"Ratings sync finished for {len(data_list)} movie(s); {written} updated."
+        if unreachable:                                          ### NEW v0.19.1 ###
+            _msg += (f"\n\n{len(unreachable)} movie(s) skipped because TMDb/OMDb could not be reached:\n"
+                     + "\n".join(unreachable[:8]) + ("\n…" if len(unreachable) > 8 else ""))
+        _svc = _service_run_summary()                            ### NEW v0.19.1 B20 — said once ###
+        if _svc:
+            _msg += "\n\n" + "\n".join(_svc)
+        self.after(0, lambda m=_msg: messagebox.showinfo("Ratings Sync Complete", m))
 
 
     def _reval_by_path(self, d, no_ffprobe=False):               ### MODIFIED v0.19.0 — wrapper ###
@@ -10242,6 +13326,11 @@ class App(tk.Tk):
           everything else keeps the FFprobe data of the previous scan;
         - after each batch: stats/counters updated and the results cache
           saved once."""
+        if not getattr(self, "_rf_noted", False):                    ### NEW v0.19.1 I1 — run result for Undo ###
+            try:
+                _sc.note_written(list(paths or []))
+            except Exception:
+                pass
         if threading.current_thread() is not threading.main_thread():
             try:
                 self.after(0, lambda p=list(paths), f=need_ffprobe: self._schedule_refresh(p, f))
@@ -10274,10 +13363,12 @@ class App(tk.Tk):
         self._rf_running = True
 
         def _worker():
-            out = []
+            out = []; gone = []                                  ### v0.19.1 ###
             for d, ff in jobs:
                 try:
                     if not os.path.isdir(d["subfolder_path"]):
+                        if self._folder_gone(d) == "deleted":
+                            gone.append(d)
                         continue
                     r = self._rescan_row(d, force_ffprobe=True) if ff else self._rescan_row_no_probe(d)
                     out.append(r)
@@ -10287,6 +13378,8 @@ class App(tk.Tk):
                 try:
                     for r in out:
                         self._apply_rescanned_row(r)
+                    if gone:                                     ### NEW v0.19.1 ###
+                        self._remove_rows(gone)
                     self._update_stats()
                     self._incremental_save(self._results)
                     logger.info(f"Auto-refresh: {len(out)} row(s)"
@@ -10296,6 +13389,7 @@ class App(tk.Tk):
                     self._rf_runs += 1
                     if self._rf_pending and self._rf_timer is None:
                         self._rf_timer = self.after(self._RF_DELAY_MS, self._run_refresh)
+            _ffprobe_cache_flush()                              ### NEW v0.19.1 I5 ###
             self.after(0, _apply)
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -10396,6 +13490,10 @@ class App(tk.Tk):
                                    for e in d.get("nfo_errors", [])]
                         issues += [f"[XML error] Line {e['line']}: {e['message']}"
                                    for e in d.get("xml_errors", [])]
+                        issues += [f"[NFO info] Line {e['line']}: {e['message']}"     ### NEW v0.19.1 B12 ###
+                                   for e in (d.get("nfo_infos") or [])]
+                        issues += [f"[XML info] Line {e['line']}: {e['message']}"
+                                   for e in (d.get("xml_infos") or [])]
                         if issues:
                             fout.write(f"Movie: {name}\n")
                             for issue in issues:
@@ -10555,10 +13653,12 @@ class App(tk.Tk):
 
     def _normalize_genres_for(self, data_list, confirm_all=False):  ### NEW v0.15.0 — per-movie isolation + custom genre dialog ###
         """Normalize genres for given data_list. confirm_all=True means user already confirmed."""
+        if not self._confirm_services(("tmdb", "omdb")):          ### NEW v0.19.1 B22 — paused service: Try anyway? ###
+            return
         if not data_list:
             return
         prog = None                                            ### NEW v0.17.0 ###
-        if len(data_list) >= 10:
+        if len(data_list) >= _PROGRESS_MIN:                     ### MODIFIED v0.19.1 — was 10 ###
             prog = _BatchProgressDialog(self, "Processing Movies… (Normalize Genres)",
                                         total=len(data_list))
         threading.Thread(
@@ -10566,7 +13666,199 @@ class App(tk.Tk):
             args=(list(data_list), prog),                      ### NEW v0.17.0 ###
             daemon=True).start()
 
-    def _normalize_genres_worker(self, data_list, prog=None):   ### UPDATED v0.17.0 ###
+    # ── v0.19.1 B22: TMDb / OMDb failures — pause indicator, questions ───────
+    def _safe_after(self, ms, fn):                                  ### NEW v0.19.1 B22 ###
+        """after() that ignores a destroyed window (listeners outlive test Apps)."""
+        try:
+            if self.winfo_exists():
+                self.after(ms, fn)
+        except Exception:
+            pass
+
+    def _refresh_pause_indicator(self):                            ### NEW v0.19.1 B22 ###
+        """Status bar: '⚠ OMDb (IMDb data) paused — daily limit (retry after about 23:40)';
+        empty when nothing is paused.  Re-checks every 30 s while a pause is active."""
+        try:
+            act = api_pauses_active()
+            parts = []
+            for svc, e in act.items():
+                try:
+                    hhmm = datetime.datetime.fromisoformat(e["until"]).strftime("%H:%M")
+                except Exception:
+                    hhmm = "?"
+                parts.append(f"⚠ {_SERVICE_LABEL.get(svc, svc)} paused — "
+                             f"{_REFUSAL_TEXT.get(e.get('kind'), e.get('kind'))} (retry after about {hhmm})")
+            self._sb_pause.configure(text="   ".join(parts))
+            if act:
+                aid = getattr(self, "_pause_after_id", None)
+                if aid:
+                    try: self.after_cancel(aid)
+                    except Exception: pass
+                self._pause_after_id = self.after(30000, self._refresh_pause_indicator)
+        except tk.TclError:
+            pass
+
+    def _show_pause_info(self):                                    ### NEW v0.19.1 B22 ###
+        act = api_pauses_active()
+        if not act:
+            self._refresh_pause_indicator(); return
+        lines = []
+        for svc, e in act.items():
+            lines.append(f"{_SERVICE_LABEL.get(svc, svc)} — paused until {e['until'].replace('T', ' ')}\n"
+                         f"{e.get('message') or api_failure_message(svc, e.get('kind'))}")
+        if messagebox.askyesno("Online services paused",
+                "\n\n".join(lines) + "\n\nEnd the pause now (the next action asks the service again)?",
+                parent=self):
+            for svc in list(act):
+                api_pause_end(svc)
+        self._refresh_pause_indicator()
+
+    def _ask_try_anyway(self, service, entry):                     ### NEW v0.19.1 B22 ###
+        """UI thread: a paused service is needed — True = try anyway (tests replace this)."""
+        dlg = _PauseAskDialog(self, service, entry)
+        self.wait_window(dlg)
+        return bool(dlg.result)
+
+    def _confirm_services(self, services):                         ### NEW v0.19.1 B22 ###
+        """UI thread, before an action that needs *services*: for each paused
+        one show the message + advice with [Try anyway] [Cancel].  Try anyway
+        ends the pause (a new failure starts it again).  False = do not start."""
+        for svc in services:
+            e = api_pause_get(svc)
+            if not e:
+                continue
+            if not self._ask_try_anyway(svc, e):
+                return False
+            api_pause_end(svc)
+        return True
+
+    def _ask_service_failure(self, service, kind, other_label):    ### NEW v0.19.1 B22 ###
+        """Worker thread, first failure of *service* in a batch run (asked once):
+        "pause" | "continue" | "cancel"."""
+        res = self._ask_on_ui(lambda: _ServiceFailureDialog(self, service, kind, other_label),
+                              lambda dlg: dlg.result)
+        return res or "continue"
+
+    def _service_run_args(self, prog, alternatives):              ### NEW v0.19.1 B22 ###
+        return dict(on_failure=self._ask_service_failure, alternatives=alternatives,
+                    cancel_check=(lambda: bool(prog and prog.cancelled)))
+
+    # ── v0.19.1 B15: hard-coded (burned-in) subtitles ────────────────────────
+    def _hardsubs_for(self, data_list):                            ### NEW v0.19.1 B15 ###
+        """Right-click → Hard-coded subtitles… (one movie or a selection)."""
+        rows = [d for d in data_list if d.get("nfo_exists") or d.get("xml_exists")]
+        if not rows:
+            messagebox.showinfo("Hard-coded subtitles", "No NFO or XML file — nothing to write.", parent=self)
+            return
+        sets = [set(d.get("subs_hard") or []) for d in rows]
+        current = sorted(set.intersection(*sets)) if sets else []
+        names = [d.get("movie_name") or d["subfolder"] for d in rows]
+        return _HardsubDialog(self, names, current,
+                              on_done=lambda codes, rr=rows: self._hardsubs_apply(rr, codes))
+
+    def _hardsubs_apply(self, rows, codes, confirm=True):         ### NEW v0.19.1 B15 ###
+        """UI thread: confirm a selection, then write in a worker."""
+        if confirm and len(rows) > 1:
+            names = [d.get("movie_name") or d["subfolder"] for d in rows]
+            more = f"\n… and {len(names) - 15} more" if len(names) > 15 else ""
+            what = ", ".join(codes) if codes else "none (remove all marks)"
+            if not messagebox.askyesno("Hard-coded subtitles",
+                    f"Set hard-coded subtitles to: {what}\nfor these {len(rows)} movies?\n\n"
+                    + "\n".join(names[:15]) + more, parent=self):
+                return
+        prog = _BatchProgressDialog(self, "Hard-coded subtitles…", total=len(rows)) \
+               if len(rows) >= _PROGRESS_MIN else None
+        threading.Thread(target=self._hardsubs_worker, args=(list(rows), list(codes), prog),
+                         daemon=True).start()
+
+    @_labelled_backups("Hard-coded subtitles")                               ### NEW v0.19.1 I1 ###
+    def _hardsubs_worker(self, rows, codes, prog=None):           ### NEW v0.19.1 B15 ###
+        """Worker thread: backup + write the Hardsub tags, then refresh the rows."""
+        backup_ref = [None]; changed_paths = []; errors = []
+        for i, d in enumerate(rows):
+            if prog and prog.cancelled:
+                break
+            nfo = d.get("nfo_path") if d.get("nfo_exists") else None
+            xml = d.get("xml_path") if d.get("xml_exists") else None
+            name = d.get("movie_name") or d["subfolder"]
+            if get_hardsub_langs(nfo, xml) != sorted(codes):
+                _make_batch_backup(name, backup_ref, *[p for p in (nfo, xml) if p])
+                ok, err = _write_hardsub_tags(nfo, xml, codes)
+                if ok:
+                    changed_paths.append(d["subfolder_path"])
+                else:
+                    errors.append(f"{name}: {err}")
+            if prog:
+                prog.update(i + 1)
+        if prog:
+            prog.close()
+        if changed_paths:
+            self._schedule_refresh(changed_paths)
+        what = ", ".join(codes) if codes else "none"
+        def _done():
+            try:
+                self._sb_action.configure(text=f"  Hard-coded subtitles ({what}) written for {len(changed_paths)} movie(s)")
+            except Exception:
+                pass
+            if errors:
+                messagebox.showerror("Hard-coded subtitles", "\n".join(errors[:20]), parent=self)
+        self.after(0, _done)
+
+    # ── v0.19.1 B5: genres from TMDb / OMDb ──────────────────────────────────
+    def _ask_genre_preview(self, text):                           ### NEW v0.19.1 ###
+        """Worker thread: show the genres that would be written; True = write."""
+        res = self._ask_on_ui(
+            lambda: _PreviewRunDialog(self, "🎬  Normalize Genres — genres found online", text,
+                                      "genres_online", run_label="  ✔ Write genres  "),
+            lambda dlg: bool(dlg.run))
+        return bool(res)
+
+    def _fetch_online_genres(self, d, nfo_path, xml_path, tmdb_key, omdb_key):   ### NEW v0.19.1 ###
+        """(genres, source) for a movie without genres: TMDb (by TMDb ID, or the
+        IMDb ID through /find), then OMDb.  ([], reason) when nothing is usable.
+        Never used when Verify IDs said the ID belongs to another film."""
+        chk = (d.get("id_check") or {}).get("result")
+        if chk in (ID_OTHER, ID_DIFFERENT, ID_NOT_FOUND):
+            return [], f"skipped — Verify IDs says: {chk}"
+        imdb_id, tmdb_id = get_movie_ids_robust(nfo_path, xml_path)
+        if not imdb_id and not tmdb_id:
+            return [], "no IMDb/TMDb ID (run Search Sources first)"
+        names, src = [], ""
+        if tmdb_key:
+            tid = tmdb_id
+            if not tid and imdb_id:
+                fr = _tmdb_find_imdb(imdb_id, tmdb_key)
+                tid = str(fr[0].get("id")) if fr else None
+            if tid:
+                try:
+                    data = _tmdb_rate_limited_fetch(
+                        f"https://api.themoviedb.org/3/movie/{tid}?api_key={tmdb_key}&language=en-US", timeout=10)
+                    names = [g.get("name") for g in (data.get("genres") or []) if g.get("name")]
+                    src = "TMDb"
+                except Exception as ex:
+                    if not _is_http_404(ex):
+                        raise
+        if not names and omdb_key and imdb_id:
+            data = _http_get_json("omdb", f"https://www.omdbapi.com/?apikey={omdb_key}&i={imdb_id}&type=movie", timeout=10)
+            if data.get("Response") == "True" and data.get("Genre") and data.get("Genre") != "N/A":
+                names = [x.strip() for x in data["Genre"].split(",") if x.strip()]
+                src = "OMDb"
+        if not names:
+            return [], "no genres on TMDb/OMDb"
+        normalized, _c = normalize_genre_list(names)
+        return normalized, src
+
+    def _normalize_genres_worker(self, data_list, prog=None):        ### NEW v0.19.1 B20 — one service run ###
+        """Runs _normalize_genres_worker_run inside a service run (B20): a service that refuses
+        (daily limit / invalid key) is not asked again until the run ends."""
+        _service_run_begin(**self._service_run_args(prog, {"tmdb": "OMDb (IMDb data)", "omdb": "TMDb"}))   ### B22 ###
+        try:
+            with _sc.backup_action("Normalize Genres"):                     ### NEW v0.19.1 I1 ###
+                return self._normalize_genres_worker_run(data_list, prog)
+        finally:
+            _service_run_end()
+
+    def _normalize_genres_worker_run(self, data_list, prog=None):   ### UPDATED v0.17.0 ###
         """Worker thread: normalizes genres per movie, shows custom-genre dialog per movie."""
         changed = 0
         errors  = []
@@ -10574,16 +13866,34 @@ class App(tk.Tk):
         remembered_delete = None     # v0.19.0: "Apply this choice to all remaining movies"
         multi = len(data_list) > 1
         changed_paths = []                                       ### v0.19.0 ###
+        pending_online = []          # v0.19.1 B5: (row, nfo, xml, genres, source) fetched online
+        online_skipped = []
+        _tk = SETTINGS.get("tmdb_api_key", "").strip(); _ok = SETTINGS.get("omdb_api_key", "").strip()
 
         for _idx, d in enumerate(data_list):                  ### UPDATED v0.17.0 ###
-            if prog and prog.cancelled:                       ### NEW v0.17.0 ###
+            if (prog and prog.cancelled) or _service_run_cancelled():   # B22                       ### NEW v0.17.0 ###
                 break
             # Each movie gets its OWN fresh genre read — no shared state ### NEW v0.15.0 ###
             nfo_path = d.get("nfo_path") if d.get("nfo_exists") else None
             xml_path = d.get("xml_path") if d.get("xml_exists") else None
 
-            movie_genres = get_genres_from_nfo(nfo_path)   # fresh per-movie read  ### NEW v0.15.0 ###
+            _ginfo = resolve_movie_genres(nfo_path, xml_path)   ### MODIFIED v0.19.1 — NFO + XML ###
+            movie_genres = _ginfo["genres"]
+            needs_sync = bool(_ginfo["only_in_xml"] or _ginfo["only_in_nfo"] or _ginfo["nfo_wrong"])
             if not movie_genres:
+                # v0.19.1 B5 — no genres in either file: ask TMDb, then OMDb
+                if (_tk or _ok) and (nfo_path or xml_path):
+                    _name = d.get("movie_name") or d.get("subfolder", "?")
+                    try:
+                        fetched, why = self._fetch_online_genres(d, nfo_path, xml_path, _tk, _ok)
+                    except Exception as ex:
+                        fetched, why = [], f"could not reach TMDb/OMDb ({_tmdb_error_message(ex).splitlines()[0]})"
+                    if fetched:
+                        pending_online.append((d, nfo_path, xml_path, fetched, why))
+                    else:
+                        online_skipped.append(f"{_name}: {why}")
+                if prog:
+                    prog.update(_idx + 1)
                 continue
 
             valid_genres = _get_valid_genres()
@@ -10624,13 +13934,14 @@ class App(tk.Tk):
 
             normalized, did_change = normalize_genre_list(filtered)
             # Always write if custom genres were deleted, even if normalized list unchanged
-            if not did_change and not (delete_custom and custom):
+            # v0.19.1: also when the NFO and XML genres are out of sync / non-Kodi tags
+            if not did_change and not (delete_custom and custom) and not needs_sync:
                 continue
 
             movie_name_b = d.get("movie_name", d.get("subfolder", "unknown"))
             _make_batch_backup(movie_name_b, backup_ref, nfo_path, xml_path)
-            ok_nfo, err_nfo = write_genres_to_nfo(nfo_path, normalized)
-            ok_xml, err_xml = write_genres_to_xml(xml_path, normalized)
+            ok_nfo, err_nfo = write_genres_to_nfo(nfo_path, normalized) if nfo_path else (False, "")
+            ok_xml, err_xml = write_genres_to_xml(xml_path, normalized) if xml_path else (False, "")
             if ok_nfo or ok_xml:
                 changed += 1
                 changed_paths.append(d["subfolder_path"])            ### v0.19.0 ###
@@ -10642,11 +13953,41 @@ class App(tk.Tk):
             if prog:                                           ### NEW v0.17.0 ###
                 prog.update(_idx + 1)
 
+        # v0.19.1 B5 — genres fetched online: one preview, then write   ### NEW v0.19.1 ###
+        n_online = 0
+        if pending_online and not (prog and prog.cancelled):
+            lines = [f"Genres found online for {len(pending_online)} movie(s) that have none:", ""]
+            for d, _n, _x, g, src in pending_online:
+                lines.append(f"  {d.get('movie_name') or d.get('subfolder')}  →  {'/'.join(g)}   ({src})")
+            if online_skipped:
+                lines += ["", f"Not found / skipped ({len(online_skipped)}):"] + [f"  {x}" for x in online_skipped]
+            lines += ["", "Write these genres to the NFO and XML?"]
+            if self._ask_genre_preview("\n".join(lines)):
+                for d, nfo_p, xml_p, g, src in pending_online:
+                    nm = d.get("movie_name", d.get("subfolder", "unknown"))
+                    _make_batch_backup(nm, backup_ref, nfo_p, xml_p)
+                    okn, en = write_genres_to_nfo(nfo_p, g) if nfo_p else (False, "")
+                    okx, ex_ = write_genres_to_xml(xml_p, g) if xml_p else (False, "")
+                    if okn or okx:
+                        n_online += 1; changed += 1
+                        changed_paths.append(d["subfolder_path"])
+                        logger.info(f"Genres from {src} written: {nm} → {'/'.join(g)}")
+                    if en: errors.append(f"{d['subfolder']}: {en}")
+                    if ex_: errors.append(f"{d['subfolder']}: {ex_}")
+
         if prog:
             prog.close()                                      ### NEW v0.17.0 ###
+        _svc = _service_run_summary()                          ### NEW v0.19.1 B20 ###
         def _done():
             self._schedule_refresh(changed_paths, need_ffprobe=False)   ### MODIFIED v0.19.0 — rescan, not just redraw ###
             msg = f"Normalized genres in {changed} movie(s)."
+            if _svc:
+                msg += "\n\n" + "\n".join(_svc)
+            if n_online:
+                msg += f"\n{n_online} of them got their genres from TMDb/OMDb."
+            if online_skipped and not pending_online:
+                msg += (f"\n\nNo genres found online for {len(online_skipped)} movie(s):\n"
+                        + "\n".join(online_skipped[:6]) + ("\n…" if len(online_skipped) > 6 else ""))
             if errors:
                 msg += "\n\nErrors:\n" + "\n".join(errors[:5])
             messagebox.showinfo("Normalize Genres", msg)
@@ -10711,10 +14052,12 @@ class App(tk.Tk):
 
     def _normalize_sources_for(self, data_list):               ### NEW v0.16.0 ###
         """Launch Normalize Sources for given data_list in a background thread."""
+        if not self._confirm_services(("tmdb",)):          ### NEW v0.19.1 B22 — paused service: Try anyway? ###
+            return
         if not data_list:
             return
         prog = None                                            ### NEW v0.17.0 ###
-        if len(data_list) >= 10:
+        if len(data_list) >= _PROGRESS_MIN:                     ### MODIFIED v0.19.1 — was 10 ###
             prog = _BatchProgressDialog(self, "Processing Movies… (Normalize Sources)",
                                         total=len(data_list))
         threading.Thread(
@@ -10738,6 +14081,7 @@ class App(tk.Tk):
             return
         self._normalize_sources_for(targets)
 
+    @_labelled_backups("Normalize Sources")                               ### NEW v0.19.1 I1 ###
     def _normalize_sources_worker(self, data_list, prog=None):  ### UPDATED v0.17.0 ###
         """
         Worker thread: normalize IMDB/TMDB source tags for each movie.
@@ -10843,13 +14187,17 @@ class App(tk.Tk):
 
     def _search_sources_for(self, data_list):                  ### NEW v0.16.0 ###
         """Search TMDB for each movie in data_list and show results popup."""
+        if not self._confirm_services(("tmdb",)):          ### NEW v0.19.1 B22 — paused service: Try anyway? ###
+            return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         if not tmdb_key:
             messagebox.showwarning("Search Sources",
                 "No TMDb API key configured.\nGo to Settings → API Keys."); return
+        prog = _BatchProgressDialog(self, "Searching TMDb…", total=len(data_list)) \
+               if len(data_list) >= _PROGRESS_MIN else None           ### NEW v0.19.1 ###
         threading.Thread(
             target=self._search_sources_worker,
-            args=(list(data_list), tmdb_key, False),
+            args=(list(data_list), tmdb_key, False, prog),
             daemon=True).start()
 
     def _search_sources_all(self):                             ### NEW v0.16.0 ###
@@ -10864,59 +14212,40 @@ class App(tk.Tk):
                 f"Search TMDB for ALL {len(self._results)} movies?\n"
                 "This may take a while.\n\nContinue?", icon="question"):
             return
+        prog = _BatchProgressDialog(self, "Searching TMDb — All Movies…", total=len(self._results))   ### NEW v0.19.1 ###
         threading.Thread(
             target=self._search_sources_worker,
-            args=(list(self._results), tmdb_key, True),
+            args=(list(self._results), tmdb_key, True, prog),
             daemon=True).start()
 
-    def _search_sources_worker(self, data_list, tmdb_key, show_all_results): ### NEW v0.16.0 ###
+    def _search_sources_worker(self, data_list, tmdb_key, show_all_results, prog=None): ### NEW v0.16.0, progress v0.19.1 ###
         """
         Background: query TMDB search for each movie using title + year.
         Collect results, then show SearchSourcesResultDialog.
         """
-        import urllib.parse
-        results = []   # list of dicts: {movie_name, year, tmdb_matches}
+        results = []   # list of dicts: {movie_name, year, matches, current, pinned}
+        lib_lang = _tmdb_lang_for(SETTINGS.get("lang_ok_code", "EN"))            ### NEW v0.19.1 B14 ###
+        omdb_key = SETTINGS.get("omdb_api_key", "").strip()
 
-        for d in data_list:
-            movie_name = d.get("movie_name", d.get("subfolder", "?"))
-            year = d.get("movie_year", "")
-            matches = []
-            try:
-                query = urllib.parse.quote(movie_name)
-                yr_param = f"&year={year}" if year and year != "-" else ""
-                url = (f"https://api.themoviedb.org/3/search/movie"
-                       f"?api_key={tmdb_key}&query={query}{yr_param}&language=en-US")
-                data = _tmdb_fetch_json(url, timeout=10)      ### FIX v0.17.0-bug2 ###
-                for item in data.get("results", [])[:5]:
-                    tid = str(item.get("id", ""))
-                    # Fetch external IDs (includes imdb_id)
-                    imdb_id = ""
-                    try:
-                        eurl = (f"https://api.themoviedb.org/3/movie/{tid}"
-                                f"/external_ids?api_key={tmdb_key}")
-                        edata = _tmdb_fetch_json(eurl, timeout=8)  ### FIX v0.17.0-bug2 ###
-                        imdb_id = edata.get("imdb_id", "") or ""
-                    except Exception:
-                        pass
-                    matches.append({
-                        "tmdb_id": tid,
-                        "imdb_id": imdb_id,
-                        "title":   item.get("title", ""),
-                        "year":    (item.get("release_date", "")[:4]
-                                    if item.get("release_date") else ""),
-                        "popularity": item.get("popularity", 0),
-                    })
-            except Exception as e:
-                logger.warning(f"Search Sources: TMDB search failed for '{movie_name}': {e}")
+        searched = []                                             ### v0.19.1 — rows actually searched ###
+        for _idx, d in enumerate(data_list):
+            if prog and prog.cancelled:                           ### NEW v0.19.1 ###
+                break
+            ### MODIFIED v0.19.1 B14 — current IDs + pinned row + wider title search ###
+            results.append(_search_sources_for_row(
+                d, tmdb_key, lib_lang, omdb_key,
+                cancelled=(lambda: bool(prog and prog.cancelled))))
+            searched.append(d)
+            if prog:
+                prog.update(_idx + 1)
 
-            results.append({
-                "movie_name": movie_name,
-                "year":       year,
-                "matches":    matches,
-            })
-
+        if prog:
+            prog.close()
         def _show():
-            _SearchSourcesResultDialog(self, results, data_list)
+            if results:
+                _SearchSourcesResultDialog(self, results, searched)
+            else:
+                messagebox.showinfo("Search Sources", "Cancelled — nothing searched.", parent=self)
         self.after(0, _show)
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -10929,6 +14258,8 @@ class App(tk.Tk):
 
     def _verify_ids(self, data_list):                              ### NEW v0.19.0 ###
         """Right-click entry point (one movie or a selection)."""
+        if not self._confirm_services(("tmdb",)):          ### NEW v0.19.1 B22 — paused service: Try anyway? ###
+            return
         if not data_list:
             return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
@@ -11005,7 +14336,8 @@ class App(tk.Tk):
                         "subs_internal", "audio_tracks", "ffprobe_ran"):
                 if d.get(key) is not None:
                     r[key] = d[key]
-            r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"))
+            r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"), r.get("subs_hard"))
+            _refill_audio_row(r)                        ### NEW v0.19.1 B16 ###
             if d.get("lang_ok") == "Y" and r.get("video_path"):
                 r["lang_ok"] = "Y"
         r["duplicate_of"] = list(d.get("duplicate_of") or [])
@@ -11039,6 +14371,8 @@ class App(tk.Tk):
         return res if res else (None, False)
 
     def _auto_repair(self, data_list, all_movies=False):           ### NEW v0.19.0 ###
+        if not self._confirm_services(("tmdb", "omdb")):          ### NEW v0.19.1 B22 — paused service: Try anyway? ###
+            return
         if self._scanning:
             messagebox.showinfo("Auto Repair", "Please wait for the scan to complete.", parent=self); return
         if not data_list:
@@ -11154,6 +14488,10 @@ class App(tk.Tk):
         if not ok:
             return "failed", f"write IDs: {err}"
         ctx["state"]["verified_tmdb"] = chosen.get("tmdb_id")
+        if chosen.get("imdb_only"):                                   ### NEW v0.19.1 B14 ###
+            d["id_check"] = _imdb_only_check(chosen.get("imdb_id"), chosen.get("title"), chosen.get("year"),
+                                             "Confirmed in Auto Repair (Enter ID…): not on TMDb")
+            return "fixed", f"IMDb {chosen.get('imdb_id')} confirmed — not on TMDb (TMDb tags left empty)"
         d["id_check"] = {"result": ID_OK, "detail": f"Set by Auto Repair: '{chosen.get('title')}' ({chosen.get('year')})",
                          "imdb_id": chosen.get("imdb_id") or None, "tmdb_id": chosen.get("tmdb_id"),
                          "tmdb_title": chosen.get("title") or "", "tmdb_year": chosen.get("year") or "",
@@ -11166,8 +14504,12 @@ class App(tk.Tk):
             return "skipped", "ratings not synced in this run"
         d, nfo, xml = ctx["d"], ctx["nfo"], ctx["xml"]
         imdb_id, tmdb_id = get_movie_ids_robust(nfo, xml)
+        _take_fetch_errors()
         tr, tv = _fetch_tmdb_rating(tmdb_id, ctx["tmdb_key"]) if ctx["tmdb_key"] else (None, None)
         or_, ov = _fetch_omdb_rating(imdb_id, ctx["omdb_key"]) if ctx["omdb_key"] else (None, None)
+        _errs = _take_fetch_errors()                              ### NEW v0.19.1 ###
+        if _errs:
+            return "failed", "ratings: " + _errs[0]
         tok, ook = self._rating_valid(tr, tv), self._rating_valid(or_, ov)
         if not tok and not ook:
             return "skipped", "no valid rating online (rating 0 or no votes)"
@@ -11185,18 +14527,20 @@ class App(tk.Tk):
 
     def _ar_genres(self, ctx):
         nfo, xml = ctx["nfo"], ctx["xml"]
-        genres = get_genres_from_nfo(nfo)
+        info = resolve_movie_genres(nfo, xml)                  ### MODIFIED v0.19.1 — NFO + XML ###
+        genres = info["genres"]
         if not genres:
-            return "skipped", "no genres in the NFO"
+            return "skipped", "no genres in the NFO or XML"
         normalized, changed = normalize_genre_list(genres)
-        if not changed:
+        sync = bool(info["only_in_xml"] or info["only_in_nfo"] or info["nfo_wrong"])
+        if not changed and not sync:
             return "skipped", "genres already normalized"
         ctx["backup"]()
-        ok_n, err_n = write_genres_to_nfo(nfo, normalized)
-        ok_x, err_x = write_genres_to_xml(xml, normalized) if xml else (True, "")
+        ok_n, err_n = write_genres_to_nfo(nfo, normalized) if nfo else (False, "")
+        ok_x, err_x = write_genres_to_xml(xml, normalized) if xml else (False, "")
         if not (ok_n or ok_x):
             return "failed", f"genres: {err_n or err_x}"
-        return "fixed", "genres normalized: " + "/".join(normalized)
+        return "fixed", ("genres normalized: " if changed else "genres synced NFO/XML: ") + "/".join(normalized)
 
     def _ar_tmdb_data(self, ctx):
         """Movie data for a VERIFIED TMDb id (verified in this run or by Verify IDs)."""
@@ -11276,7 +14620,17 @@ class App(tk.Tk):
         ok, err = _write_tag_in_files(None, xml, None, "Language", name)
         return ("fixed", f"XML <Language> set to '{name}'") if ok else ("failed", err)
 
-    def _auto_repair_worker(self, data_list, opts, prog=None):     ### NEW v0.19.0 ###
+    def _auto_repair_worker(self, data_list, opts, prog=None):        ### NEW v0.19.1 B20 — one service run ###
+        """Runs _auto_repair_worker_run inside a service run (B20): a service that refuses
+        (daily limit / invalid key) is not asked again until the run ends."""
+        _service_run_begin(**self._service_run_args(prog, {"omdb": "TMDb", "tmdb": None}))   ### B22 ###
+        try:
+            with _sc.backup_action("Auto Repair"):                     ### NEW v0.19.1 I1 ###
+                return self._auto_repair_worker_run(data_list, opts, prog)
+        finally:
+            _service_run_end()
+
+    def _auto_repair_worker_run(self, data_list, opts, prog=None):     ### NEW v0.19.0 ###
         rules = SETTINGS.get("health_rules", {})
         backup_ref = [None]
         state = {"skip_all_ids": False}
@@ -11284,7 +14638,7 @@ class App(tk.Tk):
         repaired = []                                            ### v0.19.0 — applied once at the end ###
         error = None
         for i, d in enumerate(data_list):
-            if prog and prog.cancelled:
+            if (prog and prog.cancelled) or _service_run_cancelled():   # B22
                 break
             name = d.get("movie_name") or d["subfolder"]
             plan = _auto_repair_plan(d, SETTINGS, rules)
@@ -11348,6 +14702,9 @@ class App(tk.Tk):
         if prog:
             prog.close()
         text = format_auto_repair_summary(entries)
+        _svc = _service_run_summary()                            ### NEW v0.19.1 B20 ###
+        if _svc:
+            text = "\n".join(_svc) + "\n\n" + text
         logger.info(f"Auto Repair finished: {sum(1 for x in entries if x['fixed'])} fixed of {len(entries)}")
         def _done():
             for rr in repaired:
@@ -11362,6 +14719,8 @@ class App(tk.Tk):
     def _fix_ids_for(self, row, on_done=None):                     ### REWRITTEN v0.19.0 — the Auto Repair chooser ###
         """Fix… from the verification report: TMDb search in a worker, the
         chooser (exact match preselected), write the IDs, re-verify, refresh."""
+        if not self._confirm_services(("tmdb",)):          ### NEW v0.19.1 B22 — paused service: Try anyway? ###
+            return
         key = SETTINGS.get("tmdb_api_key", "").strip()
         if not key:
             messagebox.showwarning("Fix IDs", "No TMDb API key configured.", parent=self); return
@@ -11381,19 +14740,23 @@ class App(tk.Tk):
                     return
                 nfo = row.get("nfo_path") if row.get("nfo_exists") else None
                 xml = row.get("xml_path") if row.get("xml_exists") else None
-                if not cand.get("imdb_id"):
+                if not cand.get("imdb_id") and cand.get("tmdb_id"):
                     cand["imdb_id"] = _tmdb_external_ids(cand["tmdb_id"], key)
                 _make_backup(row.get("movie_name") or row["subfolder"], nfo, xml)
                 ok, err = _write_both_source_ids(nfo, xml, cand.get("imdb_id") or None, cand.get("tmdb_id") or None)
                 if not ok:
                     self.after(0, lambda m=err: messagebox.showerror("Fix IDs", m, parent=self)); return
                 r = self._rescan_row_no_probe(row)
-                try:
-                    r["id_check"] = verify_movie_ids(r, key, lang)
-                except Exception as ex:
-                    r["id_check"] = {"result": ID_OK, "detail": f"Set to TMDb {cand.get('tmdb_id')} (re-check failed: {_tmdb_error_message(ex)})",
-                                     "imdb_id": cand.get("imdb_id"), "tmdb_id": cand.get("tmdb_id"), "tmdb_title": cand.get("title"),
-                                     "tmdb_year": cand.get("year"), "when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
+                if cand.get("imdb_only"):                                   ### NEW v0.19.1 B14 ###
+                    r["id_check"] = _imdb_only_check(cand.get("imdb_id"), cand.get("title"), cand.get("year"))
+                    _apply_health(r)
+                else:
+                    try:
+                        r["id_check"] = verify_movie_ids(r, key, lang)
+                    except Exception as ex:
+                        r["id_check"] = {"result": ID_OK, "detail": f"Set to TMDb {cand.get('tmdb_id')} (re-check failed: {_tmdb_error_message(ex)})",
+                                         "imdb_id": cand.get("imdb_id"), "tmdb_id": cand.get("tmdb_id"), "tmdb_title": cand.get("title"),
+                                         "tmdb_year": cand.get("year"), "when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
                 row.clear(); row.update(r)           # the report dialog holds this dict
                 def _ui():
                     self._apply_rescanned_row(row)
@@ -11407,17 +14770,19 @@ class App(tk.Tk):
 
     def _fetch_poster_folder(self, data_list):                 ### NEW v0.16.0 ###
         """Launch Fetch Poster/Folder dialog for each movie in data_list."""
-        tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
-        if not tmdb_key:
-            messagebox.showwarning("Fetch Poster/Folder",
-                "No TMDb API key configured.\nGo to Settings → API Keys."); return
+        tmdb_key = self._image_source_keys("Fetch Poster/Folder", data_list, "poster")   ### MODIFIED v0.19.1 I10 / B25 ###
+        if tmdb_key is None:
+            return
         for d in data_list:
             tmdb_id = d.get("source_tmdb_val")
-            if not tmdb_id:
+            if not image_sources_for(d, "poster", tmdb_key):            ### v0.19.1 B25 — TMDb, fanart.tv or frames ###
                 messagebox.showwarning("Fetch Poster/Folder",
                     f"{d.get('movie_name', d['subfolder'])}\n"
-                    "No TMDB ID found — cannot fetch images.\n"
-                    "Run 'Normalize Sources' or 'Search Sources' first.")
+                    + ("No TMDB ID found — cannot fetch images.\n"
+                       "Run 'Normalize Sources' or 'Search Sources' first."
+                       if "poster" == "poster" else
+                       "No TMDB ID, no fanart.tv source and no video to take frames from.\n"
+                       "Run 'Normalize Sources' or 'Search Sources' first."))
                 continue
             dlg = _FetchImageDialog(self, d, "poster", tmdb_key, tmdb_id)
             self.wait_window(dlg)
@@ -11426,17 +14791,19 @@ class App(tk.Tk):
 
     def _fetch_fanart(self, data_list):                        ### NEW v0.16.0 ###
         """Launch Fetch Fanart dialog for each movie in data_list."""
-        tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
-        if not tmdb_key:
-            messagebox.showwarning("Fetch Fanart",
-                "No TMDb API key configured.\nGo to Settings → API Keys."); return
+        tmdb_key = self._image_source_keys("Fetch Fanart", data_list, "fanart")   ### MODIFIED v0.19.1 I10 / B25 ###
+        if tmdb_key is None:
+            return
         for d in data_list:
             tmdb_id = d.get("source_tmdb_val")
-            if not tmdb_id:
+            if not image_sources_for(d, "fanart", tmdb_key):            ### v0.19.1 B25 — TMDb, fanart.tv or frames ###
                 messagebox.showwarning("Fetch Fanart",
                     f"{d.get('movie_name', d['subfolder'])}\n"
-                    "No TMDB ID found — cannot fetch images.\n"
-                    "Run 'Normalize Sources' or 'Search Sources' first.")
+                    + ("No TMDB ID found — cannot fetch images.\n"
+                       "Run 'Normalize Sources' or 'Search Sources' first."
+                       if "fanart" == "poster" else
+                       "No TMDB ID, no fanart.tv source and no video to take frames from.\n"
+                       "Run 'Normalize Sources' or 'Search Sources' first."))
                 continue
             dlg = _FetchImageDialog(self, d, "fanart", tmdb_key, tmdb_id)
             self.wait_window(dlg)
@@ -11445,22 +14812,51 @@ class App(tk.Tk):
 
     def _fetch_backdrops(self, data_list):                     ### NEW v0.17.0 ###
         """Launch Fetch Backdrops dialog for each movie in data_list."""
-        tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
-        if not tmdb_key:
-            messagebox.showwarning("Fetch Backdrops",
-                "No TMDb API key configured.\nGo to Settings → API Keys."); return
+        tmdb_key = self._image_source_keys("Fetch Backdrops", data_list, "backdrops")   ### MODIFIED v0.19.1 I10 / B25 ###
+        if tmdb_key is None:
+            return
         for d in data_list:
             tmdb_id = d.get("source_tmdb_val")
-            if not tmdb_id:
+            if not image_sources_for(d, "backdrops", tmdb_key):            ### v0.19.1 B25 — TMDb, fanart.tv or frames ###
                 messagebox.showwarning("Fetch Backdrops",
                     f"{d.get('movie_name', d['subfolder'])}\n"
-                    "No TMDB ID found — cannot fetch backdrops.\n"
-                    "Run 'Normalize Sources' or 'Search Sources' first.")
+                    + ("No TMDB ID found — cannot fetch backdrops.\n"
+                       "Run 'Normalize Sources' or 'Search Sources' first."
+                       if "backdrops" == "poster" else
+                       "No TMDB ID, no fanart.tv source and no video to take frames from.\n"
+                       "Run 'Normalize Sources' or 'Search Sources' first."))
                 continue
             dlg = _FetchBackdropDialog(self, d, tmdb_key, tmdb_id)
             self.wait_window(dlg)
             if dlg.applied:
                 self._reval_by_path(d)
+
+    def _ask_backdrop_count(self, movie, local_n, online_n, sources=None):   ### NEW v0.19.1 B17 ###
+        """Worker thread: show local vs online backdrop counts before Replace
+        All Backdrops deletes anything; True = go ahead.  Fewer online than
+        local needs an explicit "Replace anyway".
+        ### v0.19.1 I10 ### with sources={"tmdb": n, "fanarttv": m} the user
+        also picks the source: "tmdb" | "fanarttv" | "both", False = cancel."""
+        res = self._ask_on_ui(lambda: _BackdropCountDialog(self, movie, local_n, online_n, sources=sources),
+                              lambda dlg: dlg.result)
+        return res if (sources and res) else bool(res)
+
+    def _image_source_keys(self, title, data_list=(), mode=None):   ### NEW v0.19.1 I10, B25 ###
+        """UI thread, before a Fetch dialog: the TMDb key ("" when only
+        fanart.tv has one), or None when no image source has a key / a
+        paused service was not retried.  ### v0.19.1 B25 ### no key is fine
+        when a selected movie can use frames from its video."""
+        tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
+        services = tuple(s for s, k in (("tmdb", tmdb_key), ("fanarttv", fanarttv_key())) if k)
+        if not services and mode and any("frames" in image_sources_for(d, mode, "") for d in data_list):
+            return ""
+        if not services:
+            messagebox.showwarning(title, "No TMDb API key configured.\nGo to Settings → API Keys.\n"
+                                          "(A fanart.tv key works too.)")
+            return None
+        if not self._confirm_services(services):              ### B22 — paused service: Try anyway? ###
+            return None
+        return tmdb_key
 
     def _replace_all_backdrops(self, d):                       ### NEW v0.18.0 ###
         """
@@ -11472,16 +14868,16 @@ class App(tk.Tk):
           5. Show final summary dialog
         All work runs in a background thread.
         """
-        tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
+        tmdb_key = self._image_source_keys("Replace All Backdrops")   ### MODIFIED v0.19.1 I10 — TMDb and/or fanart.tv ###
+        if tmdb_key is None:
+            return
         tmdb_id  = d.get("source_tmdb_val")
+        imdb_id  = d.get("source_imdb_val")
         sp       = d.get("subfolder_path", "")
         movie    = d.get("movie_name", d.get("subfolder", "?"))
+        use_fan  = bool(fanarttv_key()) and bool(tmdb_id or imdb_id)
 
-        if not tmdb_key:
-            messagebox.showwarning("Replace All Backdrops",
-                "No TMDb API key configured.\nGo to Settings → API Keys.")
-            return
-        if not tmdb_id:
+        if not tmdb_id and not use_fan:
             messagebox.showwarning("Replace All Backdrops",
                 f"{movie}\nNo TMDB ID found.\nRun 'Normalize Sources' first.")
             return
@@ -11554,12 +14950,9 @@ class App(tk.Tk):
             # ── STEP 1: Collect existing backdrops ───────────────────────────
             existing_paths = []
             try:
-                for entry in os.scandir(sp):
-                    if not entry.is_file():
-                        continue
-                    n = entry.name.lower()
-                    if n == "backdrop.jpg" or re.match(r'^backdrop\d+\.jpg$', n):
-                        existing_paths.append(entry.path)
+                if not os.path.isdir(sp):
+                    raise OSError("folder not found")
+                existing_paths = replaceable_backdrops(sp)       ### MODIFIED v0.19.1 B23 — Kodi folders: fanartN ###
             except OSError as e:
                 fail_reason = f"Cannot read movie folder: {e}"
 
@@ -11572,28 +14965,46 @@ class App(tk.Tk):
 
             total_existing = len(existing_paths)
 
-            # ── STEP 2: Fetch TMDB image list ────────────────────────────────
-            try:
-                url = (f"https://api.themoviedb.org/3/movie/{tmdb_id}"
-                       f"/images?api_key={tmdb_key}")
-                data = _tmdb_fetch_json(url, timeout=15)
-                tmdb_imgs = data.get("backdrops", [])
-                tmdb_imgs.sort(key=lambda x: x.get("width", 0) * x.get("height", 0),
-                               reverse=True)
-            except Exception as e:
-                fail_reason = _tmdb_error_message(e)
+            # ── STEP 2: Fetch the online lists (TMDb, fanart.tv) ────────────
+            ### MODIFIED v0.19.1 I10 — fanart.tv too when a key is set ###
+            tm_list, fa_list, errs = [], [], []
+            if tmdb_key and tmdb_id:
+                tm_list, errs = load_online_images("fanart", "tmdb", tmdb_key, tmdb_id)
+            if use_fan:
+                fa_list, e2 = load_online_images("fanart", "fanarttv", "", tmdb_id, imdb_id)
+                errs += e2
+            if not tm_list and not fa_list and errs:
+                fail_reason = "\n".join(errs)
                 self.after(0, lambda m=fail_reason: (
                     _close_progress(),
                     messagebox.showerror("Replace All Backdrops — Failed",
                                          f"Reason: {m}")))
                 return
 
-            if not tmdb_imgs:
+            if not tm_list and not fa_list:
+                _src_txt = "TMDB and fanart.tv returned" if use_fan else "TMDB returned"
                 self.after(0, lambda: (
                     _close_progress(),
                     messagebox.showwarning("Replace All Backdrops",
-                        f"{movie}\nTMDB returned 0 backdrops. Nothing to download.")))
+                        f"{movie}\n{_src_txt} 0 backdrops. Nothing to download.")))
                 return
+
+            # ── v0.19.1 B17: compare the counts BEFORE any backup / delete ───
+            if use_fan:                                                 ### v0.19.1 I10 — source choice ###
+                choice = self._ask_backdrop_count(movie, total_existing, len(tm_list),
+                                                  sources={"tmdb": len(tm_list), "fanarttv": len(fa_list)})
+            else:
+                choice = self._ask_backdrop_count(movie, total_existing, len(tm_list)) and "tmdb"   ### NEW v0.19.1 B17 ###
+            if not choice:
+                self.after(0, _close_progress)
+                logger.info(f"Replace All Backdrops cancelled for '{movie}' "
+                            f"(local {total_existing}, online {len(tm_list)} + {len(fa_list)}) — nothing touched")
+                return
+            choice = choice if choice in ("tmdb", "fanarttv", "both") else "tmdb"
+            tmdb_imgs = (merge_image_sources(tm_list, fa_list) if choice == "both"
+                         else fa_list if choice == "fanarttv" else tm_list)
+            _src_label = IMAGE_SOURCE_LABEL[choice] if choice != "both" else "TMDb + fanart.tv"
+            _start_time[0] = time.time()          # the question's time is not part of the ETA
 
             total_steps = total_existing + total_existing + len(tmdb_imgs)
             completed   = [0]
@@ -11614,17 +15025,21 @@ class App(tk.Tk):
                         eta = "Almost done…"
                 else:
                     eta = ""
-                if elapsed > 15:
+                if elapsed > 1.0:                                  ### MODIFIED v0.19.1 — was 15 s ###
                     self.after(0, lambda p=pct, e=eta: _show_progress(p, e))
 
             # ── STEP 3: Backup all existing backdrops ────────────────────────
             if existing_paths:
-                backup_folder_ref = []
+                # ### FIXED v0.19.1 B17 ### was [] → make_batch_backup raised
+                # IndexError internally, returned None, NOTHING was backed up,
+                # and the originals were still deleted below.
+                backup_folder_ref = [None]
                 for p in existing_paths:
                     if _cancelled[0]:
                         break
                     try:
-                        _make_batch_backup(movie, backup_folder_ref, p)
+                        if not _make_batch_backup(movie, backup_folder_ref, p):   ### FIXED v0.19.1 B17 ###
+                            raise OSError("the backup copy could not be made (see logs/app.log)")
                         backup_count  += 1
                         backup_bytes  += os.path.getsize(p)
                         completed[0]  += 1
@@ -11657,17 +15072,17 @@ class App(tk.Tk):
                     logger.warning(f"_replace_all_backdrops: could not delete {p}: {e}")
 
             # ── STEP 5: Download all TMDB backdrops ──────────────────────────
+            _new_names = new_backdrop_paths(sp, len(tmdb_imgs))  ### NEW v0.19.1 B23 — folder's naming style ###
             for i, img in enumerate(tmdb_imgs):
                 if _cancelled[0]:
                     break
-                fp  = img.get("file_path", "")
-                if not fp:
+                url = img.get("url", "")                                ### MODIFIED v0.19.1 I10 ###
+                if not url:
                     completed[0] += 1
                     _update_progress()
                     continue
-                url      = "https://image.tmdb.org/t/p/original" + fp
-                fname    = "backdrop.jpg" if i == 0 else f"backdrop{i}.jpg"
-                dest     = os.path.join(sp, fname)
+                dest     = _new_names[i]                          ### MODIFIED v0.19.1 B23 ###
+                fname    = os.path.basename(dest)
                 ok, err  = _tmdb_download_image(url, dest)
                 if ok:
                     download_count += 1
@@ -11693,14 +15108,14 @@ class App(tk.Tk):
                        f"Backups created:               {backup_count} file(s)"
                        + (f" (avg {avg_backup // 1024} KB)" if avg_backup else "") + "\n"
                        f"Backdrops deleted:             {delete_count} file(s)\n"
-                       f"Backdrops downloaded (TMDB):   {download_count} file(s)"
+                       f"Backdrops downloaded ({_src_label}):   {download_count} file(s)"
                        + (f" (avg {avg_download // 1024} KB)" if avg_download else ""))
                 messagebox.showinfo("Replace All Backdrops", msg)
                 self._reval_by_path(d)
 
             self.after(0, _finish)
 
-        threading.Thread(target=_worker, daemon=True).start()
+        threading.Thread(target=lambda: _with_backup_action("Replace All Backdrops", _worker), daemon=True).start()   ### I1 ###
 
     def _open_fanart_tv(self, d):                              ### NEW v0.18.0 ###
         """Open the selected movie's Fanart.tv page using its TMDB ID."""
@@ -11807,8 +15222,10 @@ class App(tk.Tk):
         if p:
             libs = self._libraries()
             if _pkey(p) not in {_pkey(x) for x in libs}:
-                libs.append(os.path.normpath(p))
-            self._set_libraries(libs, select=os.path.normpath(p) if len(libs) > 1 else "")
+                libs.append(_norm_lib(p))
+            res = self._set_libraries(libs, select=_norm_lib(p) if len(libs) > 1 else "")
+            if res and (res[0] or res[1]):                      ### NEW v0.19.1 — offer a scan ###
+                self._offer_library_scan(added=bool(res[0]))
 
     # ══════════════════════════════════════════════════════════════════════════
     # NEW v0.19.0 — multiple library folders
@@ -11816,14 +15233,15 @@ class App(tk.Tk):
     def _libraries(self):
         """Configured library roots (library_folders); falls back to the single
         legacy folder (last_folder / self._folder)."""
-        libs = [x for x in (SETTINGS.get("library_folders") or []) if isinstance(x, str) and x.strip()]
+        libs = [_norm_lib(x) for x in (SETTINGS.get("library_folders") or [])     ### MODIFIED v0.19.1 — normpath ###
+                if isinstance(x, str) and x.strip()]
         if not libs:
             f = self._folder or SETTINGS.get("last_folder", "")
-            libs = [f] if f else []
+            libs = [_norm_lib(f)] if f else []
         return list(libs)
 
     def _library_filter(self):
-        f = SETTINGS.get("library_filter") or ""
+        f = _norm_lib(SETTINGS.get("library_filter") or "")                       ### MODIFIED v0.19.1 ###
         return f if f and _pkey(f) in {_pkey(x) for x in self._libraries()} else ""
 
     def _scope_roots(self):
@@ -11904,14 +15322,15 @@ class App(tk.Tk):
         libraries are dropped; the others are kept; duplicates recomputed."""
         seen, clean = set(), []
         for x in libs:
-            x = (x or "").strip()
+            x = _norm_lib(x)                                    ### MODIFIED v0.19.1 — normpath ###
             if x and _pkey(x) not in seen:
                 seen.add(_pkey(x)); clean.append(x)
         old = {_pkey(x) for x in self._libraries()}
         removed = old - seen
+        added = seen - old
         SETTINGS["library_folders"] = clean
         if select is not None:
-            SETTINGS["library_filter"] = select
+            SETTINGS["library_filter"] = _norm_lib(select)
         if SETTINGS.get("library_filter") and _pkey(SETTINGS["library_filter"]) not in seen:
             SETTINGS["library_filter"] = ""
         self._folder = clean[0] if clean else None
@@ -11929,6 +15348,60 @@ class App(tk.Tk):
         self._refresh_table()
         self._update_stats()
         logger.info(f"Libraries: {clean} (filter: {SETTINGS.get('library_filter') or 'all'})")
+        return added, removed                                   ### NEW v0.19.1 ###
+
+    def _offer_library_scan(self, added=True):                    ### NEW v0.19.1 ###
+        """Non-blocking prompt after the library list changed:
+        Full Scan / Quick Scan / Not now.  Default: Quick Scan after an add
+        (only what is new is scanned), Not now after a removal-only change."""
+        try:
+            if getattr(self, "_lib_prompt", None) is not None and self._lib_prompt.winfo_exists():
+                self._lib_prompt.destroy()
+        except Exception:
+            pass
+        dlg = tk.Toplevel(self)
+        self._lib_prompt = dlg
+        dlg.title("Libraries changed")
+        dlg.configure(bg="#1e1e2e")
+        dlg.transient(self)
+        dlg.resizable(False, False)
+        tk.Label(dlg, text="The library list changed — scan now?",
+                 font=("Helvetica", 11, "bold"), bg="#1e1e2e", fg="#cdd6f4").pack(padx=22, pady=(18, 4))
+        tk.Label(dlg, text=("Quick Scan reads only movies that are new or changed.\n"
+                            "The scan covers the library selected in the library box."),
+                 font=("Helvetica", 9), bg="#1e1e2e", fg="#a6adc8", justify="center").pack(padx=22, pady=(0, 12))
+        bf = tk.Frame(dlg, bg="#1e1e2e"); bf.pack(pady=(0, 16))
+        def _go(kind):
+            try: dlg.destroy()
+            except Exception: pass
+            self._lib_prompt = None
+            if self._scanning:
+                return
+            if kind == "full":
+                self._scan()
+            elif kind == "quick":
+                self._update_scan()
+        kw = dict(font=("Helvetica", 10, "bold"), relief="flat", cursor="hand2", padx=10, pady=4)
+        b_full  = tk.Button(bf, text="Full Scan",  bg="#a6e3a1", fg="#1e1e2e", command=lambda: _go("full"), **kw)
+        b_quick = tk.Button(bf, text="Quick Scan", bg="#89dceb", fg="#1e1e2e", command=lambda: _go("quick"), **kw)
+        b_none  = tk.Button(bf, text="Not now",    bg="#45475a", fg="#cdd6f4", command=lambda: _go("none"), **kw)
+        for b in (b_full, b_quick, b_none):
+            b.pack(side="left", padx=5)
+        default = b_quick if added else b_none
+        dlg._buttons = {"full": b_full, "quick": b_quick, "none": b_none}
+        dlg.default_kind = "quick" if added else "none"
+        dlg.bind("<Return>", lambda e: default.invoke())
+        dlg.bind("<Escape>", lambda e: _go("none"))
+        dlg.protocol("WM_DELETE_WINDOW", lambda: _go("none"))
+        dlg.update_idletasks()
+        try:
+            x = self.winfo_rootx() + (self.winfo_width() - dlg.winfo_width()) // 2
+            y = self.winfo_rooty() + (self.winfo_height() - dlg.winfo_height()) // 2
+            dlg.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        default.focus_set()
+        return dlg
 
     def _check_offline_async(self):
         """Startup: test which library roots are reachable without blocking the
@@ -12044,7 +15517,8 @@ class App(tk.Tk):
                     for key in _KEEP:
                         if rd.get(key) is not None:
                             r[key] = rd[key]
-                    r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"))
+                    r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"), r.get("subs_hard"))
+                    _refill_audio_row(r)                        ### NEW v0.19.1 B16 ###
                     if rd.get("lang_ok") == "Y" and r.get("video_path"):
                         r["lang_ok"] = "Y"
                 r["duplicate_of"] = list(rd.get("duplicate_of") or []) if rd else []
@@ -12063,6 +15537,7 @@ class App(tk.Tk):
                 elif _pkey(entry.path) in prior_by_path:
                     new_results.append(prior_by_path[_pkey(entry.path)])
             new_results.extend(kept_rows)                       ### NEW v0.19.0 — other / offline libraries ###
+            _ffprobe_cache_flush()                              ### NEW v0.19.1 I5 ###
             self.after(0, lambda r=new_results: self._scan_done(r))
 
         def _worker_guarded():
@@ -12244,18 +15719,18 @@ class App(tk.Tk):
                 lst = listings.get(entry.path) or _FolderListing(entry.path)
                 stubs.append({
                     "subfolder": entry.name, "subfolder_path": entry.path,
-                    "library_root": os.path.dirname(entry.path),   ### NEW v0.19.0 ###
-                    "poster_exists":False,"poster_path":lst.path_of("poster.jpg"),
+                    "library_root": _norm_lib(os.path.dirname(entry.path)),   ### NEW v0.19.0, normpath v0.19.1 ###
+                    "poster_exists":False,"poster_path":resolve_artwork(lst, "poster")["path"],   ### MODIFIED v0.19.1 B23 ###
                     "poster_bytes":0,"poster_size":"—","poster_dim":None,"poster_corrupt":False,
                     "poster_desc":"","poster_status":STATUS_MISSING,
-                    "fanart_exists":False,"fanart_path":lst.path_of("fanart.jpg"),
+                    "fanart_exists":False,"fanart_path":resolve_artwork(lst, "fanart")["path"],
                     "fanart_bytes":0,"fanart_size":"—","fanart_dim":None,"fanart_corrupt":False,
                     "fanart_desc":"","fanart_status":STATUS_MISSING,
-                    "folder_exists":False,"folder_path":lst.path_of("folder.jpg"),
+                    "folder_exists":False,"folder_path":resolve_artwork(lst, "folder")["path"],
                     "folder_bytes":0,"folder_size":"—","folder_dim":None,"folder_corrupt":False,
                     "folder_desc":"","folder_status":STATUS_MISSING,
                     "backdrop_count":0,"backdrop_paths":[],
-                    "nfo_exists":False,"nfo_path":lst.path_of(entry.name+".nfo"),
+                    "nfo_exists":False,"nfo_path":resolve_nfo(lst, entry.name)[0],   ### MODIFIED v0.19.1 B23 ###
                     "nfo_bytes":0,"nfo_size":"—","nfo_status":STATUS_MISSING,"nfo_errors":[],
                     "xml_exists":False,"xml_path":lst.path_of("movie.xml"),
                     "xml_bytes":0,"xml_size":"—","xml_status":STATUS_MISSING,"xml_errors":[],
@@ -12295,11 +15770,7 @@ class App(tk.Tk):
             # ── Phase 2: images ───────────────────────────────────────────────
             def _phase2(entry, row):
                 lst = listings[entry.path]
-                for img, key, itype in [("poster.jpg","poster","poster"),
-                                         ("folder.jpg","folder","folder"),
-                                         ("fanart.jpg","fanart","fanart")]:
-                    # probe_image + evaluate_image via _image_row_fields  ### MODIFIED v0.19.0 ###
-                    row.update(_image_row_fields(key, itype, lst.path_of(img), lst.has(img)))
+                row.update(_artwork_row_fields(lst)["fields"])           ### MODIFIED v0.19.1 B23 — Kodi names ###
                 bc, bp, bc_avg = count_backdrops(entry.path, listing=lst)
                 row["backdrop_count"] = bc; row["backdrop_paths"] = bp
                 row["backdrop_avg_bytes"] = bc_avg
@@ -12313,24 +15784,20 @@ class App(tk.Tk):
             # ── Phase 3: NFO / XML ────────────────────────────────────────────
             def _phase3(entry, row):
                 lst = listings[entry.path]; sn = entry.name
-                nfo_name = sn + ".nfo"
-                nfo_path = lst.path_of(nfo_name); xml_path = lst.path_of("movie.xml")
-                ne = lst.has(nfo_name); xe = lst.has("movie.xml")
-                row["nfo_exists"] = ne; row["nfo_path"] = nfo_path
+                nfo_path, ne, nfo_name, nfo_kodi = resolve_nfo(lst, sn)          ### MODIFIED v0.19.1 B23 ###
+                xml_path = lst.path_of("movie.xml"); xe = lst.has("movie.xml")
+                row["nfo_exists"] = ne; row["nfo_path"] = nfo_path; row["nfo_kodi_name"] = nfo_kodi
                 if ne:
-                    nb = lst.size(nfo_name); nerr = validate_xml_file(nfo_path, True)
-                    row["nfo_bytes"] = nb; row["nfo_size"] = format_size(nb); row["nfo_errors"] = nerr
+                    _ni = []; nb = lst.size(nfo_name); nerr = validate_xml_file(nfo_path, True, infos=_ni)   ### B12 ###
+                    row["nfo_bytes"] = nb; row["nfo_size"] = format_size(nb); row["nfo_errors"] = nerr; row["nfo_infos"] = _ni
                     row["nfo_status"] = (STATUS_ERROR if nerr else STATUS_OK)
                 row["xml_exists"] = xe; row["xml_path"] = xml_path
                 if xe:
-                    xb = lst.size("movie.xml"); xerr = validate_xml_file(xml_path, False)
-                    row["xml_bytes"] = xb; row["xml_size"] = format_size(xb); row["xml_errors"] = xerr
+                    _xi = []; xb = lst.size("movie.xml"); xerr = validate_xml_file(xml_path, False, infos=_xi)   ### B12 ###
+                    row["xml_bytes"] = xb; row["xml_size"] = format_size(xb); row["xml_errors"] = xerr; row["xml_infos"] = _xi
                     row["xml_status"] = (STATUS_ERROR if xerr else STATUS_OK)
                     row["language"] = extract_language_from_xml(xml_path)
-                if ne:
-                    genres = get_genres_from_nfo(nfo_path)
-                    gd, gs = classify_genres(genres)
-                    row["genres"] = genres; row["genre_display"] = gd; row["genre_status"] = gs
+                row.update(_genre_row_fields(nfo_path if ne else None, xml_path if xe else None))   ### MODIFIED v0.19.1 ###
                 nfo_p = nfo_path if ne else None
                 xml_p = xml_path if xe else None
                 rs, rst, rv, rv_votes, rv_votes_src, rv_src = extract_rating_from_files(nfo_p, xml_p)
@@ -12345,6 +15812,8 @@ class App(tk.Tk):
                 row["source_tmdb_val"]    = src_ids["tmdb_val"]
                 row["source_tmdb_status"] = src_ids["tmdb_status"]
                 row["source_tmdb_all"]    = src_ids["tmdb_all_vals"]
+                row["source_imdb_empty"]  = src_ids["imdb_empty_tags"]     ### NEW v0.19.1 B13 ###
+                row["source_tmdb_empty"]  = src_ids["tmdb_empty_tags"]     ### NEW v0.19.1 B13 ###
                 row["movie_name"] = get_movie_name_from_files(nfo_p, xml_p, sn)
                 row["movie_year"] = get_movie_year_display(nfo_p, xml_p)
                 row["movie_title_raw"] = get_movie_titles_from_files(nfo_p, xml_p)
@@ -12377,12 +15846,13 @@ class App(tk.Tk):
                     audio_tracks = row.get("audio_tracks", [])
                     if not si["subs_internal"] and row.get("subs_internal"):
                         si["subs_internal"] = row["subs_internal"]
-                        si["subs_summary"]  = _subs_summary(si["subs_internal"], si["subs_external"], vi["video_path"])
                 iso = SETTINGS.get("lang_ok_code","PT")
                 nfo_p = row["nfo_path"] if row["nfo_exists"] else None
                 xml_p = row["xml_path"] if row["xml_exists"] else None
+                sh = get_hardsub_langs(nfo_p, xml_p)                     ### NEW v0.19.1 B15 ###
+                si["subs_summary"] = _subs_summary(si["subs_internal"], si["subs_external"], vi["video_path"], sh)
                 lo = compute_lang_ok(vi["video_path"], si["subs_internal"], si["subs_external"],
-                                     nfo_p, xml_p, iso, use_ffprobe=use_ff)
+                                     nfo_p, xml_p, iso, use_ffprobe=use_ff, subs_hard=sh)
                 if not _probe_now and row.get("lang_ok") == "Y" and vi["video_path"]:
                     lo = "Y"
                 vs = (STATUS_MISSING if vi["video_count"]==0
@@ -12395,15 +15865,18 @@ class App(tk.Tk):
                     "video_quality":vi["video_quality"],"video_status":vs,
                     "subs_internal":si["subs_internal"],"subs_external":si["subs_external"],
                     "subs_summary":si["subs_summary"],"lang_ok":lo,
+                    "subs_hard": sh,                                     ### NEW v0.19.1 B15 ###
                     "audio_tracks": audio_tracks,
                     "ffprobe_ran": _probe_now or (not use_ff and bool(row.get("ffprobe_ran"))),
                 })
+                _refill_audio_row(row)                                   ### NEW v0.19.1 B16 ###
                 _apply_health(row)
             self._run_phase(entries, results_partial, _phase4,
                             f"Phase 4/4 — Video{'+FFprobe' if use_ff else ''}", 50, 100,
                             n_probe if use_ff else n_workers, disp)
             logger.info(f"Scan phases finished in {time.time() - t0:.1f}s "
                         f"({len(entries)} movies, workers={n_workers}, ffprobe workers={n_probe if use_ff else 0})")
+            _ffprobe_cache_flush()                              ### NEW v0.19.1 I5 ###
             self.after(0, lambda: self._scan_done(list(disp)))
 
         def _worker_guarded():
@@ -12522,6 +15995,10 @@ class App(tk.Tk):
 
     def _on_app_close(self):                                   ### NEW v0.18.0 ###
         """Save column widths and current results, then destroy the window."""
+        try:
+            _ffprobe_cache_flush()                             ### NEW v0.19.1 I5 — usually nothing left to save ###
+        except Exception:
+            pass
         # Capture current column widths from the treeview
         widths = {}
         try:
@@ -12718,12 +16195,12 @@ class App(tk.Tk):
         TextReportDialog(self, "👯  Duplicate Movies Report", format_duplicates_report(self._results),
                          "duplicate_movies")
 
-    def _copy_poster_to_folder(self, data_list, confirm=True):
+    def _copy_poster_to_folder(self, data_list, confirm=True):   # backups labelled "Copy poster → folder" (I1)
         """Overwrite folder.jpg with poster.jpg where they differ (backup first)."""
         if self._scanning:
             messagebox.showinfo("Copy poster → folder", "Please wait for the scan to complete.", parent=self); return
         targets = [d for d in data_list if d.get("poster_exists")
-                   and (not d.get("folder_exists") or d.get("poster_bytes") != d.get("folder_bytes"))]
+                   and (not d.get("folder_exists") or _poster_folder_differ(d))]   ### MODIFIED v0.19.1 B23 ###
         if not targets:
             messagebox.showinfo("Copy poster.jpg → folder.jpg",
                                 "Nothing to do — folder.jpg already matches poster.jpg "
@@ -12735,7 +16212,7 @@ class App(tk.Tk):
                 "Existing folder.jpg files are backed up first.", icon="warning", parent=self):
             return
         prog = _BatchProgressDialog(self, "Copying poster.jpg → folder.jpg…", total=len(targets)) \
-               if len(targets) >= 10 else None
+               if len(targets) >= _PROGRESS_MIN else None     ### MODIFIED v0.19.1 ###
 
         def _worker():
             ref = [None]; done = 0; errors = []; changed_paths = []
@@ -12745,7 +16222,7 @@ class App(tk.Tk):
                 try:
                     if os.path.isfile(d["folder_path"]):
                         _make_batch_backup(d.get("movie_name", d["subfolder"]), ref, d["folder_path"])
-                    shutil.copy2(d["poster_path"], d["folder_path"])
+                    _copy_image_as(d["poster_path"], d["folder_path"])   ### MODIFIED v0.19.1 B23 — .png/.tbn posters converted ###
                     done += 1
                     logger.info(f"poster.jpg copied to folder.jpg: {d['subfolder_path']}")
                     changed_paths.append(d["subfolder_path"])          ### v0.19.0 ###
@@ -12763,10 +16240,12 @@ class App(tk.Tk):
                 messagebox.showinfo("Copy poster.jpg → folder.jpg", msg, parent=self)
             self.after(0, _done)
 
-        threading.Thread(target=_worker, daemon=True).start()
+        threading.Thread(target=lambda: _with_backup_action("Copy poster → folder", _worker), daemon=True).start()   ### I1 ###
 
     # ── Refresh table ──────────────────────────────────────────────────────────
     def _refresh_table(self):
+        if hasattr(self, "_sb_sel"):                                   ### NEW v0.19.1 B21 — counter follows rebuilds ###
+            self.after_idle(self._update_sel_count)
         if not self._results: return
         for r in self.tree.get_children(): self.tree.delete(r)
         self._item_map.clear()
@@ -12878,15 +16357,20 @@ def compute_movie_health_detailed(row: dict, rules: dict,
 
     # Source IDs — v0.18.2 reported "conflict" for an EMPTY tag (STATUS_ERROR)
     # and stayed silent on a real conflict (STATUS_WARN).       ### FIXED v0.18.3 ###
+    # ### NEW v0.19.1 B24 ### a missing ID is reported as error / warning / not at
+    # all, chosen separately for "one source only" and "no source at all".
+    _id_level = source_missing_level(row, rules)
+    _id_bucket = {"error": error_reasons, "warning": warning_reasons}.get(_id_level)
     for _k, _lbl in (("imdb", "IMDB"), ("tmdb", "TMDb")):
         st   = row.get(f"source_{_k}_status", STATUS_MISSING)
         vals = [v for v in (row.get(f"source_{_k}_all") or []) if v]
         distinct = len(set(vals))
-        if rules.get(f"missing_{_k}_id", True):
+        if rules.get(f"missing_{_k}_id", True) and _id_bucket is not None:   ### MODIFIED v0.19.1 B24 ###
             if st == STATUS_MISSING:
-                error_reasons.append(f"Missing {_lbl} ID")
+                _id_bucket.append(f"Missing {_lbl} ID (empty tags ready to fill)"   ### MODIFIED v0.19.1 B13 ###
+                                  if row.get(f"source_{_k}_empty") else f"Missing {_lbl} ID")
             elif st == STATUS_ERROR and not vals:
-                error_reasons.append(f"Missing {_lbl} ID (tag present but empty)")
+                _id_bucket.append(f"Missing {_lbl} ID (tag present but empty)")
         if rules.get(f"corrupt_{_k}_id", True):
             if distinct > 1:
                 error_reasons.append(
@@ -12946,7 +16430,15 @@ def compute_movie_health_detailed(row: dict, rules: dict,
 
     if rules.get("missing_folder", True):
         if not row.get("folder_exists"):
-            warning_reasons.append("Missing folder image")
+            # ### MODIFIED v0.19.1 B23 ### Kodi does not need folder.jpg when it
+            # has a "<video>-poster" / .tbn poster — optional (Health Rules)
+            if not (rules.get("folder_optional_with_kodi_poster", True)
+                    and row.get("poster_exists") and row.get("poster_style") == "kodi"):
+                warning_reasons.append("Missing folder image")
+
+    if rules.get("nfo_name_not_kodi", True):                        ### NEW v0.19.1 B23 ###
+        if row.get("nfo_exists") and row.get("nfo_kodi_name") is False:
+            warning_reasons.append("NFO named after the folder — Kodi reads '<video file name>.nfo' or 'movie.nfo'")
 
     # Proportions / file size / format — from the per-image flags set by
     # evaluate_image (a ◐ status alone no longer implies proportions). ### MODIFIED v0.19.0 ###
@@ -12981,7 +16473,8 @@ def compute_movie_health_detailed(row: dict, rules: dict,
         for _ik in ("poster", "folder", "fanart"):
             if row.get(f"{_ik}_exists") and _iflag(_ik, "mismatch"):
                 warning_reasons.append(
-                    f"{_IMAGE_FILES[_ik]} is a {row.get(f'{_ik}_format') or 'different'} file (extension mismatch)")
+                    f"{os.path.basename(row.get(f'{_ik}_path') or '') or _IMAGE_FILES[_ik]} is a "   # v0.19.1 B23 — real name
+                    f"{row.get(f'{_ik}_format') or 'different'} file (extension mismatch)")
 
     if rules.get("poster_folder_quality_minimum", True):
         min_pq = rules.get("poster_folder_quality_level", "1080p")
@@ -13005,9 +16498,7 @@ def compute_movie_health_detailed(row: dict, rules: dict,
 
     if rules.get("poster_folder_identical", True):
         if (row.get("poster_exists") and row.get("folder_exists")
-                and row.get("poster_bytes", 0) > 0
-                and row.get("folder_bytes", 0) > 0
-                and row.get("poster_bytes") != row.get("folder_bytes")):
+                and _poster_folder_differ(row)):                     ### MODIFIED v0.19.1 B23 ###
             warning_reasons.append(
                 "Poster and folder image are different (different file sizes)")
 
@@ -13043,6 +16534,13 @@ def compute_movie_health_detailed(row: dict, rules: dict,
                 and rv >= 0.0           # not the -1.0 sentinel
                 and rv < threshold):
             warning_reasons.append(f"Suspicious rating value ({rv})")
+
+    if rules.get("genre_only_in_xml", True) and row.get("genre_only_in_xml"):          ### NEW v0.19.1 ###
+        warning_reasons.append("NFO has no <genre> tags (genres only in XML)")
+    if rules.get("genre_only_in_nfo", True) and row.get("genre_only_in_nfo"):          ### NEW v0.19.1 ###
+        warning_reasons.append("XML has no <Genre> tags (genres only in NFO)")
+    if rules.get("genre_nfo_wrong_tags", True) and row.get("genre_nfo_wrong_tags"):    ### NEW v0.19.1 ###
+        warning_reasons.append("NFO uses non-Kodi genre tags (<Genres>/<Genre>)")
 
     if rules.get("genre_warning", True):
         if row.get("genre_status") == STATUS_WARN:
@@ -13088,7 +16586,8 @@ def compute_movie_health_detailed(row: dict, rules: dict,
     if rules.get("required_subtitle_language", True):
         target_sub = rules.get("required_subtitle_language_code", "POR").upper()
         all_subs = (row.get("subs_internal", []) +
-                    row.get("subs_external", []))
+                    row.get("subs_external", []) +
+                    [{"lang": c} for c in (row.get("subs_hard") or [])])   ### MODIFIED v0.19.1 B15 ###
         if (row.get("video_count", 0) == 1
                 and not any(
                     normalize_lang_code(s.get("lang", "")) == target_sub
