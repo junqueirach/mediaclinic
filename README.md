@@ -6,7 +6,7 @@
 
 <p align="center"><img src="docs/screenshots/mediaclinic.png" alt="MediaClinic screenshot" width="900"></p>
 
-**Download for Windows:** the newest Windows build is `MediaClinic-0.19.1-win64.zip` (about 19 MB), attached to the [v0.19.1 release](https://github.com/junqueirach/mediaclinic/releases/tag/v0.19.1). v0.19.2 is a source-only release; the next Windows build comes with a later version. Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
+**Download for Windows:** the newest Windows build is `MediaClinic-0.19.1-win64.zip` (about 19 MB), attached to the [v0.19.1 release](https://github.com/junqueirach/mediaclinic/releases/tag/v0.19.1). v0.19.2 and v0.19.3 are source-only releases; the next Windows build comes with v0.19.4. Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
 
 > **Windows SmartScreen:** the file is not code-signed, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. You can also run the app from source (see Quick start) and read every line of the code first.
 
@@ -40,6 +40,8 @@ Every check is a **health rule** you can switch on or off, or tune, in *Settings
 - **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to NFO and XML
 - **Backup History / Undo**: every backup records what it changed, and a whole run can be restored
 - **Fix image proportions / size**: for one movie or a batch, with a before/after preview and a backup first; an optional AI upscale is downloaded on request and checked by SHA-256
+- **Make titles the same** (NFO and XML) and rename an NFO to the name Kodi expects, with a preview for the whole library
+- **Sort builder** with up to three levels, presets, and the sort kept between sessions; **Not a duplicate** marks for movies wrongly flagged as duplicates
 - **Copy poster.jpg → folder.jpg** where the two differ, for one movie, a selection or the whole library
 - **Export Movie List** to CSV, text or Excel, with column presets (including *Identify*: IMDB and TMDB links plus outline) and the option to export only the filtered view
 - **Several libraries** in one table (*Libraries…* dialog and library filter); an offline drive keeps its cached rows
@@ -64,9 +66,9 @@ This project is the clearest example of working with an AI under a written contr
 
 - [`docs/CLAUDE_RULES.md`](docs/CLAUDE_RULES.md) defines module boundaries, the save chain, naming rules and a safety checklist that every AI-edited change must respect
 - `settings_schema.json` plus `tests/settings_test_harness.py` check the settings subsystem after every change
-- `tests/selftest_v0_19_2.py` builds a synthetic library (NFO, XML, generated JPEGs and a real 3-second MKV) and runs more than 900 end-to-end checks, from health rules to Auto Repair and the export dialogs (TMDb calls are simulated); it runs in CI under a virtual display (checks that need Windows, such as the registry, backslash paths and the AI upscaler, are skipped on Linux) and never touches your real settings
+- `tests/selftest_v0_19_3.py` builds a synthetic library (NFO, XML, generated JPEGs and a real 3-second MKV) and runs more than 1,000 end-to-end checks, from health rules to Auto Repair and the export dialogs (TMDb calls are simulated); it runs in CI under a virtual display (checks that need Windows, such as the registry, backslash paths and the AI upscaler, are skipped on Linux) and never touches your real settings
 - The code is split into model, controller, context, dialog, export, help and genre-data modules so the AI can edit one part without breaking another
-- About 25,800 lines of Python in eleven modules; 35 versions in total, the earlier ones in `archive/versions/`, starting from a 12 KB folder scanner
+- About 28,600 lines of Python in twelve modules; 36 versions in total, the earlier ones in `archive/versions/`, starting from a 12 KB folder scanner
 - Changes per version are in [CHANGELOG.md](CHANGELOG.md)
 
 ---

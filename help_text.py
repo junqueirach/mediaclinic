@@ -1,7 +1,7 @@
 # =============================================================================
 # help_text.py
 # Metadata & MediaClinic — Help tab contents (pure text)
-# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
+# Version: 0.19.3                                              ### MODIFIED v0.19.3 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # The Help dialog in the main script renders these strings.  Moved out of the
@@ -49,7 +49,8 @@ FIRST RUN
   1.  Click Browse… and choose your movie folder. Add more folders
       later with Libraries… (see the Scans & Libraries tab).
   2.  Click Full Scan. The table fills in phases: folders, images,
-      metadata, then video (with FFprobe when the box is ticked).
+      metadata, then video (with FFprobe when the FFprobe switch,
+      top right next to "FFmpeg ✓", is On).
   3.  Each row shows the health of one movie:
       green   no health rule triggered
       yellow  one or more warning rules triggered
@@ -65,8 +66,9 @@ QUICK-START CHECKLIST
   •  Settings → Language: the Lang OK? target (default PT).
   •  Settings → Health Rules: choose what counts as an error or a
      warning.
-  •  Sort by "Health (Errors 1st)", click the Errors counter, or
-     tick "Problems only" to triage.
+  •  Sort by Health (first in the Sort by list: Errors first, one
+     click → Warnings first), click the Errors counter, or tick
+     "Problems only" to triage.
 
 STATUS ICONS
   ⬤   OK — present and valid
@@ -103,8 +105,10 @@ FILES THE APP WRITES
 TAB_TABLE = _title("Table & Columns") + """
 COLUMNS
   Movie Name    NFO <title>, then XML <LocalTitle>, original
-                titles, folder name. Hover shows the folder and
-                its library. Double-click opens the folder.
+                titles, folder name. Hover shows the folder, its
+                library, the date added and every health reason
+                (errors ✕, warnings ⚠). Double-click opens the
+                folder.
   Year          NFO <year> or XML <ProductionYear>.
   Genres        NFO <genre> tags; when the NFO has none, the XML
                 <Genres> are shown (the tooltip names the source).
@@ -148,6 +152,39 @@ FILTER AND VIEW
   •  The library box next to Libraries… shows one library or all.
   •  Tools → Choose Columns… hides columns; the choice is kept.
 
+SORTING
+  The sort row: "Sort by [column] [direction]", then up to two
+  more levels with "+ then by" (✕ removes one). The direction is
+  said in words: A → Z, Newest first, High → low, Worst first,
+  Most first, Errors first … Click it to turn it round.
+  •  Every column can be used, plus Health and Number of issues
+     (the first two entries of the list) and Date added (NFO
+     <dateadded>, XML <DateAdded>, else the creation date of the
+     video file or the folder). Health: Errors first → Warnings
+     first → OK first.
+  •  Click a column heading to sort by it (again = reversed);
+     Shift+click adds it as the next level. ▲1 / ▼2 in the
+     heading show the levels. A double-click only auto-sizes.
+  •  Empty values (no rating, no poster, no date) always go last;
+     equal values stay in Movie Name order, A → Z.
+  •  ★ Presets: Problems first, Worst artwork first, Missing
+     metadata, Best rated, Biggest files, By library, and your
+     own ("Save current sort as preset…"). Ctrl+1 … Ctrl+9 apply
+     presets 1 to 9.
+  •  "↺ Update View" (after the last level) sorts and filters the
+     list again, so movies you just fixed move to their place.
+  •  The sort is kept after a scan and after a restart.
+
+DUPLICATES
+  Movies that share an IMDb ID, a TMDb ID, or a title + year are
+  "Possible duplicate" (same title + year with two different
+  IMDb IDs are not: a remake or a namesake). Right-click →
+  "✔ Not a duplicate…" (right below the movie name) remembers
+  your answer in not_duplicates.json, so the warning stays gone;
+  a new third copy is still found. "↺ Undo 'not a duplicate'"
+  takes it back; Tools → Manage 'Not a duplicate' marks… lists
+  every pair.
+
 IMAGE QUALITY TIERS
   Poster / Folder (2:3):  4K 2000×3000 · 1440p 1500×2250
                           1080p 1000×1500 · 720p 666×1000
@@ -173,7 +210,8 @@ SCANS
   Full Scan     re-reads every movie of the libraries in scope.
   Quick Scan    reads only movies that were added, removed or
                 changed since the last scan.
-  FFprobe box   when ticked, scans also read video resolution,
+  FFprobe       the switch top right ("FFmpeg ✓ | FFprobe On"):
+                when On, scans also read video resolution,
                 audio tracks and embedded subtitles. A scan without
                 FFprobe keeps the previous FFprobe data.
   Cancel / Esc  stops a running scan.
@@ -236,9 +274,11 @@ MOVIES THAT DISAPPEAR
   file; the next scan brings back movies that still exist.
 
 STARTUP
-  The last scan is loaded from last_results.json and the health
-  rules are applied again, so changed rules never leave old
-  reasons behind.
+  The last scan is loaded from last_results.json in the
+  background ("⏳ Loading last scan…") and the health rules are
+  applied again, so changed rules never leave old reasons behind.
+  A big library is put into the table 50 rows at a time, so the
+  window answers at once.
 """
 
 TAB_ACTIONS = _title("Actions & Tools") + """
@@ -314,9 +354,37 @@ VERIFY IMDB/TMDB IDS
 AUTO REPAIR
   Applies every safe fix in one go: IDs (exact title + year
   automatically, otherwise a chooser), ratings, genres, year,
-  titles, XML language. Artwork is never touched. A backup is
-  made first and a summary lists fixed, skipped and still
-  failing movies. "All Movies" offers a dry-run preview.
+  titles, XML language, IDs like "tt0133093/" and tags written
+  twice. Artwork is never touched. A backup is made first and a
+  summary lists fixed, skipped and still failing movies. "All
+  Movies" offers a dry-run preview.
+  •  Local title: when NFO <title> and XML <LocalTitle> differ,
+     the side that is the original title, or that does not match
+     the folder name, gets the other one. Otherwise the NFO title
+     is kept (Settings → Health Rules can make it "skip and
+     report"). Right-click → Metadata → "Make titles the same…"
+     lets you choose for one movie.
+  •  NFO named after the folder (Kodi does not read it): renamed
+     to "<video>.nfo", or "movie.nfo" for a DVD / Blu-ray folder,
+     a multi-part movie or several versions. Always the last step;
+     the video itself is never renamed.
+
+RENAME NFO FOR KODI
+  Kodi reads "<video file name>.nfo" or "movie.nfo", not an NFO
+  named after the folder. ⚠ Fix issues → "Rename NFO for Kodi…"
+  offers both names (the recommended one selected); Tools →
+  "Rename NFOs for Kodi — All Movies…" shows a preview first.
+  movie.nfo: Kodi reads it when the source is set to "Movies are
+  in separate folders that match the movie title"; Jellyfin and
+  Emby always read it. A name that already exists is never
+  overwritten. Backup History / Undo puts the old name back.
+
+PREVIEWS
+  Normalize Sources, Normalize Genres and Sync Ratings for all
+  movies, and Copy poster.jpg → folder.jpg for several, first
+  show what will change. Closing the preview writes nothing.
+  Sync Ratings fetches the ratings first and then shows current
+  → new for every movie.
 
 EXPORT MOVIE LIST
   Tools → Export Movie List… (Export… button, Ctrl+Shift+E).
@@ -402,7 +470,9 @@ AUDIO
 SUBTITLES
   Embedded tracks (FFprobe) and external files in the folder.
   External files are recognised by the language suffix, e.g.
-  Movie.pt.srt.
+  Movie.pt.srt. Right-click → Subtitles… also opens for a movie
+  without subtitles; "🌐 Open on OpenSubtitles.org" searches the
+  movie there.
   Hard-coded (burned-in) subtitles are part of the picture and
   cannot be detected. Mark them with Right-click → Hard-coded
   subtitles… (one movie or a selection): tick the language(s) or
@@ -421,11 +491,13 @@ BACKDROPS
   Extract Backdrop(s)    FFmpeg frames spread over the film
   Fetch Backdrops        pick TMDb / fanart.tv backdrops; replace
                          a file or save as a new backdropN.jpg
-  Replace All Backdrops  shows your count vs the online count
-                         first (asks "Replace anyway" when you
-                         would end up with fewer), then backup,
-                         delete, download all from the source
-                         you chose
+  Replace All Backdrops  choose the source and how many to
+                         download (it starts at the number you
+                         have now); the highest resolution comes
+                         first and a failed download is replaced
+                         by the next image. "Replace anyway" when
+                         you would end up with fewer; backup
+                         first.
   Health rules flag too few backdrops and very small ones.
 
 FRAMES FROM THE MOVIE
@@ -498,11 +570,23 @@ FIXING IMAGE PROPORTIONS AND SIZE
      detail and smooth text and faces.
   The file found is overwritten in its own format (JPEG or PNG);
   a .webp / .gif / .bmp becomes the .jpg of the same name.
-  folder.jpg follows the poster when they were identical. Every
-  file is backed up first (Backup History / Undo).
+  •  "Also copy the result to folder.jpg" (poster) or "… to
+     poster.jpg" (folder image), ticked by default: the fixed
+     image is written as both files, so they stay the same
+     picture. Untick it to change only the chosen file. Every
+     file is backed up first (Backup History / Undo restores both).
   Several movies, or Tools → Fix Image Proportions / Size — All
   Movies: a preview lists every image and its fix; only ✓ sizes
-  are used, the others are listed as skipped.
+  are used, the others are listed as skipped. A folder.jpg that
+  needs a fix too gets the fixed poster ("+ copied to folder.jpg").
+  •  While Apply runs you can minimise the window and keep
+     working; when it ends the status bar says so, the taskbar
+     button flashes and the result pop-up appears.
+     "■ Stop" stops it (nothing changes).
+  •  AI speed "gentle" (default) uses small tiles and the lowest
+     priority, so the PC stays usable; "fast" uses everything. An
+     upscaler that stops responding is stopped after 30 s and the
+     plain resize is used.
 
 KODI NAMING
   MediaClinic reads every name Kodi uses and shows the file Kodi
@@ -556,10 +640,8 @@ PROPORTIONS
   optional). Wrong proportions are warnings.
 
 SORTING
-  Movie name (accent-insensitive), year, genre, rating, votes,
-  sources, poster / folder / fanart quality, backdrops, language,
-  video quality and size, Lang OK?, health (errors, warnings or
-  OK first).
+  See Table & Columns → Sorting: up to three levels, every
+  column, presets and heading clicks.
 """
 
 TAB_SETTINGS = _title("Settings") + """
@@ -621,10 +703,18 @@ HEALTH RULES
   "NFO has an unescaped '&'": Kodi reads such an NFO, but
   Jellyfin may ignore the whole file. Auto Repair writes '&amp;'
   (a backup is made first).
+  Content checks of the NFO / XML: IDs that are not valid, a
+  year out of range, a runtime / votes that is not a number or a
+  rating above 10, a tag written twice, an empty <title> / <plot>
+  (off by default) and an unexpected root element.
+  "Title mismatch" names both local titles; "↳ When Repair All
+  cannot tell the right local title" chooses what Auto Repair
+  does then.
 
 BACKUP
   Maximum backup folder size (oldest deleted first, 0 =
-  unlimited) and a button to delete all backups.
+  unlimited), "Delete the oldest backups automatically" (on by
+  default) and a button to delete all backups.
 
 SAVE & APPLY
   Writes settings.json. Language, Genres or NFO/XML tag changes
@@ -665,6 +755,8 @@ KEYBOARD
   Ctrl+Shift+R        Update selected movie (with FFprobe)
   Ctrl+I              refresh all icons
   Ctrl+Shift+E        Export Movie List…
+  Ctrl+1 … Ctrl+9     sort presets 1 to 9
+  Shift+click heading add a sort level
 
 SELECTION
   A–Z, 0–9            jump to the next movie with that letter

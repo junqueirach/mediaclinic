@@ -2,6 +2,33 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.19.3 — 2026-10-23
+
+Source release (no Windows build with this version; the next build is v0.19.4). Sorting, "not a duplicate" marks, a preview before bulk writes, content checks for NFO/XML, a faster start, and fixes after the first round of tests. The detailed list is in the `CHANGELOG` block at the top of `mediaclinic.py`.
+
+### Added
+- **Sort builder** replaces the 37-entry sort list: up to three levels ("Sort by … then by …"), every column plus Health, Number of issues and Date added, a click on a column heading sorts by it (Shift+click adds a level), six built-in presets plus your own (Ctrl+1…9). The sort is kept after scans and restarts. New module `sort_engine.py`.
+- **Not a duplicate…** in the right-click menu for a movie flagged as a possible duplicate; the pairs are remembered, listed in the Duplicate Movies Report and managed under Tools. Same title and year with different IMDb IDs is no longer flagged.
+- **Make titles the same…**: the title-mismatch warning names both local titles, and one action (right-click, ⚠ Fix issues, Auto Repair) makes the NFO and XML titles equal.
+- **Replace All Backdrops**: choose how many backdrops to download; exactly that many are written, highest resolution first, and a failed download is replaced by the next image.
+- **Fix image runs in the background**: its own taskbar button, can be minimised, Stop, one fix at a time. The gentle AI upscale uses small tiles at idle priority, and a hung upscaler is stopped. A watchdog writes "UI busy" with every thread's stack to `app.log` when the window stalls for more than 5 seconds.
+- **Preview before writing** for Normalize Sources — All, Copy poster → folder (several movies), Sync Ratings — All and the local part of Normalize Genres — All. Closing the preview writes nothing.
+- **Content checks of NFO/XML** (Health Rules): IMDb/TMDb ID format, year range, numeric fields, duplicate single tags, empty required tags (off by default), unexpected root element. Auto Repair trims IDs like `tt0133093/` and removes exact duplicate tags.
+- **NFO named after the folder** can be fixed: the NFO is renamed to `<video>.nfo` or `movie.nfo` (right-click, Tools → Rename NFOs for Kodi — All Movies with a preview, Auto Repair). Backup first, never over an existing file, Undo restores the old name.
+- Subtitles window: **Open on OpenSubtitles.org**; the Subtitles entry also opens for a movie without subtitles.
+- **↺ Update View** (sorts and filters the list again) is back at the end of the sort levels.
+
+### Fixed
+- A written NFO/XML kept its text but an LF file turned into CRLF on Windows; line endings are now kept.
+- Faster start: the last scan is loaded and checked in a worker, and a table of more than 2,000 rows is filled in small steps, so the window paints and answers at once.
+- Written NFO/XML/image files are dropped from the read caches at once (same-size edits on a FAT32 / NAS share are seen by the next refresh).
+- "Delete the oldest backups automatically" is honoured; the backup size counts sub-folders.
+- Fix image can also copy the result to `folder.jpg` / `poster.jpg`; a fix that ends while its window is minimised shows its pop-up.
+- ⚠ Fix issues no longer lists "Video quality below minimum" as an image problem.
+
+### Changed
+- Code only, no change in behaviour: a shared batch helper for the bulk tools, one tooltip method per column, and the health engine as a list of rule functions.
+
 ## v0.19.2 — 2026-10-22
 
 Source release (no Windows build with this version). A hardening release: safer writes, crash logging, a new icon, folders that are not movies, image fixing, naming rules for all four media servers, and update checks. The detailed list is in the `CHANGELOG` block at the top of `mediaclinic.py`.

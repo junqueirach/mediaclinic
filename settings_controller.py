@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_controller.py
 # Metadata & MediaClinic — Settings Business Logic
-# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
+# Version: 0.19.3                                              ### MODIFIED v0.19.3 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -72,6 +72,8 @@ CONFIG_PATH        = os.path.join(get_config_dir(), "settings.json")
 RESULTS_CACHE_PATH = os.path.join(get_config_dir(), "last_results.json")   ### NEW v0.18.3 ###
 FFPROBE_CACHE_PATH = os.path.join(get_config_dir(), "ffprobe_cache.json")  ### NEW v0.19.1 I5 ###
 IGNORED_CACHE_PATH = os.path.join(get_config_dir(), "last_ignored.json")  ### NEW v0.19.2 B53 ###
+NOT_DUP_PATH = os.path.join(get_config_dir(), "not_duplicates.json")       ### NEW v0.19.3 B64 ###
+_NOT_DUP_LOCK = threading.Lock()                                          ### NEW v0.19.3 B64 ###
 
 
 def load_ffprobe_cache():                                       ### NEW v0.19.1 I5 ###
@@ -326,6 +328,38 @@ def load_results_cache():
     return []
 
 
+def load_results_cache_stepwise():                                ### NEW v0.19.3 I4 ###
+    """load_results_cache, but decoded one row at a time: each step is short,
+    so another thread (the Tk window) gets the GIL in between.  Worker threads
+    only.  [] when absent / unreadable."""
+    try:
+        if not os.path.isfile(RESULTS_CACHE_PATH):
+            return []
+        with open(RESULTS_CACHE_PATH, "r", encoding="utf-8") as f:
+            text = f.read()
+        dec = json.JSONDecoder()
+        i, n = 0, len(text)
+        while i < n and text[i].isspace():
+            i += 1
+        if i >= n or text[i] != "[":
+            return []
+        i += 1
+        rows = []
+        while True:
+            while i < n and text[i] in " \t\r\n,":
+                i += 1
+            if i >= n:
+                return []                                       # truncated file
+            if text[i] == "]":
+                return rows
+            obj, i = dec.raw_decode(text, i)
+            rows.append(obj)
+            if len(rows) % 200 == 0:
+                time.sleep(0)                                   # let the Tk thread run
+    except Exception:
+        return []
+
+
 def save_results_cache(results):
     """Persist the scan-result list.  Returns True on success."""  ### NEW v0.18.3 ###
     try:
@@ -362,6 +396,45 @@ def save_ignored(data):                                          ### NEW v0.19.2
         return True
     except Exception:
         return False
+
+
+def load_not_duplicates(logger=None):                             ### NEW v0.19.3 B64 ###
+    """The user's "not a duplicate" pairs ([] when absent).  A file that cannot
+    be read is kept as not_duplicates.json.corrupt-<date> and the list starts
+    empty (logged), like settings.json (B36)."""
+    with _NOT_DUP_LOCK:
+        if not os.path.isfile(NOT_DUP_PATH):
+            return []
+        try:
+            with open(NOT_DUP_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            pairs = data.get("pairs") if isinstance(data, dict) else None
+            if not isinstance(pairs, list):
+                raise ValueError("no 'pairs' list")
+            return [p for p in pairs if isinstance(p, dict) and p.get("a") and p.get("b")]
+        except Exception as e:
+            dst = f"{NOT_DUP_PATH}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+            try:
+                shutil.copy2(NOT_DUP_PATH, dst)
+            except Exception:
+                pass
+            if logger:
+                logger.warning(f"not_duplicates.json could not be read ({e}) — kept as {os.path.basename(dst)}; "
+                               "the 'not a duplicate' marks start empty")
+            return []
+
+
+def save_not_duplicates(pairs):                                  ### NEW v0.19.3 B64 ###
+    """Write the pairs atomically (temp file + os.replace) under a lock."""
+    with _NOT_DUP_LOCK:
+        try:
+            tmp = NOT_DUP_PATH + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"version": 1, "pairs": list(pairs)}, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, NOT_DUP_PATH)
+            return True
+        except Exception:
+            return False
 
 
 def migrate_results_from_settings(settings):
@@ -819,12 +892,40 @@ def note_written(paths):                                        ### NEW v0.19.1 
                     pass
 
 
+def note_renamed(original, new_path):                         ### NEW v0.19.3 B73 ###
+    """After a rename (e.g. "<folder>.nfo" → "<video>.nfo"): mark the backed-up
+    *original* of this session's runs as renamed, so Undo puts the old name
+    back and removes the new one.  True when an entry was found."""
+    orig = os.path.normcase(os.path.abspath(original))
+    found = False
+    rid = getattr(_BK_CTX, "run_id", None)                     # only this run's backup, not older runs
+    with _MF_LOCK:
+        for folder, m in list(_OPEN_MANIFESTS.items()):
+            if rid and m.get("run_id") not in (rid, None):
+                continue
+            for f in m["files"]:
+                if os.path.normcase(f["original"]) == orig:
+                    f["renamed_to"] = os.path.abspath(new_path)
+                    try:
+                        st = os.stat(new_path)
+                        f["after_mtime"], f["after_size"] = st.st_mtime, st.st_size
+                    except OSError:
+                        pass
+                    try:
+                        _write_manifest(folder, m)
+                    except Exception:
+                        pass
+                    found = True
+    return found
+
+
 def file_changed_since_run(entry):                              ### NEW v0.19.1 I1 ###
-    """True / False / None (unknown: the run's result was never recorded)."""
+    """True / False / None (unknown: the run's result was never recorded).
+    ### v0.19.3 B73 ### a renamed file is checked under its new name."""
     if "after_mtime" not in entry:
         return None
     try:
-        st = os.stat(entry["original"])
+        st = os.stat(entry.get("renamed_to") or entry["original"])
     except OSError:
         return True
     return abs(st.st_mtime - entry["after_mtime"]) > 0.001 or st.st_size != entry.get("after_size")
@@ -876,6 +977,9 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
         for f in todo:
             if os.path.isfile(f["original"]):
                 make_batch_backup(backup_root, "before_undo", ref, f["original"], logger=logger)
+            _ren = f.get("renamed_to")                         ### NEW v0.19.3 B73 ###
+            if _ren and os.path.isfile(_ren) and os.path.normcase(_ren) != os.path.normcase(f["original"]):
+                make_batch_backup(backup_root, "before_undo", ref, _ren, logger=logger)
     restored, errors = [], []
     for f in todo:
         src = os.path.join(folder, f["backup"])
@@ -886,6 +990,9 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
             shutil.copyfile(src, tmp)           # copyfile: the restored file gets a new mtime
             os.replace(tmp, dst)
             restored.append(dst)
+            _ren = f.get("renamed_to")                         ### NEW v0.19.3 B73 — the new name goes ###
+            if _ren and os.path.normcase(_ren) != os.path.normcase(dst) and os.path.isfile(_ren):
+                os.remove(_ren)
         except Exception as e:
             errors.append(f"{os.path.basename(dst)}: {e}")
             try:
@@ -1011,6 +1118,8 @@ def clean_backup_folder_if_needed(backup_root, settings, active_folder=None,
     scan/backup operations (already off the UI thread in those contexts).
     """
     try:
+        if not settings.get("backup_cleanup_enabled", True):       ### NEW v0.19.3 I12 — the switch is honoured ###
+            return
         max_mb = settings.get("max_backup_size_mb", 500)
         if not max_mb or max_mb <= 0:
             return
@@ -1018,17 +1127,14 @@ def clean_backup_folder_if_needed(backup_root, settings, active_folder=None,
             return
         max_bytes = max_mb * 1024 * 1024
 
-        def _folder_size(path):
+        def _folder_size(path):                                 ### MODIFIED v0.19.3 I12 — sub-folders too ###
             total = 0
-            try:
-                for e in os.scandir(path):
-                    if e.is_file():
-                        try:
-                            total += e.stat().st_size
-                        except Exception:
-                            pass
-            except Exception:
-                pass
+            for dp, _dn, fn in os.walk(path):
+                for n in fn:
+                    try:
+                        total += os.path.getsize(os.path.join(dp, n))
+                    except Exception:
+                        pass
             return total
 
         backup_dirs = []

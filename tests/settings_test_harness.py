@@ -362,7 +362,9 @@ def run_all():
                   "genre_only_in_xml", "genre_only_in_nfo", "genre_nfo_wrong_tags",   # v0.19.1
                   "folder_optional_with_kodi_poster", "nfo_name_not_kodi",            # v0.19.1 B23
                   "nfo_unescaped_amp",                                                # v0.19.2 B33
-                  "multiple_nfo_files", "poster_missing_with_folder")                 # v0.19.2 F5
+                  "multiple_nfo_files", "poster_missing_with_folder",                 # v0.19.2 F5
+                  "id_format_invalid", "year_out_of_range", "numeric_field_invalid",  # v0.19.3 I8
+                  "duplicate_single_tag", "empty_required_tag", "unexpected_root")
     try:
         dlg14 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
         missing = [k for k in _NEW_RULES if k not in dlg14._hr_vars]
@@ -393,6 +395,44 @@ def run_all():
                f"present={present} defaults_ok={defaults_ok} saved={saved} changed={ch}")
     except Exception as e:
         _check("T16 severity combos", False, traceback.format_exc())
+
+    # ── Test 25: B60 — Repair All's choice when the local title is unclear ───── ### NEW v0.19.3 B60 ###
+    try:
+        dlg25 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
+        hv25 = dlg25._hr_str_vars
+        present25 = "title_sync_default" in hv25 and hv25["title_sync_default"].get() == "nfo"
+        hv25["title_sync_default"].set("skip")
+        dlg25._save_close(); root.update()
+        _check("T25 'When Repair All cannot tell the right local title' exists (default: keep the NFO title) and saves",
+               present25 and fake_settings["health_rules"].get("title_sync_default") == "skip",
+               f"present={present25} saved={fake_settings['health_rules'].get('title_sync_default')}")
+    except Exception as e:
+        _check("T25 title_sync_default", False, traceback.format_exc())
+
+    # ── Test 26: B63 — sort_spec / sort_presets survive Save & Apply ─────────── ### NEW v0.19.3 B63 ###
+    try:
+        fake_settings["sort_spec"] = [{"key": "rating", "dir": "high"}, {"key": "year", "dir": "newest"}]
+        fake_settings["sort_presets"] = [{"name": "Mine", "levels": [{"key": "library", "dir": "asc"}]}]
+        dlg26 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx))
+        dlg26._save_close(); root.update()
+        _check("T26 sort_spec and sort_presets are kept by Save & Apply (no widget, not reset)",
+               fake_settings.get("sort_spec") == [{"key": "rating", "dir": "high"}, {"key": "year", "dir": "newest"}]
+               and fake_settings.get("sort_presets") == [{"name": "Mine", "levels": [{"key": "library", "dir": "asc"}]}],
+               f"{fake_settings.get('sort_spec')} {fake_settings.get('sort_presets')}")
+    except Exception as e:
+        _check("T26 sort settings", False, traceback.format_exc())
+
+    # ── Test 27: I12 — "Delete the oldest backups automatically" ─────────────── ### NEW v0.19.3 I12 ###
+    try:
+        dlg27 = _in_loop(lambda: SettingsDialog(root, tab=11, ctx=ctx))
+        ok27 = hasattr(dlg27, "_backup_cleanup_var") and dlg27._backup_cleanup_var.get() is True
+        dlg27._backup_cleanup_var.set(False)
+        dlg27._save_close(); root.update()
+        _check("T27 Backup tab: 'Delete the oldest backups automatically' (default ON) exists and saves",
+               ok27 and fake_settings.get("backup_cleanup_enabled") is False, f"ok={ok27} saved={fake_settings.get('backup_cleanup_enabled')}")
+        fake_settings["backup_cleanup_enabled"] = True
+    except Exception as e:
+        _check("T27 backup_cleanup_enabled", False, traceback.format_exc())
 
     # ── Test 15: the window-memory hook is called by the dialog ──────────────
     _hook_calls = []

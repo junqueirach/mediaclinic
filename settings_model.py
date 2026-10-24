@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_model.py
 # Metadata & MediaClinic — Pure Data Model
-# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
+# Version: 0.19.3                                              ### MODIFIED v0.19.3 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -36,6 +36,8 @@ DEFAULT_SETTINGS = {
     "last_folder":        "",
     "last_results":       [],
     "sort_option":        "Movie Name (A-Z)",
+    "sort_spec":          [{"key": "movie_name", "dir": "asc"}],   ### NEW v0.19.3 B63 — up to 3 sort levels ###
+    "sort_presets":       [],                                       ### NEW v0.19.3 B63 — the user's sort presets ###
     "extract_timeout":    60,
     "use_ffprobe":        True,        # ffprobe checkbox
     "lang_ok_code":       "PT",        # language for "OK?" column
@@ -182,6 +184,13 @@ DEFAULT_SETTINGS = {
         "required_subtitle_language_code": "POR",
         "missing_movie_title":             True,
         "title_mismatch":                  True,
+        "title_sync_default":              "nfo",     ### NEW v0.19.3 B60 — Repair All, unclear title: "nfo" keeps the NFO title, "skip" reports ###
+        "id_format_invalid":               True,      ### NEW v0.19.3 I8 — IMDb tt + 7–9 digits, TMDb digits ###
+        "year_out_of_range":               True,      ### NEW v0.19.3 I8 — 1888 … next year + 1 ###
+        "numeric_field_invalid":           True,      ### NEW v0.19.3 I8 — runtime / votes whole numbers, rating 0–10 ###
+        "duplicate_single_tag":            True,      ### NEW v0.19.3 I8 — two <title>, <year> … ###
+        "empty_required_tag":              False,     ### NEW v0.19.3 I8 — empty <title> / <plot> / <Overview> (default OFF) ###
+        "unexpected_root":                 True,      ### NEW v0.19.3 I8 — NFO not <movie>, XML not <Item>/<Title> ###
         "folder_name_mismatch":            False,
     },
 }

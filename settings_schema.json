@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mediaclinic-settings-v0.19.2",
+  "$id": "mediaclinic-settings-v0.19.3",
   "title": "MediaClinic Settings",
   "description": "Schema for settings.json written by mediaclinic/settings_controller.py",
   "type": "object",
@@ -18,6 +18,12 @@
       "default": "Movie Name (A-Z)",
       "examples": ["Movie Name (A-Z)", "Movie Name (Z-A)", "Year (Newest)", "Year (Oldest)"]
     },
+    "sort_spec":             { "type": "array", "maxItems": 3, "default": [{"key": "movie_name", "dir": "asc"}],
+                               "items": { "type": "object", "required": ["key", "dir"] },
+                               "description": "v0.19.3 B63: sort levels (key + direction), level 1 first; sort_option is still written for older versions" },
+    "sort_presets":          { "type": "array", "maxItems": 20, "default": [],
+                               "items": { "type": "object", "required": ["name", "levels"] },
+                               "description": "v0.19.3 B63: the user's own sort presets" },
     "extract_timeout":       { "type": "integer", "minimum": 5,  "maximum": 600,  "default": 60 },
     "use_ffprobe":           { "type": "boolean", "default": true },
     "lang_ok_code":          { "type": "string",  "minLength": 2, "maxLength": 2, "default": "PT",
@@ -255,6 +261,13 @@
         "required_subtitle_language_code": { "type": "string",  "default": "POR" },
         "missing_movie_title":             { "type": "boolean", "default": true },
         "title_mismatch":                  { "type": "boolean", "default": true },
+        "title_sync_default":              { "type": "string", "enum": ["nfo", "skip"], "default": "nfo", "description": "v0.19.3 B60: Repair All, when it is unclear which local title is right: keep the NFO title, or skip and report" },
+        "id_format_invalid":              { "type": "boolean", "default": true, "description": "v0.19.3 I8: an IMDb ID that is not tt + 7-9 digits, or a TMDb ID that is not a number" },
+        "year_out_of_range":              { "type": "boolean", "default": true, "description": "v0.19.3 I8: a year before 1888 or after next year + 1" },
+        "numeric_field_invalid":          { "type": "boolean", "default": true, "description": "v0.19.3 I8: runtime / votes not a whole number, rating not on a 0-10 scale" },
+        "duplicate_single_tag":           { "type": "boolean", "default": true, "description": "v0.19.3 I8: a tag that should appear once appears more often" },
+        "empty_required_tag":             { "type": "boolean", "default": false, "description": "v0.19.3 I8: an empty <title> / <plot> / <Overview> (default OFF)" },
+        "unexpected_root":                { "type": "boolean", "default": true, "description": "v0.19.3 I8: NFO root not <movie>, XML root not <Item> or <Title>" },
         "folder_name_mismatch":            { "type": "boolean", "default": false }
       }
     }

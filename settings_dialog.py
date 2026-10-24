@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_dialog.py
 # Metadata & MediaClinic — Settings UI Module
-# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
+# Version: 0.19.3                                              ### MODIFIED v0.19.3 ###
 # v0.18.4 — Tools tab: Parallel Scanning section (scan_workers / ffprobe_workers);
 #            Health Rules: duplicate_movie rule.
 #            Fix: Save/Cancel bar packed at the bottom FIRST so it can never be
@@ -1864,6 +1864,25 @@ class SettingsDialog(tk.Toplevel):
                          state="readonly", width=9, font=("Helvetica", 10)).pack(side="left", padx=(6, 0))
             return sv
 
+        # ── Helper: one value from a short list, shown by label ── ### NEW v0.19.3 B60 ###
+        def _choice_row(str_key, label_text, options, default_str):
+            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            keys = [k for k, _l in options]
+            s_val = hr_current.get(str_key, hr_defaults.get(str_key, default_str))
+            if s_val not in keys:
+                s_val = default_str
+            sv = tk.StringVar(value=s_val)                 # the stored value ("nfo" …)
+            self._hr_str_vars[str_key] = sv
+            shown = tk.StringVar(value=dict(options)[s_val])
+            tk.Label(row, text=label_text, font=("Helvetica", 10), bg="#1e1e2e",
+                     fg="#cdd6f4").pack(side="left")
+            cb = ttk.Combobox(row, textvariable=shown, values=[l for _k, l in options],
+                              state="readonly", width=18, font=("Helvetica", 10))
+            cb.pack(side="left", padx=(6, 0))
+            cb.bind("<<ComboboxSelected>>", lambda e: sv.set(keys[[l for _k, l in options].index(shown.get())]))
+            sv.trace_add("write", lambda *_: shown.set(dict(options).get(sv.get(), shown.get())))
+            return sv
+
         # ── Intro and reset button ─────────────────────────────────────────────
         tk.Label(f, text="Health Rules control which conditions affect each movie's\n"
                          "health status. Rules that are OFF are ignored and treated as OK.",
@@ -1935,6 +1954,13 @@ class SettingsDialog(tk.Toplevel):
                    "NFO has an unescaped '&' (Jellyfin may ignore the NFO; Auto Repair fixes it)")
         _check_row("multiple_nfo_files",                                      # NEW v0.19.2 F5
                    "More than one NFO the servers read (movie.nfo + <video>.nfo …)")
+        # ### NEW v0.19.3 I8 ### content of the NFO / XML (warnings)
+        _check_row("id_format_invalid",      "IMDb / TMDb ID not valid (tt + 7–9 digits / digits; Auto Repair trims 'tt0133093/')")
+        _check_row("year_out_of_range",      "Year out of range (before 1888 or after next year)")
+        _check_row("numeric_field_invalid",  "Runtime / votes not a whole number, rating not 0–10")
+        _check_row("duplicate_single_tag",   "A tag that belongs once appears twice (<title>, <year> …)")
+        _check_row("empty_required_tag",     "Empty <title> / <plot> / <Overview>  (default: OFF)")
+        _check_row("unexpected_root",        "NFO root is not <movie> / XML root is not <Item> or <Title>")
         _check_row("poster_proportion",      "Poster has wrong proportions")
         _check_row("fanart_proportion",      "Fanart has wrong proportions")
         _check_row("folder_proportion",      "Folder image has wrong proportions")
@@ -1970,6 +1996,9 @@ class SettingsDialog(tk.Toplevel):
                         "Required subtitle language missing:", SUBTITLE_LANGUAGES, "POR")
         _check_row("missing_movie_title",    "Missing movie title in NFO/XML")
         _check_row("title_mismatch",         "Title mismatch between NFO and XML")
+        # ### NEW v0.19.3 B60 ### Repair All, when it cannot tell which local title is right
+        _choice_row("title_sync_default", "  ↳ When Repair All cannot tell the right local title:",
+                    (("nfo", "keep the NFO title"), ("skip", "skip and report")), "nfo")
         _check_row("folder_name_mismatch",   "Folder name doesn't match movie title  (default: OFF)")
 
         # bottom padding
@@ -2007,6 +2036,12 @@ class SettingsDialog(tk.Toplevel):
                    buttonbackground="#45475a", relief="flat").pack(side="left")
         tk.Label(r1, text=" MB   (0 = disabled)", font=("Helvetica", 9),
                  bg="#1e1e2e", fg="#6c7086").pack(side="left", padx=(6, 0))
+        # ### NEW v0.19.3 I12 ### the switch existed in settings.json but had no widget and no effect
+        self._backup_cleanup_var = tk.BooleanVar(value=bool(_s.get("backup_cleanup_enabled", True)))
+        tk.Checkbutton(f, text="Delete the oldest backups automatically when the folder is larger than this",
+                       variable=self._backup_cleanup_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=(4, 0))
 
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(14, 8))
 
@@ -2387,6 +2422,8 @@ class SettingsDialog(tk.Toplevel):
                 _s["scan_ignored_report"] = bool(self._scan_ignored_report_var.get())
             if hasattr(self, "_max_backup_mb_var"):
                 _s["max_backup_size_mb"] = max(0, self._num(self._max_backup_mb_var, 500))
+            if hasattr(self, "_backup_cleanup_var"):                        ### NEW v0.19.3 I12 ###
+                _s["backup_cleanup_enabled"] = bool(self._backup_cleanup_var.get())
             if hasattr(self, "_rating_apply_all_var"):                      ### NEW v0.15.0 ###
                 _s["rating_apply_all_movies"] = self._rating_apply_all_var.get()  ### NEW v0.15.0 ###
             if hasattr(self, "_rating_use_more_votes_var"):                 ### NEW v0.15.0 ###
