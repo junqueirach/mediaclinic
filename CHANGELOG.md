@@ -2,6 +2,36 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.19.2 — 2026-10-22
+
+Source release (no Windows build with this version). A hardening release: safer writes, crash logging, a new icon, folders that are not movies, image fixing, naming rules for all four media servers, and update checks. The detailed list is in the `CHANGELOG` block at the top of `mediaclinic.py`.
+
+### Added
+- **Rounded app icon** with transparent corners; the main window, every dialog and the taskbar button show it. `tools/make_icon.py` builds the `.ico` files (build-only).
+- **Unhandled errors are logged**: every unhandled exception (Tk callback, main thread, worker thread) is written to `logs/app.log`, also in the windowed exe. Help → Open logs folder.
+- **Folders that are not movies** (TV series, folders holding other movie folders, several loose videos, no media, system folders) get no row. An "Ignored folders" window after a scan lists them, with filter, sort and export (`folder_classifier.py`).
+- **Naming intelligence** (`naming_catalog.py`): every artwork and NFO name that Kodi, Jellyfin, Emby and Plex read is recognised; trailers, samples, extras, stacks (cd1 / part2) and versions are no longer "Multiple video files"; subtitle flags and the `Subs` folder are understood; new rules for several NFO files and for a poster that exists only as `folder.jpg`.
+- **Fix image proportions / size** (`image_fix.py`): right-click for one movie (before/after preview, nearest-tier size) or a batch under Tools; backup first. An optional AI upscale downloads a pinned Real-ESRGAN release (size and SHA-256 checked) on request; it is tested once and stays off without a usable GPU.
+- **Check for updates** (Help menu and About): asks GitHub for the latest release, optional daily check, "Skip this version". The Windows build can download and install an update (zip checked against its `.sha256`).
+- **Right-click menu in two levels**: the movie and its issues, "⚠ Fix issues", Repeat, and the actions grouped in submenus. Shift+F10 or the Menu key open it.
+- **Search Sources**: "Write empty ID tags" for movies TMDb does not find. `MEDIACLINIC_BACKUP_DIR` moves the backup folder.
+- A dark title bar on every window (a setting) and a dark menu row; a second start brings the open window forward; FFmpeg and FFprobe are also found through the live `PATH` and the usual install folders.
+- New health rule for an unescaped `&` in an NFO (warning, on).
+
+### Fixed
+- `settings.json` is saved atomically; an unreadable one is kept as `settings.json.corrupt-<date>` and you are told, instead of silently falling back to the defaults.
+- An NFO/XML that is not UTF-8 is never rewritten (it used to get replacement characters instead of accents).
+- Sync Ratings no longer gives every Kodi `<ratings>` block the chosen source's votes.
+- Titles, languages and genres with `&`, `<` or `>` are escaped when written.
+- When the backup copy fails, the movie is not changed (before, every tool wrote or deleted anyway).
+- Frame extraction can no longer hang or slow the PC down: one FFmpeg runner at background priority, time limits per frame and per run, and Stop kills FFmpeg at once.
+- Fetch Backdrops no longer jumps to the top when an image is clicked; the mouse wheel works in the Fetch dialogs and Settings.
+- Smaller fixes: a row cached by an older version no longer raises an error, Clear All also empties the saved results, Esc closes view-only windows, Settings asks before discarding changes, and the library counters name the library they show.
+
+### Changed
+- "Missing folder image" and "Poster and folder image are different" are off by default (no media server needs them); a one-time migration switches them off for existing users and says so.
+- "Delete extrafanart Subfolders — All Movies…" is no longer called "legacy"; the confirmation says which servers use these images, and Cancel is the default.
+
 ## v0.19.1 — 2026-10-15
 
 Windows build again (`MediaClinic-0.19.1-win64.zip`), a second image source, frames from the video, Undo for backups, Kodi file names, and many fixes. The detailed list is in the `CHANGELOG` block at the top of `mediaclinic.py`.

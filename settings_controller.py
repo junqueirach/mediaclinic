@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_controller.py
 # Metadata & MediaClinic — Settings Business Logic
-# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
+# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -32,6 +32,7 @@
 
 import copy                                                      ### NEW v0.18.3 ###
 import json
+import logging                                                   ### NEW v0.19.2 B36 ###
 import os
 import re
 import shutil
@@ -41,6 +42,8 @@ import time
 import webbrowser
 
 from settings_model import DEFAULT_SETTINGS
+
+_log = logging.getLogger("MediaClinic")                          ### NEW v0.19.2 B36 ###
 
 
 # ── Persistent storage ────────────────────────────────────────────────────────
@@ -68,6 +71,7 @@ def get_config_dir():
 CONFIG_PATH        = os.path.join(get_config_dir(), "settings.json")
 RESULTS_CACHE_PATH = os.path.join(get_config_dir(), "last_results.json")   ### NEW v0.18.3 ###
 FFPROBE_CACHE_PATH = os.path.join(get_config_dir(), "ffprobe_cache.json")  ### NEW v0.19.1 I5 ###
+IGNORED_CACHE_PATH = os.path.join(get_config_dir(), "last_ignored.json")  ### NEW v0.19.2 B53 ###
 
 
 def load_ffprobe_cache():                                       ### NEW v0.19.1 I5 ###
@@ -133,6 +137,25 @@ _LEGACY_QUALITY_MAP = {                                          ### MOVED v0.18
 }
 
 
+### NEW v0.19.2 B36 — a settings.json that exists but cannot be read is kept ###
+# load_settings() copies it to settings.json.corrupt-YYYYMMDD-HHMMSS before the
+# defaults are used, and records the copy here; the App tells the user once.
+SETTINGS_LOAD_PROBLEM = {"corrupt_copy": None, "error": ""}
+
+
+def _keep_corrupt_settings(err):                                ### NEW v0.19.2 B36 ###
+    """Copy the unreadable settings.json aside (never overwritten by the next save)."""
+    dst = f"{CONFIG_PATH}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+    try:
+        shutil.copy2(CONFIG_PATH, dst)
+    except Exception as e:
+        _log.error(f"settings.json could not be read ({err}) and could not be copied aside: {e}")
+        dst = None
+    else:
+        _log.error(f"settings.json could not be read ({err}); kept as {dst}; defaults in use")
+    SETTINGS_LOAD_PROBLEM.update(corrupt_copy=dst, error=str(err))
+
+
 def load_settings():
     """
     Load settings from CONFIG_PATH, deep-merge with DEFAULT_SETTINGS,
@@ -140,13 +163,20 @@ def load_settings():
     on any read or parse error.
     ### MODIFIED v0.18.3 — deep copy of defaults, health_rules deep-merge,
     legacy quality-label migration (all moved here from the main script) ###
+    ### MODIFIED v0.19.2 B36 — an existing file that does not parse is copied
+    aside first (SETTINGS_LOAD_PROBLEM) instead of being silently replaced ###
     """
     merged = copy.deepcopy(DEFAULT_SETTINGS)
     try:
         if os.path.isfile(CONFIG_PATH):
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, dict):
+            try:
+                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if not isinstance(data, dict):
+                    raise ValueError(f"top level is {type(data).__name__}, not an object")
+            except Exception as e:                               ### NEW v0.19.2 B36 ###
+                _keep_corrupt_settings(e)
+                sync_quality_mirrors(merged)
                 return merged
             for sub in ("improve_checks", "health_rules"):
                 if isinstance(data.get(sub), dict):
@@ -173,10 +203,54 @@ def load_settings():
                          "fanart_quality_level"):
                 if merged.get(qkey) in _LEGACY_QUALITY_MAP:
                     merged[qkey] = _LEGACY_QUALITY_MAP[merged[qkey]]
+            _run_settings_migrations(merged)                     ### NEW v0.19.2 B35 ###
+        else:
+            # first start: nothing to migrate — the new defaults already apply
+            merged["settings_migrations"] = list(_MIGRATIONS)
     except Exception:
         pass
     sync_quality_mirrors(merged)                                 ### NEW v0.19.0 ###
     return merged
+
+
+### NEW v0.19.2 B35 — one-time settings migrations ###
+# Every rule is written to settings.json on the first Save & Apply, so a new
+# default alone never reaches an existing user.  A migration runs exactly once
+# (marker in "settings_migrations"); a user who turns a rule on again later is
+# never overridden.  The App shows the notice once, through after().
+_MIGRATIONS = ("b35_folder_rules_off", "b55_library_filter_reset")
+SETTINGS_MIGRATION_NOTICES = []                                  # one message box each (B35)
+SETTINGS_MIGRATION_STATUS = []                                   # one status-bar line each (B55)
+B55_STATUS = "Library filter reset to 'All libraries' — every library is shown again"
+B35_NOTICE = ("Two health rules are now off by default: 'Missing folder image' and "
+              "'Poster and folder image are different' (no media server needs them). "
+              "Turn them on again in Settings → Health Rules if you want them.")
+
+
+def _run_settings_migrations(merged):
+    done = [m for m in (merged.get("settings_migrations") or []) if isinstance(m, str)]
+    todo = [m for m in _MIGRATIONS if m not in done]
+    if not todo:
+        return
+    if "b35_folder_rules_off" in todo:
+        hr = merged.get("health_rules")
+        if isinstance(hr, dict):
+            was_on = [k for k in ("missing_folder", "poster_folder_identical") if hr.get(k)]
+            hr["missing_folder"] = False
+            hr["poster_folder_identical"] = False
+            if was_on:
+                SETTINGS_MIGRATION_NOTICES.append(B35_NOTICE)
+                _log.info(f"Settings migration b35_folder_rules_off: switched off {', '.join(was_on)}")
+    if "b55_library_filter_reset" in todo:                       ### NEW v0.19.2 B55 ###
+        # a filter saved by v0.19.1 (Browse… set it without the user choosing it)
+        # hid every other library; reset it once, say so in the status bar
+        libs = merged.get("library_folders") or []
+        if merged.get("library_filter") and len(libs) > 1:
+            merged["library_filter"] = ""
+            SETTINGS_MIGRATION_STATUS.append(B55_STATUS)
+            _log.info("Settings migration b55_library_filter_reset: library filter reset to all libraries")
+    merged["settings_migrations"] = done + todo
+    save_settings(merged)                                        # once: the markers are on disk now
 
 
 def sync_quality_mirrors(settings):
@@ -205,13 +279,33 @@ def sync_quality_mirrors(settings):
         return False
 
 
+_SETTINGS_LOCK = threading.Lock()                                ### NEW v0.19.2 B36 ###
+
+
 def save_settings(settings):
-    """Persist *settings* dict to CONFIG_PATH as JSON.  Silent on error."""
-    try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    """Persist *settings* dict to CONFIG_PATH as JSON.
+    ### MODIFIED v0.19.2 B36 ### — atomic (temp file in the same folder +
+    os.replace) under a lock, so a crash or two saves at once (Tk thread +
+    a worker's API pause) never leave a truncated file.  Errors are logged,
+    never raised.  Returns True on success."""
+    with _SETTINGS_LOCK:
+        tmp = f"{CONFIG_PATH}.{os.getpid()}.tmp"
+        try:
+            text = json.dumps(settings, ensure_ascii=False, indent=2)   # serialise first: a failure never touches the file
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(text)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, CONFIG_PATH)
+            return True
+        except Exception as e:
+            _log.error(f"settings.json not saved: {e}")
+            try:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
+            return False
 
 
 # ── Scan-results cache (v0.18.3) ──────────────────────────────────────────────
@@ -244,6 +338,32 @@ def save_results_cache(results):
         return False
 
 
+def load_ignored():                                              ### NEW v0.19.2 B53 ###
+    """The last "Ignored folders" report ({} when absent/unreadable)."""
+    try:
+        if os.path.isfile(IGNORED_CACHE_PATH):
+            with open(IGNORED_CACHE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def save_ignored(data):                                          ### NEW v0.19.2 B53 ###
+    """Persist the "Ignored folders" report next to the results cache.
+    Returns True on success."""
+    try:
+        tmp = IGNORED_CACHE_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data or {}, f, ensure_ascii=False, default=str)
+        os.replace(tmp, IGNORED_CACHE_PATH)
+        return True
+    except Exception:
+        return False
+
+
 def migrate_results_from_settings(settings):
     """
     One-time migration: move settings["last_results"] (pre-v0.18.3) into the
@@ -269,29 +389,152 @@ def migrate_results_from_settings(settings):
 
 # ── FFmpeg discovery & validation ─────────────────────────────────────────────
 
-def find_ffmpeg_ffprobe(custom_dir=""):
+### NEW v0.19.2 B58 — FFmpeg / FFprobe found like the other apps (family item X1) ###
+# The old finder looked only in the Settings folder and in the PATH MediaClinic
+# started with, so a fresh winget install or TranscriptLab's <Home>\bin (added
+# to the user PATH) was missed until a restart.  Same search as RadioSave 0.4.0;
+# every candidate must run "-version" (cached); ffprobe comes from the same
+# folder as ffmpeg.
+FFMPEG_FOUND = {"how": "", "dir": ""}                            # shown in Settings → Tools
+_FF_OK_CACHE = {}
+FFMPEG_GLOBS_WIN = [
+    r"%LOCALAPPDATA%\Microsoft\WinGet\Links\ffmpeg.exe",
+    r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\*[Ff][Ff]mpeg*\*\bin\ffmpeg.exe",
+    r"%LOCALAPPDATA%\Microsoft\WinGet\Packages\*[Ff][Ff]mpeg*\bin\ffmpeg.exe",
+    r"%PROGRAMFILES%\WinGet\Links\ffmpeg.exe",
+    r"%USERPROFILE%\scoop\shims\ffmpeg.exe",
+    r"%USERPROFILE%\scoop\apps\ffmpeg*\current\bin\ffmpeg.exe",
+    r"%ProgramData%\chocolatey\bin\ffmpeg.exe",
+    r"%ProgramFiles%\ffmpeg*\bin\ffmpeg.exe",
+    r"%LOCALAPPDATA%\Programs\ffmpeg*\bin\ffmpeg.exe",
+    r"C:\ffmpeg\bin\ffmpeg.exe",
+    r"C:\ffmpeg*\bin\ffmpeg.exe",
+    r"%USERPROFILE%\Downloads\ffmpeg*\bin\ffmpeg.exe",
+    r"%USERPROFILE%\Downloads\ffmpeg*\*\bin\ffmpeg.exe",
+]
+FFMPEG_DEEP_ROOTS_WIN = [r"%LOCALAPPDATA%\Microsoft\WinGet\Packages", r"%USERPROFILE%\scoop\apps",
+                         r"%ProgramData%\chocolatey\lib", r"%USERPROFILE%\Downloads", r"%LOCALAPPDATA%\Programs"]
+
+
+def _ff_exe(name):
+    return name + ".exe" if os.name == "nt" else name
+
+
+def ff_works(path):                                              ### NEW v0.19.2 B58 ###
+    """True when *path* runs and answers '-version' (cached per path)."""
+    if not path or not os.path.isfile(path):
+        return False
+    key = os.path.normcase(os.path.abspath(path))
+    if key in _FF_OK_CACHE:
+        return _FF_OK_CACHE[key]
+    try:
+        r = subprocess.run([path, "-hide_banner", "-version"], capture_output=True, timeout=20,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        ok = r.returncode == 0 and b" version " in (r.stdout or b"").lower()
+    except Exception:
+        ok = False
+    _FF_OK_CACHE[key] = ok
+    return ok
+
+
+def forget_ffmpeg_cache():                                      ### NEW v0.19.2 B58 ###
+    _FF_OK_CACHE.clear()
+
+
+def live_path_dirs():                                            ### NEW v0.19.2 B58 ###
+    """PATH as the registry has it NOW (HKCU + HKLM, read only) plus this
+    process's PATH, so a new install is found without restarting."""
+    dirs = [d for d in os.environ.get("PATH", "").split(os.pathsep) if d.strip()]
+    if os.name == "nt":
+        try:
+            import winreg
+            for hive, key in ((winreg.HKEY_CURRENT_USER, r"Environment"),
+                              (winreg.HKEY_LOCAL_MACHINE,
+                               r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")):
+                try:
+                    with winreg.OpenKey(hive, key) as k:
+                        val, _t = winreg.QueryValueEx(k, "Path")
+                    dirs += [d for d in str(val).split(os.pathsep) if d.strip()]
+                except OSError:
+                    pass
+        except ImportError:
+            pass
+    out, seen = [], set()
+    for d in dirs:
+        d = os.path.expandvars(d.strip().strip('"'))
+        k = os.path.normcase(os.path.normpath(d))
+        if d and k not in seen:
+            seen.add(k); out.append(d)
+    return out
+
+
+def _iter_globs(patterns):
+    import glob
+    for p in patterns:
+        for g in sorted(glob.glob(os.path.expandvars(os.path.expanduser(p)))):
+            yield g
+
+
+def find_ffmpeg_ffprobe(custom_dir="", deep=False):
     """
     Locate ffmpeg and ffprobe executables.
 
-    Checks *custom_dir* first (if a valid directory), then falls back
-    to PATH via shutil.which.
+    ### REWRITTEN v0.19.2 B58 ### search order: the Settings folder (a file or a
+    folder, also its bin\\) → shutil.which → the PATH read live from the
+    registry → the known install folders (winget, scoop, Chocolatey, Program
+    Files, C:\\ffmpeg*, Downloads) → with *deep* a depth-limited scan.  Both
+    tools come from one folder and must answer "-version".  FFMPEG_FOUND
+    records where and how.
 
     Returns
     -------
     (ffmpeg_path, ffprobe_path) : tuple[str|None, str|None]
     """
-    exe = (lambda d, n: os.path.join(d, n + ".exe") if os.name == "nt"
-           else os.path.join(d, n))
-    if custom_dir and os.path.isdir(custom_dir):
-        ff = exe(custom_dir, "ffmpeg")
-        fp = exe(custom_dir, "ffprobe")
-        if not os.path.isfile(ff):
-            ff = os.path.join(custom_dir, "ffmpeg")
-        if not os.path.isfile(fp):
-            fp = os.path.join(custom_dir, "ffprobe")
-        if os.path.isfile(ff) and os.path.isfile(fp):
+    ffn, fpn = _ff_exe("ffmpeg"), _ff_exe("ffprobe")
+
+    def _pair(folder, how):
+        if not folder:
+            return None
+        ff, fp = os.path.join(folder, ffn), os.path.join(folder, fpn)
+        if ff_works(ff) and ff_works(fp):
+            FFMPEG_FOUND.update(how=how, dir=folder)
             return ff, fp
-    return shutil.which("ffmpeg"), shutil.which("ffprobe")
+        return None
+
+    custom = os.path.expandvars(str(custom_dir or "").strip().strip('"'))
+    if custom:
+        base = os.path.dirname(custom) if os.path.isfile(custom) else custom
+        for folder in (base, os.path.join(base, "bin")):
+            hit = _pair(folder, "Settings folder")
+            if hit:
+                return hit
+    w = shutil.which("ffmpeg")
+    if w:
+        hit = _pair(os.path.dirname(w), "PATH")
+        if hit:
+            return hit
+    for d in live_path_dirs():
+        hit = _pair(d, "PATH (registry)")
+        if hit:
+            return hit
+    if os.name == "nt":
+        for cand in _iter_globs(FFMPEG_GLOBS_WIN):
+            hit = _pair(os.path.dirname(cand), "known install folder")
+            if hit:
+                return hit
+        if deep:
+            for root in _iter_globs(FFMPEG_DEEP_ROOTS_WIN):
+                base_depth = root.rstrip(os.sep).count(os.sep)
+                for cur, subdirs, files in os.walk(root):
+                    if cur.count(os.sep) - base_depth >= 5:
+                        subdirs[:] = []
+                        continue
+                    if ffn.lower() in (f.lower() for f in files):
+                        hit = _pair(cur, "found by scan")
+                        if hit:
+                            return hit
+    FFMPEG_FOUND.update(how="not found", dir="")
+    return None, None
 
 
 def test_ffmpeg(ff_path, fp_path):
@@ -448,8 +691,12 @@ def open_url_with_browser(url, settings):
 # ── Backup helpers ────────────────────────────────────────────────────────────
 
 def get_backup_root(script_dir):
-    """Return the backup root directory path (not created here)."""
-    return os.path.join(script_dir, "backup")
+    """Return the backup root directory path (not created here).
+    ### MODIFIED v0.19.2 B31 ### MEDIACLINIC_BACKUP_DIR overrides it (the
+    self-test sets it, so its test backups never land in the program's
+    backup\\ folder), like MEDIACLINIC_CONFIG_DIR for the settings."""
+    override = os.environ.get("MEDIACLINIC_BACKUP_DIR", "").strip()
+    return override or os.path.join(script_dir, "backup")
 
 
 def _make_backup_folder_path(backup_root, name, fallback="unknown"):

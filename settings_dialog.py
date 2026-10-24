@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_dialog.py
 # Metadata & MediaClinic — Settings UI Module
-# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
+# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
 # v0.18.4 — Tools tab: Parallel Scanning section (scan_workers / ffprobe_workers);
 #            Health Rules: duplicate_movie rule.
 #            Fix: Save/Cancel bar packed at the bottom FIRST so it can never be
@@ -145,6 +145,64 @@ _BACKUP_ROOT_PATH      = None
 
 ### NEW v0.14.0 — SettingsContext built by _inject_globals; used by dialog ###
 _ctx: "SettingsContext | None" = None
+
+
+def bind_wheel(toplevel, canvases, main=None):                    ### NEW v0.19.2 B29 ###
+    """Mouse wheel for scrolled canvases, bound ONCE on *toplevel* (never with
+    bind_all).  The Toplevel is in every child's bindtags, so the wheel works
+    anywhere in the window — also over a thumbnail, label or button inside
+    the canvas (the old <Enter>/<Leave> + bind_all pattern switched it off
+    exactly there, because Tk sends <Leave> to the canvas when the pointer
+    moves onto a child).  Scrolls the registered canvas under the pointer
+    (found by walking up from winfo_containing), else *main*.  Calling it
+    again for the same Toplevel adds canvases.  Used by the main script too."""
+    reg = getattr(toplevel, "_mc_wheel", None)
+    if reg is None:
+        reg = {"canvases": [], "main": None}
+        toplevel._mc_wheel = reg
+
+        def _canvas_of(w):
+            while w is not None:
+                if w in reg["canvases"]:
+                    return w
+                w = getattr(w, "master", None)
+            return None
+
+        def _target(e):
+            # Tk 8.6+ delivers the wheel to the widget under the pointer, so the
+            # event's own widget comes first; winfo_containing is the fallback.
+            w = e.widget if isinstance(getattr(e, "widget", None), tk.Misc) else None
+            c = _canvas_of(w)
+            if c is None:
+                try:
+                    c = _canvas_of(toplevel.winfo_containing(e.x_root, e.y_root))
+                except (tk.TclError, KeyError):
+                    c = None
+            return c or reg["main"]
+
+        def _scroll(e, units):
+            c = _target(e)
+            if c is not None:
+                try:
+                    c.yview_scroll(units, "units")
+                except tk.TclError:
+                    pass
+
+        def _on_wheel(e):
+            d = getattr(e, "delta", 0) or 0
+            units = -int(d / 120) if abs(d) >= 120 else (-1 if d > 0 else 1 if d < 0 else 0)
+            if units:
+                _scroll(e, units)
+
+        toplevel.bind("<MouseWheel>", _on_wheel, add="+")
+        toplevel.bind("<Button-4>", lambda e: _scroll(e, -1), add="+")
+        toplevel.bind("<Button-5>", lambda e: _scroll(e, 1), add="+")
+    for c in canvases:
+        if c is not None and c not in reg["canvases"]:
+            reg["canvases"].append(c)
+    if main is not None:
+        reg["main"] = main
+    return reg
 
 
 def _inject_globals(
@@ -307,12 +365,13 @@ class SettingsDialog(tk.Toplevel):
                   command=self._save_close).pack(side="left", padx=(0, 8))
         tk.Button(inner_bf, text="  Cancel  ", font=("Helvetica", 10, "bold"),
                   bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
-                  command=self.destroy).pack(side="left")
+                  command=self._cancel_close).pack(side="left")          ### MODIFIED v0.19.2 B44 — asks before discarding ###
         tk.Label(bf, text="Save & Apply writes settings.json, recomputes the health status "
                           "when rules changed, and offers an Update Scan when scan "
                           "settings changed.",
                  font=("Helvetica", 8), bg="#1e1e2e", fg="#6c7086").pack(pady=(4, 0))
-        self.bind("<Escape>", lambda e: self.destroy())
+        self.bind("<Escape>", lambda e: self._cancel_close())           ### MODIFIED v0.19.2 B44 ###
+        self.protocol("WM_DELETE_WINDOW", self._cancel_close)           ### NEW v0.19.2 B44 — [X] too ###
 
         # ── Notebook ─────────────────────────────────────────────────────────
         nb = ttk.Notebook(self)
@@ -339,6 +398,7 @@ class SettingsDialog(tk.Toplevel):
         # ── Snapshot rescan-relevant settings on open        ### NEW v0.11.1 ###
         # Used by _save_close to detect whether a rescan should be offered.
         self._rescan_snapshot = self._take_rescan_snapshot()
+        self._widget_snapshot = self._widget_state()                  ### NEW v0.19.2 B44 — for "Discard your changes?" ###
 
         # ── Jump to requested tab after UI is built ───────────────────────────
         self._nb = nb
@@ -353,6 +413,77 @@ class SettingsDialog(tk.Toplevel):
                 _hook(self, "SettingsDialog", True)
             except Exception:
                 pass
+
+    # ── v0.19.2 B58: where FFmpeg was found; "Search again" (deep, async) ─────
+    @staticmethod
+    def _ffmpeg_found_text():                                         ### NEW v0.19.2 B58 ###
+        try:
+            import settings_controller as _sctl
+            how, d = _sctl.FFMPEG_FOUND.get("how"), _sctl.FFMPEG_FOUND.get("dir")
+        except Exception:
+            how, d = "", ""
+        if not how:
+            return "FFmpeg: not searched yet"
+        return f"FFmpeg: {d}  ({how})" if d else "FFmpeg: not found — install it or click Search again"
+
+    def _ffmpeg_search_again(self):                                   ### NEW v0.19.2 B58 ###
+        if not (self._ctx and self._ctx.ffmpeg_finder):
+            return
+        self._ff_how_lbl.configure(text="Searching…")
+        finder, path = self._ctx.ffmpeg_finder, self._ffmpeg_var.get().strip()
+        def _work():
+            try:
+                return finder(path, deep=True)
+            except TypeError:                                         # a finder without the deep option
+                return finder(path)
+        def _done(res):
+            try:
+                ff = res[0] if res else None
+                if ff and not self._ffmpeg_var.get().strip():
+                    import os as _os
+                    self._ffmpeg_var.set(_os.path.dirname(ff))
+                self._ff_how_lbl.configure(text=self._ffmpeg_found_text())
+            except tk.TclError:
+                pass
+        run_async(_work, callback=_done, root=self)
+
+    # ── v0.19.2 B44: Esc / Cancel / [X] ask before discarding changes ────────
+    def _widget_state(self):                                          ### NEW v0.19.2 B44 ###
+        """Every value the user can edit: all tk variables (also those kept in
+        dicts such as _hr_vars) and the Text boxes (genres, tags), as raw
+        strings — a blank number field never raises here."""
+        st = {}
+        def _raw(v):
+            try:
+                return str(v._tk.globalgetvar(v._name))
+            except Exception:
+                return None
+        for name, val in list(vars(self).items()):
+            if isinstance(val, tk.Variable):
+                st[name] = _raw(val)
+            elif isinstance(val, dict) and val and all(isinstance(x, tk.Variable) for x in val.values()):
+                for k, x in val.items():
+                    st[f"{name}[{k}]"] = _raw(x)
+            elif isinstance(val, tk.Text):
+                try:
+                    st[name] = val.get("1.0", "end")
+                except tk.TclError:
+                    pass
+        return st
+
+    def _has_changes(self):                                           ### NEW v0.19.2 B44 ###
+        snap = getattr(self, "_widget_snapshot", None)
+        return snap is not None and self._widget_state() != snap
+
+    def _cancel_close(self):                                          ### NEW v0.19.2 B44 ###
+        """Esc / Cancel / [X]: unchanged → close; changed → ask (default No).
+        Nothing is saved either way; Save & Apply is unchanged."""
+        if self._has_changes() and not messagebox.askyesno(
+                "Discard your changes?",
+                "You changed settings in this window.\n\n"
+                "Close without saving them?", icon="warning", default="no", parent=self):
+            return
+        self.destroy()
 
     # ── Shared widget helpers ─────────────────────────────────────────────────
 
@@ -385,14 +516,7 @@ class SettingsDialog(tk.Toplevel):
         win = canvas.create_window((0, 0), window=f, anchor="nw")
         f.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.bind("<Configure>", lambda e: canvas.itemconfig(win, width=e.width))
-        def _wheel(event):
-            try:
-                canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-            except tk.TclError:
-                pass
-        canvas.bind("<Enter>", lambda e: canvas.bind_all("<MouseWheel>", _wheel))
-        canvas.bind("<Leave>", lambda e: canvas.unbind_all("<MouseWheel>"))
-        outer.bind("<Destroy>", lambda e: canvas.unbind_all("<MouseWheel>"), add="+")
+        bind_wheel(self, [canvas])                              ### MODIFIED v0.19.2 B29 — was <Enter>/<Leave> + bind_all ###
         return f
 
     @staticmethod
@@ -442,6 +566,9 @@ class SettingsDialog(tk.Toplevel):
         def _npp_done(npp):
             if npp and not self._editor_var.get():
                 self._editor_var.set(npp)
+                snap = getattr(self, "_widget_snapshot", None)     ### NEW v0.19.2 B44 — an auto-fill is not a user change ###
+                if snap is not None:
+                    snap["_editor_var"] = npp
         if self._ctx and self._ctx.notepadpp_finder:
             run_async(self._ctx.notepadpp_finder, callback=_npp_done, root=self)
         tk.Button(r, text="Test", font=("Helvetica", 9), bg="#45475a", fg="#a6e3a1",
@@ -473,12 +600,36 @@ class SettingsDialog(tk.Toplevel):
         tk.Button(r, text="Test FFmpeg", font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
                   relief="flat", cursor="hand2",
                   command=self._test_ffmpeg_btn).pack(side="left", padx=(4, 0))
+        # NEW v0.19.2 B58 — where FFmpeg was found, and a deeper search
+        r_how = self._row(f)
+        self._ff_how_lbl = tk.Label(r_how, text=self._ffmpeg_found_text(), font=("Helvetica", 9),
+                                    bg="#1e1e2e", fg="#a6adc8", anchor="w", justify="left")
+        self._ff_how_lbl.pack(side="left")
+        tk.Button(r_how, text="Search again", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
+                  relief="flat", cursor="hand2",
+                  command=self._ffmpeg_search_again).pack(side="left", padx=(8, 0))
         # NEW v0.19.1 I5 — FFprobe result cache
         self._ffprobe_cache_var = tk.BooleanVar(value=bool(self._s.get("ffprobe_cache_enabled", True)))
         tk.Checkbutton(f, text="Remember FFprobe results (ffprobe_cache.json): unchanged videos are not probed again",
                        variable=self._ffprobe_cache_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=(4, 0))
+        # NEW v0.19.2 B28 — limits for "Frames from movie" (FFmpeg runs in the background)
+        self._note(f, "Frames from movie: FFmpeg runs at background priority and is stopped\n"
+                      "when one frame or the whole run takes longer than this.")
+        r = self._row(f)
+        tk.Label(r, text="Seconds per frame:", font=("Helvetica", 10),
+                 bg="#1e1e2e", fg="#cdd6f4", width=26, anchor="w").pack(side="left")
+        self._ffmpeg_frame_timeout_var = tk.IntVar(value=self._s.get("ffmpeg_frame_timeout_sec", 20))
+        tk.Spinbox(r, from_=5, to=300, textvariable=self._ffmpeg_frame_timeout_var, width=6,
+                   font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
+                   buttonbackground="#45475a", relief="flat").pack(side="left")
+        tk.Label(r, text="   Seconds per run:", font=("Helvetica", 10),
+                 bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        self._ffmpeg_run_budget_var = tk.IntVar(value=self._s.get("ffmpeg_run_budget_sec", 180))
+        tk.Spinbox(r, from_=30, to=1800, increment=30, textvariable=self._ffmpeg_run_budget_var, width=6,
+                   font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
+                   buttonbackground="#45475a", relief="flat").pack(side="left", padx=(6, 0))
 
         # Backdrop count
         self._section(f, "Backdrop Extraction")
@@ -1498,6 +1649,46 @@ class SettingsDialog(tk.Toplevel):
                            selectcolor="#313244", activebackground="#1e1e2e",
                            activeforeground="#cdd6f4").pack(side="left", padx=(0, 12))
 
+        # ── Right-click menu (v0.19.2 B57) ───────────────────────────────────
+        self._section(f, "Right-click Menu")
+        self._note(f, "\"Repeat\" runs the last menu action again on the current selection.")
+        r4b = self._row(f)
+        self._ctx_repeat_var = tk.BooleanVar(value=bool(self._s.get("ctx_repeat_last", True)))   ### NEW v0.19.2 B57 ###
+        tk.Checkbutton(r4b, text="Show 'Repeat: <last action>' at the top of the right-click menu",
+                       variable=self._ctx_repeat_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(side="left")
+
+        # ── Title bars (v0.19.2 B51) ─────────────────────────────────────────
+        self._section(f, "Title Bars")
+        self._note(f, "Windows draws title bars light; MediaClinic can make them dark like the window.")
+        r4d = self._row(f)
+        self._dark_title_var = tk.BooleanVar(value=bool(self._s.get("dark_title_bar", True)))   ### NEW v0.19.2 B51 ###
+        tk.Checkbutton(r4d, text="Dark title bars (applied when you save)",
+                       variable=self._dark_title_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(side="left")
+
+        # ── Updates (v0.19.2 B50) ────────────────────────────────────────────
+        self._section(f, "Updates")
+        self._note(f, "Asks GitHub for the latest release; nothing else is sent and nothing is downloaded.")
+        r4e = self._row(f)
+        self._check_updates_var = tk.BooleanVar(value=bool(self._s.get("check_updates", False)))   ### NEW v0.19.2 B50 ###
+        tk.Checkbutton(r4e, text="Check for updates at start (at most once a day)",
+                       variable=self._check_updates_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(side="left")
+
+        # ── Ignored folders (v0.19.2 B53) ────────────────────────────────────
+        self._section(f, "Ignored Folders")
+        self._note(f, "Folders that are not movies (TV series, folders of folders …) get no row.")
+        r4c = self._row(f)
+        self._scan_ignored_report_var = tk.BooleanVar(value=bool(self._s.get("scan_ignored_report", True)))   ### NEW v0.19.2 B53 ###
+        tk.Checkbutton(r4c, text="Show the Ignored folders window after a scan",
+                       variable=self._scan_ignored_report_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4").pack(side="left")
+
         # ── Alternating rows (kept from v0.11) ────────────────────────────────
         self._section(f, "Table Appearance")
         self._note(f, "Alternating row colors make it easier to follow rows across wide tables.")
@@ -1732,12 +1923,18 @@ class SettingsDialog(tk.Toplevel):
         _check_row("tmdb_id_partial",        "TMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
         _check_row("duplicate_movie",        "Possible duplicate (same IMDB/TMDB ID or title + year in another folder)")  # NEW v0.18.4
         _check_row("missing_poster",         "Missing poster")
+        _check_row("poster_missing_with_folder",                              # NEW v0.19.2 F5
+                   "  ↳ also when folder.jpg exists (servers use it as the poster; default: OFF)")
         _check_row("missing_fanart",         "Missing fanart")
-        _check_row("missing_folder",         "Missing folder image")
+        _check_row("missing_folder",         "Missing folder image  (off by default — no media server needs it)")   # v0.19.2 B35
         _check_row("folder_optional_with_kodi_poster",                        # NEW v0.19.1 B23
                    "  ↳ folder.jpg optional when a Kodi poster (<video>-poster.jpg, .tbn) exists")
         _check_row("nfo_name_not_kodi",                                       # NEW v0.19.1 B23
                    "NFO named after the folder, not read by Kodi (<video>.nfo / movie.nfo)")
+        _check_row("nfo_unescaped_amp",                                       # NEW v0.19.2 B33
+                   "NFO has an unescaped '&' (Jellyfin may ignore the NFO; Auto Repair fixes it)")
+        _check_row("multiple_nfo_files",                                      # NEW v0.19.2 F5
+                   "More than one NFO the servers read (movie.nfo + <video>.nfo …)")
         _check_row("poster_proportion",      "Poster has wrong proportions")
         _check_row("fanart_proportion",      "Fanart has wrong proportions")
         _check_row("folder_proportion",      "Folder image has wrong proportions")
@@ -1749,7 +1946,7 @@ class SettingsDialog(tk.Toplevel):
                          FANART_QUALITY_LEVELS, "1080p", combo_width=10)
         _check_row("image_file_too_small",   "Image file below minimum size (KB limits from the Image Sizes tab)")   # NEW v0.19.0
         _check_row("image_format_mismatch",  "Image format differs from its extension (e.g. a PNG named poster.jpg)")  # NEW v0.19.0
-        _check_row("poster_folder_identical",  "Poster and folder image are different (different sizes)")
+        _check_row("poster_folder_identical",  "Poster and folder image are different  (off by default — no media server needs it)")   # v0.19.2 B35
         _check_spin_int_row("insufficient_backdrops", "backdrop_min_count",
                             "Backdrop images below minimum:", 5, 1, 50, width=4)
         _check_spin_int_row("backdrop_too_small", "backdrop_min_avg_kb",
@@ -2152,6 +2349,9 @@ class SettingsDialog(tk.Toplevel):
                 _s["scan_workers"]    = max(1, min(16, _num(self._scan_workers_var, 6)))
             if hasattr(self, "_ffprobe_cache_var"):                         ### NEW v0.19.1 I5 ###
                 _s["ffprobe_cache_enabled"] = bool(self._ffprobe_cache_var.get())
+            if hasattr(self, "_ffmpeg_frame_timeout_var"):                  ### NEW v0.19.2 B28 ###
+                _s["ffmpeg_frame_timeout_sec"] = max(5, min(300, _num(self._ffmpeg_frame_timeout_var, 20)))
+                _s["ffmpeg_run_budget_sec"]    = max(30, min(1800, _num(self._ffmpeg_run_budget_var, 180)))
             if hasattr(self, "_ffprobe_workers_var"):
                 _s["ffprobe_workers"] = max(1, min(8, _num(self._ffprobe_workers_var, 2)))
             _s["metadata_source"]  = self._meta_src_var.get()
@@ -2177,6 +2377,14 @@ class SettingsDialog(tk.Toplevel):
                 _s["dark_theme"] = self._dark_theme_var.get()
             if hasattr(self, "_auto_fit_var"):
                 _s["auto_fit_columns"] = self._auto_fit_var.get()
+            if hasattr(self, "_ctx_repeat_var"):                            ### NEW v0.19.2 B57 ###
+                _s["ctx_repeat_last"] = bool(self._ctx_repeat_var.get())
+            if hasattr(self, "_check_updates_var"):                         ### NEW v0.19.2 B50 ###
+                _s["check_updates"] = bool(self._check_updates_var.get())
+            if hasattr(self, "_dark_title_var"):                            ### NEW v0.19.2 B51 ###
+                _s["dark_title_bar"] = bool(self._dark_title_var.get())
+            if hasattr(self, "_scan_ignored_report_var"):                   ### NEW v0.19.2 B53 ###
+                _s["scan_ignored_report"] = bool(self._scan_ignored_report_var.get())
             if hasattr(self, "_max_backup_mb_var"):
                 _s["max_backup_size_mb"] = max(0, self._num(self._max_backup_mb_var, 500))
             if hasattr(self, "_rating_apply_all_var"):                      ### NEW v0.15.0 ###

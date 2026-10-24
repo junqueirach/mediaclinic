@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_model.py
 # Metadata & MediaClinic — Pure Data Model
-# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
+# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -102,6 +102,16 @@ DEFAULT_SETTINGS = {
     "window_geometry":         {},       # NEW v0.19.0: {window_id: {"geometry": "WxH+X+Y", "zoomed": bool}}
     "api_pauses":              {},       # NEW v0.19.1 B22: {service: {"until": ISO time, "kind": …, "message": …}}
     "ffprobe_cache_enabled":   True,     # NEW v0.19.1 I5: remember FFprobe results (ffprobe_cache.json)
+    "ffmpeg_frame_timeout_sec": 20,      # NEW v0.19.2 B28: one frame of "Frames from movie" (5-300 s)
+    "ffmpeg_run_budget_sec":   180,      # NEW v0.19.2 B28: one "Frames from movie" run (30-1800 s)
+    "settings_migrations":     [],       # NEW v0.19.2 B35: one-time migrations already done (internal)
+    "ctx_repeat_last":         True,     # NEW v0.19.2 B57: "Repeat: <last action>" line in the right-click menu
+    "scan_ignored_report":     True,     # NEW v0.19.2 B53: show the "Ignored folders" window after a scan
+    "dark_title_bar":          True,     # NEW v0.19.2 B51: dark Windows title bars (applied live)
+    "check_updates":           False,    # NEW v0.19.2 B50: ask GitHub for a new release at start (once a day)
+    "last_update_check":       "",       # NEW v0.19.2 B50: date of the last automatic check (YYYY-MM-DD)
+    "skipped_version":         "",       # NEW v0.19.2 B50: "Skip this version" — no status-bar link for it
+    "image_fix_prefs":         {},       # NEW v0.19.2 F4: last choices of Fix image proportions / size (method per kind, ai_upscale, AI test result)
     # v0.18.2 — Health Rules (configurable rule engine)        ### ADDED_BY_CLAUDE_v18.2 ###
     "health_rules": {
         # ── Group A: Critical Error Rules (default ON) ──────────────────────
@@ -133,9 +143,12 @@ DEFAULT_SETTINGS = {
         "duplicate_movie":                 True,      ### NEW v0.18.4 — same ID or title+year elsewhere ###
         "missing_poster":                  True,
         "missing_fanart":                  True,
-        "missing_folder":                  True,
+        "missing_folder":                  False,     ### MODIFIED v0.19.2 B35 — default OFF: no media server needs folder.jpg ###
         "folder_optional_with_kodi_poster": True,     ### NEW v0.19.1 B23 — no folder.jpg warning when a Kodi "<video>-poster" exists ###
         "nfo_name_not_kodi":               True,      ### NEW v0.19.1 B23 — NFO only as <folder>.nfo while the video has another name ###
+        "nfo_unescaped_amp":               True,      ### NEW v0.19.2 B33 — a bare '&' in the NFO (Jellyfin may ignore the NFO) ###
+        "multiple_nfo_files":              True,      ### NEW v0.19.2 F5 — movie.nfo and another readable NFO in one folder ###
+        "poster_missing_with_folder":      False,     ### NEW v0.19.2 F5 — only folder.jpg: the servers use it as the poster ###
         "poster_proportion":               True,
         "fanart_proportion":               True,
         "folder_proportion":               True,
@@ -145,7 +158,7 @@ DEFAULT_SETTINGS = {
         "fanart_quality_level_minimum":    "1080p",
         "image_file_too_small":            True,      ### NEW v0.19.0 — below min_*_kb (warning) ###
         "image_format_mismatch":           True,      ### NEW v0.19.0 — e.g. PNG named .jpg (warning) ###
-        "poster_folder_identical":         True,
+        "poster_folder_identical":         False,     ### MODIFIED v0.19.2 B35 — default OFF: servers use one of the two images ###
         "insufficient_backdrops":          True,
         "backdrop_min_count":              5,
         "backdrop_too_small":              True,
@@ -368,6 +381,33 @@ FANART_QUALITY_TIERS = [
 
 # Tolerance margin (±5%) applied to dimension comparisons
 _IMG_QUALITY_TOLERANCE = 0.05
+
+# ### NEW v0.19.2 F4 ### — upscaling limits of Fix image proportions / size
+# (F4.3b; fixed data, not a setting): (recommended up to, allowed with a
+# warning up to) as a factor of the corrected size.  Above the second value
+# a size is not offered.  Downscaling is always fine.
+UPSCALE_LIMITS = {
+    "plain": (1.25, 1.5),     # LANCZOS: "will look soft" above 1.25×
+    "ai":    (2.0, 4.0),      # Real-ESRGAN 4× model: check the preview above 2×
+}
+
+# ### NEW v0.19.2 F4b ### — the optional AI upscaler, downloaded on request.
+# Official release asset of xinntao/Real-ESRGAN (the newest release with a
+# Windows build; v0.3.0 has no binaries), recorded 2026-10-22.  Every user
+# download is checked against this size and SHA-256 before it is unpacked.
+# Licences: the program (Real-ESRGAN-ncnn-vulkan) MIT, Real-ESRGAN and its
+# models BSD-3-Clause — the zip holds neither text, so the app copies both
+# from third_party\ next to the exe.
+UPSCALER_DOWNLOAD = {
+    "url":     "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/"
+               "realesrgan-ncnn-vulkan-20220424-windows.zip",
+    "size":    45_474_481,
+    "sha256":  "abc02804e17982a3be33675e4d471e91ea374e65b70167abc09e31acb412802d",
+    "release": "Real-ESRGAN v0.2.5.0 (realesrgan-ncnn-vulkan 20220424, Windows)",
+    "exe":     "realesrgan-ncnn-vulkan.exe",
+    "model":   "realesrgan-x4plus",
+    "licences": ("LICENSE-Real-ESRGAN.txt", "LICENSE-Real-ESRGAN-ncnn-vulkan.txt"),
+}
 
 
 def classify_image_quality(width, height, image_type):

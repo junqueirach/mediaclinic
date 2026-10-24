@@ -1,0 +1,263 @@
+{
+ "Settings": [
+  [
+   "command",
+   "⚙️  All Settings…",
+   ""
+  ],
+  [
+   "separator",
+   "",
+   ""
+  ],
+  [
+   "command",
+   "🔧  Tools (Editor / FFmpeg / Backdrop)",
+   ""
+  ],
+  [
+   "command",
+   "🔑  API Keys (fetchers)",
+   ""
+  ],
+  [
+   "command",
+   "🌐  Browser Selection",
+   ""
+  ],
+  [
+   "command",
+   "🌍  Language OK?",
+   ""
+  ],
+  [
+   "command",
+   "🔍  Improvements",
+   ""
+  ],
+  [
+   "command",
+   "🖼  Image Sizes",
+   ""
+  ],
+  [
+   "command",
+   "⭐  Ratings",
+   ""
+  ],
+  [
+   "command",
+   "🎬  Genres",
+   ""
+  ],
+  [
+   "command",
+   "🏷  NFO-XML Tags",
+   ""
+  ],
+  [
+   "command",
+   "🎨  User Interface",
+   ""
+  ],
+  [
+   "command",
+   "🏥  Health Rules",
+   ""
+  ],
+  [
+   "command",
+   "💾  Backup",
+   ""
+  ]
+ ],
+ "Tools": [
+  [
+   "command",
+   "📤  Export Movie List…  (Ctrl+Shift+E)",
+   ""
+  ],
+  [
+   "command",
+   "🧱  Choose Columns…",
+   ""
+  ],
+  [
+   "command",
+   "🚫  Ignored Folders of the Last Scan…",
+   ""
+  ],
+  [
+   "separator",
+   "",
+   ""
+  ],
+  [
+   "command",
+   "📊  Library Statistics",
+   ""
+  ],
+  [
+   "command",
+   "👯  Duplicate Movies Report",
+   ""
+  ],
+  [
+   "command",
+   "♻  Recompute Health Status (no rescan)",
+   ""
+  ],
+  [
+   "separator",
+   "",
+   ""
+  ],
+  [
+   "command",
+   "💾  Save Scan Results",
+   ""
+  ],
+  [
+   "command",
+   "🕘  Backup History / Undo…",
+   ""
+  ],
+  [
+   "command",
+   "📂  Open Scan Results",
+   ""
+  ],
+  [
+   "separator",
+   "",
+   ""
+  ],
+  [
+   "command",
+   "⭐  Sync Ratings Online — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "🔗  Normalize Sources — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "🔎  Search Sources — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "✅  Verify IMDb/TMDb IDs — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "🛠  Auto Repair — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "🎬  Normalize Genres — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "🔍  Run Improvements Check — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "🏥  Health Status Report — All Movies",
+   ""
+  ],
+  [
+   "command",
+   "🔁  Refresh Icons — All Movies",
+   ""
+  ],
+  [
+   "separator",
+   "",
+   ""
+  ],
+  [
+   "command",
+   "🖼  Fix: Copy poster.jpg → folder.jpg — All Movies with differences",
+   ""
+  ],
+  [
+   "command",
+   "🛠  Fix Image Proportions / Size — All Movies with image warnings…",
+   ""
+  ],
+  [
+   "command",
+   "🗑  Delete extrafanart Subfolders — All Movies…",
+   ""
+  ]
+ ],
+ "Help": [
+  [
+   "command",
+   "🚀  Getting Started   (F1)",
+   ""
+  ],
+  [
+   "command",
+   "📊  Table & Columns",
+   ""
+  ],
+  [
+   "command",
+   "🔄  Scans & Libraries",
+   ""
+  ],
+  [
+   "command",
+   "🖱  Actions & Tools",
+   ""
+  ],
+  [
+   "command",
+   "⭐  Ratings & Genres",
+   ""
+  ],
+  [
+   "command",
+   "🎵  Audio & Images",
+   ""
+  ],
+  [
+   "command",
+   "⚙️  Settings",
+   ""
+  ],
+  [
+   "command",
+   "⌨  Shortcuts",
+   ""
+  ],
+  [
+   "separator",
+   "",
+   ""
+  ],
+  [
+   "command",
+   "ℹ️  About",
+   ""
+  ],
+  [
+   "separator",
+   "",
+   ""
+  ],
+  [
+   "command",
+   "📂  Open logs folder",
+   ""
+  ]
+ ]
+}

@@ -14,7 +14,7 @@ output/
 Saves/
 temp/
 # Models, environments, caches
-tools/
+# tools/ (make_icon.py, icon master) is published, not ignored
 envs/
 venv/
 .venv/

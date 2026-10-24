@@ -1,7 +1,7 @@
 # =============================================================================
 # help_text.py
 # Metadata & MediaClinic — Help tab contents (pure text)
-# Version: 0.19.1                                              ### MODIFIED v0.19.1 ###
+# Version: 0.19.2                                              ### MODIFIED v0.19.2 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # The Help dialog in the main script renders these strings.  Moved out of the
@@ -94,7 +94,9 @@ FILES THE APP WRITES
   fanarttv_cache.json fanart.tv answers, kept 7 days (same
                       folder, no key inside)
   logs/app.log        rotating log next to the program (API keys
-                      are never written to it)
+                      are never written to it); Help → Open logs
+                      folder shows it. Every unexpected error is
+                      written there too: attach it to a bug report.
   backup/             automatic backups next to the program
 """
 
@@ -175,6 +177,31 @@ SCANS
                 audio tracks and embedded subtitles. A scan without
                 FFprobe keeps the previous FFprobe data.
   Cancel / Esc  stops a running scan.
+  Folders that are not movies (TV series, folders of folders …)
+  get no row: see IGNORED FOLDERS.
+
+IGNORED FOLDERS
+  A scan adds a row only for movie folders. These are not added:
+  •  TV series: tvshow.nfo, Season folders or episode files
+     (S01E02, 1x02). Series support is planned.
+  •  Folders holding other movie folders: the library is one
+     level too high. Add the inner folders as libraries.
+  •  Folders with several separate videos: give each movie its
+     own folder.
+  •  Folders with no video, NFO or XML (empty, pictures only).
+  •  System folders ($RECYCLE.BIN, @eaDir …) and folders that
+     could not be read.
+  A folder with movie metadata (movie.nfo, movie.xml) is always
+  a movie, and so is a folder with one video and no NFO. A movie
+  with an NFO/XML but no video stays in the table ("Missing video
+  file") and is also listed in the report.
+  Videos lying directly in a library folder are listed too.
+  After a scan the Ignored folders window opens when something
+  was left out: filter, sort by a column, double-click to open
+  the folder, Export to TXT… or Copy all. Turn it off with "Show
+  this window after a scan". Tools → Ignored Folders of the Last
+  Scan… opens it at any time; the status bar shows "n folders
+  not added — View".
 
 UPDATING SINGLE MOVIES
   Right-click → Update (no FFprobe) re-reads one movie (or the
@@ -190,7 +217,13 @@ LIBRARIES
   •  All libraries share one table; the Library column and the
      Movie Name tooltip show where a movie lives.
   •  The library box chooses what the table shows and what Full
-     and Quick Scan cover ("All libraries" or one of them).
+     and Quick Scan cover ("All libraries" or one of them); each
+     entry shows its number of movies.
+  •  The folder box at the top always lists every library. With
+     a filter the shown one is marked ▶ ("showing 1 of n"), and
+     the status bar says how many libraries are hidden: click
+     "show all" to see them again. Click the folder box to open
+     Libraries….
   •  Duplicates are found across libraries.
   •  A library that cannot be reached (for example an unplugged
      network share) keeps its last scan, is skipped by scans and
@@ -222,29 +255,45 @@ DOUBLE-CLICK
   Subtitles       subtitle tracks
   Library         the library folder
 
-RIGHT-CLICK — ONE MOVIE
-  •  Open folder, images, .nfo, movie.xml; "[!] errors" lists all
-     parse errors of a broken file.
-  •  Play video, Extract Backdrop(s), Subtitles….
-  •  Open on IMDb / TMDb / Fanart.tv / OpenSubtitles.org, Copy
-     Movie Name, Open in Scraper.
-  •  Run Improvements Check, Health Status Report.
-  •  Sync Ratings, Normalize Sources, Search Sources, Verify
-     IMDb/TMDb IDs, Normalize Genres, Auto Repair.
-  •  Fetch Poster/Folder, Fanart, Backdrops; Replace All
-     Backdrops; Copy poster.jpg → folder.jpg.
-  •  Update (no FFprobe / with FFprobe), Refresh Icons, Remove
-     from list.
+RIGHT-CLICK MENU (also Shift+F10 or the Menu key)
+  The first line names the movie (or "N movies selected") and the
+  number of issues.
+  •  ⚠ Fix issues: the selection's real problems, each linked to
+     the action that fixes it (with several movies: how many
+     movies have each problem; the action runs on just those).
+  •  Repeat: the last action again, on the current selection
+     (Settings → User Interface can hide this line).
+  •  Open Folder (Ctrl+O), Play Video, Edit NFO (Ctrl+E).
+  •  Artwork: open the images; Fetch Poster/Folder, Fanart,
+     Backdrops; Replace All Backdrops; Extract Backdrop(s); Copy
+     poster.jpg → folder.jpg; Fix image proportions / size.
+  •  Metadata: open .nfo / movie.xml, "[!] errors" (all parse
+     errors of a broken file), Sync Ratings, Normalize Genres,
+     Add Custom Genre(s).
+  •  IDs & Sources: Search Sources, Verify IMDb/TMDb IDs,
+     Normalize Sources, Copy Movie Name.
+  •  Video & Subtitles: Subtitles…, Hard-coded subtitles…,
+     Extract Backdrop(s).
+  •  Open online: IMDb, TMDb, Fanart.tv, OpenSubtitles.org, Open
+     in Scraper.
+  •  Check & Repair: Health Status Report, Run Improvements
+     Check, Auto Repair.
+  •  Update: no FFprobe (Ctrl+R), with FFprobe (Ctrl+Shift+R),
+     Refresh Icons; Remove from list.
+  An action that does not apply stays in its place, greyed, with
+  the reason (for example "missing" or "one movie only").
 
 RIGHT-CLICK — SEVERAL MOVIES
   Select with Ctrl+click, Shift+click, Shift+arrows or
-  Shift+PageUp / PageDown / Home / End. Batch versions appear for
-  the actions above. Longer runs show a progress window with
+  Shift+PageUp / PageDown / Home / End. The same menu runs the
+  batch versions. Longer runs show a progress window with
   Cancel.
 
 TOOLS MENU
   Export Movie List…        CSV, TSV, text or Excel
   Choose Columns…           show or hide columns
+  Ignored Folders…          folders the last scan did not add
+  Fix Image Proportions / Size — All Movies with image warnings
   Library Statistics        health, quality, genres, decades
   Duplicate Movies Report   same ID or title + year elsewhere
   Recompute Health Status   re-apply the rules, no rescan
@@ -424,13 +473,44 @@ FANART.TV
   both, and warns when the chosen one has fewer than you have.
   The optional VIP client key gets newer images sooner.
 
+FIXING IMAGE PROPORTIONS AND SIZE
+  Right-click → Images → Fix image proportions / size… fixes a
+  poster, folder image or fanart with wrong proportions or a low
+  resolution. The window shows the image before and after.
+  •  Method: Blur fill keeps the whole image and fills the empty
+     bands with a blurred copy (posters); Smart crop keeps the
+     most detailed part (fanart); Centre crop; Solid fill. A
+     deviation up to 3 % is simply stretched.
+  •  Size: the quality tier nearest to the image (for example a
+     700×1000 poster → 720p 666×1000). Each size shows its factor
+     and a mark: ✓ recommended, ⚠ not recommended (soft), ✕ too
+     far from the original (not offered). "Keep current size"
+     fixes the proportions only.
+  •  Upscaling cannot recover detail that is not in the original.
+     Small enlargements are fine; large ones look soft (plain) or
+     artificial (AI). For a much bigger image, use "Find a better
+     one online" (it opens Fetch Poster/Folder or Fetch Fanart).
+  •  AI upscale (optional): "Download upscaler (about 45 MB)…"
+     installs Real-ESRGAN (checked against its SHA-256) and tests
+     it once. Without a usable Vulkan graphics card it stays off
+     ("Test again" retries). With it, ×2 is recommended and up to
+     ×4 is allowed — always check the preview: AI may invent
+     detail and smooth text and faces.
+  The file found is overwritten in its own format (JPEG or PNG);
+  a .webp / .gif / .bmp becomes the .jpg of the same name.
+  folder.jpg follows the poster when they were identical. Every
+  file is backed up first (Backup History / Undo).
+  Several movies, or Tools → Fix Image Proportions / Size — All
+  Movies: a preview lists every image and its fix; only ✓ sizes
+  are used, the others are listed as skipped.
+
 KODI NAMING
   MediaClinic reads every name Kodi uses and shows the file Kodi
   would pick (Kodi's order):
   •  Poster: <video>-poster.jpg/.png, poster.jpg/.png,
      <video>.tbn, movie.tbn
   •  Fanart: <video>-fanart.jpg/.png, fanart.jpg/.png
-  •  NFO: <video>.nfo, movie.nfo (and <folder>.nfo)
+  •  NFO: movie.nfo, <video>.nfo (and <folder>.nfo)
   •  Extra fanart counts as backdrops: fanart1.jpg…,
      <video>-fanart1.jpg…, the extrafanart folder
   <video> is the file name of the movie without its extension,
@@ -450,6 +530,26 @@ KODI NAMING
   FFprobe and frames use the largest .VOB / .m2ts file.
   Health Rules: "folder.jpg optional when a Kodi poster exists"
   and "NFO named after the folder, not read by Kodi" (both ON).
+
+JELLYFIN, EMBY AND PLEX NAMES
+  The names the other servers read are found too, after Kodi's:
+  •  Poster: <video>.jpg, cover, default, movie, <video>-cover…
+  •  Fanart: backdrop, background, art
+  •  Extra backdrops: backdrop-1, fanart-1, background-1, art-1
+  •  Pictures: .jpg, .png, .jpeg, .webp, .gif, .bmp
+  The poster, folder and fanart tooltips say which servers read
+  the file that was found. folder.jpg alone counts as the poster
+  (all four servers use it); the rule "also when folder.jpg
+  exists" (OFF) warns anyway.
+  NFO: movie.nfo is read first. Two NFOs the servers read (e.g.
+  movie.nfo and <video>.nfo) are a warning: delete the one you do
+  not need. mymovies.xml is shown in the XML tooltip: no current
+  server reads it.
+  Other videos are not "Multiple video files": trailers
+  (-trailer), samples, extras (-featurette, -deleted …), the parts
+  of a stack (cd1, part2) and versions ("Movie - 1080p"). The
+  Video tooltip lists them. Subtitle flags (forced, SDH) and the
+  Subs folder next to the video are read.
 
 PROPORTIONS
   Poster and folder 2:3 (3:4 optional), fanart 16:9 (16:8
@@ -504,13 +604,23 @@ NFO / XML
   Tag pairs compared by the Improvements Check.
 
 USER INTERFACE
-  Alternating row colours, header tooltips, compact mode.
+  Alternating row colours, header tooltips, compact mode, the
+  Repeat line of the right-click menu, whether the Ignored
+  folders window opens after a scan, and dark title bars (on by
+  default; applied to the open windows when you save).
 
 HEALTH RULES
   Every condition that can turn a row red (errors) or yellow
   (warnings) has a checkbox; some have a level or threshold.
   Save & Apply recomputes the health at once. "Reset to
   defaults" restores the shipped rules.
+  "Missing folder image" and "Poster and folder image are
+  different" are off by default: Kodi, Jellyfin, Emby and Plex
+  all show poster.jpg without a folder.jpg. Turn them on if you
+  want them.
+  "NFO has an unescaped '&'": Kodi reads such an NFO, but
+  Jellyfin may ignore the whole file. Auto Repair writes '&amp;'
+  (a backup is made first).
 
 BACKUP
   Maximum backup folder size (oldest deleted first, 0 =
@@ -523,10 +633,29 @@ SAVE & APPLY
 """
 
 TAB_SHORTCUTS = _title("Shortcuts") + """
+UPDATES
+  Help → Check for updates… (or the button in About) asks GitHub
+  for the latest release; nothing else is sent. A new version
+  can be opened on GitHub or skipped. The Windows exe can also
+  download and install it: the package is checked against its
+  SHA-256 and unpacked next to the current version, which is
+  never changed; then the new version can be started. Your
+  settings, results and backups are kept (they live in
+  %APPDATA%). Settings → User Interface → "Check for updates at
+  start" (off by default) checks once a day and only shows a
+  link in the status bar.
+
+MENUS
+  Settings ▾, Tools ▾ and Help ▾ at the top of the window open
+  the menus. Keyboard: Alt+S, Alt+T, Alt+H; F10 opens Settings;
+  Esc closes a menu.
+
 KEYBOARD
   F1, Ctrl+H          Help
   F5                  Full Scan
-  Esc                 cancel a scan; clear the Filter box
+  Esc                 cancel a scan; clear the Filter box; close a
+                      window (Settings asks first if you changed
+                      something)
   Ctrl+F              go to the Filter box
   Ctrl+L              clear all results
   Ctrl+S              Settings
@@ -550,6 +679,7 @@ SELECTION
   "N selected".
   Double-click        action of the column (Actions & Tools)
   Right-click         menu for the selected movie(s)
+  Shift+F10, Menu key the same menu, at the selected row
 
 TROUBLESHOOTING
   Audio column is empty

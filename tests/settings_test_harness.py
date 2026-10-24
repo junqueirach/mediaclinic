@@ -1,7 +1,7 @@
 # =============================================================================
 # settings_test_harness.py
 # Metadata & MediaClinic — Settings Subsystem Test Harness
-# Version: 0.19.1  (12 tabs; T09 pumps a real mainloop; T13–T15 added in v0.19.1 I9, T16 in B24)
+# Version: 0.19.2  (12 tabs; T09 pumps a real mainloop; T13–T15 added in v0.19.1 I9, T16 in B24, T18 in v0.19.2 B28)
 # Author:  Luiz Junqueira & Claude AI
 #
 # PURPOSE
@@ -34,6 +34,7 @@
 # Exit code 0 = all tests passed.
 # =============================================================================
 
+import os            # v0.19.2 B28 — T18 reads the schema next to this file
 import sys
 import threading
 import time
@@ -359,7 +360,9 @@ def run_all():
     # ── Test 14: the v0.19.0 / v0.19.1 health-rule rows exist and save ───────
     _NEW_RULES = ("image_file_too_small", "image_format_mismatch",          # v0.19.0
                   "genre_only_in_xml", "genre_only_in_nfo", "genre_nfo_wrong_tags",   # v0.19.1
-                  "folder_optional_with_kodi_poster", "nfo_name_not_kodi")            # v0.19.1 B23
+                  "folder_optional_with_kodi_poster", "nfo_name_not_kodi",            # v0.19.1 B23
+                  "nfo_unescaped_amp",                                                # v0.19.2 B33
+                  "multiple_nfo_files", "poster_missing_with_folder")                 # v0.19.2 F5
     try:
         dlg14 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
         missing = [k for k in _NEW_RULES if k not in dlg14._hr_vars]
@@ -435,6 +438,119 @@ def run_all():
                f"api={fake_settings.get('fanarttv_api_key')!r} client={fake_settings.get('fanarttv_client_key')!r}")
     except Exception as e:
         _check("T17 fanart.tv key block", False, traceback.format_exc())
+
+    # ── Test 18: FFmpeg limits for "Frames from movie" (v0.19.2 B28) ─────────   ### NEW v0.19.2 B28 ###
+    try:
+        import json as _json18
+        _schema18 = _json18.load(open(next(q for q in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings_schema.json"),
+                                        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings_schema.json"))
+                                  if os.path.isfile(q)),
+                                      encoding="utf-8"))["properties"]
+        _check("T18a new keys in DEFAULT_SETTINGS and the schema (20 s / 180 s)",
+               DEFAULT_SETTINGS.get("ffmpeg_frame_timeout_sec") == 20 and DEFAULT_SETTINGS.get("ffmpeg_run_budget_sec") == 180
+               and _schema18["ffmpeg_frame_timeout_sec"]["default"] == 20 and _schema18["ffmpeg_run_budget_sec"]["default"] == 180,
+               f"defaults={DEFAULT_SETTINGS.get('ffmpeg_frame_timeout_sec')}/{DEFAULT_SETTINGS.get('ffmpeg_run_budget_sec')}")
+        dlg18 = _in_loop(lambda: SettingsDialog(root, tab=0, ctx=ctx))
+        has18 = hasattr(dlg18, "_ffmpeg_frame_timeout_var") and hasattr(dlg18, "_ffmpeg_run_budget_var")
+        if has18:
+            dlg18._ffmpeg_frame_timeout_var.set(45); dlg18._ffmpeg_run_budget_var.set(5000)
+        ch18 = dlg18._rescan_changed()
+        dlg18._save_close(); root.update()
+        _check("T18b Tools tab spinboxes save the limits (clamped: 5000 → 1800); no rescan offered",
+               has18 and fake_settings.get("ffmpeg_frame_timeout_sec") == 45 and fake_settings.get("ffmpeg_run_budget_sec") == 1800
+               and ch18["any"] is False,
+               f"has={has18} saved={fake_settings.get('ffmpeg_frame_timeout_sec')}/{fake_settings.get('ffmpeg_run_budget_sec')} ch={ch18}")
+    except Exception as e:
+        _check("T18 FFmpeg limits", False, traceback.format_exc())
+
+    # ── Test 19: Esc / Cancel / [X] ask before discarding changes (v0.19.2 B44) ── ### NEW v0.19.2 B44 ###
+    import settings_dialog as _sdmod
+    _asked = []
+    _answer = {"v": False}
+    _orig_ask = _sdmod.messagebox.askyesno
+    _sdmod.messagebox.askyesno = lambda *a, **k: (_asked.append(a[0] if a else k.get("title")) or _answer["v"])
+    try:
+        dlg19 = _in_loop(lambda: SettingsDialog(root, tab=1, ctx=ctx)); root.update()
+        esc_bound = "_cancel_close" in dlg19.bind("<Escape>") or bool(dlg19.bind("<Escape>"))
+        dlg19._cancel_close(); root.update()          # what Esc runs (synthetic key events need the focus)
+        _check("T19a nothing changed → Esc (bound) closes without a question",
+               esc_bound and not dlg19.winfo_exists() and not _asked, f"bound={esc_bound} exists={dlg19.winfo_exists()} asked={_asked}")
+        before = dict(fake_settings)
+        dlg19b = _in_loop(lambda: SettingsDialog(root, tab=1, ctx=ctx)); root.update()
+        dlg19b._tmdb_var.set("CHANGED-B44")
+        _answer["v"] = False; dlg19b._cancel_close(); root.update()
+        stay = dlg19b.winfo_exists()
+        _answer["v"] = True; dlg19b.tk.call(dlg19b.protocol("WM_DELETE_WINDOW")); root.update()
+        _check("T19b a change → Cancel asks 'Discard your changes?'; No keeps the dialog, Yes ([X]) closes; nothing saved",
+               stay and not dlg19b.winfo_exists() and _asked == ["Discard your changes?", "Discard your changes?"]
+               and fake_settings.get("tmdb_api_key") == before.get("tmdb_api_key"),
+               f"stay={stay} asked={_asked} tmdb={fake_settings.get('tmdb_api_key')!r}")
+    except Exception as e:
+        _check("T19 discard question", False, traceback.format_exc())
+    finally:
+        _sdmod.messagebox.askyesno = _orig_ask
+
+    # ── Test 20: right-click "Repeat" setting (v0.19.2 B57) ───────────────────  ### NEW v0.19.2 B57 ###
+    try:
+        dlg20 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+        has20 = hasattr(dlg20, "_ctx_repeat_var") and dlg20._ctx_repeat_var.get() is True
+        dlg20._ctx_repeat_var.set(False)
+        ch20 = dlg20._rescan_changed()
+        dlg20._save_close(); root.update()
+        _check("T20 'Repeat: <last action>' checkbox (User Interface, default ON) saves OFF; key in defaults; no rescan",
+               has20 and DEFAULT_SETTINGS.get("ctx_repeat_last") is True and fake_settings.get("ctx_repeat_last") is False and ch20["any"] is False,
+               f"has={has20} saved={fake_settings.get('ctx_repeat_last')!r} ch={ch20}")
+    except Exception as e:
+        _check("T20 ctx_repeat_last", False, traceback.format_exc())
+
+    # ── Test 22: "Show the Ignored folders window after a scan" (v0.19.2 B53) ─  ### NEW v0.19.2 B53 ###
+    try:
+        dlg22 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+        has22 = hasattr(dlg22, "_scan_ignored_report_var") and dlg22._scan_ignored_report_var.get() is True
+        dlg22._scan_ignored_report_var.set(False)
+        ch22 = dlg22._rescan_changed()
+        dlg22._save_close(); root.update()
+        _check("T22 'Ignored folders window after a scan' checkbox (User Interface, default ON) saves OFF; no rescan",
+               has22 and DEFAULT_SETTINGS.get("scan_ignored_report") is True and fake_settings.get("scan_ignored_report") is False
+               and ch22["any"] is False, f"has={has22} saved={fake_settings.get('scan_ignored_report')!r} ch={ch22}")
+    except Exception as e:
+        _check("T22 scan_ignored_report", False, traceback.format_exc())
+
+    # ── Test 23: "Dark title bars" (v0.19.2 B51) ─────────────────────────────  ### NEW v0.19.2 B51 ###
+    try:
+        dlg23 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+        has23 = hasattr(dlg23, "_dark_title_var") and dlg23._dark_title_var.get() is True
+        dlg23._dark_title_var.set(False)
+        ch23 = dlg23._rescan_changed()
+        dlg23._save_close(); root.update()
+        _check("T23 'Dark title bars' checkbox (User Interface, default ON) saves OFF; no rescan",
+               has23 and DEFAULT_SETTINGS.get("dark_title_bar") is True and fake_settings.get("dark_title_bar") is False
+               and ch23["any"] is False, f"has={has23} saved={fake_settings.get('dark_title_bar')!r} ch={ch23}")
+    except Exception as e:
+        _check("T23 dark_title_bar", False, traceback.format_exc())
+
+    # ── Test 24: "Check for updates at start" (v0.19.2 B50) ──────────────────  ### NEW v0.19.2 B50 ###
+    try:
+        dlg24 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+        has24 = hasattr(dlg24, "_check_updates_var") and dlg24._check_updates_var.get() is False
+        dlg24._check_updates_var.set(True)
+        ch24 = dlg24._rescan_changed()
+        dlg24._save_close(); root.update()
+        _check("T24 'Check for updates at start' checkbox (User Interface, default OFF) saves ON; no rescan",
+               has24 and DEFAULT_SETTINGS.get("check_updates") is False and fake_settings.get("check_updates") is True
+               and ch24["any"] is False, f"has={has24} saved={fake_settings.get('check_updates')!r} ch={ch24}")
+    except Exception as e:
+        _check("T24 check_updates", False, traceback.format_exc())
+
+    # ── Test 21: Settings → Tools shows where FFmpeg was found (v0.19.2 B58) ──  ### NEW v0.19.2 B58 ###
+    try:
+        dlg21 = _in_loop(lambda: SettingsDialog(root, tab=0, ctx=ctx)); root.update()
+        t21 = dlg21._ff_how_lbl.cget("text") if hasattr(dlg21, "_ff_how_lbl") else ""
+        _check("T21 Tools tab shows 'FFmpeg: …' (where / how found) and has 'Search again'",
+               t21.startswith("FFmpeg:") and hasattr(dlg21, "_ffmpeg_search_again"), f"label={t21!r}")
+        dlg21.destroy()
+    except Exception as e:
+        _check("T21 FFmpeg found label", False, traceback.format_exc())
 
     # ── Teardown ──────────────────────────────────────────────────────────────
     try:

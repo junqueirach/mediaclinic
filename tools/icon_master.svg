@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- MediaClinic icon, option B (chosen 2026-10-19): today's design on a rounded tile, transparent corners.
+       Master for tools/make_icon.py (the script uses the same coordinates). -->
+  <defs>
+    <linearGradient id="mcNavy" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101a30"/>
+      <stop offset="1" stop-color="#1c2a4a"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="url(#mcNavy)"/>
+  <g fill="#38bdf8">
+    <rect x="66" y="54" width="16" height="16" rx="4"/><rect x="96" y="54" width="16" height="16" rx="4"/>
+    <rect x="126" y="54" width="16" height="16" rx="4"/><rect x="156" y="54" width="16" height="16" rx="4"/>
+    <rect x="186" y="54" width="16" height="16" rx="4"/>
+    <rect x="66" y="186" width="16" height="16" rx="4"/><rect x="96" y="186" width="16" height="16" rx="4"/>
+    <rect x="126" y="186" width="16" height="16" rx="4"/><rect x="156" y="186" width="16" height="16" rx="4"/>
+    <rect x="186" y="186" width="16" height="16" rx="4"/>
+  </g>
+  <rect x="60" y="82" width="144" height="92" rx="16" fill="none" stroke="#38bdf8" stroke-width="12"/>
+  <path d="M98 128 L120 150 L162 106" fill="none" stroke="#4ade80" stroke-width="17"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
