@@ -960,7 +960,7 @@ APP_REDDIT  = "https://www.reddit.com/r/MediaClinic/"           ### NEW v0.19.2 
 _UA         = f"MediaClinic/{APP_VERSION}"   # User-Agent for all HTTP calls ### NEW v0.18.3 ###
 
 import queue as _queue_mod                                        ### NEW v0.19.4 (D23 / B25) ###
-_UI_QUEUE = _queue_mod.Queue()
+_UI_QUEUE = _queue_mod.SimpleQueue()                              # put() is safe inside a destructor
 _UI_ROOT = [None]                                                 # the main window (App) that drains the queue
 _RF_POST_LOCK = threading.Lock()
 
@@ -984,6 +984,33 @@ def ui_post(fn, *args):                                           ### NEW v0.19.
             pass
         return
     _UI_QUEUE.put((fn, args))
+
+
+_MAIN_THREAD_ID = threading.main_thread().ident
+
+
+def _tk_del_on_ui_thread(cls):                                    ### NEW v0.19.4 — a freeze found by CI ###
+    """A Tk object's clean-up belongs on the Tk thread.  The garbage collector can run __del__ on any thread: a Tcl call
+    there waits for the Tk thread, and if the Tk thread is waiting for that thread (Thread.start() waits until the new
+    thread runs), the app freezes for good.  On another thread the clean-up now goes through the ui_post queue."""
+    orig = cls.__dict__.get("__del__")
+    if orig is None or getattr(orig, "_mc_safe", False):
+        return
+
+    def __del__(self):
+        if threading.get_ident() == _MAIN_THREAD_ID:           # not current_thread(): a starting thread is not registered yet
+            orig(self)
+        else:
+            _UI_QUEUE.put((orig, (self,)))
+    __del__._mc_safe = True
+    cls.__del__ = __del__
+
+
+_tk_del_on_ui_thread(tk.Variable)
+_tk_del_on_ui_thread(tk.Image)
+if _PIL_AVAILABLE:
+    _tk_del_on_ui_thread(_PILImageTk.PhotoImage)
+    _tk_del_on_ui_thread(_PILImageTk.BitmapImage)
 import settings_dialog as _sd_ua                                 ### NEW v0.19.4 B96d ###
 _sd_ua.USER_AGENT = _UA                                          # the three Validate buttons use it
 APP_GITHUB  = "https://github.com/junqueirach/mediaclinic"      ### NEW v0.19.2 B50 ###

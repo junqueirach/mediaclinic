@@ -6655,6 +6655,23 @@ def ui_tests():
               and "UNDO_HINT" in io.open(mc.__file__, encoding="utf-8").read().split("def _sync_ratings_worker_run", 1)[1][:20000])
         _boxes.clear()
 
+        # ── v0.19.4: a Tk object collected on another thread while the Tk thread waits for that thread (a freeze CI found) ──
+        import gc as _gc_del
+        _box_del = {"v": on_ui(lambda: tk.StringVar(app, value="x"))}
+        _name_del = str(_box_del["v"])
+        _done_del, _res_del = threading.Event(), []
+
+        def _worker_del():
+            _box_del.clear()                                   # the last reference goes here: __del__ runs on this thread
+            _gc_del.collect()
+            _done_del.set()
+        on_ui(lambda: (threading.Thread(target=_worker_del, daemon=True).start(), _res_del.append(_done_del.wait(8))))
+        check("freeze: a Tk variable collected on another thread does not wait for the Tk thread that waits for it", _res_del == [True], _res_del)
+        wait_for(lambda: not on_ui(lambda: app.tk.getboolean(app.tk.call("info", "exists", _name_del))), 10)
+        check("freeze: …and its clean-up still runs, on the Tk thread", not on_ui(lambda: app.tk.getboolean(app.tk.call("info", "exists", _name_del))), _name_del)
+        check("freeze: Variable, Image and Pillow's PhotoImage / BitmapImage all clean up this way",
+              all(getattr(c.__del__, "_mc_safe", False) for c in (tk.Variable, tk.Image, mc._PILImageTk.PhotoImage, mc._PILImageTk.BitmapImage)))
+
         # ── v0.19.4 I13: the built menus = the registry; the shortcuts run registry actions ──  ### NEW v0.19.4 I13 ###
         _tm13 = on_ui(lambda: ["-" if app._tools_menu.type(i) == "separator" else app._tools_menu.entrycget(i, "label")
                                for i in range(app._tools_menu.index("end") + 1)])

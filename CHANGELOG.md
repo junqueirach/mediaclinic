@@ -19,6 +19,7 @@ Windows build and source. Movie collections, a new window layout, a rewritten He
 - **Scans:** a crashed Quick Scan keeps the previous rows; closing during a scan keeps the previous rows of unfinished folders; FFprobe data is reused only for the same video; unreadable folders keep their row; a corrupt results cache is kept aside; a scan waits for a running action.
 - **Table and panel:** every fix shows at once in the row, its collection row and the panel; a rebuild keeps the selection; Update rereads the NFO and `movie.xml` from the disk, even when a network drive reports an edited file with its old time and size.
 - **Rules:** rules and their Fix agree: empty ID tags next to a value are filled, rating 0.0 is synced, and the right collection name without the TMDB ID counts as right. Typed IDs are checked.
+- **A random freeze is gone:** the window could lock up for good when a background job started, if Python's garbage collector cleaned up a Tk object in the new thread at that moment. Found by CI on Python 3.10.
 - **Responsiveness:** Update on several movies, the Full Scan listing, the backup cleanup, frame extraction and image previews run in the background, and background jobs reach the window through one queue.
 - Settings names a wrong value and saves nothing; a collection folder that is not found asks first; update zips are checked part by part.
 
