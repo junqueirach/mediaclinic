@@ -17,6 +17,9 @@
 # =============================================================================
 
 import os, sys, io, csv, json, time, shutil, tempfile, threading, traceback
+import faulthandler as _fh_ci, os as _os_ci, sys as _sys_ci
+if _os_ci.environ.get("CI"):                     # a hang on CI: all thread stacks in the log, the run ends
+    _fh_ci.dump_traceback_later(1500, exit=True, file=_sys_ci.stderr)
 import re
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
