@@ -24,7 +24,7 @@ MediaClinic expects one subfolder per movie, the layout used by Plex, Kodi, Emby
 |---|---|
 | Artwork | `poster.jpg`, `folder.jpg`, `fanart.jpg` (or the Kodi names `<video>-poster.jpg`, `<video>-fanart.jpg`, `.png`, `.tbn`) present, decodable (corrupt kept apart from too small), right proportions, minimum resolution tier (4K to 360p), minimum file size, file format matching the extension |
 | Backdrops | `backdrop.jpg`, `backdrop1.jpg` and so on, plus Kodi extra fanart (`fanart1.jpg`, `extrafanart/`): count and average size |
-| Metadata | `MovieName.nfo` or `movie.nfo` (Kodi) and `movie.xml` (Emby/Jellyfin) present and well-formed; every error is listed with its line and tag name. DVD and Blu-ray folders (`VIDEO_TS`, `BDMV`) count as one movie. Every name that Kodi, Jellyfin, Emby and Plex read is recognised; folders that are not movies (TV series, collections) get no row and are listed in an "Ignored folders" window |
+| Metadata | `MovieName.nfo` or `movie.nfo` (Kodi) and `movie.xml` (Emby/Jellyfin) present and well-formed; every error is listed with its line and tag name. DVD and Blu-ray folders (`VIDEO_TS`, `BDMV`) count as one movie. Every name that Kodi, Jellyfin, Emby and Plex read is recognised; folders that are not movies (TV series, folders that hold other movie folders) get no row and are listed in an "Ignored folders" window |
 | Identity | IMDB and TMDB IDs across all NFO/XML tags: missing, empty, conflicting, or present in one file only; duplicate movies (same ID, or same title and year, in another folder, also across libraries); optional online check that the IDs point to the right film |
 | Collections | The collection of each movie in the NFO and `movie.xml`: the two files agree, the name matches TMDB, the set folder has its poster and fanart. One name per collection: English, unless more than half of its titles are in another language, or a language you fix in Settings |
 | Ratings, titles, year | Rating and votes (legacy tags and Kodi v17+ `<ratings>` blocks), NFO title against XML local title, missing year |
@@ -40,7 +40,7 @@ Every check is a **health rule** you can switch on or off, or tune, in *Settings
 - **Verify IMDb/TMDb IDs** against TMDb (title in any translation, year ±1) with a sortable report
 - **Movie collections**: a *Group by collection* view with one row per collection, *Check Collections Online* (TMDB), Fix, Set, Rename, Join and Remove from Collection, *Collection Artwork* to choose the set's poster and fanart, and Kodi's movie set information folder; a renamed collection takes its folder and images along, and Undo puts everything back
 - **Panel for the selected movie**: poster, its issues with Fix buttons, files and actions (Ctrl+B hides it)
-- **Auto Repair** for one movie, a selection or the whole library, with a dry-run preview: IDs, ratings, genres, year, titles and XML language; artwork is never touched
+- **Auto Repair** for one movie, a selection or the whole library, with a dry-run preview: IDs, ratings, genres, year, titles, collections and XML language; a movie's own artwork is never touched
 - **Fetch Poster, Fanart and Backdrops** from TMDB or fanart.tv with thumbnails, or pick **frames from the video** with FFmpeg; new files follow the folder's naming style (Kodi or Emby)
 - **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to NFO and XML
 - **Backup History / Undo**: every backup records what it changed, and a whole run can be restored
@@ -63,7 +63,7 @@ pip install -r requirements.txt     # optional: pillow, openpyxl
 python mediaclinic.py
 ```
 
-Run it from the folder that contains the `settings_*.py` files. FFmpeg and FFprobe are optional but recommended (point *Settings → Tools* to their `bin` folder). Settings, your API keys and the last scan are stored in `%APPDATA%\MediaMetadataClinic\`, outside this repository, and since v0.19.4 so are the backups, so an update keeps Backup History and Undo (backups from an older version next to the program move there once). `logs/` is created next to the program. See [docs/help](docs/help) for the in-app help pages.
+Run it from the folder that contains the `settings_*.py` files. FFmpeg and FFprobe are optional but recommended (point *Settings → Tools* to their `bin` folder). Settings, your API keys and the last scan are stored in `%APPDATA%\MediaMetadataClinic\`, outside this repository, and since v0.19.4 so are the backups, so an update keeps Backup History and Undo (backups from an older version next to the program move there once). `logs/` is created next to the program. The full help is inside the app (F1).
 
 ## Engineering notes
 

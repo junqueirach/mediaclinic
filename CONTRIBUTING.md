@@ -11,7 +11,7 @@ Thanks for your interest. This is a personal project built with AI assistance (C
 ## Before you start
 
 1. Open an issue first for anything bigger than a small fix, so we agree on the approach.
-2. Python 3.9 or newer, Windows is the tested platform.
+2. Python 3.10 or newer, Windows is the tested platform.
 3. Run the checks locally:
 
 ```

@@ -1,6 +1,6 @@
 # CLAUDE_RULES.md
 ## MediaClinic — Rules for AI-assisted Editing of the Settings Subsystem
-### Version: 0.14.0
+### Version: 0.14.0 (last revised then; the app is now at v0.19.4 and has more modules than this file names)
 
 This file is the authoritative guide for any Claude (or human) editing
 `settings_model.py`, `settings_controller.py`, `settings_context.py`, or
