@@ -2,9 +2,37 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.19.4 — 2026-11-04
+
+Windows build and source. Movie collections, a new window layout, a rewritten Help, and a full code review.
+
+### Added
+- **Movie collections.** The scan reads each movie's collection from the NFO `<set>` and from `movie.xml`. New: Collection column, **Group by collection** view (one row per collection; it opens with ▸, Enter or a double-click), a collection panel, **Check Collections Online** (TMDB), **Fix / Set / Rename / Join / Remove from Collection**, **Sync Collection** (NFO and `movie.xml`), an Auto Repair step, and the sort preset "By collection name".
+- **One name per collection:** English, unless more than half of its movies have their title in another language. Settings → NFO / XML → Collections → **Collection name language** can fix one language instead.
+- **Collection Artwork…:** choose the set's poster and fanart from TMDB (pages of 12 posters or 9 fanart images), a TMDB search or the movies' own images. **Create Collection Folder** makes Kodi's movie set information folder with poster and fanart.
+- A renamed collection takes its folder along: its images move to the folder of the new name, an image that already exists there goes to `replaced\`, and the empty old folder is removed once no movie uses the old name. Backup History / Undo puts everything back. No folder moves while a library is not loaded.
+- **New layout:** app-wide header (Movies / Series, Backup History, Settings, Help, About), Movies toolbar (Tools, Export, •••), a status bar with the FFmpeg / FFprobe switch, and a **panel for the selected movie** (poster, issues with Fix buttons, files, actions; Ctrl+B hides it). Display scaling at 125 % and 150 %.
+- **Help rewritten:** 13 topics plus About, with a contents list; the text reflows with the window.
+
+### Fixed
+- **Writes and backups:** cleanup keeps this session's runs and the last 14 days, and logs what it removed; Undo never restores over a file whose safety copy failed; downloaded and copied images are checked before they replace a file; Replace All Backdrops downloads first, then swaps; Fetch never overwrites an image Kodi does not read; Undo also covers new images and the folders a run made.
+- **Scans:** a crashed Quick Scan keeps the previous rows; closing during a scan keeps the previous rows of unfinished folders; FFprobe data is reused only for the same video; unreadable folders keep their row; a corrupt results cache is kept aside; a scan waits for a running action.
+- **Table and panel:** every fix shows at once in the row, its collection row and the panel; a rebuild keeps the selection; Update rereads the NFO and `movie.xml` from the disk, even when a network drive reports an edited file with its old time and size.
+- **Rules:** rules and their Fix agree: empty ID tags next to a value are filled, rating 0.0 is synced, and the right collection name without the TMDB ID counts as right. Typed IDs are checked.
+- **Responsiveness:** Update on several movies, the Full Scan listing, the backup cleanup, frame extraction and image previews run in the background, and background jobs reach the window through one queue.
+- Settings names a wrong value and saves nothing; a collection folder that is not found asks first; update zips are checked part by part.
+
+### Changed
+- **Backups now live in `%APPDATA%\MediaMetadataClinic\backup`**, so an update keeps Backup History and Undo. Backups next to the program move there once.
+- Labels and messages made consistent ("1 movie", TMDB / IMDb, Title Case).
+- A collection row opens with ▸, Enter or a double-click; a click only selects it.
+
+### Build
+- One-folder PyInstaller build on Python 3.14 (Tk 9).
+
 ## v0.19.3 — 2026-10-23
 
-Source release (no Windows build with this version; the next build is v0.19.4). Sorting, "not a duplicate" marks, a preview before bulk writes, content checks for NFO/XML, a faster start, and fixes after the first round of tests. The detailed list is in the `CHANGELOG` block at the top of `mediaclinic.py`.
+Source release (no Windows build with this version). Sorting, "not a duplicate" marks, a preview before bulk writes, content checks for NFO/XML, a faster start, and fixes after the first round of tests. The detailed list is in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
 ### Added
 - **Sort builder** replaces the 37-entry sort list: up to three levels ("Sort by … then by …"), every column plus Health, Number of issues and Date added, a click on a column heading sorts by it (Shift+click adds a level), six built-in presets plus your own (Ctrl+1…9). The sort is kept after scans and restarts. New module `sort_engine.py`.

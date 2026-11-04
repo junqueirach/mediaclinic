@@ -243,7 +243,7 @@ def hint_line(items, root_videos=None, roots_all_ignored=()):
     return {
         "series": "Most folders here are TV series. MediaClinic handles movies; series support is planned.",
         "container": "Your movies seem to be one level deeper. Add the folders listed below as libraries "
-                     "(Settings → Libraries).",
+                     "(the Libraries… button).",
         "loose_videos": "Several folders hold many separate videos. Give each movie its own folder.",
         "no_media": "Many folders hold no video, NFO or XML. Check that this is the right library folder.",
         "unreadable": "Many folders could not be read. Check the permissions of the library folder.",

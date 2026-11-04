@@ -98,7 +98,7 @@ DEFAULT_SETTINGS = {
     "export_prefs":            {},       # NEW v0.18.3: last choices of the Export Movie List dialog
     "scan_workers":            6,        # NEW v0.18.4: parallel folder/metadata/image workers (1-16)
     "ffprobe_workers":         2,        # NEW v0.18.4: parallel ffprobe processes (1-8)
-    "hidden_columns":          ["library"],  # NEW v0.18.4: column ids hidden via Tools → Choose Columns (v0.19.0: Library hidden by default)
+    "hidden_columns":          ["library", "collection"],  # NEW v0.18.4: column ids hidden via Tools → Choose Columns (v0.19.0: Library hidden by default)
     "library_folders":         [],       # NEW v0.19.0: library (root) folders; migrated from last_folder
     "library_filter":          "",       # NEW v0.19.0: "" = all libraries, else one root shown/scanned
     "window_geometry":         {},       # NEW v0.19.0: {window_id: {"geometry": "WxH+X+Y", "zoomed": bool}}
@@ -114,6 +114,12 @@ DEFAULT_SETTINGS = {
     "last_update_check":       "",       # NEW v0.19.2 B50: date of the last automatic check (YYYY-MM-DD)
     "skipped_version":         "",       # NEW v0.19.2 B50: "Skip this version" — no status-bar link for it
     "image_fix_prefs":         {},       # NEW v0.19.2 F4: last choices of Fix image proportions / size (method per kind, ai_upscale, AI test result)
+    "library_kinds":           {},       # NEW v0.19.4 I19: {library path: "movies" | "series"}; absent = "movies" (series from v0.22)
+    "movie_panel_shown":       True,     # NEW v0.19.4 L3: the selected-movie panel (D6: shown at the first start)
+    "movie_panel_width":       320,      # NEW v0.19.4 L3: its width in px (double-click on the divider resets)
+    "collection_folder":       "",       # NEW v0.19.4 B110g: Kodi's "Movie set information folder" ("" = off)
+    "group_by_collection":     False,    # NEW v0.19.4 B110h: the movie table grouped by collection (D10: default off)
+    "collection_name_lang":    "auto",   # NEW v0.19.4 P4: a collection's name language — "auto" or a fixed code (en, pt …)
     # v0.18.2 — Health Rules (configurable rule engine)        ### ADDED_BY_CLAUDE_v18.2 ###
     "health_rules": {
         # ── Group A: Critical Error Rules (default ON) ──────────────────────
@@ -184,6 +190,8 @@ DEFAULT_SETTINGS = {
         "required_subtitle_language_code": "POR",
         "missing_movie_title":             True,
         "title_mismatch":                  True,
+        "collection_artwork":              True,      ### NEW v0.19.4 B110g — set folder / poster / fanart (only with a collection folder) ###
+        "collection_mismatch":             True,      ### NEW v0.19.4 B110c — missing / different collection (TMDB) ###
         "title_sync_default":              "nfo",     ### NEW v0.19.3 B60 — Repair All, unclear title: "nfo" keeps the NFO title, "skip" reports ###
         "id_format_invalid":               True,      ### NEW v0.19.3 I8 — IMDb tt + 7–9 digits, TMDb digits ###
         "year_out_of_range":               True,      ### NEW v0.19.3 I8 — 1888 … next year + 1 ###

@@ -34,7 +34,10 @@
 # Exit code 0 = all tests passed.
 # =============================================================================
 
+import copy          # v0.19.4 B97 — deep copies of DEFAULT_SETTINGS
+import json          # v0.19.4 B97 — T34 writes a settings.json
 import os            # v0.19.2 B28 — T18 reads the schema next to this file
+import tempfile      # v0.19.4 B97 — T34
 import sys
 import threading
 import time
@@ -88,7 +91,7 @@ def _fake_clean_backup(active_folder=None):
 
 # ── Build fake settings ───────────────────────────────────────────────────────
 def _make_fake_settings():
-    s = dict(DEFAULT_SETTINGS)
+    s = copy.deepcopy(DEFAULT_SETTINGS)       ### MODIFIED v0.19.4 B97 — was dict(): a shallow copy shared the sub-dicts ###
     s["text_editor"]   = ""
     s["ffmpeg_path"]   = ""
     s["lang_ok_code"]  = "PT"
@@ -123,7 +126,7 @@ def run_all():
         ctx = SettingsContext(
             app_name             = "TestApp",
             settings             = fake_settings,
-            defaults             = dict(DEFAULT_SETTINGS),
+            defaults             = copy.deepcopy(DEFAULT_SETTINGS),   ### v0.19.4 B97 ###
             tag_pairs            = list(DEFAULT_TAG_PAIRS),
             world_languages      = list(WORLD_LANGUAGES),
             logger               = logger,
@@ -150,7 +153,7 @@ def run_all():
         _inject_globals(
             app_name           = "TestApp",
             settings           = fake_settings,
-            default_settings   = dict(DEFAULT_SETTINGS),
+            default_settings   = copy.deepcopy(DEFAULT_SETTINGS),   ### v0.19.4 B97 ###
             default_tag_pairs  = list(DEFAULT_TAG_PAIRS),
             world_languages    = list(WORLD_LANGUAGES),
             logger             = logger,
@@ -591,6 +594,127 @@ def run_all():
         dlg21.destroy()
     except Exception as e:
         _check("T21 FFmpeg found label", False, traceback.format_exc())
+
+    # ── Tests 32–34: Save & Apply / load safety (v0.19.4 B94) ────────────────  ### NEW v0.19.4 B97 ###
+    from tkinter import messagebox as _mb97
+    _errs97 = []
+    _orig_err97 = _mb97.showerror
+    _mb97.showerror = lambda title, msg, **k: _errs97.append((title, msg))   # no modal box in the harness
+    try:
+        # T32: settings.json could not be written → window stays open, nothing applied
+        try:
+            dlg32 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+            before32 = fake_settings.get("check_updates")
+            dlg32._check_updates_var.set(not before32)
+            _orig_save32 = ctx.save_settings
+            ctx.save_settings = lambda s: False
+            try:
+                dlg32._save_close(); root.update()
+            finally:
+                ctx.save_settings = _orig_save32
+            alive32 = bool(dlg32.winfo_exists())
+            _check("T32 failed save: 'Settings not saved', the window stays open, the live settings unchanged",
+                   alive32 and fake_settings.get("check_updates") == before32
+                   and any(t == "Settings not saved" for t, _m in _errs97),
+                   f"alive={alive32} value={fake_settings.get('check_updates')!r} errors={_errs97}")
+            if alive32:
+                dlg32.destroy()
+        except Exception:
+            _check("T32 failed save", False, traceback.format_exc())
+
+        # T33: a bad tag line is named; no value is applied, not even the valid ones
+        try:
+            _errs97.clear()
+            dlg33 = _in_loop(lambda: SettingsDialog(root, tab=0, ctx=ctx)); root.update()
+            before33 = fake_settings.get("max_nfo_kb")
+            dlg33._max_nfo_kb_var.set(int(before33 or 50) + 11)
+            dlg33._tags_text.delete("1.0", "end")
+            dlg33._tags_text.insert("1.0", "rating\tRating\tRating\t5%\n")
+            dlg33._save_close(); root.update()
+            alive33 = bool(dlg33.winfo_exists())
+            _check("T33 bad tag line ('5%'): named in the error, nothing applied, the window stays open",
+                   alive33 and fake_settings.get("max_nfo_kb") == before33
+                   and any("Tag pairs: line 1: the tolerance '5%'" in m for _t, m in _errs97),
+                   f"alive={alive33} value={fake_settings.get('max_nfo_kb')!r} errors={_errs97}")
+            if alive33:
+                dlg33.destroy()
+        except Exception:
+            _check("T33 bad tag line", False, traceback.format_exc())
+    finally:
+        _mb97.showerror = _orig_err97
+
+    # T35–T37: the new keys of v0.19.4 (I19 library_kinds, L3 movie_panel_shown / movie_panel_width)  ### NEW v0.19.4 ###
+    try:
+        _schema37 = json.load(open(next(q for q in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings_schema.json"),
+                                        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings_schema.json"))
+                                  if os.path.isfile(q)),
+                                   encoding="utf-8"))["properties"]
+        fake_settings["library_kinds"] = {"c:/lib": "movies"}
+        fake_settings["movie_panel_shown"] = False
+        fake_settings["movie_panel_width"] = 410
+        dlg35 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+        dlg35._save_close(); root.update()
+        for _t, _k, _dv in (("T35", "library_kinds", {}), ("T36", "movie_panel_shown", True), ("T37", "movie_panel_width", 320)):
+            _kept = {"library_kinds": {"c:/lib": "movies"}, "movie_panel_shown": False, "movie_panel_width": 410}[_k]
+            _check(f"{_t} key {_k}: default {_dv!r} (model + schema), kept by Save & Apply (no widget resets it)",
+                   DEFAULT_SETTINGS.get(_k) == _dv and _schema37.get(_k, {}).get("default") == _dv
+                   and fake_settings.get(_k) == _kept, f"default={DEFAULT_SETTINGS.get(_k)!r} saved={fake_settings.get(_k)!r}")
+    except Exception:
+        _check("T35-T37 new keys", False, traceback.format_exc())
+
+    # T38–T42: the B110 keys of v0.19.4 (collections)  ### NEW v0.19.4 B110 ###
+    try:
+        _schema42 = json.load(open(next(q for q in (os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings_schema.json"),
+                                        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings_schema.json"))
+                                  if os.path.isfile(q)),
+                                   encoding="utf-8"))["properties"]
+        _hrs42 = _schema42.get("health_rules", {}).get("properties", {})
+        for _t, _k, _dv, _top in (("T38", "group_by_collection", False, True), ("T39", "collection_folder", "", True),
+                                  ("T40", "collection_mismatch", True, False), ("T41", "collection_name_lang", "auto", True),
+                                  ("T42", "collection_artwork", True, False)):
+            _dm = DEFAULT_SETTINGS.get(_k) if _top else DEFAULT_SETTINGS["health_rules"].get(_k)
+            _ds = (_schema42.get(_k) if _top else _hrs42.get(_k)) or {}
+            _check(f"{_t} key {_k}: default {_dv!r} in the model and the schema", _dm == _dv and _ds.get("default") == _dv,
+                   f"model={_dm!r} schema={_ds.get('default')!r}")
+        fake_settings["collection_folder"] = "c:/sets"
+        fake_settings["group_by_collection"] = True
+        dlg42 = _in_loop(lambda: SettingsDialog(root, tab=8, ctx=ctx)); root.update()
+        _vals42 = (dlg42._coll_folder_var.get(), bool(dlg42._group_coll_var.get()))
+        _other42 = tempfile.mkdtemp(prefix="hn_sets_")                  # v0.19.4 F19: a folder that exists (a missing one asks)
+        dlg42._coll_folder_var.set(_other42); dlg42._group_coll_var.set(False)
+        dlg42._save_close(); root.update()
+        _check("T38/T39 NFO / XML tab: the Collections section shows and saves the folder and the group switch",
+               _vals42 == ("c:/sets", True) and fake_settings.get("collection_folder") == _other42
+               and fake_settings.get("group_by_collection") is False, f"{_vals42} → {fake_settings.get('collection_folder')!r}")
+    except Exception:
+        _check("T38-T42 B110 keys", False, traceback.format_exc())
+
+    # T34: a wrongly typed key in settings.json gets its default on load (and saves again)
+    try:
+        import settings_controller as _sc97
+        _cp97, _st97 = _sc97.CONFIG_PATH, list(_sc97.SETTINGS_MIGRATION_STATUS)
+        _td97 = tempfile.mkdtemp(prefix="mc_harness_b97_")
+        _sc97.CONFIG_PATH = os.path.join(_td97, "settings.json")
+        try:
+            with open(_sc97.CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump({"health_rules": None, "dark_theme": "yes", "max_nfo_kb": 61}, f)
+            l34 = _sc97.load_settings()
+            saved34 = _sc97.save_settings(l34)
+        finally:
+            _sc97.CONFIG_PATH = _cp97
+            _sc97.SETTINGS_MIGRATION_STATUS[:] = _st97
+            try:
+                for _n in os.listdir(_td97):
+                    os.remove(os.path.join(_td97, _n))
+                os.rmdir(_td97)
+            except OSError:
+                pass
+        _check("T34 wrongly typed keys (health_rules null, dark_theme 'yes') reset to the default on load; saves again",
+               isinstance(l34.get("health_rules"), dict) and l34.get("dark_theme") == DEFAULT_SETTINGS["dark_theme"]
+               and l34.get("max_nfo_kb") == 61 and saved34 is True,
+               f"health_rules={type(l34.get('health_rules')).__name__} dark_theme={l34.get('dark_theme')!r} saved={saved34}")
+    except Exception:
+        _check("T34 wrongly typed keys", False, traceback.format_exc())
 
     # ── Teardown ──────────────────────────────────────────────────────────────
     try:

@@ -6,7 +6,9 @@
 
 <p align="center"><img src="docs/screenshots/mediaclinic.png" alt="MediaClinic screenshot" width="900"></p>
 
-**Download for Windows:** the newest Windows build is `MediaClinic-0.19.1-win64.zip` (about 19 MB), attached to the [v0.19.1 release](https://github.com/junqueirach/mediaclinic/releases/tag/v0.19.1). v0.19.2 and v0.19.3 are source-only releases; the next Windows build comes with v0.19.4. Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
+**Download for Windows:** get `MediaClinic-0.19.4-win64.zip` (about 20 MB) from the [latest release](https://github.com/junqueirach/mediaclinic/releases/latest). Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
+
+**New in v0.19.4:** movie collections (Kodi and Emby/Jellyfin sets), a new window layout with a panel for the selected movie, a rewritten Help, and a full code review with many fixes. See the [changelog](CHANGELOG.md).
 
 > **Windows SmartScreen:** the file is not code-signed, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. You can also run the app from source (see Quick start) and read every line of the code first.
 
@@ -24,6 +26,7 @@ MediaClinic expects one subfolder per movie, the layout used by Plex, Kodi, Emby
 | Backdrops | `backdrop.jpg`, `backdrop1.jpg` and so on, plus Kodi extra fanart (`fanart1.jpg`, `extrafanart/`): count and average size |
 | Metadata | `MovieName.nfo` or `movie.nfo` (Kodi) and `movie.xml` (Emby/Jellyfin) present and well-formed; every error is listed with its line and tag name. DVD and Blu-ray folders (`VIDEO_TS`, `BDMV`) count as one movie. Every name that Kodi, Jellyfin, Emby and Plex read is recognised; folders that are not movies (TV series, collections) get no row and are listed in an "Ignored folders" window |
 | Identity | IMDB and TMDB IDs across all NFO/XML tags: missing, empty, conflicting, or present in one file only; duplicate movies (same ID, or same title and year, in another folder, also across libraries); optional online check that the IDs point to the right film |
+| Collections | The collection of each movie in the NFO and `movie.xml`: the two files agree, the name matches TMDB, the set folder has its poster and fanart. One name per collection: English, unless more than half of its titles are in another language, or a language you fix in Settings |
 | Ratings, titles, year | Rating and votes (legacy tags and Kodi v17+ `<ratings>` blocks), NFO title against XML local title, missing year |
 | Genres | Non-standard genres, synonyms, merged tags such as `Family/Fantasy`, translations from eight languages, genres present in only one of NFO and XML |
 | Video (FFprobe) | Resolution class, audio tracks and languages (an undefined track takes its language from the NFO/XML), embedded subtitles, hard-coded subtitles you mark by hand, required language. One probe per video, cached |
@@ -35,6 +38,8 @@ Every check is a **health rule** you can switch on or off, or tune, in *Settings
 - **Normalize Genres** and **Normalize Sources**: written to both NFO and XML; movies without genres can get them from TMDb or OMDb after a preview
 - **Sync Ratings** from TMDb and OMDb (you supply your own free API keys)
 - **Verify IMDb/TMDb IDs** against TMDb (title in any translation, year ±1) with a sortable report
+- **Movie collections**: a *Group by collection* view with one row per collection, *Check Collections Online* (TMDB), Fix, Set, Rename, Join and Remove from Collection, *Collection Artwork* to choose the set's poster and fanart, and Kodi's movie set information folder; a renamed collection takes its folder and images along, and Undo puts everything back
+- **Panel for the selected movie**: poster, its issues with Fix buttons, files and actions (Ctrl+B hides it)
 - **Auto Repair** for one movie, a selection or the whole library, with a dry-run preview: IDs, ratings, genres, year, titles and XML language; artwork is never touched
 - **Fetch Poster, Fanart and Backdrops** from TMDB or fanart.tv with thumbnails, or pick **frames from the video** with FFmpeg; new files follow the folder's naming style (Kodi or Emby)
 - **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to NFO and XML
@@ -58,7 +63,7 @@ pip install -r requirements.txt     # optional: pillow, openpyxl
 python mediaclinic.py
 ```
 
-Run it from the folder that contains the `settings_*.py` files. FFmpeg and FFprobe are optional but recommended (point *Settings → Tools* to their `bin` folder). Settings, your API keys and the last scan are stored in `%APPDATA%\MediaMetadataClinic\`, outside this repository; `logs/` and `backup/` are created next to the program. See [docs/help](docs/help) for the in-app help pages.
+Run it from the folder that contains the `settings_*.py` files. FFmpeg and FFprobe are optional but recommended (point *Settings → Tools* to their `bin` folder). Settings, your API keys and the last scan are stored in `%APPDATA%\MediaMetadataClinic\`, outside this repository, and since v0.19.4 so are the backups, so an update keeps Backup History and Undo (backups from an older version next to the program move there once). `logs/` is created next to the program. See [docs/help](docs/help) for the in-app help pages.
 
 ## Engineering notes
 
@@ -66,9 +71,9 @@ This project is the clearest example of working with an AI under a written contr
 
 - [`docs/CLAUDE_RULES.md`](docs/CLAUDE_RULES.md) defines module boundaries, the save chain, naming rules and a safety checklist that every AI-edited change must respect
 - `settings_schema.json` plus `tests/settings_test_harness.py` check the settings subsystem after every change
-- `tests/selftest_v0_19_3.py` builds a synthetic library (NFO, XML, generated JPEGs and a real 3-second MKV) and runs more than 1,000 end-to-end checks, from health rules to Auto Repair and the export dialogs (TMDb calls are simulated); it runs in CI under a virtual display (checks that need Windows, such as the registry, backslash paths and the AI upscaler, are skipped on Linux) and never touches your real settings
+- `tests/selftest_v0_19_4.py` builds a synthetic library (NFO, XML, generated JPEGs and a real 3-second MKV) and runs more than 1,300 end-to-end checks, from health rules to Auto Repair and the export dialogs (TMDb calls are simulated); it runs in CI under a virtual display (checks that need Windows, such as the registry, backslash paths and the AI upscaler, are skipped on Linux) and never touches your real settings
 - The code is split into model, controller, context, dialog, export, help and genre-data modules so the AI can edit one part without breaking another
-- About 28,600 lines of Python in twelve modules; 36 versions in total, the earlier ones in `archive/versions/`, starting from a 12 KB folder scanner
+- About 34,400 lines of Python in thirteen modules; 37 versions in total, the earlier ones in `archive/versions/`, starting from a 12 KB folder scanner
 - Changes per version are in [CHANGELOG.md](CHANGELOG.md)
 
 ---

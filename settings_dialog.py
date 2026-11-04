@@ -95,6 +95,7 @@ import json
 import re
 import threading
 import copy                                                          ### ADDED_BY_CLAUDE_v18.2 ###
+import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import subprocess
@@ -117,6 +118,156 @@ def _validate_failure_text(service_label, kind, other=""):        ### NEW v0.19.
 
 # ── Legacy quality tier name migration (v0.16.1) ─────────────────────────────
 from settings_controller import _LEGACY_QUALITY_MAP                 ### MODIFIED v0.18.3 — single copy ###
+from settings_controller import BACKUP_PROTECT_DAYS                 ### NEW v0.19.4 B75 ###
+
+
+USER_AGENT = "MediaClinic"                                          ### NEW v0.19.4 B96d — set by the app to its own "MediaClinic/<version>" ###
+_KEY_RE96 = re.compile(r"((?:api_?key|client_key)=)[^&\s\"'<>]+", re.IGNORECASE)   # I2's redaction rule
+
+
+def redact_key_text(text, key=""):                                  ### NEW v0.19.4 B96d ###
+    """A Validate message with the key hidden: api_key=… → api_key=***, and
+    the key itself anywhere in the text."""
+    text = _KEY_RE96.sub(r"\1***", str(text))
+    return text.replace(key, "***") if key and len(key) >= 4 else text
+
+
+def modal(dlg):                                                     ### NEW v0.19.4 B98 ###
+    """Make *dlg* modal: it takes the grab, and when it is destroyed the grab
+    goes back to the window that had it before (a batch progress window, the
+    Settings window …).  Without this, a question asked during a batch took
+    the grab for good and the main window became clickable mid-batch."""
+    try:
+        prev = dlg.grab_current()
+    except tk.TclError:
+        prev = None
+
+    def _grab(tries=10):
+        try:
+            dlg.grab_set()
+        except tk.TclError:                                         # not viewable yet
+            if tries > 0:
+                try:
+                    dlg.after(50, lambda: _grab(tries - 1))
+                except tk.TclError:
+                    pass
+
+    def _give_back(e):
+        if e.widget is not dlg or prev is None or prev is dlg:
+            return
+        try:
+            if prev.winfo_exists():
+                prev.grab_set()
+        except tk.TclError:
+            pass
+    _grab()
+    dlg.bind("<Destroy>", _give_back, add="+")
+    return dlg
+
+
+class DialogBase(tk.Toplevel):                                      ### NEW v0.19.4 L4 / I15a ###
+    """Every dialog of the app.  Esc does what the window's close button does
+    (its WM_DELETE_WINDOW handler, else destroy); a class that binds its own
+    <Escape> replaces this."""
+
+    def __init__(self, parent=None, **kw):
+        super().__init__(parent, **kw)
+        self.bind("<Escape>", self._esc_default)
+
+    def _esc_default(self, e=None):
+        try:
+            cmd = self.protocol("WM_DELETE_WINDOW")
+            if cmd:
+                self.tk.call(cmd)
+            else:
+                self.destroy()
+        except tk.TclError:
+            pass
+        return "break"
+
+
+class DialogFrame(DialogBase):                                       ### NEW v0.19.4 L4 / I15a ###
+    """The one dialog frame: an optional heading, ``self.body`` and a button
+    row packed first at the bottom (a tall body never pushes it out).
+    ``add_button`` places buttons right-aligned in call order: add the main
+    button last, it sits on the right and Enter runs it (not inside a Text)."""
+    BG = "#1e1e2e"
+    _KINDS = {"main": ("#89b4fa", "#1e1e2e"), "ok": ("#a6e3a1", "#1e1e2e"),
+              "warn": ("#f9e2af", "#1e1e2e"), "danger": ("#f38ba8", "#1e1e2e"),
+              "secondary": ("#45475a", "#cdd6f4")}
+
+    def __init__(self, parent, title=None, heading=None, heading_fg="#89b4fa", geometry=None,
+                 make_modal=True, resizable=True):
+        super().__init__(parent)
+        self.configure(bg=self.BG)
+        if title:
+            self.title(title)
+        if geometry:
+            self.geometry(geometry)
+        try:
+            self.transient(parent)
+        except tk.TclError:
+            pass
+        self.resizable(resizable, resizable)
+        self.buttons = tk.Frame(self, bg=self.BG)
+        self.buttons.pack(side="bottom", fill="x", padx=16, pady=(4, 12))
+        self._btn_row = tk.Frame(self.buttons, bg=self.BG)
+        self._btn_row.pack(side="right")
+        self.heading = None
+        if heading:
+            self.heading = tk.Label(self, text=heading, font=("Helvetica", 13, "bold"), bg=self.BG, fg=heading_fg)
+            self.heading.pack(anchor="w", padx=16, pady=(14, 2))
+        self.body = tk.Frame(self, bg=self.BG)
+        self.body.pack(fill="both", expand=True)
+        self.main_button = None
+        self.bind("<Return>", self._on_return)
+        if make_modal:
+            modal(self)
+
+    def add_button(self, text, command, kind="secondary", main=False):
+        bg, fg = self._KINDS.get(kind, self._KINDS["secondary"])
+        b = tk.Button(self._btn_row, text=f"  {text}  ", command=command, font=("Helvetica", 10, "bold"),
+                      bg=bg, fg=fg, relief="flat", cursor="hand2")
+        if self._btn_row.winfo_children()[:-1]:
+            self._btn_row.winfo_children()[-2].pack_configure(padx=(0, 8))
+        b.pack(side="left")
+        if main:
+            self.main_button = b
+        return b
+
+    def _on_return(self, e):
+        if isinstance(e.widget, tk.Text) or self.main_button is None:
+            return None
+        try:
+            if str(self.main_button.cget("state")) != "disabled":
+                self.main_button.invoke()
+        except tk.TclError:
+            pass
+        return "break"
+
+
+class SettingsFieldError(ValueError):                               ### NEW v0.19.4 B94 ###
+    """A value in the Settings window that cannot be saved: *field* names it,
+    *widget* is focused; nothing is applied."""
+    def __init__(self, field, widget, msg):
+        super().__init__(f"{field}: {msg}")
+        self.field, self.widget, self.msg = field, widget, msg
+
+
+SETTINGS_NOT_SAVED_TEXT = ("settings.json could not be written (see logs\\app.log).\n\n"   ### NEW v0.19.4 B94a ###
+                           "Nothing was changed. Your values are still in this window: "
+                           "try Save & Apply again.")
+
+
+def backup_usage_text(total_bytes, max_mb):                         ### NEW v0.19.4 B75 (D2) ###
+    """Backup tab: the folder's size, and by how much the limit is passed."""
+    mb = total_bytes / (1024 * 1024)
+    if not isinstance(max_mb, (int, float)) or max_mb <= 0:
+        return f"Backup folder size now: {mb:.1f} MB (no limit)"
+    if mb <= max_mb:
+        return f"Backup folder size now: {mb:.1f} MB of {max_mb} MB"
+    return (f"Backup folder size now: {mb:.1f} MB, {mb - max_mb:.1f} MB over the {max_mb} MB limit\n"
+            f"(backups from this session and from the last {BACKUP_PROTECT_DAYS} days are kept)")
 
 # ── Module-level globals (populated by _inject_globals at import time) ────────
 # These are set by the main module after import so that settings_dialog.py
@@ -282,7 +433,7 @@ def _inject_globals(
 # SettingsDialog
 # ══════════════════════════════════════════════════════════════════════════════
 
-class SettingsDialog(tk.Toplevel):
+class SettingsDialog(DialogBase):
     """
     Full application settings dialog with tabbed UI.
 
@@ -316,7 +467,7 @@ class SettingsDialog(tk.Toplevel):
     # Maps tab index to (tab_label, builder_method_name).
     # Tab labels are full length — no truncation.             ### NEW v0.12.0 ###
     _TAB_REGISTRY = [
-        (0,  "Tools",           "_build_tools_tab"),
+        (0,  "Editor & FFmpeg", "_build_tools_tab"),   ### MODIFIED v0.19.4 B108 b ###
         (1,  "API Keys",        "_build_api_keys_tab"),
         (2,  "Browser",         "_build_browser_tab"),
         (3,  "Language",        "_build_language_tab"),
@@ -338,7 +489,7 @@ class SettingsDialog(tk.Toplevel):
         self.geometry("940x720")   ### MODIFIED v0.18.4 ###
         self.minsize(760, 480)     ### NEW v0.18.4 ###
         self.configure(bg="#1e1e2e")
-        self.transient(parent); self.grab_set()
+        self.transient(parent); modal(self)                             ### MODIFIED v0.19.4 B98 ###
         self.resizable(True, True)
         self._parent      = parent
         self._initial_tab = tab
@@ -552,7 +703,7 @@ class SettingsDialog(tk.Toplevel):
 
     # ── Tab 0: Tools ──────────────────────────────────────────────────────────
 
-    def _build_tools_tab(self, nb, label="Tools"):
+    def _build_tools_tab(self, nb, label="Editor & FFmpeg"):   ### MODIFIED v0.19.4 B108 b ###
         f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # Text editor
@@ -581,14 +732,25 @@ class SettingsDialog(tk.Toplevel):
         self._note(f, "Point to the folder containing ffmpeg.exe and ffprobe.exe.\n"
                       "Leave blank to use system PATH.")
         self._ffmpeg_var = tk.StringVar(value=self._s.get("ffmpeg_path", ""))
+        _ff_found = tk.Label(f, text="", font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", anchor="w")   # F18
         if not self._ffmpeg_var.get() and self._ctx and self._ctx.ffmpeg_finder:
-            ff, _ = self._ctx.ffmpeg_finder("")
-            import os
-            if ff: self._ffmpeg_var.set(os.path.dirname(ff))
+            ### MODIFIED v0.19.4 (F18) — found in a worker and only SHOWN; the empty box stays empty (PATH / search) ###
+            _finder = self._ctx.ffmpeg_finder
+
+            def _found(res):
+                import os
+                try:
+                    ff = (res or (None, None))[0]
+                    _ff_found.configure(text=(f"Found (used while the box is empty): {os.path.dirname(ff)}" if ff
+                                              else "FFmpeg not found on the PATH — choose its folder."))
+                except Exception:
+                    pass
+            run_async(lambda: _finder(""), callback=_found, root=self)
         r = self._row(f)
         tk.Entry(r, textvariable=self._ffmpeg_var, font=("Consolas", 9),
                  bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
                  relief="flat", width=50).pack(side="left", fill="x", expand=True, ipady=4)
+        _ff_found.pack(anchor="w", padx=16)                       # F18
         tk.Button(r, text="Browse…", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
                   relief="flat", cursor="hand2",
                   command=lambda: self._ffmpeg_var.set(
@@ -671,14 +833,11 @@ class SettingsDialog(tk.Toplevel):
         tk.Label(r, text="Metadata source:", font=("Helvetica", 10),
                  bg="#1e1e2e", fg="#cdd6f4", width=20, anchor="w").pack(side="left")
         self._meta_src_var = tk.StringVar(value=self._s.get("metadata_source", "tmdb"))
-        for val, lbl in [("tmdb", "TMDb (recommended)"), ("omdb", "IMDb via OMDb API")]:
+        for val, lbl in [("tmdb", "TMDB (recommended)"), ("omdb", "IMDb via OMDb API")]:
             tk.Radiobutton(r, text=lbl, variable=self._meta_src_var, value=val,
                            font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                            selectcolor="#313244", activebackground="#1e1e2e",
                            activeforeground="#cdd6f4").pack(side="left", padx=(0, 16))
-        tk.Label(f, text="  ⚙  Online metadata fetching will be enabled in a future update.",
-                 font=("Helvetica", 9, "italic"), bg="#1e1e2e", fg="#6c7086"
-                 ).pack(anchor="w", padx=16, pady=(2, 0))
         self._note(f, "\nScraper executable (optional — launched with movie folder as argument):")
         self._scraper_var = tk.StringVar(value=self._s.get("scraper_path", ""))
         self._file_entry_row(f, self._scraper_var, "Select scraper",
@@ -729,8 +888,8 @@ class SettingsDialog(tk.Toplevel):
         f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # TMDb
-        self._section(f, "TMDb API Key (The Movie Database)")
-        self._note(f, "Required for fetching ratings and metadata from TMDb.\n"
+        self._section(f, "TMDB API Key (The Movie Database)")
+        self._note(f, "Required for fetching ratings and metadata from TMDB.\n"
                       "Your key is stored locally in settings.json and never shared.\n"
                       "Free key — no subscription required.")
         self._tmdb_var = tk.StringVar(value=self._s.get("tmdb_api_key", ""))
@@ -754,14 +913,14 @@ class SettingsDialog(tk.Toplevel):
         r2 = self._row(f)
         tk.Label(r2, text="No key yet?", font=("Helvetica", 9),
                  bg="#1e1e2e", fg="#a6adc8").pack(side="left")
-        lnk1 = tk.Label(r2, text=" ➜ Click here to get your free TMDb API key",
+        lnk1 = tk.Label(r2, text=" ➜ Click here to get your free TMDB API key",
                          font=("Helvetica", 9, "underline"), bg="#1e1e2e", fg="#89b4fa",
                          cursor="hand2")
         lnk1.pack(side="left")
         lnk1.bind("<Button-1>", lambda e: self._open_url_fn("https://www.themoviedb.org/settings/api")
                   if self._open_url_fn else None)
 
-        self._note(f, "\nHow to get a TMDb key:\n"
+        self._note(f, "\nHow to get a TMDB key:\n"
                       "  1. Create a free account at themoviedb.org\n"
                       "  2. Go to Settings → API (left sidebar)\n"
                       "  3. Click 'Request an API Key' → choose Developer\n"
@@ -875,7 +1034,7 @@ class SettingsDialog(tk.Toplevel):
             try:
                 url = f"https://api.themoviedb.org/3/configuration?api_key={key}"
                 req = urllib.request.Request(url, headers={
-                    "User-Agent": "MediaClinic/0.17.0",
+                    "User-Agent": USER_AGENT,                   ### MODIFIED v0.19.4 B96d — was a fixed old version ###
                 })
                 with urllib.request.urlopen(req, timeout=8) as resp:
                     raw = resp.read()
@@ -900,15 +1059,16 @@ class SettingsDialog(tk.Toplevel):
                 except Exception:
                     detail = e.reason
                 kind = classify_http_status(e.code, str(detail))      ### MODIFIED v0.19.1 B22 ###
-                msg = (_validate_failure_text("TMDb", kind) if kind
+                msg = (_validate_failure_text("TMDB", kind) if kind
                        else f"✗ HTTP {e.code}: {detail}")
             except urllib.error.URLError as e:
-                msg = _validate_failure_text("TMDb", classify_network_reason(str(e.reason)))   ### MODIFIED v0.19.1 B22 ###
+                msg = _validate_failure_text("TMDB", classify_network_reason(str(e.reason)))   ### MODIFIED v0.19.1 B22 ###
             except Exception as e:
                 msg = f"✗ Error: {type(e).__name__}: {e}"
             return (ok, msg)
         def _tmdb_done(result):
             ok, msg = result
+            msg = redact_key_text(msg, key)                     ### NEW v0.19.4 B96d ###
             self._tmdb_status.configure(text=msg, fg="#a6e3a1" if ok else "#f38ba8")
         run_async(_worker, callback=_tmdb_done, root=self)
 
@@ -923,7 +1083,7 @@ class SettingsDialog(tk.Toplevel):
             lbl = "fanart.tv"
             try:
                 url = f"https://webservice.fanart.tv/v3/movies/603?api_key={key}"
-                req = urllib.request.Request(url, headers={"User-Agent": "MediaClinic/0.19.1"})
+                req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})   ### MODIFIED v0.19.4 B96d ###
                 with urllib.request.urlopen(req, timeout=8) as resp:
                     data = json.loads(resp.read())
                 if isinstance(data, dict) and (data.get("tmdb_id") or data.get("name")):
@@ -944,6 +1104,7 @@ class SettingsDialog(tk.Toplevel):
                 return False, f"✗ Error: {type(e).__name__}"
         def _done(result):
             ok, msg = result
+            msg = redact_key_text(msg, key)                     ### NEW v0.19.4 B96d ###
             self._fanarttv_status.configure(text=msg, fg="#a6e3a1" if ok else "#f38ba8")
         run_async(_worker, callback=_done, root=self)
 
@@ -959,12 +1120,12 @@ class SettingsDialog(tk.Toplevel):
             lbl = "OMDb (IMDb data)"
             try:
                 url = f"https://www.omdbapi.com/?apikey={key}&t=test&type=movie"
-                req = urllib.request.Request(url, headers={"User-Agent": "MediaClinic/0.10.1"})
+                req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})   ### MODIFIED v0.19.4 B96d ###
                 with urllib.request.urlopen(req, timeout=8) as resp:
                     data = json.loads(resp.read())
                 err = str(data.get("Error", "")).lower()
                 if data.get("Response") == "False" and "limit" in err:
-                    return False, _validate_failure_text(lbl, "daily_limit", " TMDb ratings still work.")
+                    return False, _validate_failure_text(lbl, "daily_limit", " TMDB ratings still work.")
                 if data.get("Response") == "False" and ("invalid api key" in err or "unauthorized" in err):
                     return False, _validate_failure_text(lbl, "invalid_key")
                 return True, "✓ Valid"
@@ -974,7 +1135,7 @@ class SettingsDialog(tk.Toplevel):
                 except Exception:
                     detail = ""
                 kind = classify_http_status(e.code, detail)
-                return False, (_validate_failure_text(lbl, kind, " TMDb ratings still work.") if kind
+                return False, (_validate_failure_text(lbl, kind, " TMDB ratings still work.") if kind
                                else f"✗ HTTP {e.code}: {detail}")
             except urllib.error.URLError as e:
                 return False, _validate_failure_text(lbl, classify_network_reason(str(e.reason)))
@@ -982,6 +1143,7 @@ class SettingsDialog(tk.Toplevel):
                 return False, f"✗ Error: {type(e).__name__}"
         def _omdb_done(result):
             ok, msg = result
+            msg = redact_key_text(msg, key)                     ### NEW v0.19.4 B96d ###
             self._omdb_status.configure(text=msg, fg="#a6e3a1" if ok else "#f38ba8")
         run_async(_worker, callback=_omdb_done, root=self)
 
@@ -996,7 +1158,7 @@ class SettingsDialog(tk.Toplevel):
         f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
 
         self._section(f, "Default Browser for External Links")
-        self._note(f, "Used when opening IMDB, TMDb, OpenSubtitles, or any other URL.\n"
+        self._note(f, "Used when opening IMDb, TMDB, OpenSubtitles, or any other URL.\n"
                       "Leave on 'System Default' to let Windows decide.\n"
                       "Detected browsers are listed automatically.")
 
@@ -1500,7 +1662,7 @@ class SettingsDialog(tk.Toplevel):
         f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
 
         self._section(f, "Standard Genre List")
-        self._note(f, "One genre per line. Based on TMDb's official genre list.\n"
+        self._note(f, "One genre per line. Based on TMDB's official genre list.\n"
                       "Add your own custom genres — they will be treated as valid.\n"
                       "Blank lines are removed automatically on save.")
 
@@ -1518,7 +1680,7 @@ class SettingsDialog(tk.Toplevel):
         self._genres_text.insert("1.0", cleaned)
 
         br = tk.Frame(f, bg="#1e1e2e"); br.pack(fill="x", padx=16, pady=(0, 4))
-        tk.Button(br, text="Reset to TMDb defaults", font=("Helvetica", 9),
+        tk.Button(br, text="Reset to TMDB defaults", font=("Helvetica", 9),
                   bg="#45475a", fg="#f38ba8", relief="flat", cursor="hand2",
                   command=self._reset_genres).pack(side="left")
 
@@ -1563,6 +1725,47 @@ class SettingsDialog(tk.Toplevel):
                   bg="#45475a", fg="#f38ba8", relief="flat", cursor="hand2",
                   command=self._reset_tags).pack(side="left")
 
+        # ── NEW v0.19.4 B110g — Collections: Kodi's movie set information folder ──
+        tk.Label(f, text="Collections", font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
+                 ).pack(anchor="w", padx=16, pady=(10, 2))
+        cr_ = tk.Frame(f, bg="#1e1e2e"); cr_.pack(fill="x", padx=16)
+        tk.Label(cr_, text="Collection folder", font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        self._coll_folder_var = tk.StringVar(value=self._s.get("collection_folder", ""))
+        tk.Entry(cr_, textvariable=self._coll_folder_var, font=("Consolas", 9), bg="#313244", fg="#cdd6f4",
+                 insertbackground="#cdd6f4", relief="flat", width=50).pack(side="left", fill="x", expand=True,
+                                                                           padx=(8, 0), ipady=3)
+        tk.Button(cr_, text="Browse…", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                  command=lambda: self._coll_folder_var.set(
+                      filedialog.askdirectory(title="Collection folder") or self._coll_folder_var.get())
+                  ).pack(side="left", padx=(6, 0))
+        tk.Label(f, text="The same folder as Kodi's Settings → Media → Videos → Movie set information folder. "
+                         "If Kodi reaches it as smb://…, choose the same share here (e.g. \\\\NAS\\Movies\\Sets "
+                         "or Z:\\Sets). Empty = off.",
+                 font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", wraplength=720, justify="left"
+                 ).pack(anchor="w", padx=16, pady=(2, 4))
+        self._group_coll_var = tk.BooleanVar(value=bool(self._s.get("group_by_collection", False)))   # NEW v0.19.4 B110h
+        tk.Checkbutton(f, text="Group the movie table by collection (also in the toolbar; view only)",
+                       variable=self._group_coll_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e", activeforeground="#cdd6f4"
+                       ).pack(anchor="w", padx=12, pady=(0, 4))
+        # ── NEW v0.19.4 P4 — the collection name's language ──
+        lr_ = tk.Frame(f, bg="#1e1e2e"); lr_.pack(fill="x", padx=16, pady=(0, 2))
+        tk.Label(lr_, text="Collection name language", font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        self._coll_lang_codes = ["auto", "en", "pt", "es", "fr", "de", "it", "nl", "sv", "pl", "tr", "ja", "ko", "zh", "ru"]
+        _coll_lang_names = ["Automatic", "English", "Portuguese", "Spanish", "French", "German", "Italian", "Dutch",
+                            "Swedish", "Polish", "Turkish", "Japanese", "Korean", "Chinese", "Russian"]
+        self._coll_lang_names = _coll_lang_names
+        _cur = str(self._s.get("collection_name_lang") or "auto").split("-")[0].lower()
+        self._coll_lang_var = tk.StringVar(value=_coll_lang_names[self._coll_lang_codes.index(_cur)]
+                                           if _cur in self._coll_lang_codes else "Automatic")
+        ttk.Combobox(lr_, textvariable=self._coll_lang_var, values=_coll_lang_names, state="readonly",
+                     width=16).pack(side="left", padx=(8, 0))
+        tk.Label(f, text="Automatic: the English name, unless more than half of a collection's movies have their local "
+                         "title in another language — then that language's name. A fixed language: every collection "
+                         "gets TMDB's name in it (English when TMDB has none).",
+                 font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", wraplength=720, justify="left"
+                 ).pack(anchor="w", padx=16, pady=(0, 10))
+
     def _reset_tags(self):
         self._tags_text.delete("1.0", "end")
         lines = [f"{nfo_p}\t{xml_p}\t{label}\t{tol}"
@@ -1572,7 +1775,7 @@ class SettingsDialog(tk.Toplevel):
     def _parse_tags_text(self):
         raw = self._tags_text.get("1.0", "end").strip()
         pairs = []
-        for line in raw.splitlines():
+        for n, line in enumerate(raw.splitlines(), 1):                ### n: v0.19.4 B94 ###
             line = line.strip()
             if not line or line.startswith('#'): continue
             parts = re.split(r'\t|  +', line)
@@ -1580,7 +1783,12 @@ class SettingsDialog(tk.Toplevel):
                 nfo_p = parts[0].strip()
                 xml_p = parts[1].strip()
                 label = parts[2].strip() if len(parts) > 2 else nfo_p
-                tol   = int(parts[3].strip()) if len(parts) > 3 else 0
+                try:                                                    ### NEW v0.19.4 B94b — the bad line is named ###
+                    tol = int(parts[3].strip()) if len(parts) > 3 else 0
+                except ValueError:
+                    raise SettingsFieldError(
+                        "Tag pairs", self._tags_text,
+                        f"line {n}: the tolerance '{parts[3].strip()}' is not a whole number") from None
                 pairs.append((nfo_p, xml_p, label, tol))
         return pairs if pairs else None
 
@@ -1916,15 +2124,15 @@ class SettingsDialog(tk.Toplevel):
         _check_row("corrupt_poster",     "Corrupt poster image")
         _check_row("corrupt_fanart",     "Corrupt fanart image")
         _check_row("corrupt_folder",     "Corrupt folder image")
-        _check_row("missing_imdb_id",    "Missing IMDB ID (no tag, or all tags empty)")
-        _check_row("corrupt_imdb_id",    "IMDB ID conflict between tags, or tag empty in one file")
-        _check_row("missing_tmdb_id",    "Missing TMDb ID (no tag, or all tags empty)")
+        _check_row("missing_imdb_id",    "Missing IMDb ID (no tag, or all tags empty)")
+        _check_row("corrupt_imdb_id",    "IMDb ID conflict between tags, or tag empty in one file")
+        _check_row("missing_tmdb_id",    "Missing TMDB ID (no tag, or all tags empty)")
         # ### NEW v0.19.1 B24 ### how a missing ID is reported (when the boxes above are ticked)
         _level_row("single_source_level",
-                   "  ↳ Movie with ONE source only (IMDb or TMDb) — report as:", "error")
+                   "  ↳ Movie with ONE source only (IMDb or TMDB) — report as:", "error")
         _level_row("no_source_level",
-                   "  ↳ Movie with NO source (no IMDb, no TMDb) — report as:", "error")
-        _check_row("corrupt_tmdb_id",    "TMDb ID conflict between tags, or tag empty in one file")
+                   "  ↳ Movie with NO source (no IMDb, no TMDB) — report as:", "error")
+        _check_row("corrupt_tmdb_id",    "TMDB ID conflict between tags, or tag empty in one file")
         _check_row("rating_conflict",    "Rating conflict between NFO and XML (values differ)")
         _check_row("votes_conflict",     "Votes conflict between NFO <votes> and XML <Votes>")
         _check_row("genre_missing",      "Missing genre information")
@@ -1938,9 +2146,9 @@ class SettingsDialog(tk.Toplevel):
         _section("Warning Rules — mark movie as WARNING (yellow)  (default: OFF noted)")
 
         _check_row("multiple_video_files",   "Multiple video files in same folder  (default: OFF)")
-        _check_row("imdb_id_partial",        "IMDB ID present in one file only (NFO or XML)")   # NEW v0.18.3
-        _check_row("tmdb_id_partial",        "TMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
-        _check_row("duplicate_movie",        "Possible duplicate (same IMDB/TMDB ID or title + year in another folder)")  # NEW v0.18.4
+        _check_row("imdb_id_partial",        "IMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
+        _check_row("tmdb_id_partial",        "TMDB ID present in one file only (NFO or XML)")   # NEW v0.18.3
+        _check_row("duplicate_movie",        "Possible duplicate (same IMDb/TMDB ID or title + year in another folder)")  # NEW v0.18.4
         _check_row("missing_poster",         "Missing poster")
         _check_row("poster_missing_with_folder",                              # NEW v0.19.2 F5
                    "  ↳ also when folder.jpg exists (servers use it as the poster; default: OFF)")
@@ -1955,7 +2163,7 @@ class SettingsDialog(tk.Toplevel):
         _check_row("multiple_nfo_files",                                      # NEW v0.19.2 F5
                    "More than one NFO the servers read (movie.nfo + <video>.nfo …)")
         # ### NEW v0.19.3 I8 ### content of the NFO / XML (warnings)
-        _check_row("id_format_invalid",      "IMDb / TMDb ID not valid (tt + 7–9 digits / digits; Auto Repair trims 'tt0133093/')")
+        _check_row("id_format_invalid",      "IMDb / TMDB ID not valid (tt + 7–9 digits / digits; Auto Repair trims 'tt0133093/')")
         _check_row("year_out_of_range",      "Year out of range (before 1888 or after next year)")
         _check_row("numeric_field_invalid",  "Runtime / votes not a whole number, rating not 0–10")
         _check_row("duplicate_single_tag",   "A tag that belongs once appears twice (<title>, <year> …)")
@@ -2000,6 +2208,8 @@ class SettingsDialog(tk.Toplevel):
         _choice_row("title_sync_default", "  ↳ When Repair All cannot tell the right local title:",
                     (("nfo", "keep the NFO title"), ("skip", "skip and report")), "nfo")
         _check_row("folder_name_mismatch",   "Folder name doesn't match movie title  (default: OFF)")
+        _check_row("collection_mismatch",    "Collection missing or different from TMDB (Tools → Check Collections Online)")   # NEW v0.19.4 B110c
+        _check_row("collection_artwork",     "Collection folder / poster / fanart missing (only with a collection folder, NFO / XML tab)")   # NEW v0.19.4 B110g
 
         # bottom padding
         tk.Frame(f, bg="#1e1e2e", height=16).pack()
@@ -2022,7 +2232,9 @@ class SettingsDialog(tk.Toplevel):
         self._note(f,
             "When the total size of the backup folder exceeds the limit,\n"
             "the oldest backup subfolders (backup_*) are deleted automatically.\n"
-            "The currently active backup folder is never deleted.\n"
+            f"Backups from this session and from the last {BACKUP_PROTECT_DAYS} days are never deleted\n"   ### MODIFIED v0.19.4 B75 (D2) ###
+            "automatically, so the folder can be larger than the limit for a while.\n"
+            "Backup History shows the backups the cleanup removed.\n"
             "Set to 0 to disable automatic cleanup.")
 
         r1 = self._row(f)
@@ -2042,6 +2254,45 @@ class SettingsDialog(tk.Toplevel):
                        variable=self._backup_cleanup_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=(4, 0))
+        # ### NEW v0.19.4 B75 (D2) ### the folder's size, measured in a worker; the Tk thread polls
+        self._backup_usage_lbl = tk.Label(f, text="Backup folder size now: measuring…", font=("Helvetica", 9),
+                                          bg="#1e1e2e", fg="#a6adc8", justify="left")
+        self._backup_usage_lbl.pack(anchor="w", padx=22, pady=(4, 0))
+        _root_bk = (self._ctx.backup_root if self._ctx else _BACKUP_ROOT_PATH) or ""
+        _size_box = []
+
+        def _measure():                                     # worker: plain data only
+            total = 0
+            try:
+                for _e in os.scandir(_root_bk):
+                    if _e.is_dir() and _e.name.startswith("backup_"):
+                        for _dp, _dn, _fn in os.walk(_e.path):
+                            for _n in _fn:
+                                try:
+                                    total += os.path.getsize(os.path.join(_dp, _n))
+                                except OSError:
+                                    pass
+            except OSError:
+                pass
+            _size_box.append(total)
+
+        _timer_owner = self.master if self.master is not None else self
+
+        def _poll():                                        # Tk thread
+            try:
+                if not self._backup_usage_lbl.winfo_exists():
+                    return
+                if not _size_box:
+                    _timer_owner.after(200, _poll)
+                    return
+                self._backup_usage_lbl.configure(text=backup_usage_text(_size_box[0], self._max_backup_mb_var.get()))
+            except (tk.TclError, ValueError):
+                pass
+        if _root_bk and os.path.isdir(_root_bk):
+            threading.Thread(target=_measure, daemon=True).start()
+            _timer_owner.after(200, _poll)
+        else:
+            self._backup_usage_lbl.configure(text="Backup folder size now: 0.0 MB (no backups yet)")
 
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(14, 8))
 
@@ -2076,16 +2327,23 @@ class SettingsDialog(tk.Toplevel):
             return
         if not _mb.askyesno("Delete All Backups",
                 "Are you sure you want to delete ALL backup folders?\n"
-                "This action cannot be undone.",
+                "This action cannot be undone.\n\n"
+                "The backups made since MediaClinic started are kept (Undo may still need them).",
                 icon="warning", parent=self):
             return
+        try:                                                     ### NEW v0.19.4 P3 (F22) — this session's runs stay ###
+            import settings_controller as _scx
+            _open = {os.path.normcase(os.path.abspath(k)) for k in list(_scx._OPEN_MANIFESTS)}
+        except Exception:
+            _open = set()
 
         def _do_delete():
             deleted = 0
             errors = []
             try:
                 for entry in os.scandir(backup_root):
-                    if entry.is_dir() and entry.name.startswith("backup_"):
+                    if entry.is_dir() and entry.name.startswith("backup_") \
+                            and os.path.normcase(os.path.abspath(entry.path)) not in _open:
                         try:
                             _shutil.rmtree(entry.path)
                             deleted += 1
@@ -2274,7 +2532,7 @@ class SettingsDialog(tk.Toplevel):
         dlg.title("Update Scan?")
         dlg.configure(bg="#1e1e2e")
         dlg.transient(parent_app)
-        dlg.grab_set()
+        modal(dlg)                                                  ### MODIFIED v0.19.4 B98 ###
         dlg.resizable(False, False)
 
         # ── Content ───────────────────────────────────────────────────────────
@@ -2342,6 +2600,18 @@ class SettingsDialog(tk.Toplevel):
 
     # ── Save & Close ──────────────────────────────────────────────────────────
 
+    def _focus_field(self, widget):                                 ### NEW v0.19.4 B94b ###
+        """Show the tab that holds *widget* and put the cursor in it."""
+        try:
+            child, p = widget, widget.master
+            while p is not None and not isinstance(p, ttk.Notebook):
+                child, p = p, p.master
+            if p is not None:
+                p.select(child)
+            widget.focus_set()
+        except (tk.TclError, AttributeError):
+            pass
+
     def _save_close(self):
         """
         ### NEW v0.13.0 — fully non-blocking save pipeline ###
@@ -2356,13 +2626,28 @@ class SettingsDialog(tk.Toplevel):
         8. Schedule _offer_rescan via after(0) — non-blocking, no wait_window()
         """
         ctx = self._ctx
-        _s  = ctx.settings if ctx else self._s   # live settings dict
+        live = ctx.settings if ctx else self._s  # live settings dict
+        ### MODIFIED v0.19.4 B94b — every value goes into a COPY first; the live
+        ### settings change only when all values are valid and the file was written ###
+        _s = copy.deepcopy(live)
 
         changed = self._rescan_changed()
 
         try:
             _s["text_editor"]      = self._editor_var.get().strip()
             _s["ffmpeg_path"]      = self._ffmpeg_var.get().strip()
+            if hasattr(self, "_coll_folder_var"):                   # NEW v0.19.4 B110g
+                _cf = self._coll_folder_var.get().strip()                   # F19: not found → ask
+                if _cf and not os.path.isdir(_cf) and _cf != (self._s.get("collection_folder") or "") and not messagebox.askyesno(
+                        "Collection folder", f"The collection folder was not found:\n{_cf}\n\n"
+                        "(A share that is not connected now?)  Save it anyway?", parent=self):
+                    raise SettingsFieldError("Collection folder", None, f"not found: {_cf}")
+                _s["collection_folder"] = _cf
+            if hasattr(self, "_group_coll_var"):                    # NEW v0.19.4 B110h
+                _s["group_by_collection"] = bool(self._group_coll_var.get())
+                _cln = self._coll_lang_var.get()                                       # NEW v0.19.4 P4
+                _s["collection_name_lang"] = (self._coll_lang_codes[self._coll_lang_names.index(_cln)]
+                                              if _cln in self._coll_lang_names else "auto")
             _s["scraper_path"]     = self._scraper_var.get().strip()
             _s["tmdb_api_key"]     = self._tmdb_var.get().strip()
             _s["omdb_api_key"]     = self._omdb_var.get().strip()
@@ -2421,7 +2706,7 @@ class SettingsDialog(tk.Toplevel):
             if hasattr(self, "_scan_ignored_report_var"):                   ### NEW v0.19.2 B53 ###
                 _s["scan_ignored_report"] = bool(self._scan_ignored_report_var.get())
             if hasattr(self, "_max_backup_mb_var"):
-                _s["max_backup_size_mb"] = max(0, self._num(self._max_backup_mb_var, 500))
+                _s["max_backup_size_mb"] = max(0, self._num(self._max_backup_mb_var, int(_s.get("max_backup_size_mb", 500) or 0)))   # F20
             if hasattr(self, "_backup_cleanup_var"):                        ### NEW v0.19.3 I12 ###
                 _s["backup_cleanup_enabled"] = bool(self._backup_cleanup_var.get())
             if hasattr(self, "_rating_apply_all_var"):                      ### NEW v0.15.0 ###
@@ -2451,20 +2736,33 @@ class SettingsDialog(tk.Toplevel):
             parsed_tags = self._parse_tags_text()
             _s["tag_pairs"] = parsed_tags
 
+            ### MODIFIED v0.19.4 B94a — the save result is checked (False = not written) ###
+            _saver = ctx.save_settings if (ctx and ctx.save_settings) else _save_settings_fn
+            _ok = _saver(_s) if _saver else None
+            _log = (ctx.logger if ctx else _logger)
+            if _ok is False:
+                if _log:
+                    _log.error("Settings not saved — settings.json could not be written; nothing applied")
+                messagebox.showerror("Settings not saved", SETTINGS_NOT_SAVED_TEXT, parent=self)
+                return
+            live.update(_s)                                     ### NEW v0.19.4 B94b — applied only now ###
+
             if ctx and ctx.refresh_ffmpeg:
                 ctx.refresh_ffmpeg()
             elif _refresh_ffmpeg_paths:        # shim fallback
                 _refresh_ffmpeg_paths()
 
-            if ctx and ctx.save_settings:
-                ctx.save_settings(_s)
-            elif _save_settings_fn:            # shim fallback
-                _save_settings_fn(_s)
-
-            _log = (ctx.logger if ctx else _logger)
             if _log:
                 _log.info("Settings saved")
 
+        except SettingsFieldError as fe:                        ### NEW v0.19.4 B94b ###
+            _log = (ctx.logger if ctx else _logger)
+            if _log:
+                _log.error(f"Settings not saved: {fe}")
+            self._focus_field(fe.widget)
+            messagebox.showerror("Settings not saved", f"{fe}\n\nNothing was changed: correct it and "
+                                 "press Save & Apply again.", parent=self)
+            return
         except Exception as e:
             _log = (ctx.logger if ctx else _logger)
             if _log:
@@ -2488,6 +2786,9 @@ class SettingsDialog(tk.Toplevel):
         if ((changed.get("health_rules") or changed.get("image_sizes"))        ### MODIFIED v0.19.0 ###
                 and parent_app and hasattr(parent_app, "_apply_health_rules_inplace")):
             def _apply_rules_now():
+                if getattr(parent_app, "_scanning", False):     ### NEW v0.19.4 B91 — wait until the scan ends ###
+                    parent_app.after(500, _apply_rules_now)
+                    return
                 try:
                     if getattr(parent_app, "_results", None):
                         parent_app._apply_health_rules_inplace()

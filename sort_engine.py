@@ -53,6 +53,7 @@ COLUMNS = [
     ("lang_ok", "Lang OK?", "presence"),
     ("subs", "Subtitles", "presence"),
     ("library", "Library", "text"),
+    ("collection", "Collection", "text"),                            # v0.19.4 B110a
 ]
 MORE = [
     ("health", "Health", "health"),                                  # v0.19.3 B69 — short label, first in the list
@@ -68,7 +69,7 @@ LABEL = {k: lbl for k, lbl, _kd in ALL_KEYS}
 
 DEFAULT_SPEC = [{"key": "movie_name", "dir": "asc"}]
 
-# built-in presets, in menu order (Ctrl+1 … Ctrl+6)
+# built-in presets, in menu order (Ctrl+1 … Ctrl+7)
 BUILTIN_PRESETS = [
     {"name": "Problems first", "levels": [{"key": "health", "dir": "errors"}, {"key": "issues", "dir": "most"}]},
     {"name": "Worst artwork first", "levels": [{"key": "poster", "dir": "worst"}, {"key": "fanart", "dir": "worst"}]},
@@ -77,6 +78,8 @@ BUILTIN_PRESETS = [
     {"name": "Best rated", "levels": [{"key": "rating", "dir": "high"}, {"key": "votes", "dir": "high"}]},
     {"name": "Biggest files", "levels": [{"key": "vid_size", "dir": "largest"}]},
     {"name": "By library", "levels": [{"key": "library", "dir": "asc"}, {"key": "movie_name", "dir": "asc"}]},
+    {"name": "By collection name", "levels": [{"key": "collection", "dir": "asc"}, {"key": "year", "dir": "oldest"},   # v0.19.4 fix 16
+                                              {"key": "movie_name", "dir": "asc"}]},
 ]
 
 # the 37 texts of the old "Sort:" list (v0.11–v0.19.2) → one level

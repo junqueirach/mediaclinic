@@ -126,9 +126,9 @@ EXPORT_FIELDS = [
     ("genres",        "Genres",         lambda r: "" if r.get("genre_display", "—") == "—" else r.get("genre_display", "")),
     ("rating",        "Rating",         lambda r: "" if r.get("rating_str", "-") == "-" else r.get("rating_str", "")),
     ("votes",         "Votes",          _votes_text),
-    ("imdb_id",       "IMDB ID",        lambda r: r.get("source_imdb_val") or ""),
+    ("imdb_id",       "IMDb ID",        lambda r: r.get("source_imdb_val") or ""),
     ("tmdb_id",       "TMDB ID",        lambda r: r.get("source_tmdb_val") or ""),
-    ("imdb_link",     "IMDB Link",      _imdb_link),                                   # v0.18.4
+    ("imdb_link",     "IMDb Link",      _imdb_link),                                   # v0.18.4
     ("tmdb_link",     "TMDB Link",      _tmdb_link),                                   # v0.18.4
     ("outline",       "Outline",        lambda r: _first_tag(r, ["outline"], ["Outline", "Tagline"])),   # v0.18.4
     ("plot",          "Plot",           lambda r: _first_tag(r, ["plot"], ["Overview", "Plot", "Description"])),  # v0.18.4
@@ -150,6 +150,7 @@ EXPORT_FIELDS = [
     ("health",        "Health",         lambda r: (r.get("health_status") or "").capitalize()),
     ("health_reasons","Health Reasons", lambda r: "; ".join(r.get("health_reasons", []) or [])),
     ("library",       "Library",        lambda r: r.get("library_root") or os.path.dirname(r.get("subfolder_path", "") or "")),   # v0.19.0
+    ("collection",    "Collection",     lambda r: ((r.get("coll_nfo") or {}).get("name") or "")),   # v0.19.4 B110a
     ("folder_name",   "Folder Name",    lambda r: r.get("subfolder", "")),
     ("path",          "Path",           lambda r: r.get("subfolder_path", "")),
 ]
