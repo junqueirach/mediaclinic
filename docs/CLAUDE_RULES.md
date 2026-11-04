@@ -77,7 +77,7 @@ Each rule here comes from a real freeze or crash.
 3. **Health is computed by the rule functions in `HEALTH_RULES`,** never stored as truth. Cached reasons are not trusted (`finalize_results`).
 4. **A failed or closed scan keeps the previous rows** (`merge_unfinished_rows`).
 5. **An edited file is re-read from disk:** `forget_read_caches`, because a network drive can report an edited file with its old time and size.
-6. **Every window position and size** goes through `_remember_window`.
+6. **Window position and size** go through `_remember_window`. On purpose not for short questions and progress windows: they open with the app, so they stay in view when the main window moves to another monitor.
 
 ---
 
