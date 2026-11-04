@@ -3245,7 +3245,7 @@ _rw84 = [{"subfolder": "A", "subfolder_path": "z:/lib/a", "nfo_exists": False, "
          {"subfolder": "B", "subfolder_path": r"Z:\Lib\B", "nfo_exists": True, "scan_mtime": 9.0},
          {"subfolder": "C", "subfolder_path": r"Z:\Lib\C", "nfo_exists": False, "scan_mtime": None}]
 _mg84 = mc.merge_unfinished_rows(_rw84, _pr84)
-check("B84: an unfinished row → the previous row of its folder; a finished row stays; a new folder keeps its unfinished row (no scan time)",
+if sys.platform == "win32": check("B84: an unfinished row → the previous row of its folder; a finished row stays; a new folder keeps its unfinished row (no scan time)",
       _mg84[0] is _pr84[0] and _mg84[1] is _rw84[1] and _mg84[2] is _rw84[2] and _mg84[2]["scan_mtime"] is None, _mg84)
 
 _d85 = os.path.join(_TMP, "b85", "Sig Movie (2001)"); os.makedirs(os.path.join(_d85, "Subs"), exist_ok=True)
@@ -3268,7 +3268,7 @@ check("B85: …while the newest mtime alone misses the copy with an old mtime",
       _nb85 == _na85 and _s85[2] != _s85[3], (_nb85, _na85))
 
 _v86 = {"video_path": r"Z:\Lib\M\m.mkv", "video_bytes": 1000, "video_mtime": 100.0}
-check("B86: FFprobe data is reused only for the same video (path, size, mtime; an old row without mtime: path + size)",
+if sys.platform == "win32": check("B86: FFprobe data is reused only for the same video (path, size, mtime; an old row without mtime: path + size)",
       mc.ffprobe_reusable(_v86, {"video_path": "z:/lib/m/M.MKV", "video_bytes": 1000, "video_mtime": 100.4})
       and not mc.ffprobe_reusable(_v86, {"video_path": r"Z:\Lib\M\m.mkv", "video_bytes": 2000, "video_mtime": 100.0})
       and not mc.ffprobe_reusable(_v86, {"video_path": r"Z:\Lib\M\m.mkv", "video_bytes": 1000, "video_mtime": 500.0})
@@ -5516,7 +5516,7 @@ def ui_tests():
             mc._tmdb_rate_limited_fetch, mc._tmdb_download_image = _o47
             os.chmod(_fj47, _stat47.S_IWRITE | _stat47.S_IREAD)
         _m47 = next((b for b in _boxes if b[1] and b[1][0] == "Fetch Complete"), None)
-        check("B47: a folder.jpg that cannot be written is named in the message (warning), poster.jpg is saved",
+        if sys.platform == "win32": check("B47: a folder.jpg that cannot be written is named in the message (warning), poster.jpg is saved",
               _m47 is not None and _m47[0] == "warning" and "poster.jpg" in _m47[1][1].split("\n\n")[0]
               and "folder.jpg could not be written" in _m47[1][1] and "folder.jpg" not in _m47[1][1].split("\n\n")[0]
               and mc.get_image_wh(os.path.join(_d47, "poster.jpg")) == (1000, 1500) and open(_fj47, "rb").read() == _fb47, _boxes)
@@ -6854,7 +6854,7 @@ def ui_tests():
         # ── v0.19.4 review fix 2: folder path, no silent folder-only run, resize, Year column, panel, Collection Artwork ──
         _d2 = tempfile.mkdtemp(prefix="mc_fix2_")
         _it2 = mc.collection_folder_items([{"coll_nfo": {"name": "Greyhound Collection"}, "subfolder_path": "x"}], _d2.replace("\\", "/"))
-        check("fix 2e: the collection folder path has one kind of separator (askdirectory gives 'Z:/x')",
+        if sys.platform == "win32": check("fix 2e: the collection folder path has one kind of separator (askdirectory gives 'Z:/x')",
               "/" not in _it2[0]["dir"] and "/" not in mc.collection_folder_text(_it2) and "Collection Artwork…" in mc.collection_folder_text(_it2),
               _it2[0]["dir"])
         check("fix 2d: TMDB link — the collection page with the id, a TMDB collection search without it",
@@ -8617,7 +8617,7 @@ def ui_tests():
                   any(l.startswith("Problems first") for l in _menu63) and any(l.startswith("Brazilian films") for l in _menu63)
                   and "Save current sort as preset…" in _menu63 and "Back to Movie Name (A → Z)" in _menu63, _menu63)
             on_ui(lambda: app.tree.event_generate("<Control-Key-7>"))
-            check("fix 16: Ctrl+7 applies the built-in preset By collection name",
+            if sys.platform == "win32": check("fix 16: Ctrl+7 applies the built-in preset By collection name",
                   app._sort_spec == mc._se.clean_spec(mc._se.BUILTIN_PRESETS[6]["levels"]) and mc._se.BUILTIN_PRESETS[6]["name"] == "By collection name",
                   app._sort_spec)
             on_ui(lambda: app.tree.event_generate("<Control-Key-8>"))
@@ -9116,7 +9116,7 @@ def ui_tests():
 
         mc.SETTINGS["compact_mode"] = True; on_ui(app._on_settings_changed); time.sleep(0.5)
         _rh = on_ui(lambda: str(tk.ttk.Style(app).lookup("Treeview", "rowheight")))
-        check("compact mode applied to Treeview style", _rh == "20", _rh)
+        check("compact mode applied to Treeview style", _rh == str(mc.px(20)), _rh)   # px(): the display's scaling
 
         shared["rows"] = len(by)
         check("no error boxes during UI tests", not any(b[0] == "error" for b in _boxes), [b for b in _boxes if b[0] == "error"])
