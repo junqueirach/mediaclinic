@@ -3386,7 +3386,7 @@ for _t in _tok105.generate_tokens(io.StringIO(_src105).readline):
         _ln = _lines105[_t.start[0] - 1]
         if "logger." in _ln or _ln.lstrip().startswith("#") or _t.string.lstrip("rbuRBUfF")[:3] in ('"' * 3, "'" * 3):
             continue
-        _txt = _t.string
+        _txt = re.sub(r"\{[^{}]*\}", "", _t.string)   # Python < 3.12 gives a whole f-string: its {code} is not text
         if (re.search(r"\b1 (movies|files|folders|images)\b", _txt) or "kind(s)" in _txt
                 or ("(s)" in _txt and not any(k in _ln for k in _ok105))):
             _bad105.append((_t.start[0], _txt[:60]))
