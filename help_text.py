@@ -1,7 +1,7 @@
 # =============================================================================
 # help_text.py
 # Metadata & MediaClinic — Help contents (structure markup, pure text)
-# Version: 0.19.4                                              ### REWRITTEN v0.19.4 B74 ###
+# Version: 0.19.5                                              ### REWRITTEN v0.19.4 B74 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # v0.19.4 B74 — the Help is written as STRUCTURE, not as pre-formatted text.
@@ -148,6 +148,7 @@ The Media Servers tab lists every name the servers read.
 | ffprobe_cache.json | remembered FFprobe results (same folder)
 | fanarttv_cache.json | fanart.tv answers, kept 7 days (no key inside)
 | collections_cache.json | the TMDB collections (names in every language)
+| last_ignored.json | the folders the last scan did not add as movies (the Ignored folders report)
 | not_duplicates.json | your "Not a duplicate" answers
 | no_collection.json | the movies you marked "not in a collection"
 | backup_cleanup_log.json | the backup runs the size cleanup removed (Backup History lists them)
@@ -181,7 +182,7 @@ Select one movie and the panel shows its poster, year, genres, rating, library a
 | Poster, Folder, Fanart | status and quality tier of each image (Images tab).
 | Backdrops | the number of backdrop images; hover: their average size.
 | .nfo / .xml | the metadata file status. Hover lists the errors with the line and the tag names (the first 5); double-click opens the file in your editor.
-| Language | XML <Language>.
+| Language | The top-level XML <Language>: the language for metadata downloads on Jellyfin and Emby. Empty is normal.
 | Video, Video Size, Quality | container, size and resolution class.
 | Audio | FFprobe audio tracks, e.g. EN (5.1), PT (2.0).
 | Language OK | Y / N: the target language in audio or subtitles (the heading shows the code, e.g. "PT OK?").
@@ -200,7 +201,7 @@ Type in the **Filter** box ([[Ctrl+F]]) to keep the movies whose name, year, gen
 The sort row reads "Sort by [column] [direction]"; **+ then by** adds up to two more levels (✕ removes one). The direction is said in words — A → Z, Newest first, High → low, Worst first, Errors first … — click it to turn it round.
 - Every column can be used, plus **Health** and **Number of issues** (the first two entries) and **Date added** (NFO <dateadded>, XML <DateAdded>, else the creation date of the video or the folder).
 - Click a column heading to sort by it (again = reversed); Shift+click adds it as the next level. ▲1 / ▼2 in the headings show the levels.
-- Empty values (no rating, no poster, no date) always go last; equal values stay in Movie Name order.
+- Empty values (no rating, no poster, no date) go last, unless a level asks for empty first (the preset Missing metadata does); equal values stay in Movie Name order.
 - **★ Presets ▾**: Problems first, Worst artwork first, Missing metadata, Best rated, Biggest files, By library, By collection name (collection A → Z, then year, then movie name; movies without a collection last), and your own (**Save current sort as preset…**; rename or delete them in the same menu). [[Ctrl+1]] … [[Ctrl+9]] apply presets 1 to 9.
 - **↺ Update View** sorts and filters again, so movies you just fixed move to their place.
 - The sort is kept after a scan and after a restart.
@@ -243,7 +244,7 @@ When a movie folder was deleted, Update or the automatic refresh removes its row
 ## Saving and loading scans
 - The last scan is saved in last_results.json and loaded in the background at the start ("⏳ Loading last scan…"); the health rules are applied again, so changed rules never leave old reasons behind.
 - **••• → Save Scan Results…** / **Open Scan Results…** write a scan to a file or load one.
-- **••• → Clear All…** ([[Ctrl+L]]) empties the table (it asks first; nothing on disk changes).
+- **••• → Clear All…** ([[Ctrl+L]]) empties the table (it asks first). No movie file changes; the saved last scan is emptied too, so the rows do not come back at the next start.
 """
 
 TAB_HEALTH = """
@@ -323,13 +324,13 @@ TAB_IMAGES = """
 ## Quality tiers
 | Poster / Folder (2:3) | 4K 2000×3000 · 1440p 1500×2250 · 1080p 1000×1500 · 720p 666×1000 · 540p 540×810 · 480p 480×720 · 360p
 | Fanart (16:9) | 4K 3840×2160 · 1440p 2560×1440 · 1080p 1920×1080 · 720p 1280×720 · 540p 960×540 · 480p 854×480 · 360p
-±5 % tolerance. The minimum tier is one setting (Settings → Health Rules and Settings → Image Sizes); images below it are warnings. Proportions: poster and folder 2:3 (3:4 optional), fanart 16:9 (16:8 optional). "Corrupt" (✕) means the file cannot be decoded: no JPEG / PNG signature, cut-off data or 0 bytes. A PNG named poster.jpg is read and gets an "extension mismatch" warning.
+±5 % tolerance. The minimum tier is one setting (Settings → Health Rules and Settings → Image Sizes); images below it are warnings. Proportions: poster and folder 2:3 (3:4 optional), fanart 16:9 (3:2 optional). "Corrupt" (✕) means the scan found a bad header or end of the file. A file damaged in the middle can pass the scan; Fix Image or Copy poster then says it cannot be read. A PNG named poster.jpg is read and gets an "extension mismatch" warning.
 
 ## Backdrops
 | Extract Backdrop(s) | FFmpeg frames spread over the film
 | Fetch Backdrops | pick TMDB / fanart.tv backdrops; replace a file or save a new one
 | Replace All Backdrops | choose the source and how many (it starts at the number you have); the highest resolution first, a failed download is replaced by the next image; a backup first
-**Tools → Delete extrafanart Subfolders — All Movies…** removes Kodi's old extrafanart folders (a backup first). The health rules flag too few backdrops and very small ones.
+**Tools → Delete extrafanart Subfolders — All Movies…** removes the extrafanart folders (a backup first). Jellyfin and Emby use them as extra backdrops; Kodi and Plex do not read them. The health rules flag too few backdrops and very small ones.
 
 ## Frames from the movie
 Fetch Fanart and Fetch Backdrops have a **🎞 Frames from movie** button (with FFmpeg set and a video in the folder).
@@ -384,7 +385,7 @@ When NFO <title> and XML <LocalTitle> differ, Right-click → Metadata → **Mak
 - **Audio**: FFprobe tracks as LANGUAGE (CHANNELS); hover for codec and bitrate. A track FFprobe reports as UND takes the language from the NFO or the XML when it fits ("POR — from NFO"). Nothing is written.
 - **Subtitles**: embedded tracks and external files (e.g. Movie.pt.srt, also in a Subs folder; forced and SDH flags are read). Right-click → **Subtitles…** opens for any movie; **🌐 Open on OpenSubtitles.org** searches it there.
 - **Hard-coded subtitles…** marks burned-in subtitles (they cannot be detected): tick the language(s) or type an ISO 639-2 code. The app writes <tag>Hardsub POR</tag> to the NFO and <Tags><Tag>Hardsub POR</Tag></Tags> to the XML; the column shows "Hard: POR".
-- The **Language OK** column is Y when the target language (Settings → Language) is in an audio track, a subtitle (also hard-coded), XML <Language> / <LanguageCode> or NFO <language>.
+- The **Language OK** column is Y when the target language (Settings → Language) is in an audio track or a subtitle: read by FFprobe, a subtitle file, a hard-coded mark, or a stream written in the NFO (streamdetails) or movie.xml (MediaInfo). NFO <language> and XML <Language> / <LanguageCode> at the top level do not count: they are the language for metadata downloads.
 """
 
 TAB_BULK = """
@@ -418,7 +419,6 @@ Applies every safe fix in one go. Artwork is never touched. A backup first; the 
 8. Fill the year from TMDB (verified TMDB ID required)
 9. Copy the title between NFO <title> and XML <LocalTitle>
 10. Make the local title the same in NFO <title> and XML <LocalTitle>
-11. Fill XML <Language> from NFO <language> / XML <LanguageCode>
 12. Trim IDs like 'tt0133093/' and remove exact duplicate tags (NFO / XML)
 13. Write the collection TMDB lists for the movie (NFO <set>; your own collections are kept)
 14. Rename the folder-named NFO so Kodi reads it (<video>.nfo; movie.nfo for discs, multi-part, versions)
@@ -438,6 +438,7 @@ A collection (Kodi calls it a movie set) groups the movies of a saga — "Harry 
 ## The Collection column and the grouped view
 - The **Collection** column (hidden by default, Tools → Choose Columns…) shows the name; the Filter box finds it.
 - **Group by collection** (next to the sort buttons, or Settings → NFO / XML → Collections; off by default) shows each collection as one row — "Harry Potter Collection (8)", the year span, the worst health colour — with its movies under it. Movies without a collection stay single, in your sort order.
+- Where a collection row sits: under a text column (Movie Name, Genres…) it sorts by the collection's name; under any other column it stays where its first movie sits.
 - A click selects a collection row; its ▸ arrow, a double-click or [[+]] / [[-]] open or close it; open collections stay open while the app runs. The collection panel's **All actions ▾** shows the row's menu.
 - Selecting a collection row means its movies for every action ("8 movies selected"); [[Ctrl+A]] selects every movie, also inside closed collections.
 - Right-click a collection row: **Expand / Collapse**, **Select Its Movies**, **Fix Collection…**, **Rename / Join Collection…** (choose a collection in use to join it: its movies get its name and TMDB ID), **Create Collection Folder…**, **Collection Artwork…**, **Open Collection Folder**, **Open Collection on TMDB** (**Search Collection on TMDB** when the collection's TMDB ID is not known), **Check Collection Online**, **Expand All / Collapse All**. The panel shows the collection: its poster (from the collection folder), TMDB ID, years, folder, artwork, overview, its movies and the fixes, with **Artwork…**, **Open Poster**, **Open Fanart**, **Open Folder** and **TMDB** (the collection's page with its movies, or a TMDB search for the name).
@@ -450,7 +451,7 @@ A collection (Kodi calls it a movie set) groups the movies of a saga — "Harry 
 Three rules in Settings → Health Rules, all on by default, all warnings:
 - **Collection missing or different**: TMDB lists a collection the NFO does not have, the NFO names another one, or one collection is written two ways in your library ("written as X here and as Y in 3 other movies — Kodi shows two sets").
 - **Collection artwork**: the collection folder, its poster or its fanart is missing (only while a collection folder is set).
-Your own collections ("Disney", "Oscar winners") are never warned about and never removed. A movie that was not checked online gets no "missing / different from TMDB" warning (its tooltip says so); a collection written two ways and a movie.xml that differs from the NFO are found by every scan.
+Your own collections ("Disney", "Oscar winners") are never warned about and never removed. A name with no TMDB ID that matches none of TMDB's names counts as yours, also when TMDB lists the movie in a collection; only **Fix Collection…** on that movie, asked by you, replaces it. A movie that was not checked online gets no "missing / different from TMDB" warning (its tooltip says so); a collection written two ways and a movie.xml that differs from the NFO are found by every scan.
 
 ## Fixing collections
 Right-click → Metadata → **Collection ▸**:
@@ -497,8 +498,8 @@ MediaClinic reads every name Kodi uses and shows the file Kodi would pick, in Ko
 | Poster | <video>-poster.jpg/.png, poster.jpg/.png, <video>.tbn, movie.tbn
 | Fanart | <video>-fanart.jpg/.png, fanart.jpg/.png
 | NFO | movie.nfo, <video>.nfo (an NFO named after the folder is not read)
-| Extra fanart | fanart1.jpg…, <video>-fanart1.jpg…, the extrafanart folder
-<video> is the video's file name without its extension. The tooltips say which file was found. Fetch Poster/Folder, Fetch Fanart and Copy poster → folder write in the style the folder already uses: a Kodi folder gets <video>-poster.jpg, and no folder.jpg unless one exists. New backdrops follow the same rule.
+| Extra fanart | fanart1.jpg…, <video>-fanart1.jpg… (the extrafanart folder is for Jellyfin and Emby)
+<video> is the video's file name without its extension. The tooltips say which file was found. Fetch Poster/Folder, Fetch Fanart and Copy poster → folder write in the style the folder already uses: a Kodi folder gets <video>-poster.jpg. Copy poster → folder also makes a folder.jpg in a folder that has none. New backdrops follow the same rule.
 - **Rename NFO for Kodi…**: Kodi reads "<video>.nfo" or "movie.nfo", not an NFO named after the folder. It offers both names (the recommended one selected); **Tools → Rename NFOs for Kodi — All Movies with a folder-named NFO…** shows a preview. A name that exists is never overwritten; Undo puts the old name back.
 - DVD and Blu-ray folders: a VIDEO_TS or BDMV structure is the movie; VIDEO_TS-poster.jpg, VIDEO_TS.nfo, index-poster.jpg and index.nfo are read too. FFprobe and frames use the largest .VOB / .m2ts file.
 - Collections: Kodi's movie set information folder — Collections tab.
@@ -518,7 +519,7 @@ TAB_SETTINGS = """
 # Settings
 
 **Settings ▾** in the header opens **All Settings…** or one of the tabs; [[Ctrl+S]] opens the Settings window and [[F10]] the Settings ▾ menu. **Save & Apply** writes settings.json; a field that is not valid is named and nothing is saved. Health rule and image size changes apply at once; Language, Genres or NFO / XML tag changes offer an update scan.
-| Editor & FFmpeg | text editor, FFmpeg folder (**Test FFmpeg**; found by itself when it is on the PATH or next to the program), backdrop frame count, parallel scanning (workers; FFprobe processes), optional scraper, "Remember FFprobe results" (each video probed once; a changed video is probed again)
+| Editor & FFmpeg | text editor, FFmpeg folder (**Test FFmpeg**; found by itself when it is on the PATH or in a usual install folder), backdrop frame count, parallel scanning (workers; FFprobe processes), optional scraper, "Remember FFprobe results" (each video probed once; a changed video is probed again)
 | API Keys | TMDB, OMDb and fanart.tv keys with **Validate** buttons and links to get them; keys are never written to the log
 | Browser | the browser for web links
 | Language | the ISO 639-1 code of the Language OK column (default PT)
@@ -578,7 +579,7 @@ Tools → Recompute Health Status (no rescan) — also done at every start.
 ### Source shows ✕ although the movie has an ID
 Some tags are empty (e.g. <TMDB></TMDB>) while others hold the ID; Normalize Sources fills them.
 ### Backdrop extraction makes no files
-Check FFmpeg in Settings → Editor & FFmpeg (**Test FFmpeg**) and raise the frame timeout.
+Check FFmpeg in Settings → Editor & FFmpeg (**Test FFmpeg**) and raise **Per-frame timeout** in the Extract Backdrop(s) window.
 ### Excel opens the CSV in one column
 Export with "CSV — semicolon separated" or as .xlsx.
 ### Collections show no warning

@@ -2,6 +2,41 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.19.5 — 2026-11-07
+
+Windows build and source. A fix release: a review of every feature (113 findings, the approved ones fixed), tag
+handling checked against what Kodi, Jellyfin, Emby and Plex read, the remaining freeze questions, and reliable tests.
+
+### Fixed
+- **Files stay valid:** empty and CDATA tags are filled in place, one-line NFO files stay valid, nothing is added to a file
+  that is not XML, a result that does not parse is refused, and backslashes in values are no longer damaged.
+- **Ratings:** Sync Ratings writes a value under its own source's name (a TMDB rating is no longer stored as `imdb`), and
+  the table shows the rating Kodi really shows.
+- **Language OK** counts only audio and subtitle tracks. The NFO / XML metadata language no longer counts, so some movies
+  change from Y to N; that is correct. The warning about a missing XML `<Language>` is gone.
+- **IDs and dates:** Fix IDs adds `<uniqueid>` and keeps the plain `<id>` first; dates on a day/month PC are read right;
+  a new rule compares the year with the premiered date.
+- **Codecs:** names of one codec, such as `h264` / `AVC` or `ac3` / `Dolby Digital`, no longer count as a difference.
+- **Saves:** a save is retried when another program reads the file at that moment, instead of being lost; a settings file
+  held by another program at the start is not replaced by defaults.
+- **Collections:** a wrong film's collection is no longer written, and your own collections are never removed or warned
+  about.
+- **Undo and backdrops:** Replace All Backdrops replaces before it deletes; Undo also removes files a run created; a failed
+  step refreshes its row and says what changed.
+- **Freezes:** another program's screenshot (`PrintWindow`) can stop Tk's timers until the next window message, so the
+  app's watchdog now sends one; a font is cleaned up on the window's thread; a closed window's queued work is dropped.
+  FFmpeg no longer keeps running after Done during a download, and a question that timed out no longer opens later.
+- Rows saved by an older version are read once more on the first start (results cache schema 3).
+
+### Changed
+- Four settings that did nothing are removed (Metadata source, Image Size, Dark Theme, Auto-fit); text in a number box is
+  refused; the "16:8" proportion is labelled 3:2, its real ratio; "Fix Image Proportions / Size" has one name everywhere;
+  wider default column headings.
+- Create Collection Folder: "Replace the existing poster and fanart" is a choice in the preview, off by default.
+- `docs/help` is generated from the app's Help (`tools/make_help_docs.py`, 14 pages) and replaces the old v0.14.0 pages.
+- Tests: one self-test for Windows and Linux; keyboard and wheel checks no longer need the window focus; fixed waits are
+  replaced by waiting for the result. CI uses newer actions and runs every Python version to the end.
+
 ## v0.19.4 — 2026-11-04
 
 Windows build and source. Movie collections, a new window layout, a rewritten Help, and a full code review.

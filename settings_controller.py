@@ -38,6 +38,7 @@ import re
 import shutil
 import subprocess
 import threading                                                 ### NEW v0.19.1 I1 ###
+import time                                                      ### NEW v0.19.5 I20 ###
 import time
 import webbrowser
 
@@ -110,7 +111,7 @@ def save_no_collection(movies):                                    ### NEW v0.19
             tmp = NO_COLL_PATH + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump({"version": 1, "movies": list(movies)}, f, ensure_ascii=False, indent=1)
-            os.replace(tmp, NO_COLL_PATH)
+            _replace_retry(tmp, NO_COLL_PATH)
             return True
         except Exception:
             return False
@@ -147,7 +148,7 @@ def save_collections_cache(data):                                ### NEW v0.19.4
             tmp = COLLECTIONS_CACHE_PATH + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False)
-            os.replace(tmp, COLLECTIONS_CACHE_PATH)
+            _replace_retry(tmp, COLLECTIONS_CACHE_PATH)
             return True
         except Exception as ex:
             _log.warning(f"collections_cache.json not saved: {ex}")
@@ -181,7 +182,7 @@ def save_ffprobe_cache(cache):                                  ### NEW v0.19.1 
         try:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(cache, f, ensure_ascii=False, separators=(",", ":"))
-            os.replace(tmp, FFPROBE_CACHE_PATH)
+            _replace_retry(tmp, FFPROBE_CACHE_PATH)
         finally:
             try:
                 if os.path.exists(tmp):
@@ -234,6 +235,9 @@ _LEGACY_QUALITY_MAP = {                                          ### MOVED v0.18
 SETTINGS_LOAD_PROBLEM = {"corrupt_copy": None, "error": ""}
 
 
+SETTINGS_SAVE_BLOCKED = [False]                                  ### NEW v0.19.5 SH-E1 ###
+
+
 def _keep_corrupt_settings(err):                                ### NEW v0.19.2 B36 ###
     """Copy the unreadable settings.json aside (never overwritten by the next save)."""
     dst = f"{CONFIG_PATH}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
@@ -242,6 +246,7 @@ def _keep_corrupt_settings(err):                                ### NEW v0.19.2 
     except Exception as e:
         _log.error(f"settings.json could not be read ({err}) and could not be copied aside: {e}")
         dst = None
+        SETTINGS_SAVE_BLOCKED[0] = True                          ### NEW v0.19.5 SH-E1 — the good file must not be replaced by defaults ###
     else:
         _log.error(f"settings.json could not be read ({err}); kept as {dst}; defaults in use")
     SETTINGS_LOAD_PROBLEM.update(corrupt_copy=dst, error=str(err))
@@ -261,8 +266,15 @@ def load_settings():
     try:
         if os.path.isfile(CONFIG_PATH):
             try:
-                with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                for _try in range(10):                           ### NEW v0.19.5 SH-E1 — another program may hold it for a moment ###
+                    try:
+                        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        break
+                    except PermissionError:
+                        if _try == 9:
+                            raise
+                        time.sleep(0.2)
                 if not isinstance(data, dict):
                     raise ValueError(f"top level is {type(data).__name__}, not an object")
             except Exception as e:                               ### NEW v0.19.2 B36 ###
@@ -445,6 +457,9 @@ def save_settings(settings):
     os.replace) under a lock, so a crash or two saves at once (Tk thread +
     a worker's API pause) never leave a truncated file.  Errors are logged,
     never raised.  Returns True on success."""
+    if SETTINGS_SAVE_BLOCKED[0]:                                 ### NEW v0.19.5 SH-E1 ###
+        _log.error("settings.json not saved: the file on disk could not be read at the start, and it must not be replaced by defaults")
+        return False
     with _SETTINGS_LOCK:
         tmp = f"{CONFIG_PATH}.{os.getpid()}.tmp"
         try:
@@ -453,7 +468,7 @@ def save_settings(settings):
                 f.write(text)
                 f.flush()
                 os.fsync(f.fileno())
-            os.replace(tmp, CONFIG_PATH)
+            _replace_retry(tmp, CONFIG_PATH)
             return True
         except Exception as e:
             _log.error(f"settings.json not saved: {e}")
@@ -470,7 +485,8 @@ def save_settings(settings):
 # which made that file several MB and slowed every settings save.  It now has
 # its own file next to settings.json.
 
-RESULTS_SCHEMA = 2                                               ### NEW v0.19.4 I19 — 1 = the plain list before v0.19.4 ###
+RESULTS_SCHEMA = 3                                               ### NEW v0.19.4 I19 — 1 = the plain list before v0.19.4; 3 = v0.19.5 (B121, B123, B124) ###
+RESULTS_LAST_SCHEMA = [RESULTS_SCHEMA]                           ### NEW v0.19.5 — what the last row-by-row load found ###
 RESULTS_CACHE_NOTES = []                                         ### NEW v0.19.4 B93 — status-bar notes (the app shows them once) ###
 
 
@@ -495,8 +511,9 @@ def load_results_cache():
     ### MODIFIED v0.19.4 B93 ### an unreadable file is kept as .corrupt-<date>."""  ### NEW v0.18.3 ###
     try:
         if os.path.isfile(RESULTS_CACHE_PATH):
-            with open(RESULTS_CACHE_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            with _JSON_SAVE_LOCK, open(RESULTS_CACHE_PATH, "r", encoding="utf-8") as f:   # MODIFIED v0.19.5 I20: not during a save
+                text = f.read()
+            data = json.loads(text)
             if isinstance(data, dict) and isinstance(data.get("rows"), list):   ### NEW v0.19.4 I19 — {schema, kind, rows} ###
                 return data["rows"]
             if isinstance(data, list):                          # the form before v0.19.4
@@ -514,7 +531,7 @@ def load_results_cache_stepwise():                                ### NEW v0.19.
     try:
         if not os.path.isfile(RESULTS_CACHE_PATH):
             return []
-        with open(RESULTS_CACHE_PATH, "r", encoding="utf-8") as f:
+        with _JSON_SAVE_LOCK, open(RESULTS_CACHE_PATH, "r", encoding="utf-8") as f:   # MODIFIED v0.19.5 I20: not during a save
             text = f.read()
         dec = json.JSONDecoder()
         i, n = 0, len(text)
@@ -522,8 +539,11 @@ def load_results_cache_stepwise():                                ### NEW v0.19.
             i += 1
         if i >= n:
             return []                                           # an empty file: nothing to keep
+        RESULTS_LAST_SCHEMA[0] = 1                              # the plain list, unless the header says otherwise
         if text[i] == "{":                                      ### NEW v0.19.4 I19 — {schema, kind, rows}: rows come last ###
             j = text.find('"rows"', i)
+            _m_s = re.search(r'"schema"\s*:\s*(\d+)', text[i:j] if j >= 0 else "")   # NEW v0.19.5
+            RESULTS_LAST_SCHEMA[0] = int(_m_s.group(1)) if _m_s else 2
             k = text.find("[", j) if j >= 0 else -1
             if k < 0:
                 _keep_corrupt_results("no rows")
@@ -554,6 +574,20 @@ def load_results_cache_stepwise():                                ### NEW v0.19.
 _JSON_SAVE_LOCK = threading.RLock()                                ### NEW v0.19.4 P2 (F12) ###
 
 
+def _replace_retry(tmp, path, tries=20, wait=0.05, op=None):       ### NEW v0.19.5 I20 ###
+    """os.replace (or *op*), tried again for up to 1 s. On Windows it is refused while any reader has the target open: this app's
+    own read of the same file, an antivirus, a backup or sync tool. Without this the save was lost, with only a log line.
+    ### v0.19.5 WR-B1 ### the error says what to do, not only Windows' text."""
+    for i in range(tries):
+        try:
+            (op or os.replace)(tmp, path)
+            return
+        except PermissionError as e:
+            if i == tries - 1:
+                raise PermissionError(e.errno, "another program is holding the file; run the action again", path) from e
+            time.sleep(wait)
+
+
 def _save_json_atomic(path, data, **dump_kw):                   ### NEW v0.19.4 P2 (F12) ###
     """One lock for the cache files, a temp file per thread (two saves at once used to share one ".tmp" and
     could publish a half-written file), the temp file removed on failure.  Raises on failure."""
@@ -562,7 +596,7 @@ def _save_json_atomic(path, data, **dump_kw):                   ### NEW v0.19.4 
         try:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, **dump_kw)
-            os.replace(tmp, path)
+            _replace_retry(tmp, path)                            # MODIFIED v0.19.5 I20
         finally:
             try:
                 if os.path.exists(tmp):
@@ -639,7 +673,7 @@ def save_not_duplicates(pairs):                                  ### NEW v0.19.3
             tmp = NOT_DUP_PATH + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump({"version": 1, "pairs": list(pairs)}, f, ensure_ascii=False, indent=1)
-            os.replace(tmp, NOT_DUP_PATH)
+            _replace_retry(tmp, NOT_DUP_PATH)
             return True
         except Exception:
             return False
@@ -1085,7 +1119,7 @@ def _write_manifest(folder, m):
     tmp = os.path.join(folder, MANIFEST_NAME + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(m, f, indent=1, ensure_ascii=False)
-    os.replace(tmp, os.path.join(folder, MANIFEST_NAME))
+    _replace_retry(tmp, os.path.join(folder, MANIFEST_NAME))
 
 
 def _manifest_add(folder, original, backup_path, logger=None):  ### NEW v0.19.1 I1 ###
@@ -1307,7 +1341,7 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
         try:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copyfile(src, tmp)           # copyfile: the restored file gets a new mtime
-            os.replace(tmp, dst)
+            _replace_retry(tmp, dst)
             restored.append(dst)
             _ren = f.get("renamed_to")                         ### NEW v0.19.3 B73 — the new name goes ###
             if _ren and os.path.normcase(_ren) != os.path.normcase(dst) and os.path.isfile(_ren):
@@ -1494,7 +1528,7 @@ def _append_cleanup_log(records, logger=None):
             tmp = BACKUP_CLEANUP_LOG_PATH + ".tmp"
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=1, ensure_ascii=False)
-            os.replace(tmp, BACKUP_CLEANUP_LOG_PATH)
+            _replace_retry(tmp, BACKUP_CLEANUP_LOG_PATH)
     except Exception as e:
         if logger:
             logger.warning(f"Backup cleanup log not written: {e}")

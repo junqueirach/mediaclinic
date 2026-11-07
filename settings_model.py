@@ -194,6 +194,7 @@ DEFAULT_SETTINGS = {
         "collection_mismatch":             True,      ### NEW v0.19.4 B110c — missing / different collection (TMDB) ###
         "title_sync_default":              "nfo",     ### NEW v0.19.3 B60 — Repair All, unclear title: "nfo" keeps the NFO title, "skip" reports ###
         "id_format_invalid":               True,      ### NEW v0.19.3 I8 — IMDb tt + 7–9 digits, TMDb digits ###
+        "year_premiered_differ":           True,      ### NEW v0.19.5 B126 ###
         "year_out_of_range":               True,      ### NEW v0.19.3 I8 — 1888 … next year + 1 ###
         "numeric_field_invalid":           True,      ### NEW v0.19.3 I8 — runtime / votes whole numbers, rating 0–10 ###
         "duplicate_single_tag":            True,      ### NEW v0.19.3 I8 — two <title>, <year> … ###
@@ -212,6 +213,7 @@ DEFAULT_TAG_PAIRS = [
     ("year",                                "ProductionYear",              "Year",             0),
     ("releasedate",                         "ReleaseDate",                 "Release Date",     0),
     ("releasedate",                         "PremiereDate",                "Premiere Date",    0),
+    ("premiered",                           "PremiereDate",                "Premiered",        0),   # NEW v0.19.5 B126: Kodi reads premiered, not releasedate
     ("votes",                               "Votes",                       "Votes",            5),
     ("rating",                              "IMDBrating",                  "Rating (IMDB)",    5),
     ("rating",                              "Rating",                      "Rating",           5),

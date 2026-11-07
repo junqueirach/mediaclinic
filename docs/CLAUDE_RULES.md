@@ -1,12 +1,12 @@
 # CLAUDE_RULES.md
 ## MediaClinic — Rules for AI-assisted editing
-### Version: 0.19.4 (rewritten 2026-11-04 from the code; the v0.14.0 version covered only the settings subsystem)
+### Version: 0.19.5 (rewritten 2026-11-04 from the code, updated 2026-11-07; the v0.14.0 version covered only the settings subsystem)
 
 This file is the guide for any Claude (or human) changing MediaClinic. Read it in full before any change. In the author's working
 folder it adds to the family rules (`CLAUDE.md`: real data, snapshots, editing, builds) and never weakens them; the work order there is
 the roadmap `IMPROVEMENTS_SHORT_TERM R1.md`. Those two files are not published.
 
-Names below were checked against the v0.19.4 source. In the source the main file is `mediaclinic_v0_19_4.py`; on GitHub it is
+Names below were checked against the v0.19.5 source. In the source the main file is `mediaclinic_v0_19_5.py`; on GitHub it is
 `mediaclinic.py`. When a rule and the code disagree, stop and report it. Do not silently follow either.
 
 ---
@@ -70,7 +70,18 @@ Each rule here comes from a real freeze or crash.
 
 ---
 
+### Added in v0.19.5
+- `_replace_retry` (`settings_controller.py`) for every replace of a user's or the app's file: on Windows a reader refuses it for a moment.
+- `_set_tag_in_lines` to set a tag: it fills the empty and CDATA forms in place. The readers take the first tag, so never add a second.
+- `_insert_line_before_root_close` raises when there is no closing root tag. `_require_xml` before a tag writer's atomic write: a result that does not parse is refused.
+- A rating with a known source goes through `write_rating_to_files(..., source=)`: never under another source's name.
+- A movie's collection data counts only when `id_flagged` is false (`collection_rules.py`).
+- A run that makes a new file calls `note_created`, so Undo removes it. Keep the old file until the new one is in place.
+
 ## 4. Rows and scans
+
+- v0.19.5: reading a value differently means raising `RESULTS_SCHEMA` and reading it once more for old rows (`read_old_tag_values`): Quick Scan and the cache keep old values.
+- v0.19.5: `Language OK` counts streams only; top-level `<language>`, `<Language>` and `<LanguageCode>` are for metadata downloads. A rescan judges from the stored streams and the files, never from the old Y (`lang_in_stored_streams`).
 
 1. **Every row starts from `row_defaults()`.** `scan_one_subfolder` is the wrapper; the rest of the scan is in `_scan_one_subfolder`. A new row key goes into `row_defaults()`.
 2. **A rescan keeps data through `carry_after_rescan`:** FFprobe data only for the same video, the ID check only while the IDs are unchanged.
@@ -163,6 +174,8 @@ and polls for the result (no Tk in the worker).
 9. **Python 3.10 stays supported:** no syntax newer than that.
 
 ---
+
+- v0.19.5: for keys and the wheel use `_fire` (a widget's real bindings, no focus). Wait with `_settle`, not a fixed `sleep`. `on_ui` goes through `mc.ui_post`. A test that calls `PrintWindow` runs in a child process.
 
 ## 10. Checklist before a change is done
 

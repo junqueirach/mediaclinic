@@ -14,7 +14,7 @@ import re
 import unicodedata
 
 # ── reading ────────────────────────────────────────────────────────────────────
-_SET_RE = re.compile(r"<set(\s[^>]*)?(/>|>(.*?)</set\s*>)", re.S | re.I)
+_SET_RE = re.compile(r"<set(\s[^>]*?)?(\s*/>|>(.*?)</set\s*>)", re.S | re.I)   # MODIFIED v0.19.5 CO-D3: <set /> no longer runs on to the next </set>
 _ATTR_RE = re.compile(r"""tmdbcolid\s*=\s*["']\s*(\d+)\s*["']""", re.I)
 _NAME_RE = re.compile(r"<name(?:\s[^>]*)?>(.*?)</name\s*>", re.S | re.I)
 _OVER_RE = re.compile(r"<overview(?:\s[^>]*)?>(.*?)</overview\s*>", re.S | re.I)
@@ -85,7 +85,7 @@ def kodi_legal_name(name):
     """Kodi's MakeLegalFileName(name, WIN32_COMPAT) for the set folder: / \\ ? : * " < > | → _,
     trailing dots and spaces removed; case and accents stay."""
     s = _ILLEGAL.sub("_", str(name or ""))
-    return s.rstrip(". ")
+    return s.rstrip(". ") or "_"                                  # MODIFIED v0.19.5 CO-D4: never empty, it would mean the whole collection folder
 
 
 # ── languages (B110.7) ─────────────────────────────────────────────────────────
@@ -200,6 +200,22 @@ def chosen_names(rows, coll_cache, lib_lang="en", fixed="auto"):
     return out
 
 
+def own_collection(nfo, tm, coll_cache=None):                     ### NEW v0.19.5 CO-D2 ###
+    """The NFO's name has no TMDB ID and matches no name TMDB has for its collection: the user's own, as Help promises."""
+    if not nfo or nfo.get("tmdbcolid") or not tm or not tm.get("id"):
+        return False
+    names = dict(((coll_cache or {}).get(str(tm["id"])) or {}).get("names") or {})
+    if tm.get("name"):
+        names.setdefault(tm.get("lang") or "xx", tm["name"])
+    return not any(norm_name(v) == norm_name(nfo.get("name")) for v in names.values() if v)
+
+
+def id_flagged(row):                                              ### NEW v0.19.5 CO-D1 ###
+    """Verify IDs said the ID is wrong: the TMDB collection data may be another film's. "OK…" results and no check are not flagged."""
+    res = str((row.get("id_check") or {}).get("result") or "")
+    return bool(res) and not res.startswith("OK")
+
+
 # ── the collection rule (B110.6) ──────────────────────────────────────────────
 def mismatch_reasons(row, coll_cache=None, spellings=None, chosen=None):
     """The 'Collection: …' warnings of one row (rule collection_mismatch).
@@ -208,7 +224,7 @@ def mismatch_reasons(row, coll_cache=None, spellings=None, chosen=None):
     spellings: {tmdb id or group key: set of names as written} across the library."""
     out = []
     nfo = row.get("coll_nfo") or None
-    tm = row.get("coll_tmdb")
+    tm = None if id_flagged(row) else row.get("coll_tmdb")        # v0.19.5 CO-D1
     if not nfo and row.get("coll_none"):                 # v0.19.4 fix 3b: the user said "not in a collection"
         return out
     if tm and not tm.get("id") and nfo and nfo.get("tmdbcolid"):   # v0.19.4 fix 3c: a link TMDB no longer has
@@ -219,7 +235,7 @@ def mismatch_reasons(row, coll_cache=None, spellings=None, chosen=None):
             same = False
         out.append(f"Collection: '{nfo['name']}' (TMDB {nfo['tmdbcolid']}) "
                    + ("no longer exists on TMDB" if same else "is not listed by TMDB for this movie"))
-    if tm and tm.get("id"):
+    if tm and tm.get("id") and not own_collection(nfo, tm, coll_cache):   # v0.19.5 CO-D2
         names = dict(((coll_cache or {}).get(str(tm["id"])) or {}).get("names") or {})
         if tm.get("name"):
             names.setdefault(tm.get("lang") or "xx", tm["name"])
@@ -320,10 +336,11 @@ def coll_cache_entry(main, translations, lang, when):
             overviews.setdefault(lg, d["overview"].strip())
     main = main if isinstance(main, dict) else {}
     lg0 = (lang or "").split("-")[0].lower()
+    # MODIFIED v0.19.5 CO-D5: the answer asked for in the library's own language wins for it: TMDB lists pt-PT and pt-BR under one "pt"
     if lg0 and (main.get("name") or "").strip():
-        names.setdefault(lg0, main["name"].strip())
+        names[lg0] = main["name"].strip()
     if lg0 and (main.get("overview") or "").strip():
-        overviews.setdefault(lg0, main["overview"].strip())
+        overviews[lg0] = main["overview"].strip()
     parts = sorted(int(p["id"]) for p in (main.get("parts") or []) if isinstance(p, dict) and p.get("id"))
     return {"names": names, "overviews": overviews, "parts": parts, "when": when}
 
@@ -394,15 +411,20 @@ def pick_image(images, kind, lib_lang="en"):
 
 
 # ── the fix (B110.9) ───────────────────────────────────────────────────────────
-def fix_target(row, cache, lib_lang="en", chosen=None):
-    """(name, tmdbcolid, overview, None) to write, or (None, None, None, why) when the movie is skipped."""
+def fix_target(row, cache, lib_lang="en", chosen=None, explicit=False):
+    """(name, tmdbcolid, overview, None) to write, or (None, None, None, why) when the movie is skipped.
+    ### v0.19.5 CO-D2 ### explicit: the user's own Fix on this movie; only then is their own collection replaced."""
     tm = row.get("coll_tmdb")
     if row.get("coll_none") and not row.get("coll_nfo"):   # v0.19.4 fix 3b
         return None, None, None, "you marked it as not in a collection"
+    if id_flagged(row):                                    # v0.19.5 CO-D1
+        return None, None, None, "Verify IDs flagged this movie's ID: fix the ID first"
     if not tm:
         return None, None, None, "not checked online — Check Collections Online first"
     if not tm.get("id"):
         return None, None, None, "TMDB lists no collection for this movie (your own collection is kept)"
+    if not explicit and own_collection(row.get("coll_nfo"), tm, cache):   # v0.19.5 CO-D2
+        return None, None, None, "your own collection is kept (Fix Collection… on this movie can replace it)"
     entry = (cache or {}).get(str(tm["id"])) or {}
     names, ovs = entry.get("names") or {}, entry.get("overviews") or {}
     order = [title_lang(row, lib_lang) or "en", "en"]             # fix 9 / fix 10: never the library language
@@ -436,10 +458,12 @@ def same_collection(a, b):
 
 
 # ── the grouped view (B110.10) ────────────────────────────────────────────────
-def group_rows(rows):
+def group_rows(rows, order=None):
     """rows (already sorted / filtered, as view_rows returns them) → the top-level items in view order:
     ("movie", row) or ("coll", key, display name, [rows in order]).  A collection sits where its first movie
-    sits; movies without a collection stay single (D10)."""
+    sits; movies without a collection stay single (D10).
+    ### NEW v0.19.5 B118 ### order, when the first sort level is a text column: {"movie": row → text or None,
+    "name": collection name → text, "reverse": bool, "empty_first": bool}: a collection sits by its own name."""
     out, seen = [], {}
     for r in rows:
         k = group_key(r)
@@ -452,7 +476,14 @@ def group_rows(rows):
         item = ("coll", k, r["coll_nfo"]["name"], [r])
         seen[k] = item
         out.append(item)
-    return out
+    if not order:
+        return out
+    keyed = [(order["name"](x[2]) if x[0] == "coll" else order["movie"](x[1]), x) for x in out]
+    have = [t for t in keyed if t[0] is not None]
+    none = [t[1] for t in keyed if t[0] is None]
+    have.sort(key=lambda t: t[0], reverse=bool(order.get("reverse")))
+    ordered = [t[1] for t in have]
+    return none + ordered if order.get("empty_first") else ordered + none
 
 
 def year_span(rows):

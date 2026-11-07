@@ -178,7 +178,9 @@ def describe(spec, label=None):
         parts.append(txt + ")")
     if not any(l["key"] == "movie_name" for l in clean_spec(spec)):
         parts.append("Movie Name (A → Z)")
-    return "Sorted by " + ", then ".join(parts) + " · empty values last"
+    # MODIFIED v0.19.5 AS-A22: no "empty values last" when a level asks for empty first
+    tail = "" if any(l.get("empty") == "first" for l in clean_spec(spec)) else " · empty values last"
+    return "Sorted by " + ", then ".join(parts) + tail
 
 
 def heading_marks(spec):

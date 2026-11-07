@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mediaclinic-settings-v0.19.4",
+  "$id": "mediaclinic-settings-v0.19.5",
   "title": "MediaClinic Settings",
   "description": "Schema for settings.json written by mediaclinic/settings_controller.py",
   "type": "object",
@@ -277,6 +277,7 @@
         "collection_mismatch":            { "type": "boolean", "default": true, "description": "v0.19.4 B110c: TMDB lists a collection the NFO misses or names differently; one collection written two ways" },
         "title_sync_default":              { "type": "string", "enum": ["nfo", "skip"], "default": "nfo", "description": "v0.19.3 B60: Repair All, when it is unclear which local title is right: keep the NFO title, or skip and report" },
         "id_format_invalid":              { "type": "boolean", "default": true, "description": "v0.19.3 I8: an IMDb ID that is not tt + 7-9 digits, or a TMDb ID that is not a number" },
+        "year_premiered_differ":          { "type": "boolean", "default": true, "description": "v0.19.5 B126: NFO year against the year of premiered" },
         "year_out_of_range":              { "type": "boolean", "default": true, "description": "v0.19.3 I8: a year before 1888 or after next year + 1" },
         "numeric_field_invalid":          { "type": "boolean", "default": true, "description": "v0.19.3 I8: runtime / votes not a whole number, rating not on a 0-10 scale" },
         "duplicate_single_tag":           { "type": "boolean", "default": true, "description": "v0.19.3 I8: a tag that should appear once appears more often" },

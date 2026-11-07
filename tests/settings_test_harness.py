@@ -467,7 +467,11 @@ def run_all():
         masked = has_block and dlg17._fanarttv_entry.cget("show") == "•" and dlg17._fanarttv_client_entry.cget("show") == "•"
         link_ok = has_block and "fanart.tv" in dlg17._fanarttv_link.cget("text")
         if has_block:
-            dlg17._fanarttv_link.event_generate("<Button-1>"); root.update()
+            # ### MODIFIED v0.19.5 I22 ### run the label's real binding: event_generate is lost while the dialog is not yet on screen
+            import re as _re17
+            _lk17 = dlg17._fanarttv_link
+            _lk17.tk.eval(_re17.sub(r"%(.)", lambda m: str(_lk17) if m.group(1) == "W" else "0", str(_lk17.bind("<Button-1>"))))
+            root.update()
         _check("T17a fanart.tv block exists (masked key + client key) and its link opens the key page",
                has_block and masked and link_ok and _opened == ["https://fanart.tv/get-an-api-key/"],
                f"block={has_block} masked={masked} link={link_ok} opened={_opened}")

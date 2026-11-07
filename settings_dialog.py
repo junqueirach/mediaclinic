@@ -653,6 +653,25 @@ class SettingsDialog(DialogBase):
         except (tk.TclError, ValueError, TypeError):
             return default
 
+    def _check_number_fields(self):                               ### NEW v0.19.5 SH-E9 ###
+        """Text in a number box is refused by name, as Help says. A blank box still means the default."""
+        fields = [("Max NFO size", "_max_nfo_kb_var"), ("Max XML size", "_max_xml_kb_var"), ("Minimum poster KB", "_min_poster_kb_var"),
+                  ("Minimum folder image KB", "_min_folder_kb_var"), ("Minimum fanart KB", "_min_fanart_kb_var"), ("Backdrops to extract", "_backdrop_count_var"),
+                  ("Scan workers", "_scan_workers_var"), ("Seconds per frame", "_ffmpeg_frame_timeout_var"), ("Seconds per run", "_ffmpeg_run_budget_var"), ("FFprobe processes", "_ffprobe_workers_var")]
+        pairs = [(lbl, getattr(self, attr)) for lbl, attr in fields if hasattr(self, attr)]
+        for src in ("_hr_int_vars", "_hr_flt_vars"):
+            pairs += [(f"Health rule {k}", v) for k, v in getattr(self, src, {}).items()]
+        for lbl, var in pairs:
+            try:
+                raw = var.get()
+            except tk.TclError:                                   # a typed variable holding text; a blank one is fine
+                raw = str(self.tk.globalgetvar(str(var)) or "")
+            if isinstance(raw, str) and raw.strip():
+                try:
+                    float(raw.strip())
+                except ValueError:
+                    raise SettingsFieldError(lbl, None, f"'{raw.strip()}' is not a number") from None
+
     def _scrollable_tab(self, nb, label):
         """Add a tab whose content scrolls vertically (mouse wheel while the
         pointer is over it).  Returns the inner frame to pack widgets into.
@@ -778,7 +797,8 @@ class SettingsDialog(DialogBase):
                        activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=(4, 0))
         # NEW v0.19.2 B28 — limits for "Frames from movie" (FFmpeg runs in the background)
         self._note(f, "Frames from movie: FFmpeg runs at background priority and is stopped\n"
-                      "when one frame or the whole run takes longer than this.")
+                      "when one frame or the whole run takes longer than this.\n"
+                      "Seconds per run also limits an AI upscale (at least 60 s).")
         r = self._row(f)
         tk.Label(r, text="Seconds per frame:", font=("Helvetica", 10),
                  bg="#1e1e2e", fg="#cdd6f4", width=26, anchor="w").pack(side="left")
@@ -827,17 +847,6 @@ class SettingsDialog(DialogBase):
 
         # Metadata source / scraper
         self._section(f, "Video Scraper / Metadata Source")
-        self._note(f, "Choose the metadata source for ratings, votes, and IDs.\n"
-                      "The scraper launch path remains available below.")
-        r = self._row(f)
-        tk.Label(r, text="Metadata source:", font=("Helvetica", 10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=20, anchor="w").pack(side="left")
-        self._meta_src_var = tk.StringVar(value=self._s.get("metadata_source", "tmdb"))
-        for val, lbl in [("tmdb", "TMDB (recommended)"), ("omdb", "IMDb via OMDb API")]:
-            tk.Radiobutton(r, text=lbl, variable=self._meta_src_var, value=val,
-                           font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                           selectcolor="#313244", activebackground="#1e1e2e",
-                           activeforeground="#cdd6f4").pack(side="left", padx=(0, 16))
         self._note(f, "\nScraper executable (optional — launched with movie folder as argument):")
         self._scraper_var = tk.StringVar(value=self._s.get("scraper_path", ""))
         self._file_entry_row(f, self._scraper_var, "Select scraper",
@@ -1427,7 +1436,7 @@ class SettingsDialog(DialogBase):
 
         # Fanart 16:8 acceptance toggle
         r0 = self._row(f)
-        tk.Label(r0, text="Accept fanart.jpg also in 16:8 (1.50 ratio)?",
+        tk.Label(r0, text="Accept fanart.jpg also in 3:2 (1.50 ratio)?",
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=50, anchor="w").pack(side="left")
         self._fanart_168_var = tk.StringVar(
@@ -1503,7 +1512,7 @@ class SettingsDialog(DialogBase):
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(10, 4))
 
         # ──────────── Fanart ──────────────────────────────────────────────────
-        tk.Label(f, text="FANART  (16:9 or 16:8 landscape ratio)",
+        tk.Label(f, text="FANART  (16:9 or 3:2 landscape ratio)",
                  font=("Helvetica", 10, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(10, 2))
 
@@ -1803,21 +1812,6 @@ class SettingsDialog(DialogBase):
                  ).pack(anchor="w", padx=16, pady=(16, 4))
 
         # ── Show image size? ──────────────────────────────────────────────────
-        self._section(f, "Image Size Columns")
-        self._note(f, "When Yes, a Size column (file size in KB) is shown alongside\n"
-                      "each Quality column for poster, folder, and fanart.\n"
-                      "(Note: merged columns in v0.12.0 — this setting is reserved.)")
-        r1 = self._row(f)
-        tk.Label(r1, text="Show image size?", font=("Helvetica", 10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=28, anchor="w").pack(side="left")
-        self._show_image_size_var = tk.BooleanVar(value=self._s.get("show_image_size", False))
-        for val, lbl in [(True, "Yes"), (False, "No")]:
-            tk.Radiobutton(r1, text=lbl, variable=self._show_image_size_var, value=val,
-                           font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                           selectcolor="#313244", activebackground="#1e1e2e",
-                           activeforeground="#cdd6f4").pack(side="left", padx=(0, 12))
-
-        # ── Enable compact mode? ──────────────────────────────────────────────
         self._section(f, "Compact Mode")
         self._note(f, "When Yes, reduces vertical spacing between rows in the main table.")
         r2 = self._row(f)
@@ -1831,33 +1825,6 @@ class SettingsDialog(DialogBase):
                            activeforeground="#cdd6f4").pack(side="left", padx=(0, 12))
 
         # ── Enable dark theme? ────────────────────────────────────────────────
-        self._section(f, "Dark Theme")
-        self._note(f, "Toggle between dark and light UI theme.\n"
-                      "(Full theme switching will be implemented in a future update.)")
-        r3 = self._row(f)
-        tk.Label(r3, text="Enable dark theme?", font=("Helvetica", 10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=28, anchor="w").pack(side="left")
-        self._dark_theme_var = tk.BooleanVar(value=self._s.get("dark_theme", True))
-        for val, lbl in [(True, "Yes"), (False, "No")]:
-            tk.Radiobutton(r3, text=lbl, variable=self._dark_theme_var, value=val,
-                           font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                           selectcolor="#313244", activebackground="#1e1e2e",
-                           activeforeground="#cdd6f4").pack(side="left", padx=(0, 12))
-
-        # ── Auto-fit column widths? ───────────────────────────────────────────
-        self._section(f, "Auto-fit Columns")
-        self._note(f, "When Yes, columns automatically resize to fit content on load.")
-        r4 = self._row(f)
-        tk.Label(r4, text="Auto-fit column widths?", font=("Helvetica", 10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=28, anchor="w").pack(side="left")
-        self._auto_fit_var = tk.BooleanVar(value=self._s.get("auto_fit_columns", True))
-        for val, lbl in [(True, "Yes"), (False, "No")]:
-            tk.Radiobutton(r4, text=lbl, variable=self._auto_fit_var, value=val,
-                           font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                           selectcolor="#313244", activebackground="#1e1e2e",
-                           activeforeground="#cdd6f4").pack(side="left", padx=(0, 12))
-
-        # ── Right-click menu (v0.19.2 B57) ───────────────────────────────────
         self._section(f, "Right-click Menu")
         self._note(f, "\"Repeat\" runs the last menu action again on the current selection.")
         r4b = self._row(f)
@@ -2164,6 +2131,7 @@ class SettingsDialog(DialogBase):
                    "More than one NFO the servers read (movie.nfo + <video>.nfo …)")
         # ### NEW v0.19.3 I8 ### content of the NFO / XML (warnings)
         _check_row("id_format_invalid",      "IMDb / TMDB ID not valid (tt + 7–9 digits / digits; Auto Repair trims 'tt0133093/')")
+        _check_row("year_premiered_differ",  "NFO <year> and the year of <premiered> differ")
         _check_row("year_out_of_range",      "Year out of range (before 1888 or after next year)")
         _check_row("numeric_field_invalid",  "Runtime / votes not a whole number, rating not 0–10")
         _check_row("duplicate_single_tag",   "A tag that belongs once appears twice (<title>, <year> …)")
@@ -2196,7 +2164,6 @@ class SettingsDialog(DialogBase):
         _check_row("missing_votes",          "Missing votes count")
         _check_row("votes_warning",          "Votes tag unreadable (non-numeric value)")
         _check_row("lang_not_ok",            "Target language not found (Lang OK? column)")
-        _check_row("missing_language_field", "Language field missing in XML")
         _check_row("nfo_xml_too_large",      "NFO or XML file too large (uses max KB from Improvements tab)")
         _check_lang_row("required_audio_language", "required_audio_language_code",
                         "Required audio language missing:", AUDIO_LANGUAGES, "ENG")
@@ -2506,7 +2473,7 @@ class SettingsDialog(DialogBase):
         hr_changed = False
         if hasattr(self, "_hr_vars"):
             snap_hr = snap.get("health_rules", {})
-            curr_hr = {}
+            curr_hr = {k: v for k, v in snap_hr.items() if k == "missing_language_field"}   # v0.19.5 B121: a retired key has no control
             for k, v in self._hr_vars.items():      curr_hr[k] = v.get()
             for k, v in self._hr_int_vars.items():  curr_hr[k] = self._num(v, snap_hr.get(k, 0))
             for k, v in self._hr_flt_vars.items():  curr_hr[k] = round(self._num(v, float(snap_hr.get(k, 0.0))), 2)
@@ -2634,6 +2601,7 @@ class SettingsDialog(DialogBase):
         changed = self._rescan_changed()
 
         try:
+            self._check_number_fields()                             ### NEW v0.19.5 SH-E9 ###
             _s["text_editor"]      = self._editor_var.get().strip()
             _s["ffmpeg_path"]      = self._ffmpeg_var.get().strip()
             if hasattr(self, "_coll_folder_var"):                   # NEW v0.19.4 B110g
@@ -2674,7 +2642,6 @@ class SettingsDialog(DialogBase):
                 _s["ffmpeg_run_budget_sec"]    = max(30, min(1800, _num(self._ffmpeg_run_budget_var, 180)))
             if hasattr(self, "_ffprobe_workers_var"):
                 _s["ffprobe_workers"] = max(1, min(8, _num(self._ffprobe_workers_var, 2)))
-            _s["metadata_source"]  = self._meta_src_var.get()
             if hasattr(self, "_poster_ql_var"):
                 _s["poster_quality_level"] = self._poster_ql_var.get()
             if hasattr(self, "_folder_ql_var"):
