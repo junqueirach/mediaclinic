@@ -9011,6 +9011,15 @@ def ui_tests():
               and "junqueira.ch@gmail.com" not in _txt49, _txt49[:400])
         _rows49 = [l for l in _txt49.splitlines() if l.strip().split("\t")[0] in ("Created by", "Website", "GitHub", "Reddit", "Contact")]
         check("B49: every identity row has exactly one tab character (aligned values)", len(_rows49) == 5 and all(l.count("\t") == 1 for l in _rows49), _rows49)
+        # ── TR7 (2026-11-07): a Nuitka build defines __compiled__ instead of sys.frozen; both count as the Windows exe ──
+        _fz7 = mc._is_frozen()
+        mc.__dict__["__compiled__"] = True
+        try:
+            check("TR7: _is_frozen() is True under Nuitka (__compiled__) and the About line says 'Windows exe'",
+                  not _fz7 and mc._is_frozen() and "Windows exe" in mc.version_line(), (_fz7, mc.version_line()))
+        finally:
+            del mc.__dict__["__compiled__"]
+        check("TR7: back to 'running from source' without __compiled__", not mc._is_frozen())
         check("B49: the feature bullets match what v0.19.2 ships", all(f"•  {b}" in _txt49 for b in mc.ABOUT_FEATURES) and len(mc.ABOUT_FEATURES) == 6)
         _op49 = []
         _wbo49 = mc.webbrowser.open

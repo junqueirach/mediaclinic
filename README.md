@@ -6,11 +6,13 @@
 
 <p align="center"><img src="docs/screenshots/mediaclinic.png" alt="MediaClinic screenshot" width="900"></p>
 
-**Download for Windows:** get `MediaClinic-0.19.5-win64.zip` (about 20 MB) from the [latest release](https://github.com/junqueirach/mediaclinic/releases/latest). Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
+**Download for Windows:** get `MediaClinic-0.19.5-win64.zip` (about 32 MB) from the [latest release](https://github.com/junqueirach/mediaclinic/releases/latest). Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
 
 **New in v0.19.5:** a fix release after a review of every feature. Writes keep every file valid, ratings stay under their own source's name, *Language OK* counts only audio and subtitle tracks, codec names no longer count as differences, a save no longer fails while another program reads the file, Undo is complete after image fixes, and the tests are more reliable. See the [changelog](CHANGELOG.md).
 
 > **Windows SmartScreen:** the file is not code-signed, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. You can also run the app from source (see Quick start) and read every line of the code first.
+>
+> **VirusTotal:** a tester found two engines flagging the earlier exe with generic names. The flagged part was the PyInstaller loader that every Python exe built that way starts with, not the app: its code was byte-identical to the loader published on PyPI, the archive held only Python's standard library, the app's own modules, Pillow and openpyxl, and VirusTotal's sandboxes saw no network traffic or dropped files. Since the third build of v0.19.5 the exe is compiled with Nuitka (the Python code becomes C), which has no such loader; the trial of that build scored 0 of 69 on VirusTotal. The release notes carry the SHA-256 of the zip and of the exe.
 
 ## How it works
 
@@ -62,6 +64,17 @@ From the Windows download, just run `MediaClinic.exe`. From source:
 pip install -r requirements.txt     # optional: pillow, openpyxl
 python mediaclinic.py
 ```
+
+**Linux and macOS:** there is no download yet, but the app runs from source, and the test suite runs on Ubuntu in CI. Install `python3-tk` and `ffmpeg` from your distribution (on macOS, a Python with Tk and `ffmpeg` from Homebrew), then:
+
+```
+git clone https://github.com/junqueirach/mediaclinic
+cd mediaclinic
+pip install pillow openpyxl
+python3 mediaclinic.py
+```
+
+Settings go to `~/.config/MediaMetadataClinic/`. Where your Kodi, Jellyfin, Emby or Plex runs does not matter: the app works on the files. Only Windows has been tested by hand, so a note with `logs/app.log` helps if something looks off.
 
 Run it from the folder that contains the `settings_*.py` files. FFmpeg and FFprobe are optional but recommended (point *Settings → Editor & FFmpeg* to their `bin` folder). Settings, your API keys and the last scan are stored in `%APPDATA%\MediaMetadataClinic\`, outside this repository, and since v0.19.4 so are the backups, so an update keeps Backup History and Undo (backups from an older version next to the program move there once). `logs/` is created next to the program. The full help is inside the app (F1).
 

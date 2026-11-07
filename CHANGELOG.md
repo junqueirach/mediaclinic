@@ -37,6 +37,14 @@ handling checked against what Kodi, Jellyfin, Emby and Plex read, the remaining 
 - Tests: one self-test for Windows and Linux; keyboard and wheel checks no longer need the window focus; fixed waits are
   replaced by waiting for the result. CI uses newer actions and runs every Python version to the end.
 
+### Build 3 (2026-11-07, after the release)
+- The exe is compiled with **Nuitka** instead of PyInstaller. Two VirusTotal engines flagged every PyInstaller build with generic
+  names, even one with a loader compiled from source; the Nuitka trial scored 0 of 69. Same source and version; the zip is about
+  32 MB instead of 20 MB, and the exe about 40 MB.
+- Two lines for that build: `_is_frozen()` and the About line also recognise Nuitka's `__compiled__`, so Check for Updates offers
+  "Download and install" and About says "Windows exe" as before. One new self-test check.
+- README: how to run on Linux and macOS from source, and what the VirusTotal flags were.
+
 ## v0.19.4 — 2026-11-04
 
 Windows build and source. Movie collections, a new window layout, a rewritten Help, and a full code review.

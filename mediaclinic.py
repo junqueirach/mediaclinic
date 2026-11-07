@@ -30,6 +30,9 @@
 #          removes files a run created; a failed step refreshes its row and says what changed.
 #   - Decisions at S4: your own collections stay; four settings that did nothing removed;
 #          text in a number box refused; "16:8" is labelled 3:2, its real ratio.
+#   - Build (TR7, 2026-11-07, after the release): the exe is compiled with Nuitka, which
+#          defines __compiled__ instead of sys.frozen; _is_frozen() and the About line
+#          accept both. Two engines flagged every PyInstaller build with generic names.
 #
 # v0.19.4
 #   - Late fixes of the build (q3d, q3e, q3f): _refresh_idle counts queued requests and the scan start
@@ -1355,7 +1358,8 @@ def check_latest_release(get=None, timeout=5):                   ### NEW v0.19.2
 
 
 def _is_frozen():
-    return bool(getattr(sys, "frozen", False))
+    """True in the Windows build: PyInstaller sets sys.frozen, Nuitka defines __compiled__ (TR7, 2026-11-07)."""
+    return bool(getattr(sys, "frozen", False)) or "__compiled__" in globals()
 
 
 def _download_allowed(url):                                      ### NEW v0.19.2 B56 ###
@@ -10163,7 +10167,7 @@ def _open_link(url):                                             ### NEW v0.19.2
 def version_line():                                              ### NEW v0.19.2 B49 ###
     """'Metadata & MediaClinic 0.19.2 · Windows exe · Windows (build 26300) ·
     Python 3.14.0 · Tk 8.6.15' for bug reports (copied, never sent)."""
-    kind = "Windows exe" if getattr(sys, "frozen", False) else "running from source"
+    kind = "Windows exe" if _is_frozen() else "running from source"           ### MODIFIED TR7 — Nuitka too ###
     try:
         osv = f"Windows (build {sys.getwindowsversion().build})" if os.name == "nt" else sys.platform
     except Exception:
