@@ -115,6 +115,9 @@ DEFAULT_SETTINGS = {
     "skipped_version":         "",       # NEW v0.19.2 B50: "Skip this version" — no status-bar link for it
     "image_fix_prefs":         {},       # NEW v0.19.2 F4: last choices of Fix image proportions / size (method per kind, ai_upscale, AI test result)
     "library_kinds":           {},       # NEW v0.19.4 I19: {library path: "movies" | "series"}; absent = "movies" (series from v0.22)
+    "health_mode":             "nfo",    # NEW v0.19.6 TR1b: "nfo" (Kodi, Jellyfin, Emby, Plex, Infuse…), "nfo_xml" (+ movie.xml), "xml" (movie.xml only); existing users: "nfo_xml" by a migration
+    "health_mode_asked":       False,    # NEW v0.19.6 TR1b: the start question (three buttons) was answered
+    "library_nfo_only":        {},       # NEW v0.19.6 TR1: {library path: True (NFO files only, no XML checks) | False (asked, keep them)}; absent = not asked yet
     "movie_panel_shown":       True,     # NEW v0.19.4 L3: the selected-movie panel (D6: shown at the first start)
     "movie_panel_width":       320,      # NEW v0.19.4 L3: its width in px (double-click on the divider resets)
     "collection_folder":       "",       # NEW v0.19.4 B110g: Kodi's "Movie set information folder" ("" = off)

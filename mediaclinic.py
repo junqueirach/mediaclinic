@@ -1,12 +1,30 @@
 # =============================================================================
 # Metadata & MediaClinic
-# Version: 0.19.5                                              ### MODIFIED v0.19.4 ###
+# Version: 0.19.6                                              ### MODIFIED v0.19.6 ###
 # Author:  Luiz Junqueira & Claude AI
 # Contact: info@mediaclinic.dev                              ### MODIFIED v0.19.2 B49 ###
 #
 # CHANGELOG
 # ---------
-# v0.19.5 (current)                                         ### NEW v0.19.5 ###
+# v0.19.6 (current)                                         ### NEW v0.19.6 ###
+#   - Setup: copied from v0.19.5 (file names _v0_19_6). What the first outside testers found (plan Part 9e).
+#   - Health mode (TR1, TR1b): a question at the first start for every user, "Which program plays
+#          your movies?" — three big buttons: Kodi, Jellyfin, Emby, Plex, Infuse… (the NFO; movie.xml
+#          ignored), + old Windows media centers (NFO and movie.xml), or only old Windows media centers
+#          (movie.xml only: the NFO not read, not checked, never written). Settings → Health Rules →
+#          Health mode (one key, health_mode). Per library, "NFO-only library?" after a scan that found no movie.xml
+#          (Library Folders → NFO only). Language column without movie.xml: the NFO's <language>,
+#          else the first audio track. Cache schema 4. An audit of every movie.xml use (plan 9e.1b).
+#   - Sync Ratings (TR2): TMDB asked by the IMDb ID when there is no TMDB ID (/find); the end
+#          message names the movies skipped and why.
+#   - Movie folders at any depth (TR5): a folder of folders is walked into (5 levels); rows keep
+#          their library (library_of).
+#   - Update (TR7 follow-up): the new version is started from a worker thread.
+#   - Linux (TR8): MediaClinic.sh launcher; checked in Ubuntu (WSL): column headings and the Settings
+#          tabs no longer cut off by the wider Linux font; files open with xdg-open (clear message
+#          when it is missing, no more macOS 'open').
+#
+# v0.19.5
 #   - Setup: copied from v0.19.4 (file names _v0_19_5).
 #   - Reliable tests (I20-I26): one self-test for Windows and Linux; on_ui through the queue;
 #          _fire and _settle: no focus and no fixed waits. Found on the way: a save lost while
@@ -869,6 +887,11 @@ def _apply_theme(root):                                          ### NEW v0.19.4
         _UI_SCALE = max(1.0, float(root.tk.call("tk", "scaling")) / (96 / 72))
     except (tk.TclError, ValueError):
         _UI_SCALE = 1.0
+    if os.name != "nt":                                          ### NEW v0.19.6 TR8 ###
+        # X11 Tk draws a 1-px focus ring in a light colour around every button and checkbox even without focus
+        # (white boxes on the dark theme): the ring rests in the background colour and shows only on focus
+        root.option_add("*highlightBackground", C_BG)
+        root.option_add("*highlightColor", C_ACCENT)
     style = ttk.Style(root)
     style.theme_use("clam")
     style.configure("TNotebook", background=C_BG, borderwidth=0)
@@ -975,6 +998,7 @@ from settings_controller import (
 from settings_dialog import SettingsDialog, _inject_globals as _sd_inject
 from settings_dialog import bind_wheel                          ### NEW v0.19.2 B29 — one wheel helper ###
 from settings_dialog import modal as _modal                      ### NEW v0.19.4 B98 — grabs saved and given back ###
+from settings_dialog import HEALTH_MODES, HEALTH_MODE_PATH, health_mode_of   # v0.19.6 TR1b
 from settings_dialog import DialogBase as _DialogBase, DialogFrame   ### NEW v0.19.4 L4 / I15a — one dialog frame ###
 import collection_rules as _cr                                   ### NEW v0.19.4 B110 — movie collections (pure) ###
 from genre_data  import GENRE_SYNONYMS as _GENRE_SYNONYMS, GENRE_TRANSLATIONS as _GENRE_TRANSLATIONS  ### NEW v0.18.3 ###
@@ -983,7 +1007,7 @@ import export_list as _export                                    ### NEW v0.18.3
 
 # ── App identity ──────────────────────────────────────────────────────────────
 APP_NAME    = "Metadata & MediaClinic"
-APP_VERSION = "0.19.5"                                           ### MODIFIED v0.19.4 ###
+APP_VERSION = "0.19.6"                                           ### MODIFIED v0.19.6 ###
 APP_AUTHOR  = "Luiz Junqueira & Claude AI"
 APP_EMAIL   = "info@mediaclinic.dev"                         ### MODIFIED v0.19.2 B49 — the project address ###
 APP_WEBSITE = "https://www.mediaclinic.dev"                      ### NEW v0.19.2 B49 (.dev = HTTPS only) ###
@@ -1194,7 +1218,7 @@ COLUMN_MODEL = [
      "header_tip": "Status of the movie.xml metadata file.",
      "dblclick": "open_xml_unified"},
     {"id": "language",   "label": "Language",        "width":  82, "anchor": "center", "stretch": False,
-     "header_tip": "Language value from the XML <Language> element.",
+     "header_tip": "movie.xml's <Language>. Without movie.xml: the NFO's <language>, else the first audio track's language.",   # v0.19.6 TR1
      "dblclick": "open_xml_lang"},
     {"id": "vid_ext",    "label": "Video",           "width":  52, "anchor": "center", "stretch": False,
      "header_tip": "Video container format (MKV, MP4, AVI, etc.).",
@@ -1908,10 +1932,21 @@ def open_in_editor(filepath):
         if os.name == "nt":
             os.startfile(filepath)
         else:
-            try:   subprocess.Popen(["xdg-open", filepath])
-            except FileNotFoundError: subprocess.Popen(["open", filepath])
+            subprocess.Popen([unix_open_command(), filepath])          # v0.19.6 TR8
     except Exception as e:
         messagebox.showerror("Cannot open", str(e))
+
+
+def unix_open_command():                                        ### NEW v0.19.6 TR8 ###
+    """Linux / macOS: the program that opens a file or folder with its default app
+    (macOS `open`, else `xdg-open`). A clear message when it is missing (WSL and
+    minimal installs have no xdg-utils; v0.19.5 then tried macOS's `open` and said
+    "No such file or directory: 'open'")."""
+    cmd = "open" if sys.platform == "darwin" else "xdg-open"
+    if not shutil.which(cmd):
+        raise OSError(f"'{cmd}' was not found, so files and folders cannot be opened from MediaClinic.\n"
+                      "Debian / Ubuntu: sudo apt install xdg-utils  (Fedora: sudo dnf install xdg-utils)")
+    return cmd
 
 
 def os_open(path):
@@ -1920,8 +1955,7 @@ def os_open(path):
         if os.name == "nt":
             os.startfile(path)
         else:
-            try:   subprocess.Popen(["xdg-open", path])
-            except FileNotFoundError: subprocess.Popen(["open", path])
+            subprocess.Popen([unix_open_command(), path])              # v0.19.6 TR8
     except Exception as e:
         messagebox.showerror("Cannot open", str(e))
 
@@ -1949,6 +1983,8 @@ def open_logs_folder():                                         ### NEW v0.19.2 
         os.makedirs(log_dir, exist_ok=True)
         if os.name == "nt" and os.path.isfile(LOG_PATH):
             return _logs_popen(f'explorer /select,"{LOG_PATH}"')
+        if os.name != "nt":                                         # v0.19.6 TR8
+            return _logs_popen([unix_open_command(), log_dir])
         os_open(log_dir)
     except Exception as e:
         messagebox.showerror("Open logs folder", f"Could not open {log_dir}:\n{e}")
@@ -3504,6 +3540,8 @@ def apply_nfo_rename(plan, mode, movie_name, batch_ref=None, backup=True):   ###
     """Rename the NFO (worker thread; no Tk): backup first, never over an
     existing file, Undo-able (the manifest records the new name).  Returns
     the new path; raises on failure."""
+    if not nfo_in_use():                                         # v0.19.6 TR1b
+        raise RuntimeError("the NFO is not used in this health mode (movie.xml only) — not renamed")
     dest = next((d for m, d, _n in plan["choices"] if m == mode), None)
     if dest is None:
         raise RuntimeError(f"'{mode}' is not offered for this folder")
@@ -3566,11 +3604,72 @@ def classify_listing(lst):                                      ### NEW v0.19.2 
     return _fc.classify_folder(lst, peek=_FolderListing, nfo_root=_nfo_root_tag, video_exts=VIDEO_EXTENSIONS)
 
 
-def ignored_item(path, kind, reason, detail, lst=None):         ### NEW v0.19.2 B53 ###
+def ignored_item(path, kind, reason, detail, lst=None, root=None):   ### NEW v0.19.2 B53; root v0.19.6 TR5 ###
     """One entry of the Ignored folders report (plain data, saved as JSON)."""
-    return {"path": _norm_lib(path), "library_root": _norm_lib(os.path.dirname(os.path.normpath(path))),
+    return {"path": _norm_lib(path), "library_root": _norm_lib(root) if root else library_of(path),
             "kind": kind, "reason": reason, "detail": detail,
             "mtime": lst.newest_mtime() if lst is not None else 0.0}
+
+
+### NEW v0.19.6 TR5 — movie folders at any depth below a library ###
+# A tester keeps Movies\Single Movies\{SD,DVD,HD,4K}\<movie> and Movies\Boxsets\<saga>\<movie>; Kodi and
+# tinyMediaManager find those movies, MediaClinic skipped the folder of folders ("one level too high").  Now a
+# folder of folders is walked into, down to SCAN_MAX_DEPTH levels below the library; every row keeps its library.
+SCAN_MAX_DEPTH = 4                 # folders of folders walked into; a movie can sit up to 5 levels below the library
+
+
+class SubEntry:
+    """A movie folder found below a library (os.DirEntry-like: .path, .name), with its library (.root)."""
+    __slots__ = ("path", "name", "root", "depth")
+
+    def __init__(self, path, root, depth=1):
+        self.path, self.name, self.root, self.depth = path, os.path.basename(os.path.normpath(path)), root, depth
+
+    def is_dir(self):
+        return True
+
+
+def library_of(path, libraries=None):
+    """The library a folder belongs to: the deepest library folder above it (a movie can sit deeper since
+    v0.19.6 TR5); a folder outside every library: its parent."""
+    libs = libraries if libraries is not None else (SETTINGS.get("library_folders") or [])
+    k, best = _pkey(path), ""
+    for lib in libs:
+        lk = _pkey(lib).rstrip("\\/")
+        if lk and k.startswith(lk + os.sep) and len(lk) > len(_pkey(best)):
+            best = lib
+    return _norm_lib(best) if best else _norm_lib(os.path.dirname(os.path.normpath(path)))
+
+
+def walk_container(path, root, depth=1, known=(), cancelled=None):
+    """The folders below a folder of folders: (entries, ignored, listings, kinds).  A movie folder becomes a
+    SubEntry; a deeper folder of folders is walked too, down to SCAN_MAX_DEPTH; any other folder goes to the
+    Ignored folders report.  A sub-folder in *known* (a movie row of the last scan) is taken without listing
+    it (Quick Scan)."""
+    entries, ignored, listings, kinds = [], [], {}, {}
+    try:
+        subs = sorted((e.path for e in os.scandir(path) if e.is_dir()), key=lambda p: os.path.basename(p).lower())
+    except OSError as ex:
+        ignored.append(ignored_item(path, "unreadable", f"Could not be read: {ex}", "", root=root))
+        return entries, ignored, listings, kinds
+    for sp in subs:
+        if cancelled and cancelled():
+            break
+        if _pkey(sp) in known:
+            entries.append(SubEntry(sp, root, depth))
+            continue
+        lst = _FolderListing(sp)
+        kind, reason, detail = classify_listing(lst)
+        if kind == "container" and depth < SCAN_MAX_DEPTH:
+            e2, i2, l2, k2 = walk_container(sp, root, depth + 1, known, cancelled)
+            entries += e2; ignored += i2; listings.update(l2); kinds.update(k2)
+        elif kind in _fc.IGNORED_KINDS:
+            if kind == "container":
+                reason = f"A folder of folders more than {SCAN_MAX_DEPTH} levels below the library: not searched deeper"
+            ignored.append(ignored_item(sp, kind, reason, detail, lst, root=root))
+        else:
+            entries.append(SubEntry(sp, root, depth)); listings[sp] = lst; kinds[sp] = kind
+    return entries, ignored, listings, kinds
 
 
 IGNORED_MENU_LABEL = "🚫  Ignored Folders of the Last Scan…"   ### NEW v0.19.2 B53 ###
@@ -4250,6 +4349,50 @@ def extract_language_from_xml(filepath):
             return m.group(1).strip() or "Unknown"
         return "Unknown" if re.search(r"<Language\s*/>", content) else "—"
     except Exception: return "—"
+
+def nfo_language_fields(nfo_path):                               ### NEW v0.19.6 TR1 ###
+    """(the NFO's top-level <language> or "", the first audio language of its streamdetails or "").
+    The top-level tag means what movie.xml's <Language> means (Jellyfin and Emby write it)."""
+    if not nfo_path or not os.path.isfile(nfo_path):
+        return "", ""
+    try:
+        root = _parse_root(nfo_path)
+        if root is None:
+            return "", ""
+        e = root.find("language")
+        top = (e.text or "").strip() if e is not None else ""
+        aud = next((c for c in (_lang3(a.findtext("language")) for a in root.iter("audio")) if c), "")
+        return top, aud or ""
+    except Exception:
+        return "", ""
+
+
+_AUDIO_SRC_NAMES = {"NFO": "the NFO's streamdetails", "XML": "movie.xml's MediaInfo"}
+
+
+def derive_language(r):                                          ### NEW v0.19.6 TR1 ###
+    """The Language column (the user's rule, 2026-11-13): movie.xml's <Language> when the movie has a movie.xml;
+    without one, the NFO's top-level <language>, else the language of the first audio track (FFprobe, else the
+    NFO's streamdetails).  Sets r['language'] and r['language_src'] (said by the tooltip)."""
+    if r.get("xml_exists"):
+        v = r.get("xml_language") or r.get("language") or "—"
+        r["xml_language"], r["language"], r["language_src"] = v, v, "movie.xml <Language>"
+        return r
+    top = (r.get("nfo_language") or "").strip()
+    if top:
+        r["language"], r["language_src"] = top, "the NFO's <language>"
+        return r
+    for t in r.get("audio_tracks") or []:
+        c = (t.get("language") or "").strip()
+        if c and c.upper() not in ("UND", "ZXX", "MIS", "MUL"):
+            src = _AUDIO_SRC_NAMES.get(t.get("language_src"), "FFprobe")
+            r["language"], r["language_src"] = c, f"the first audio track ({src})"
+            return r
+    if r.get("nfo_audio_lang"):
+        r["language"], r["language_src"] = r["nfo_audio_lang"], "the first audio track (the NFO's streamdetails)"
+        return r
+    r["language"], r["language_src"] = "—", ""
+    return r
 
 # ══════════════════════════════════════════════════════════════════════════════
 # XML / NFO parsing helpers
@@ -6597,6 +6740,38 @@ def _fetch_tmdb_rating(tmdb_id, api_key):
             logger.warning(f"TMDB rating for {tmdb_id}: {_api_error_message(ex, 'TMDB')}")
     return None, None
 
+def _fetch_tmdb_rating_by_imdb(imdb_id, api_key):                ### NEW v0.19.6 TR2 ###
+    """TMDB's rating for a movie known only by its IMDb ID (TMDB's /find).  A tester whose movies held only IMDb IDs
+    and who had only a TMDB key got nothing.  Returns (rating_str, votes_str) or (None, None)."""
+    if not imdb_id or not api_key:
+        return None, None
+    try:
+        import urllib.parse
+        url = (f"https://api.themoviedb.org/3/find/{urllib.parse.quote(str(imdb_id))}"
+               f"?api_key={api_key}&external_source=imdb_id&language=en-US")
+        data = _tmdb_rate_limited_fetch(url, timeout=10)
+        hits = data.get("movie_results") or []
+        if hits:
+            rating, votes = hits[0].get("vote_average"), hits[0].get("vote_count")
+            if rating is not None and votes is not None:
+                return f"{rating:.1f}", str(int(votes))
+    except Exception as ex:
+        if not _is_http_404(ex):
+            _note_fetch_error("TMDB", ex)
+            logger.warning(f"TMDB rating for {imdb_id}: {_api_error_message(ex, 'TMDB')}")
+    return None, None
+
+
+def ratings_skip_reason(imdb_id, tmdb_id, use_tmdb, use_omdb):     ### NEW v0.19.6 TR2 ###
+    """Why no source can be asked for this movie, or None when one can.  TMDB takes a TMDB or an IMDb ID,
+    OMDb only an IMDb ID."""
+    if (use_tmdb and (tmdb_id or imdb_id)) or (use_omdb and imdb_id):
+        return None
+    if not imdb_id and not tmdb_id:
+        return "no IMDb or TMDB ID in the files (Search Sources… finds it)"
+    return "OMDb needs the IMDb ID: add it (Search Sources…), or set a TMDB key"
+
+
 def _fetch_omdb_rating(imdb_id, api_key):
     """
     Fetch rating and vote count from OMDb (IMDb data).
@@ -6878,15 +7053,19 @@ def _scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=Fals
     bc, bp, bc_avg_bytes = count_backdrops(sub_path, listing=lst)
 
     nfo_path, ne, nfo_name, nfo_kodi = resolve_nfo(lst, sub_name, _art["vb"])   ### MODIFIED v0.19.1 B23 ###
+    n_disk = ne
+    ne = ne and nfo_in_use(library_of(sub_path))                ### NEW v0.19.6 TR1b — "movie.xml only": the NFO is ignored ###
     nb  = lst.size(nfo_name) if ne else 0
     ninfo = []; xinfo = []                                     ### NEW v0.19.1 B12 — info notes (unescaped &) ###
     nerr = validate_xml_file(nfo_path, is_nfo=True, infos=ninfo) if ne else []
 
     xml_path = lst.path_of("movie.xml")
-    xe  = lst.has("movie.xml")
+    x_disk = lst.has("movie.xml")
+    xe  = x_disk and xml_in_use(library_of(sub_path))   ### MODIFIED v0.19.6 TR1: ignored when not in use ###
     xb  = lst.size("movie.xml")
     xerr = validate_xml_file(xml_path, is_nfo=False, infos=xinfo) if xe else []
     lang = extract_language_from_xml(xml_path) if xe else "—"
+    nfo_lang, nfo_alang = nfo_language_fields(nfo_path if ne else None)   ### NEW v0.19.6 TR1 ###
 
     ns = (STATUS_ERROR if nerr else STATUS_OK) if ne else STATUS_MISSING
     xs = (STATUS_ERROR if xerr else STATUS_OK) if xe else STATUS_MISSING
@@ -6951,7 +7130,7 @@ def _scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=Fals
         **naming_row_fields(lst, sub_name, _art["vb"]),         ### NEW v0.19.2 F5 ###
         "video_kinds": vi.get("video_kinds", {}), "video_group": vi.get("video_group"),
         "subfolder": sub_name, "subfolder_path": sub_path,
-        "library_root": _norm_lib(os.path.dirname(sub_path)),  ### NEW v0.19.0, normpath v0.19.1 ###
+        "library_root": library_of(sub_path),                 ### NEW v0.19.0, normpath v0.19.1; v0.19.6 TR5: the library, also deeper ###
         "movie_name": movie_name, "movie_year": movie_year,
         "movie_title_raw": titles,
         "movie_year_raw": movie_year_raw,
@@ -6966,14 +7145,15 @@ def _scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=Fals
         "coll_tmdb": None, "title_langs": [], "tmdb_titles": {},   ### NEW v0.19.4 B110b / B110f fill them (online) ###
         **_img_fields,                                          ### MODIFIED v0.19.0 ###
         "backdrop_count": bc, "backdrop_paths": bp, "backdrop_avg_bytes": bc_avg_bytes,
-        "nfo_exists": ne, "nfo_path": nfo_path,
+        "nfo_exists": ne, "nfo_path": nfo_path, "nfo_on_disk": n_disk,   # v0.19.6 TR1b: nfo_on_disk
         "nfo_kodi_name": nfo_kodi,                             ### NEW v0.19.1 B23 ###
         "nfo_bytes": nb, "nfo_size": format_size(nb) if ne else "—",
         "nfo_status": ns, "nfo_errors": nerr, "nfo_infos": ninfo,   ### v0.19.1 B12 ###
-        "xml_exists": xe, "xml_path": xml_path,
+        "xml_exists": xe, "xml_path": xml_path, "xml_on_disk": x_disk,   # v0.19.6 TR1: xml_on_disk
         "xml_bytes": xb, "xml_size": format_size(xb) if xe else "—",
         "xml_status": xs, "xml_errors": xerr, "xml_infos": xinfo,   ### v0.19.1 B12 ###
-        "language": lang,
+        "language": lang, "xml_language": lang,                  ### MODIFIED v0.19.6 TR1 ###
+        "nfo_language": nfo_lang, "nfo_audio_lang": nfo_alang,     ### NEW v0.19.6 TR1 ###
         "video_count": vi["video_count"], "video_files": vi["video_files"],
         "video_ext": vi["video_ext"], "video_path": vi["video_path"],
         "video_bytes": vi["video_bytes"], "video_size": vi["video_size"],
@@ -7043,6 +7223,9 @@ def row_defaults():                                              ### NEW v0.19.4
         "original_title": "",                                   ### NEW v0.19.3 B60 ###
         "date_added": "", "date_added_src": "",                 ### NEW v0.19.3 B63 ###
         "year_premiered_diff": "",                               ### NEW v0.19.5 B126 ###
+        "xml_language": None, "nfo_language": "", "nfo_audio_lang": "", "language_src": "",   ### NEW v0.19.6 TR1 ###
+        "xml_on_disk": None, "xml_used": None,                  ### NEW v0.19.6 TR1 — None: not known (a row of an older version) ###
+        "nfo_on_disk": None, "nfo_used": None,                  ### NEW v0.19.6 TR1b ###
         "struct_issues": [], "struct_fixable": False,           ### NEW v0.19.3 I8 ###
         "coll_nfo": None, "coll_xml": None, "coll_xml_hint": 0,   ### NEW v0.19.4 B110a ###
         "coll_tmdb": None, "title_langs": [], "tmdb_titles": {},
@@ -8429,7 +8612,7 @@ def format_library_statistics(results):                        ### NEW v0.18.4 #
           f"  External subtitle files    {_pct(sum(1 for r in results if r.get('subs_external')))}",
           f"  Embedded subtitle tracks   {_pct(sum(1 for r in results if r.get('subs_internal')))}"]
     xl = Counter((r.get("language") or "\u2014") for r in results)
-    L.append("  XML <Language>: " + ", ".join(f"{k} {v}" for k, v in xl.most_common(10)))
+    L.append("  Language column: " + ", ".join(f"{k} {v}" for k, v in xl.most_common(10)))   # v0.19.6 TR1: not only movie.xml
     L.append("")
     L += ["ARTWORK"]
     for key, label in (("poster", "Poster"), ("folder", "Folder"), ("fanart", "Fanart")):
@@ -8656,6 +8839,9 @@ def health_tooltip_lines(row, width=90):                       ### NEW v0.19.3 B
 def _apply_health(row, rules=None, settings=None):             ### NEW v0.18.4 ###
     """Evaluate the rule engine for one row and store status, errors, warnings
     and the combined reasons list on the row.  Returns the status."""
+    derive_language(row)                                         ### NEW v0.19.6 TR1 ###
+    row["xml_used"] = bool(row.get("xml_exists")) or xml_in_use(_lib_root_of(row))   # v0.19.6 TR1: the export says "Not used"
+    row["nfo_used"] = nfo_in_use(_lib_root_of(row))                 # v0.19.6 TR1b: "movie.xml only" → "Not used"
     status, errs, warns = compute_movie_health_detailed(
         row, rules if rules is not None else SETTINGS.get("health_rules", {}),
         settings if settings is not None else SETTINGS)
@@ -10374,6 +10560,8 @@ def _atomic_write_text(path, text, encoding="utf-8"):          ### NEW v0.19.0 #
     writer (ratings, genres, source IDs, Auto Repair).
     ### MODIFIED v0.19.2 B37 ### a file that starts with a UTF-8 BOM keeps it
     (_read_for_edit returns the text without the BOM)."""
+    if str(path).lower().endswith(".nfo") and not nfo_in_use():
+        raise RuntimeError("the NFO is not used in this health mode (movie.xml only) — not changed")   # v0.19.6 TR1b
     tmp = f"{path}.mctmp"
     newline = None                                              ### NEW v0.19.3 B60 — keep the file's line endings ###
     try:
@@ -12365,7 +12553,7 @@ def _auto_repair_plan(row, settings=None, rules=None):
     """Pure: the ordered list of (code, label) actions Auto Repair would run
     for *row* under the enabled Health Rules.  Images are never planned."""
     s = settings if settings is not None else SETTINGS
-    rules = rules if rules is not None else (s.get("health_rules") or {})
+    rules = effective_rules(row, rules if rules is not None else (s.get("health_rules") or {}), s)   # v0.19.6 TR1 (audit)
     on = lambda k, d=True: bool(rules.get(k, d))
     plan = []
     if on("nfo_unescaped_amp") and nfo_has_unescaped_amp(row):        ### NEW v0.19.2 B33 — first: the NFO then parses everywhere ###
@@ -13472,6 +13660,108 @@ def library_kind(path):                                          ### NEW v0.19.4
     kinds = SETTINGS.get("library_kinds") or {}
     k = kinds.get(_pkey(path)) if isinstance(kinds, dict) else None
     return k if k in LIBRARY_KINDS else "movies"
+
+
+### NEW v0.19.6 TR1 — NFO-only libraries ###
+# A tester loaded 1,100 movies and every row was red: "Missing XML file" is an
+# error rule, and a library made for Kodi, Jellyfin or Emby has no movie.xml
+# (a legacy MediaBrowser format: only Emby's XML plugin reads it).  After a
+# scan the app asks once per library; "NFO only" switches the XML checks off
+# for that library alone.  A first step towards F3's library profiles.
+# rating_conflict stays on: an NFO's flat <rating> can differ from its own <ratings> (audit, 2026-11-13)
+NFO_ONLY_RULES_OFF = ("missing_xml", "corrupt_xml", "genre_only_in_xml", "genre_only_in_nfo",
+                      "votes_conflict", "imdb_id_partial", "tmdb_id_partial", "title_mismatch")   # v0.19.6 TR1c: + title_mismatch (= the Settings sections)
+NFO_ONLY_TITLE = "NFO-only library?"
+NFO_ONLY_ASK_AUTO = True          # the self-test turns the automatic question off (as IGNORED_REPORT_AUTO)
+HEALTH_MODE_ASK_AUTO = True       # the start question (three health modes); off in the self-test
+HEALTH_MODE_TITLE = "Welcome to MediaClinic"                     ### v0.19.6 TR1b — the user's mock-up B, 2026-11-13 ###
+HEALTH_MODE_QUESTION = "Which program plays your movies?"
+HEALTH_MODE_FOOT = ("Not sure? Click the first one.", f"Change it later: {HEALTH_MODE_PATH}.")
+
+
+def health_mode(settings=None):                                  ### NEW v0.19.6 TR1b ###
+    """"nfo" (Kodi, Jellyfin, Emby, Plex, Infuse…), "nfo_xml" (+ movie.xml) or "xml" (movie.xml only)."""
+    return health_mode_of(settings if settings is not None else SETTINGS)
+
+
+def library_nfo_only(path, settings=None):
+    """True: the user said this library uses NFO files only; False: they said
+    no (keep the XML checks); None: not asked yet."""
+    m = (settings if settings is not None else SETTINGS).get("library_nfo_only") or {}
+    v = m.get(_pkey(path)) if isinstance(m, dict) and path else None
+    return v if isinstance(v, bool) else None
+
+
+def xml_in_use(path, settings=None):                              ### NEW v0.19.6 TR1 ###
+    """movie.xml is read, checked and written for this library: Settings → NFO / XML → "Use movie.xml" is on and
+    the library is not marked NFO only.  Off: the scan ignores movie.xml (it is not read, not checked, not written)."""
+    s = settings if settings is not None else SETTINGS
+    m = health_mode(s)                                           # v0.19.6 TR1b
+    return m == "xml" or (m == "nfo_xml" and library_nfo_only(path, s) is not True)
+
+
+def nfo_in_use(path=None, settings=None):                        ### NEW v0.19.6 TR1b ###
+    """The NFO is read, checked and written: every health mode but "movie.xml only"."""
+    return health_mode(settings) != "xml"
+
+
+# v0.19.6 TR1b — "movie.xml only" (MediaBrowser, Media Center Master): the NFO rules, the rules that compare the
+# two files, and the collections (they are read from the NFO) are off; rating and votes conflicts inside
+# movie.xml stay (the audit of 2026-11-13)
+XML_ONLY_RULES_OFF = ("missing_nfo", "corrupt_nfo", "nfo_name_not_kodi", "nfo_unescaped_amp", "multiple_nfo_files",
+                      "genre_only_in_xml", "genre_only_in_nfo", "genre_nfo_wrong_tags", "year_premiered_differ",
+                      "imdb_id_partial", "tmdb_id_partial", "title_mismatch", "collection_mismatch", "collection_artwork")
+
+
+def effective_rules(row, rules, settings=None):                   ### NEW v0.19.6 TR1 ###
+    """The health rules for this row: without movie.xml in use, the XML rules are off; without the NFO
+    in use (health mode "movie.xml only"), the NFO rules are off (health and Auto Repair alike)."""
+    rules = rules or {}
+    if not xml_in_use(_lib_root_of(row), settings):
+        rules = dict(rules, **{k: False for k in NFO_ONLY_RULES_OFF})
+    if not nfo_in_use(_lib_root_of(row), settings):                 # v0.19.6 TR1b
+        rules = dict(rules, **{k: False for k in XML_ONLY_RULES_OFF})
+    return rules
+
+
+def set_library_nfo_only(path, value, settings=None):
+    s = settings if settings is not None else SETTINGS
+    m = s.get("library_nfo_only")
+    m = dict(m) if isinstance(m, dict) else {}
+    m[_pkey(path)] = bool(value)
+    s["library_nfo_only"] = m
+
+
+def nfo_only_candidates(results, libraries, offline=(), settings=None):
+    """The libraries to ask about after a scan: reachable, with movies, none of
+    them with a movie.xml, and not answered yet.  [(library, movie count)]"""
+    if health_mode(settings) != "nfo_xml":
+        return []                                    # v0.19.6 TR1b: only "NFO + movie.xml" has NFO-only libraries
+    off = {_pkey(x) for x in offline or ()}
+    out = []
+    for lib in libraries or ():
+        k = _pkey(lib)
+        if not lib or k in off or library_nfo_only(lib, settings) is not None:
+            continue
+        rows = [r for r in results or () if _pkey(_lib_root_of(r)) == k]
+        if rows and not any((r.get("xml_on_disk") if r.get("xml_on_disk") is not None else r.get("xml_exists")) for r in rows):
+            out.append((lib, len(rows)))
+    return out
+
+
+def nfo_only_question_text(lib, n):
+    """The body of the question (the user's mock-up of 2026-11-13)."""
+    head = (f"None of the {n:,} movies in\n      {lib}\nhas a movie.xml file." if n != 1 else
+            f"The movie in\n      {lib}\nhas no movie.xml file.")
+    return (head + "\n\n"
+            "Kodi, Jellyfin and Emby read the .nfo files. movie.xml is a legacy format: only\n"
+            "Emby's XML plugin reads it, and Media Center Master writes it.")
+
+
+NFO_ONLY_CHOICES_TEXT = ("Yes: the XML checks are switched off for this library, so a missing movie.xml\n"
+                         "is no longer an error.\n"
+                         "No: the XML checks stay on, and every movie stays red until it has a movie.xml.")
+NFO_ONLY_LATER_TEXT = "You can change this later: Library Folders (click the folder name in the toolbar)."
 HDR_BTN_BG = C_SURFACE                                           # boxed header / toolbar buttons   ### NEW v0.19.4 B109e ###
 
 
@@ -16388,6 +16678,90 @@ def library_scan_summary(label, libs, results, offline=()):     ### NEW v0.19.2 
     return f"{label}: {len(libs)} libraries — " + " · ".join(parts)
 
 
+class HealthModeDialog(DialogFrame):                             ### NEW v0.19.6 TR1b — asked once at the start ###
+    """"Which program plays your movies?" — three big buttons, one click answers (the user's mock-up B, 2026-11-13).
+    Every user, new or old, answers once.  Closing it answers nothing: the next start asks again, nothing changes."""
+    def __init__(self, parent, on_answer):
+        super().__init__(parent, title=HEALTH_MODE_TITLE, heading=HEALTH_MODE_QUESTION, resizable=False)
+        self._on_answer, self._done = on_answer, False
+        self.mode_buttons = {}
+        for i, (mid, title, sub) in enumerate(HEALTH_MODES):
+            first = i == 0
+            b = tk.Button(self.body, text=("★ " if first else "   ") + title + "\n   " + sub, justify="left", anchor="w",
+                          font=("Helvetica", 11, "bold") if first else ("Helvetica", 11),
+                          bg=C_OK if first else C_SURFACE, fg=C_BG if first else C_TEXT,
+                          activebackground=C_HOVER, activeforeground=C_TEXT, relief="flat", cursor="hand2",
+                          padx=20, pady=14, command=lambda m=mid: self._answer(m))   # v0.19.6 TR1b: more room (the user)
+            b.pack(fill="x", padx=28, pady=(14 if first else 0, 14))
+            self.mode_buttons[mid] = b
+        if self.heading is not None:
+            self.heading.pack_configure(padx=28, pady=(22, 4))
+        kw = dict(bg=self.BG, justify="left", anchor="w", font=("Helvetica", 9), fg=C_SUBTEXT)
+        for n, line in enumerate(HEALTH_MODE_FOOT):
+            tk.Label(self.body, text=line, **kw).pack(fill="x", padx=28, pady=(6 if n == 0 else 2, 0))
+        tk.Frame(self.body, bg=self.BG, height=px(14)).pack()
+        self.main_button = self.mode_buttons["nfo"]            # Enter = the recommended one
+        self.protocol("WM_DELETE_WINDOW", self._later)
+        self.update_idletasks()
+        try:
+            self.minsize(max(self.winfo_reqwidth(), px(560)), 0)
+            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        self.mode_buttons["nfo"].focus_set()
+
+    def _answer(self, mode):
+        if self._done:
+            return
+        self._done = True
+        self.destroy()
+        self._on_answer(mode)
+
+    def _later(self):
+        self._done = True
+        self.destroy()
+
+
+class NfoOnlyDialog(DialogFrame):                                ### NEW v0.19.6 TR1 ###
+    """"NFO-only library?" — Yes / No.  Closing it answers nothing."""
+    def __init__(self, parent, lib, n, on_answer):
+        super().__init__(parent, title=NFO_ONLY_TITLE, heading=NFO_ONLY_TITLE, resizable=False)
+        self._on_answer, self._done, self.lib = on_answer, False, lib
+        kw = dict(bg=self.BG, justify="left", anchor="w")
+        tk.Label(self.body, text=nfo_only_question_text(lib, n), fg=C_TEXT, font=("Helvetica", 10),
+                 **kw).pack(fill="x", padx=16, pady=(6, 10))
+        tk.Label(self.body, text="Does this library use NFO files only?", fg=C_ACCENT,
+                 font=("Helvetica", 11, "bold"), **kw).pack(fill="x", padx=16)
+        tk.Label(self.body, text=NFO_ONLY_CHOICES_TEXT, fg=C_TEXT, font=("Helvetica", 10),
+                 **kw).pack(fill="x", padx=16, pady=(6, 10))
+        tk.Label(self.body, text=NFO_ONLY_LATER_TEXT, fg=C_SUBTEXT, font=("Helvetica", 9),
+                 **kw).pack(fill="x", padx=16, pady=(0, 6))
+        self.no_btn = self.add_button("No, keep the XML checks", lambda: self._answer(False))
+        self.yes_btn = self.add_button("Yes, NFO only", lambda: self._answer(True), kind="ok", main=True)
+        self.protocol("WM_DELETE_WINDOW", self._later)
+        self.update_idletasks()
+        try:
+            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        self.yes_btn.focus_set()
+
+    def _answer(self, yes):
+        if self._done:
+            return
+        self._done = True
+        self.destroy()
+        self._on_answer(yes)
+
+    def _later(self):
+        self._done = True
+        self.destroy()
+
+
 class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 ###
     """Add, remove and reorder the library (root) folders."""
     def __init__(self, parent):
@@ -16398,10 +16772,12 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
         self.transient(parent); _modal(self)
         self.resizable(True, True)
         self.minsize(560, 300)
-        tk.Label(self, text="Root folders scanned by MediaClinic (one subfolder = one movie)",
+        tk.Label(self, text="Root folders scanned by MediaClinic",                          # v0.19.6 TR5: the rest below
                  bg=C_BG, fg=C_ACCENT, font=("Helvetica", 11, "bold")).pack(anchor="w", padx=16, pady=(14, 2))
-        tk.Label(self, text="All libraries are shown in one table. Use the Library filter next to Browse… to\n"
-                            "show or scan one library only. An unreachable library keeps its last scan.",
+        tk.Label(self, text="One folder = one movie; a folder that holds only folders is searched (5 levels deep).\n"   # v0.19.6 TR5
+                            "All libraries are shown in one table. Use the Library filter next to Browse… to\n"
+                            "show or scan one library only. An unreachable library keeps its last scan.\n"
+                            "NFO only: the movie.xml checks are off for that library.",                            # v0.19.6 TR1
                  bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9), justify="left").pack(anchor="w", padx=16, pady=(0, 8))
         body = tk.Frame(self, bg=C_BG); body.pack(fill="both", expand=True, padx=16)
         self._lb = tk.Listbox(body, bg=C_SURFACE, fg=C_TEXT, selectbackground=C_HOVER,
@@ -16413,7 +16789,10 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
         tk.Button(side, text="Remove", bg=C_ERR, fg=C_BG, command=self._remove, **bkw).pack(pady=4)
         tk.Button(side, text="Up",     bg=C_SURFACE2, fg=C_TEXT, command=lambda: self._move(-1), **bkw).pack(pady=4)
         tk.Button(side, text="Down",   bg=C_SURFACE2, fg=C_TEXT, command=lambda: self._move(1), **bkw).pack(pady=4)
+        self.nfo_btn = tk.Button(side, text="NFO only", bg=C_SURFACE2, fg=C_TEXT, command=self._toggle_nfo_only, **bkw)   ### NEW v0.19.6 TR1 ###
+        self.nfo_btn.pack(pady=(12, 4))
         self._items = [_norm_lib(x) for x in parent._libraries()]   ### MODIFIED v0.19.1 ###
+        self._nfo = {_pkey(x): library_nfo_only(x) for x in self._items}   ### NEW v0.19.6 TR1 — True / False / None ###
         self._redraw()
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(10, 14))
         tk.Button(bf, text="  OK  ", bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
@@ -16435,11 +16814,13 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
         self._lb.delete(0, "end")
         for x in self._items:
             off = " (offline)" if _pkey(x) in getattr(self._app, "_offline_roots", set()) else ""
-            self._lb.insert("end", x + off)
+            nfo = "    NFO only" if self._nfo.get(_pkey(x)) is True else ""   ### NEW v0.19.6 TR1 ###
+            self._lb.insert("end", x + off + nfo)
 
     def add_path(self, p):
         if p and _pkey(p) not in {_pkey(x) for x in self._items}:
             self._items.append(_norm_lib(p))
+            self._nfo.setdefault(_pkey(p), library_nfo_only(p))   # v0.19.6 TR1
             self._redraw()
 
     def _add(self):
@@ -16462,8 +16843,26 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
             self._items[i], self._items[j] = self._items[j], self._items[i]
             self._redraw(); self._lb.selection_set(j)
 
+    def _toggle_nfo_only(self):                                 ### NEW v0.19.6 TR1 ###
+        sel = self._lb.curselection()
+        if not sel:
+            return
+        k = _pkey(self._items[sel[0]])
+        self._nfo[k] = self._nfo.get(k) is not True
+        self._redraw(); self._lb.selection_set(sel[0])
+
     def _ok(self):
+        changed = [x for x in self._items if self._nfo.get(_pkey(x)) is not None
+                   and self._nfo.get(_pkey(x)) != library_nfo_only(x)]   ### NEW v0.19.6 TR1 ###
+        for x in changed:
+            set_library_nfo_only(x, self._nfo[_pkey(x)])
+            logger.info(f"Library {x}: NFO only = {self._nfo[_pkey(x)]} (Library Folders)")
         res = self._app._set_libraries(self._items)
+        if changed:
+            _save_settings(SETTINGS)
+            if self._app._results:
+                self._app._apply_health_rules_inplace()
+                self._app._incremental_save(self._app._results)
         self.destroy()
         if res and (res[0] or res[1]):                          ### NEW v0.19.1 — offer a scan ###
             self._app._offer_library_scan(added=bool(res[0]))
@@ -16599,6 +16998,7 @@ _TOOLTIP_METHODS = {                                               ### NEW v0.19
     COL_QUALITY: "_tip_quality",
     COL_AUDIO: "_tip_audio",
     COL_LANG_OK: "_tip_lang_ok",
+    COL_LANGUAGE: "_tip_language",                               ### NEW v0.19.6 TR1 ###
     COL_SUBS: "_tip_subs",
     COL_GENRE: "_tip_genre",
 }
@@ -17198,7 +17598,9 @@ class _MoviePanel(tk.Frame):
             for key, lbl, irows in iss[:8]:
                 self._issue_row(key, lbl, irows)
         self._section("FILES")
-        for lab, ok, name in (("NFO", d.get("nfo_exists"), d.get("nfo_path")), ("XML", d.get("xml_exists"), d.get("xml_path")),
+        _xu = xml_in_use(_lib_root_of(d))                          # v0.19.6 TR1: no red "XML missing" when it is not used
+        _nu = nfo_in_use(_lib_root_of(d))                          # v0.19.6 TR1b: no red "NFO missing" in "movie.xml only"
+        for lab, ok, name in ((("NFO", d.get("nfo_exists"), d.get("nfo_path")),) if _nu or d.get("nfo_exists") else ()) + ((("XML", d.get("xml_exists"), d.get("xml_path")),) if _xu or d.get("xml_exists") else ()) + (
                               ("Poster", d.get("poster_exists"), d.get("poster_path")),
                               ("Folder", d.get("folder_exists"), d.get("folder_path")),
                               ("Fanart", d.get("fanart_exists"), d.get("fanart_path")),
@@ -17431,6 +17833,8 @@ class App(tk.Tk):
             self.after(600, self._tell_migrations)
         if _sc.SETTINGS_MIGRATION_STATUS:                      ### NEW v0.19.2 B55 — status bar, once ###
             self.after(700, self._show_migration_status)
+        if HEALTH_MODE_ASK_AUTO and not SETTINGS.get("health_mode_asked"):   ### NEW v0.19.6 TR1b — every user, once ###
+            self.after(900, self._ask_health_mode)
         ### NEW v0.19.1 B22 — API pauses saved in settings.json survive a restart ###
         api_pauses_load()
         _PAUSE_LISTENERS.append(lambda: self._safe_after(0, self._refresh_pause_indicator))
@@ -17820,7 +18224,7 @@ class App(tk.Tk):
             label = _lang_ok_label if col["label"] == "LANG_OK_LABEL" else col["label"]
             self.tree.heading(col["id"], text=label,
                               command=lambda c=col["id"]: self._on_header_dblclick_guard(c))
-            self.tree.column(col["id"], width=px(col["width"]), anchor=col["anchor"],   # v0.19.4 L5 px()
+            self.tree.column(col["id"], width=self._fit_heading(col["id"], px(col["width"])), anchor=col["anchor"],   # v0.19.4 L5 px(); v0.19.6 TR8
                              stretch=col["stretch"], minwidth=30)
         ### NEW v0.10.0 — alternating rows toggled by settings ###
         _alt = SETTINGS.get("alternating_rows", True)
@@ -18084,11 +18488,21 @@ class App(tk.Tk):
         for col_id in self.tree["columns"]:
             self._auto_size_col(col_id)
 
+    def _fit_heading(self, col_id, w):                          ### NEW v0.19.6 TR8 ###
+        """*w*, or wider when the heading would be cut off. The model widths fit Windows' heading
+        font (B120); Linux draws "Helvetica" with a wider font, so "Backdrops" or "Video Size" were cut."""
+        try:
+            f = tk_font.Font(root=self, font=ttk.Style(self).lookup("Treeview.Heading", "font"))
+            lab = str(self.tree.heading(col_id, "text")).split("  ")[0]
+            return max(int(w), f.measure(lab) + 12)   # the B120 margin
+        except (tk.TclError, ValueError):
+            return w
+
     def _default_col_widths(self):                              ### NEW v0.19.4 fix 2c ###
         """↺ Default Widths: every column back to its model width (the grouped view keeps the Year span visible)."""
         for col in COLUMN_MODEL:
             try:
-                self.tree.column(col["id"], width=px(col["width"]))
+                self.tree.column(col["id"], width=self._fit_heading(col["id"], px(col["width"])))   # v0.19.6 TR8
             except tk.TclError:
                 pass
         if self._grouped():
@@ -18642,16 +19056,34 @@ class App(tk.Tk):
         if not os.path.isfile(exe):
             messagebox.showerror("Update", f"{exe} was not found.", parent=self)
             return False
+        ### MODIFIED v0.19.6 TR7 follow-up — started from a worker thread: the antivirus checks a new exe on its
+        ### first start, and CreateProcess then blocked the window for about 50 s (build 3 of v0.19.5) ###
+        release_single_instance(globals().get("_si_handle"))
         try:
-            release_single_instance(globals().get("_si_handle"))
-            subprocess.Popen([exe], cwd=os.path.dirname(exe), close_fds=True,
-                             creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
-        except OSError as e:
-            messagebox.showerror("Update", f"Could not start {exe}:\n{e}", parent=self)
-            return False
+            self._sb_action.configure(text="  Starting the new version… (the antivirus may check it first)")
+        except (AttributeError, tk.TclError):
+            pass
         logger.info(f"Starting the new version: {exe}")
-        self._on_app_close()
+
+        def work():
+            try:
+                subprocess.Popen([exe], cwd=os.path.dirname(exe), close_fds=True,
+                                 creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
+            except OSError as e:
+                ui_post(lambda e=e: self._start_new_failed(exe, e))
+                return
+            ui_post(self._on_app_close)
+        threading.Thread(target=work, daemon=True, name="start-new-version").start()
         return True
+
+    def _start_new_failed(self, exe, e):                          ### NEW v0.19.6 — the old window stays, the lock is taken again ###
+        logger.warning(f"Could not start {exe}: {e}")
+        globals()["_si_handle"] = acquire_single_instance()[0]
+        try:
+            self._sb_action.configure(text="  The new version could not be started")
+        except (AttributeError, tk.TclError):
+            pass
+        messagebox.showerror("Update", f"Could not start {exe}:\n{e}", parent=self)
 
     def _add_menu_button(self, label, menu, parent=None):      ### NEW v0.19.2 B52; parent v0.19.4 L1 ###
         """One menu button (header: Settings ▾ / Help ▾; Movies toolbar: Tools ▾);
@@ -19106,6 +19538,8 @@ class App(tk.Tk):
 
     # NFO unified (v0.10.4)
     def _tip_nfo(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
+        if not d["nfo_exists"] and not nfo_in_use(_lib_root_of(d)):   ### NEW v0.19.6 TR1b ###
+            return f".nfo file\nNot used in this health mode (movie.xml only)\n({HEALTH_MODE_PATH})"
         if not d["nfo_exists"]:
             return f".nfo file\n[MISSING]\nExpected: {os.path.basename(d['nfo_path'])}\nDouble-click for details"
         lines = [f"{os.path.basename(d['nfo_path'])}", f"Size: {d['nfo_size']}"]
@@ -19134,8 +19568,19 @@ class App(tk.Tk):
         return None
 
     # XML unified (v0.10.4)
+    def _tip_language(self, d, iid, ci):                          ### NEW v0.19.6 TR1 ###
+        v, src = d.get("language") or "—", d.get("language_src") or ""
+        if v == "—" or not src:
+            return ("Language: none found\nmovie.xml's <Language>; without movie.xml the NFO's <language>,\n"
+                    "else the first audio track's language")
+        return f"Language: {v}\nFrom {src}" + ("\nDouble-click to open the file" if "NFO" in src or "movie.xml" in src else "")
+
     def _tip_xml(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         _xn = "".join(f"\n(i) {n}" for n in (d.get("xml_notes") or []))   ### NEW v0.19.2 F5 — mymovies.xml ###
+        if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)):   ### NEW v0.19.6 TR1 ###
+            if health_mode() == "nfo":
+                return f"movie.xml\nNot used in this health mode\n({HEALTH_MODE_PATH})" + _xn
+            return "movie.xml\nNot used: this library uses NFO files only\n(Library Folders → NFO only)" + _xn
         if not d["xml_exists"]:
             return "movie.xml\n[MISSING]\nDouble-click for details" + _xn
         lines = ["movie.xml", f"Size: {d['xml_size']}"]
@@ -19343,16 +19788,19 @@ class App(tk.Tk):
 
         # v0.10.4 — unified: show errors first with Open button, else open editor
         def _open_nfo_unified(app, d):                           ### MODIFIED v0.19.1 — always open the file ###
+            if not d["nfo_exists"] and not nfo_in_use(_lib_root_of(d)): return      # v0.19.6 TR1b: not used
             if not d["nfo_exists"]:
                 messagebox.showinfo("Missing", f"Expected: {os.path.basename(d['nfo_path'])}", parent=self)
             else:
                 open_in_editor(d["nfo_path"])     # errors: hover, or right-click → [!] NFO errors
 
         def _open_xml(app, d):
+            if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)): return      # v0.19.6 TR1: not used
             if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
             else: open_in_editor(d["xml_path"])
 
         def _open_xml_or_errors(app, d):
+            if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)): return      # v0.19.6 TR1: not used
             if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
             elif d["xml_errors"]:
                 ErrorDialog(app, f"XML Errors - {d.get('movie_name', d['subfolder'])}",
@@ -19362,12 +19810,15 @@ class App(tk.Tk):
 
         # v0.10.4 — unified: show errors first with Open button, else open editor
         def _open_xml_unified(app, d):                           ### MODIFIED v0.19.1 — always open the file ###
+            if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)): return      # v0.19.6 TR1: not used
             if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
             else:
                 open_in_editor(d["xml_path"])     # errors: hover, or right-click → [!] XML errors
 
         def _open_xml_lang(app, d):
             if d["xml_exists"]: open_in_editor(d["xml_path"])
+            elif d.get("nfo_exists") and "NFO" in (d.get("language_src") or ""):   # v0.19.6 TR1: the value's own file
+                open_in_editor(d["nfo_path"])
 
         def _play_video(app, d):
             if d.get("video_path"): os_open(d["video_path"])
@@ -19599,7 +20050,8 @@ class App(tk.Tk):
         add(m, "📂  Open Folder", lambda d, s, i: os_open(d["subfolder_path"]), accel="Ctrl+O", single=True)
         add(m, "🎬  Play Video", (lambda d, s, i: os_open(d["video_path"])) if d.get("video_path") else None,
             None if d.get("video_path") or multi else "missing", single=True)
-        add(m, "📝  Edit NFO", (lambda d, s, i: open_in_editor(d["nfo_path"])) if d.get("nfo_exists") else None,
+        _nfo_any = any(dd.get("nfo_exists") or nfo_in_use(_lib_root_of(dd)) for dd in sel_data)   # v0.19.6 TR1b
+        (add if _nfo_any else (lambda *a, **k: None))(m, "📝  Edit NFO", (lambda d, s, i: open_in_editor(d["nfo_path"])) if d.get("nfo_exists") else None,
             None if d.get("nfo_exists") or multi else "missing", accel="Ctrl+E", single=True)
         m.add_separator()
 
@@ -19641,24 +20093,32 @@ class App(tk.Tk):
 
         # ── 📝 Metadata ──────────────────────────────────────────────────────
         md = self._ctx_menu_sub(m, "📝  Metadata")
-        add(md, "📝  Open .nfo", lambda d, s, i: open_in_editor(d["nfo_path"]),
-            None if (d.get("nfo_exists") or multi) else "missing", single=True)
-        add(md, "📝  Open movie.xml", lambda d, s, i: open_in_editor(d["xml_path"]),
-            None if (d.get("xml_exists") or multi) else "missing", single=True)
-        add(md, f"[!] NFO errors ({len(d.get('nfo_errors') or [])})",
-            lambda d, s, i: ErrorDialog(self, f"NFO - {d.get('movie_name', d['subfolder'])}", d["nfo_path"], d["nfo_errors"]),
-            None if (d.get("nfo_errors") or multi) else "none", single=True)
-        add(md, f"[!] XML errors ({len(d.get('xml_errors') or [])})",
-            lambda d, s, i: ErrorDialog(self, f"XML - {d.get('movie_name', d['subfolder'])}", d["xml_path"], d["xml_errors"]),
-            None if (d.get("xml_errors") or multi) else "none", single=True)
+        if _nfo_any:                                                            # v0.19.6 TR1b
+            add(md, "📝  Open .nfo", lambda d, s, i: open_in_editor(d["nfo_path"]),
+                None if (d.get("nfo_exists") or multi) else "missing", single=True)
+        _xml_any = any(dd.get("xml_exists") or xml_in_use(_lib_root_of(dd)) for dd in sel_data)   # v0.19.6 TR1
+        if _xml_any:
+            add(md, "📝  Open movie.xml", lambda d, s, i: open_in_editor(d["xml_path"]),
+                None if (d.get("xml_exists") or multi) else "missing", single=True)
+        if _nfo_any:                                                            # v0.19.6 TR1b
+            add(md, f"[!] NFO errors ({len(d.get('nfo_errors') or [])})",
+                lambda d, s, i: ErrorDialog(self, f"NFO - {d.get('movie_name', d['subfolder'])}", d["nfo_path"], d["nfo_errors"]),
+                None if (d.get("nfo_errors") or multi) else "none", single=True)
+        if _xml_any:                                                            # v0.19.6 TR1
+            add(md, f"[!] XML errors ({len(d.get('xml_errors') or [])})",
+                lambda d, s, i: ErrorDialog(self, f"XML - {d.get('movie_name', d['subfolder'])}", d["xml_path"], d["xml_errors"]),
+                None if (d.get("xml_errors") or multi) else "none", single=True)
         _n_tm = sum(1 for dd in sel_data if _title_mismatch(dd))                ### NEW v0.19.3 B60 ###
-        add(md, "🔤  Make titles the same (NFO ↔ XML)…" + (f" — {_n_tm} of {len(sel_data)}" if multi and _n_tm else ""),
-            lambda d, s, i: self._title_sync_for(s), None if _n_tm else "local titles match")
+        if _xml_any and _nfo_any:                                               # v0.19.6 TR1, TR1b
+            add(md, "🔤  Make titles the same (NFO ↔ XML)…" + (f" — {_n_tm} of {len(sel_data)}" if multi and _n_tm else ""),
+                lambda d, s, i: self._title_sync_for(s), None if _n_tm else "local titles match")
         _nfo_k = [dd for dd in sel_data if dd.get("nfo_exists") and dd.get("nfo_kodi_name") is False]   ### NEW v0.19.4 B107 ###
-        add(md, NFO_RENAME_LABEL + (f" — {len(_nfo_k)} of {len(sel_data)}" if multi and _nfo_k else ""),
-            lambda d, s, i: self._nfo_rename_for([x for x in s if x.get("nfo_exists") and x.get("nfo_kodi_name") is False]),
-            None if _nfo_k else "Kodi already reads the NFO")
-        col = self._ctx_menu_sub(md, "🗂  Collection")                ### NEW v0.19.4 B110e ###
+        if _nfo_any:                                                            # v0.19.6 TR1b
+            add(md, NFO_RENAME_LABEL + (f" — {len(_nfo_k)} of {len(sel_data)}" if multi and _nfo_k else ""),
+                lambda d, s, i: self._nfo_rename_for([x for x in s if x.get("nfo_exists") and x.get("nfo_kodi_name") is False]),
+                None if _nfo_k else "Kodi already reads the NFO")
+        # v0.19.6 TR1b: collections live in the NFO; "movie.xml only" has no Collection menu
+        col = self._ctx_menu_sub(md, "🗂  Collection") if _nfo_any else tk.Menu(m, tearoff=0)   ### NEW v0.19.4 B110e ###
         _cfix, _cskip = collection_fix_items(sel_data, None, self._lib_lang())
         add(col, FIX_COLL_LABEL + (f" — {len(_cfix)} of {len(sel_data)}" if multi and _cfix else ""),
             lambda d, s, i: self._fix_collections_for(s),
@@ -19918,6 +20378,9 @@ class App(tk.Tk):
 
     def _nfo_rename_all(self):                                    ### NEW v0.19.3 B73 ###
         if self._busy(NFO_RENAME_ACTION):                ### MODIFIED v0.19.4 B91 — one message ###
+            return None
+        if not nfo_in_use():                                         ### NEW v0.19.6 TR1b ###
+            messagebox.showinfo(NFO_RENAME_ACTION, f"The NFO is not used in this health mode (movie.xml only).\n\n{HEALTH_MODE_PATH}", parent=self)
             return None
         rows = [r for r in self._results if r.get("nfo_exists") and r.get("nfo_kodi_name") is False]
         if not rows:
@@ -20465,6 +20928,7 @@ class App(tk.Tk):
         write_failed = []                                       ### NEW v0.19.2 B41 — files that could not be written ###
         pending = []                                            ### NEW v0.19.3 I6 — preview: collected, written on Run ###
         bk_ref = [None]                                         ### NEW v0.19.4 B82 — one backup folder for the run ###
+        no_id, no_answer = [], []                               ### NEW v0.19.6 TR2 — skipped, with the reason ###
 
         def _write(d, name, nfo_path, xml_path, chosen):
             nonlocal written
@@ -20517,10 +20981,21 @@ class App(tk.Tk):
                 if prog:
                     prog.advance(_idx + 1)
                 continue
-            tmdb_r, tmdb_v = _fetch_tmdb_rating(tmdb_id, tmdb_key) if _use_t else (None, None)
+            _why = ratings_skip_reason(imdb_id, tmdb_id, _use_t, _use_o)   ### NEW v0.19.6 TR2 ###
+            if _why:
+                no_id.append(f"{name}: {_why}")
+                if prog:
+                    prog.advance(_idx + 1)
+                continue
+            if not _use_t:
+                tmdb_r, tmdb_v = None, None
+            elif tmdb_id:
+                tmdb_r, tmdb_v = _fetch_tmdb_rating(tmdb_id, tmdb_key)
+            else:                                               # v0.19.6 TR2: only an IMDb ID
+                tmdb_r, tmdb_v = _fetch_tmdb_rating_by_imdb(imdb_id, tmdb_key)
             if (prog and prog.cancelled) or _service_run_cancelled():   # B22                         ### NEW v0.19.1 — cancel between calls ###
                 break
-            omdb_r, omdb_v = _fetch_omdb_rating(imdb_id, omdb_key) if _use_o else (None, None)
+            omdb_r, omdb_v = _fetch_omdb_rating(imdb_id, omdb_key) if (_use_o and imdb_id) else (None, None)
             tok = self._rating_valid(tmdb_r, tmdb_v)
             ook = self._rating_valid(omdb_r, omdb_v)
             _errs = _take_fetch_errors()                      ### NEW v0.19.1 ###
@@ -20531,6 +21006,11 @@ class App(tk.Tk):
                 if prog:
                     prog.advance(_idx + 1)
                 continue
+            _noans = None                                       ### NEW v0.19.6 TR2 — asked, and no answer: named if skipped ###
+            if tmdb_r is None and omdb_r is None:
+                _asked = [s for s, on in (("TMDB", _use_t), ("OMDb", _use_o and imdb_id)) if on]
+                _noans = (f"{name}: {' and '.join(_asked)} have no rating for "
+                          + " / ".join(x for x in (imdb_id, f'TMDB {tmdb_id}' if tmdb_id else '') if x))
 
             chosen = None   # (rating_str, votes_str, source_label)
 
@@ -20573,6 +21053,7 @@ class App(tk.Tk):
                     if fallback[0] == "manual":
                         chosen = (fallback[1], fallback[2], "manual")
                     else:
+                        if _noans: no_answer.append(_noans)         # v0.19.6 TR2
                         if prog: prog.advance(_idx + 1)
                         continue                                    # remembered skip
                 else:
@@ -20585,6 +21066,7 @@ class App(tk.Tk):
                     else:
                         if multi and res.get("apply_fallback"):
                             fallback = ("skip",)
+                        if _noans: no_answer.append(_noans)         # v0.19.6 TR2
                         if prog: prog.advance(_idx + 1)
                         continue
 
@@ -20620,6 +21102,13 @@ class App(tk.Tk):
         if write_failed:                                         ### NEW v0.19.2 B41 ###
             _msg += (f"\n\n{len(write_failed)} could not be written:\n"
                      + "\n".join(write_failed[:8]) + ("\n…" if len(write_failed) > 8 else ""))
+        for _lst, _head in ((no_id, "skipped: no ID the sources can use"),          ### NEW v0.19.6 TR2 ###
+                            (no_answer, "skipped: the sources have no rating")):
+            if _lst:
+                _msg += (f"\n\n{_n(len(_lst), 'movie')} {_head}:\n" + "\n".join(_lst[:8])
+                         + (f"\n… and {len(_lst) - 8} more (logs\\app.log)" if len(_lst) > 8 else ""))
+                for _x in _lst:
+                    logger.info(f"Ratings sync skipped {_x}")
         if unreachable:                                          ### NEW v0.19.1 ###
             _msg += (f"\n\n{_n(len(unreachable), 'movie')} skipped because TMDB/OMDb could not be reached:\n"
                      + "\n".join(unreachable[:8]) + ("\n…" if len(unreachable) > 8 else ""))
@@ -22070,7 +22559,9 @@ class App(tk.Tk):
         def _step(job, item):
             r, target = item
             rm = remove or target is None                               # P7 (E19): a None target = clean
-            nfo = r.get("nfo_path")
+            nfo = r.get("nfo_path") if r.get("nfo_exists") else None    # v0.19.6 TR1b: only an NFO in use
+            if not nfo:
+                raise RuntimeError("no NFO in use — the collection is kept in the NFO")
             if target and target[0] == "title":                      ### NEW v0.19.4 B110f — the local titles ###
                 xml = r.get("xml_path") if r.get("xml_exists") else None
                 if not job.backup(r.get("movie_name") or r.get("subfolder", ""), nfo, xml):
@@ -22706,8 +23197,16 @@ class App(tk.Tk):
         d, nfo, xml = ctx["d"], ctx["nfo"], ctx["xml"]
         imdb_id, tmdb_id = get_movie_ids_robust(nfo, xml)
         _take_fetch_errors()
-        tr, tv = _fetch_tmdb_rating(tmdb_id, ctx["tmdb_key"]) if ctx["tmdb_key"] else (None, None)
-        or_, ov = _fetch_omdb_rating(imdb_id, ctx["omdb_key"]) if ctx["omdb_key"] else (None, None)
+        _why = ratings_skip_reason(imdb_id, tmdb_id, bool(ctx["tmdb_key"]), bool(ctx["omdb_key"]))   ### NEW v0.19.6 TR2 ###
+        if _why:
+            return "skipped", "ratings: " + _why
+        if not ctx["tmdb_key"]:
+            tr, tv = None, None
+        elif tmdb_id:
+            tr, tv = _fetch_tmdb_rating(tmdb_id, ctx["tmdb_key"])
+        else:                                                    # v0.19.6 TR2: only an IMDb ID
+            tr, tv = _fetch_tmdb_rating_by_imdb(imdb_id, ctx["tmdb_key"])
+        or_, ov = _fetch_omdb_rating(imdb_id, ctx["omdb_key"]) if (ctx["omdb_key"] and imdb_id) else (None, None)
         _errs = _take_fetch_errors()                              ### NEW v0.19.1 ###
         if _errs:
             return "failed", "ratings: " + _errs[0]
@@ -24025,6 +24524,21 @@ class App(tk.Tk):
             # ── Phase A: detect new / modified subfolders (parallel listings) ──
             changed = []; lock = threading.Lock(); n_no_mtime = [0]; n_sig_new = [0]   ### n_sig_new v0.19.4 B85 ###
             still_ignored, ignored_new = [], []                 ### NEW v0.19.2 B53 ###
+            ### NEW v0.19.6 TR5 — a folder of folders is walked into; a movie of the last scan is not listed again ###
+            _known5, _nested5 = set(prior_by_path), []
+            for _en in list(entries):
+                if self._cancel_scan or _pkey(_en.path) in _known5:
+                    continue
+                _l5 = _FolderListing(_en.path)
+                if classify_listing(_l5)[0] == "container":
+                    _e5, _i5, _ls5, _k5 = walk_container(_en.path, library_of(_en.path), 1, _known5, lambda: self._cancel_scan)
+                    _nested5 += _e5; ignored_new += _i5; _lst_a.update(_ls5)
+                    entries.remove(_en)
+                else:
+                    _lst_a[_en.path] = _l5
+            if _nested5:
+                entries.extend(_nested5)
+                entries.sort(key=lambda e: (e.name.lower(), e.path.lower()))
             def _check(entry):
                 if self._cancel_scan:
                     return
@@ -24340,6 +24854,7 @@ class App(tk.Tk):
 
             # ### NEW v0.19.2 B53 ### folders that are not movies get no row
             ignored_new, keep, kinds = [], [], {}
+            nested = []                                         ### NEW v0.19.6 TR5 ###
             unread_kept = []                                    ### NEW v0.19.4 B88 ###
             _prev88 = {_pkey(r["subfolder_path"]): r for r in _prior_results_for_ffprobe if r.get("subfolder_path")}
             for entry in entries:
@@ -24349,12 +24864,18 @@ class App(tk.Tk):
                 if kind == "unreadable" and _pkey(entry.path) in _prev88:   ### NEW v0.19.4 B88 — keep the previous row ###
                     unread_kept.append(keep_unreadable_row(_prev88[_pkey(entry.path)], reason))
                     logger.warning(f"Scan: {entry.path} could not be read — previous row kept ({reason})")
+                elif kind == "container":                       ### NEW v0.19.6 TR5 — walked into ###
+                    _e5, _i5, _l5, _k5 = walk_container(entry.path, library_of(entry.path), 1,
+                                                        cancelled=lambda: self._cancel_scan)
+                    nested += _e5; ignored_new += _i5; listings.update(_l5); kinds.update(_k5)
                 elif kind in _fc.IGNORED_KINDS:
                     ignored_new.append(ignored_item(entry.path, kind, reason, detail, lst))
                 else:
                     kinds[entry.path] = kind
                     keep.append(entry)
-            entries[:] = keep
+            entries[:] = sorted(keep + nested, key=lambda e: (e.name.lower(), e.path.lower()))   # v0.19.6 TR5
+            if nested:
+                logger.info(f"Scan: {len(nested)} movie folder(s) found inside folders of folders")
             if ignored_new:
                 logger.info(f"Scan: {len(ignored_new)} folder(s) not added as movies")
 
@@ -24364,7 +24885,7 @@ class App(tk.Tk):
                 lst = listings.get(entry.path) or _FolderListing(entry.path)
                 stubs.append({**row_defaults(),                          # v0.19.4 (B22)
                     "subfolder": entry.name, "subfolder_path": entry.path,
-                    "library_root": _norm_lib(os.path.dirname(entry.path)),   ### NEW v0.19.0, normpath v0.19.1 ###
+                    "library_root": _norm_lib(getattr(entry, "root", None) or os.path.dirname(entry.path)),   ### v0.19.0; v0.19.6 TR5: .root ###
                     "poster_exists":False,"poster_path":resolve_artwork(lst, "poster")["path"],   ### MODIFIED v0.19.1 B23 ###
                     "poster_bytes":0,"poster_size":"—","poster_dim":None,"poster_corrupt":False,
                     "poster_desc":"","poster_status":STATUS_MISSING,
@@ -24437,8 +24958,12 @@ class App(tk.Tk):
             def _phase3(entry, row):
                 lst = listings[entry.path]; sn = entry.name
                 nfo_path, ne, nfo_name, nfo_kodi = resolve_nfo(lst, sn)          ### MODIFIED v0.19.1 B23 ###
+                row["nfo_on_disk"] = ne                                          ### NEW v0.19.6 TR1b ###
+                ne = ne and nfo_in_use(row.get("library_root") or os.path.dirname(entry.path))   # "movie.xml only": ignored
                 row.update(naming_row_fields(lst, sn))                           ### NEW v0.19.2 F5 ###
                 xml_path = lst.path_of("movie.xml"); xe = lst.has("movie.xml")
+                row["xml_on_disk"] = xe                                          ### NEW v0.19.6 TR1 ###
+                xe = xe and xml_in_use(row.get("library_root") or os.path.dirname(entry.path))   # ignored when not in use
                 row["nfo_exists"] = ne; row["nfo_path"] = nfo_path; row["nfo_kodi_name"] = nfo_kodi
                 if ne:
                     _ni = []; nb = lst.size(nfo_name); nerr = validate_xml_file(nfo_path, True, infos=_ni)   ### B12 ###
@@ -24449,7 +24974,8 @@ class App(tk.Tk):
                     _xi = []; xb = lst.size("movie.xml"); xerr = validate_xml_file(xml_path, False, infos=_xi)   ### B12 ###
                     row["xml_bytes"] = xb; row["xml_size"] = format_size(xb); row["xml_errors"] = xerr; row["xml_infos"] = _xi
                     row["xml_status"] = (STATUS_ERROR if xerr else STATUS_OK)
-                    row["language"] = extract_language_from_xml(xml_path)
+                    row["language"] = row["xml_language"] = extract_language_from_xml(xml_path)   # v0.19.6 TR1: xml_language
+                row["nfo_language"], row["nfo_audio_lang"] = nfo_language_fields(nfo_path if ne else None)   ### NEW v0.19.6 TR1 ###
                 row.update(_genre_row_fields(nfo_path if ne else None, xml_path if xe else None))   ### MODIFIED v0.19.1 ###
                 nfo_p = nfo_path if ne else None
                 xml_p = xml_path if xe else None
@@ -24668,8 +25194,68 @@ class App(tk.Tk):
                         + (f" — {_sum}" if len(_libs) > 1 else ""))
         except Exception: pass
         self._scanning = False      # v0.18.4 — cleared last, after the results cache is written
+        if NFO_ONLY_ASK_AUTO:                                  ### NEW v0.19.6 TR1 ###
+            self.after(400, self._ask_nfo_only)
         if _ig is not None:
             self._maybe_show_ignored(_ig)                      ### NEW v0.19.2 B53 ###
+
+    # ── NFO-only libraries (v0.19.6 TR1) ──────────────────────────────────────
+    def _ask_health_mode(self):                                ### NEW v0.19.6 TR1 / TR1b ###
+        """At the start, once for every user: the health mode (three buttons)."""
+        old = getattr(self, "_health_mode_dlg", None)
+        try:
+            if old is not None and old.winfo_exists():
+                return old
+        except tk.TclError:
+            pass
+        self._health_mode_dlg = HealthModeDialog(self, self._health_mode_answer)
+        return self._health_mode_dlg
+
+    def _health_mode_answer(self, mode):                       ### NEW v0.19.6 TR1 / TR1b ###
+        was = health_mode()
+        SETTINGS["health_mode"] = health_mode({"health_mode": mode})
+        SETTINGS["health_mode_asked"] = True
+        _save_settings(SETTINGS)
+        logger.info(f"Start question: health mode {SETTINGS['health_mode']}")
+        self._apply_column_visibility()
+        if was == SETTINGS["health_mode"]:
+            return
+        if self._results:
+            self._apply_health_rules_inplace()
+            self._incremental_save(self._results)
+            if not self._scanning and messagebox.askyesno(
+                    "Scan again?", "A Full Scan now reads your libraries again for the new health mode.\n\nScan now?", parent=self):
+                self._scan()
+
+    def _ask_nfo_only(self, queue=None):                       ### NEW v0.19.6 TR1 ###
+        """After a scan: ask once for every library without any movie.xml.
+        Closing the window answers nothing; the next scan asks again."""
+        if self._scanning:
+            return None
+        if queue is None:
+            queue = nfo_only_candidates(self._results, self._libraries(), getattr(self, "_offline_roots", ()))
+        if not queue:
+            return None
+        lib, n = queue[0]
+        old = getattr(self, "_nfo_only_dlg", None)
+        try:
+            if old is not None and old.winfo_exists():
+                return old
+        except tk.TclError:
+            pass
+        self._nfo_only_dlg = NfoOnlyDialog(self, lib, n, lambda yes: self._nfo_only_answer(lib, yes, queue[1:]))
+        return self._nfo_only_dlg
+
+    def _nfo_only_answer(self, lib, yes, rest=()):             ### NEW v0.19.6 TR1 ###
+        set_library_nfo_only(lib, yes)
+        _save_settings(SETTINGS)
+        logger.info(f"Library {lib}: " + ("NFO files only — the XML checks are off there" if yes
+                                          else "keeps the XML checks"))
+        if yes and self._results:
+            self._apply_health_rules_inplace()
+            self._incremental_save(self._results)
+        if rest:
+            self.after(100, lambda: self._ask_nfo_only(list(rest)))
 
     # ── Ignored folders (v0.19.2 B53) ───────────────────────────────────────────
     def _store_ignored(self, items, online):                   ### NEW v0.19.2 B53 ###
@@ -24755,7 +25341,7 @@ class App(tk.Tk):
                 if data:
                     rows = _results_from_json(data)
                     n_coll = read_unread_collections(rows)     ### NEW v0.19.4 review fix 1 — before the health rules ###
-                    n_coll += read_old_tag_values(rows, _sc.RESULTS_LAST_SCHEMA[0] < 3)   ### NEW v0.19.5 — saved below, as n_coll ###
+                    n_coll += read_old_tag_values(rows, _sc.RESULTS_LAST_SCHEMA[0] < 4)   ### NEW v0.19.5; v0.19.6 TR1: < 4 (the NFO's language) ###
                     finalize_results(rows)                     ### NEW v0.18.4 — never trust cached reasons ###
                     prepared = (view, view_rows(rows, view))   # the table order, also off the Tk thread
             except Exception as e:
@@ -25146,17 +25732,19 @@ class App(tk.Tk):
         pc  = sum(1 for r in rows if r["poster_exists"])
         fc  = sum(1 for r in rows if r["folder_exists"])
         ac  = sum(1 for r in rows if r["fanart_exists"])
-        nc  = sum(1 for r in rows if r["nfo_exists"])
-        ne  = sum(1 for r in rows if r.get("nfo_errors"))
-        xc  = sum(1 for r in rows if r["xml_exists"])
-        xe  = sum(1 for r in rows if r.get("xml_errors"))
+        _nr = [r for r in rows if r["nfo_exists"] or nfo_in_use(_lib_root_of(r))]   # v0.19.6 TR1b: rows where the NFO is used
+        nc  = sum(1 for r in _nr if r["nfo_exists"])
+        ne  = sum(1 for r in _nr if r.get("nfo_errors"))
+        _xr = [r for r in rows if r["xml_exists"] or xml_in_use(_lib_root_of(r))]   # v0.19.6 TR1: rows where movie.xml is used
+        xc  = sum(1 for r in _xr if r["xml_exists"])
+        xe  = sum(1 for r in _xr if r.get("xml_errors"))
         vc  = sum(1 for r in rows if r["video_count"] == 1)
         iso = SETTINGS.get("lang_ok_code","PT")
         lk  = sum(1 for r in rows if r.get("lang_ok") == "Y")
         self.stats_var.set("  •  ".join(([ov["per_lib"]] if ov["per_lib"] else []) + [
             f"{_n(t, 'movie')}", f"poster:{pc}/{t}", f"folder:{fc}/{t}",
-            f"fanart:{ac}/{t}", f"nfo:{nc}/{t}({ne}err)",
-            f"xml:{xc}/{t}({xe}err)", f"video:{vc}/{t}",
+            f"fanart:{ac}/{t}",
+        ] + ([f"nfo:{nc}/{len(_nr)}({ne}err)"] if _nr else []) + ([f"xml:{xc}/{len(_xr)}({xe}err)"] if _xr else []) + [   # v0.19.6 TR1bf"video:{vc}/{t}",
             f"{iso}-OK:{lk}/{t}"
         ]))
         ### NEW v0.13.0 — always recalculate errors/warnings for status bar ###
@@ -25353,8 +25941,10 @@ class App(tk.Tk):
             img_cell(r["folder_exists"], r.get("folder_status", STATUS_MISSING), r.get("folder_quality", "—")),   # COL_FOLDER
             img_cell(r["fanart_exists"],  r.get("fanart_status",  STATUS_MISSING), r.get("fanart_quality",  "—")),  # COL_FANART
             str(r["backdrop_count"]) if r["backdrop_count"] > 0 else "-",             # COL_BACKDROPS
-            (STATUS_ERROR if r["nfo_errors"] else STATUS_OK) if r["nfo_exists"] else STATUS_MISSING,  # COL_NFO
-            (STATUS_ERROR if r["xml_errors"] else STATUS_OK) if r["xml_exists"] else STATUS_MISSING,  # COL_XML
+            (STATUS_ERROR if r["nfo_errors"] else STATUS_OK) if r["nfo_exists"] else
+            ("—" if not nfo_in_use(_lib_root_of(r)) else STATUS_MISSING),   # COL_NFO   v0.19.6 TR1b: "—" = not used
+            (STATUS_ERROR if r["xml_errors"] else STATUS_OK) if r["xml_exists"] else
+            ("—" if not xml_in_use(_lib_root_of(r)) else STATUS_MISSING),   # COL_XML   MODIFIED v0.19.6 TR1: "—" = movie.xml not used
             r["language"],                                                             # COL_LANGUAGE
             r["video_ext"] if r["video_count"] > 0 else STATUS_MISSING,               # COL_VID_EXT
             r["video_size"],                                                           # COL_VID_SIZE
@@ -25396,6 +25986,10 @@ class App(tk.Tk):
 
     def _apply_column_visibility(self):
         hidden = [c for c in (SETTINGS.get("hidden_columns") or []) if c in _COL_IDX and c != "movie_name"]
+        if health_mode() == "nfo" and "xml" not in hidden:     # v0.19.6 TR1, TR1b: movie.xml is not used
+            hidden.append("xml")
+        if health_mode() == "xml" and "nfo" not in hidden:     # v0.19.6 TR1b: the NFO is not used
+            hidden.append("nfo")
         if hidden:
             self.tree["displaycolumns"] = [c["id"] for c in COLUMN_MODEL if c["id"] not in hidden]
         else:
@@ -25840,13 +26434,16 @@ def _hr_rating_conflict(row, rules, settings, error_reasons, warning_reasons):
     # a tag exists but is not numeric (handled as warnings below). ### FIXED v0.18.3 ###
     if rules.get("rating_conflict", True):
         if row.get("rating_status") == STATUS_WARN:
-            error_reasons.append("Rating conflict between NFO and XML (values differ)")
+            error_reasons.append("Rating conflict between NFO and XML (values differ)" if row.get("xml_exists") and row.get("nfo_exists") else
+                                 "Rating conflict inside movie.xml (its ratings differ)" if row.get("xml_exists") else   # v0.19.6 TR1b
+                                 "Rating conflict inside the NFO (<rating> and <ratings> differ)")   # v0.19.6 TR1
 
 
 def _hr_votes_conflict(row, rules, settings, error_reasons, warning_reasons):
     if rules.get("votes_conflict", True):
         if row.get("votes_status") == STATUS_WARN:
-            error_reasons.append("Votes conflict between NFO <votes> and XML <Votes>")
+            error_reasons.append("Votes conflict between NFO <votes> and XML <Votes>" if row.get("nfo_exists") else
+                                 "Votes conflict inside movie.xml (<Votes> and <VoteCount> differ)")   # v0.19.6 TR1b
 
 
 def _hr_genre_missing(row, rules, settings, error_reasons, warning_reasons):
@@ -26224,6 +26821,7 @@ def compute_movie_health_detailed(row: dict, rules: dict,
     """
     if not rules:
         rules = {}
+    rules = effective_rules(row, rules, settings)                ### NEW v0.19.6 TR1 — movie.xml not in use ###
 
     error_reasons   = []
     warning_reasons = []
@@ -26430,7 +27028,8 @@ def read_old_tag_values(rows, old_cache):                         ### NEW v0.19.
         nfo = r.get("nfo_path") if r.get("nfo_exists") else None
         xml = r.get("xml_path") if r.get("xml_exists") else None
         try:
-            r["language"] = extract_language_from_xml(xml) if xml else "—"
+            r["language"] = r["xml_language"] = extract_language_from_xml(xml) if xml else "—"
+            r["nfo_language"], r["nfo_audio_lang"] = nfo_language_fields(nfo)   ### NEW v0.19.6 TR1 ###
             (r["rating_str"], r["rating_status"], r["rating_value"], r["rating_votes"], r["rating_votes_src"],
              r["rating_src"]) = extract_rating_from_files(nfo, xml)
             r["date_added"], r["date_added_src"] = date_added_for(nfo, xml, r.get("video_path"), r.get("subfolder_path"))
@@ -26444,7 +27043,7 @@ def read_old_tag_values(rows, old_cache):                         ### NEW v0.19.
             r["tags_unread"] = True
             logger.warning(f"Old row not read again: {r.get('subfolder')}: {ex}")
     if todo:
-        logger.info(f"Read the language, rating and date of {n} movie(s) saved before v0.19.5")
+        logger.info(f"Read the language, rating and date of {n} movie(s) saved by an older version")
     return n
 
 

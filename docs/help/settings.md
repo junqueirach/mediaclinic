@@ -13,5 +13,5 @@
 | Genres | the standard genre list, one per line
 | NFO / XML | the tag pairs of the Improvements Check; **Collections**: the collection folder and **Group the movie table by collection**
 | User Interface | alternating row colours, header tooltips, compact mode, the Repeat line, the Ignored folders window after a scan, dark title bars, "Check for updates at start"
-| Health Rules | every rule with its checkbox, level or threshold; **Reset to defaults**
+| Health Rules | **Health mode** (which program plays your movies: the NFO, NFO + movie.xml, or movie.xml only; changing it offers a new scan); the rules in four sections — **General**, **NFO**, **movie.xml** and **NFO ↔ movie.xml comparisons** — each rule with its checkbox, threshold and level (error / warning). The sections the health mode does not use stay visible but gray and cannot be changed; their settings are kept for when you switch back. **Reset to defaults**
 | Backup | the size limit, automatic deletion of the oldest backups, **Delete all backup folders**

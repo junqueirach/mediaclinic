@@ -632,6 +632,7 @@ def run_all():
             dlg33 = _in_loop(lambda: SettingsDialog(root, tab=0, ctx=ctx)); root.update()
             before33 = fake_settings.get("max_nfo_kb")
             dlg33._max_nfo_kb_var.set(int(before33 or 50) + 11)
+            dlg33._health_mode_var.set("nfo_xml")              # v0.19.6 TR1c: the tag pairs are editable in mode 2 only
             dlg33._tags_text.delete("1.0", "end")
             dlg33._tags_text.insert("1.0", "rating\tRating\tRating\t5%\n")
             dlg33._save_close(); root.update()

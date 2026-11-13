@@ -51,7 +51,7 @@ Several movies: select with Ctrl+click, Shift+click, Shift+arrows or Shift+PageU
 | Poster, Folder, Fanart | the image in your viewer
 | Backdrops | the first backdrop
 | .nfo / .xml | the file in your editor (also when it has errors)
-| Language | movie.xml in your editor
+| Language | the file the value came from (movie.xml or the NFO) in your editor
 | Video, Quality | plays the video
 | Subtitles | the subtitle tracks
 | Library | the library folder

@@ -2,6 +2,39 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.19.6 — 2026-11-13
+
+Windows build and source. What the first outside testers of v0.19.4 found.
+
+### Added
+- **Health mode:** at the first start every user is asked "Which program plays your movies?", with three buttons:
+  Kodi, Jellyfin, Emby, Plex, Infuse… (NFO only; `movie.xml` is ignored), the same plus old Windows media centers (NFO and
+  `movie.xml`), or only old Windows media centers (`movie.xml` only: the NFO is not read, checked or written). Closing the
+  window answers nothing, so it comes back at the next start. It can be changed later in *Settings → Health Rules →
+  Health mode*. Existing settings are carried over and the question is asked once.
+- In NFO-only mode the `.xml` column is hidden and no `movie.xml` rule counts; the Language column uses the NFO's
+  `<language>`, else the first audio track. After a scan that found no `movie.xml`, a library can be marked "NFO only".
+- `MediaClinic.sh`: starts the app from source on Linux and macOS and says what is missing.
+
+### Changed
+- *Settings → Health Rules* is split into General rules (with topic subtitles), NFO rules, `movie.xml` rules and
+  NFO-against-`movie.xml` comparisons. Parts the health mode does not use stay visible but are grayed and cannot be
+  clicked. The NFO / XML tag tabs are grayed the same way.
+- Movie folders inside folders of folders are found (up to five levels) and keep their library; such folders are no
+  longer listed as ignored.
+- The update is started from a worker thread, so the window stays responsive while the new version starts.
+- Results cache schema 4: rows are read once more on the first start.
+
+### Fixed
+- **Sync Ratings** skipped movies that had an IMDb ID but no TMDB ID: TMDB is now asked by the IMDb ID. The end message
+  names the movies that were skipped and why.
+- **Linux** (checked on Ubuntu under WSL): column headings and Settings tabs were cut off by the wider Linux font; files
+  and folders open with `xdg-open`, with a clear message when it is missing.
+
+### Build
+- Compiled with Nuitka, as build 3 of v0.19.5. VirusTotal: 0 of 71 for the exe. Acceptance tests on the unpacked zip:
+  80 of 80; self-test 1,520 checks.
+
 ## v0.19.5 — 2026-11-07
 
 Windows build and source. A fix release: a review of every feature (113 findings, the approved ones fixed), tag

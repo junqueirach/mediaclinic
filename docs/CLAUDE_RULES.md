@@ -1,12 +1,12 @@
 # CLAUDE_RULES.md
 ## MediaClinic — Rules for AI-assisted editing
-### Version: 0.19.5 (rewritten 2026-11-04 from the code, updated 2026-11-07; the v0.14.0 version covered only the settings subsystem)
+### Version: 0.19.6 (rewritten 2026-11-04 from the code, updated 2026-11-07 and 2026-11-13; the v0.14.0 version covered only the settings subsystem)
 
 This file is the guide for any Claude (or human) changing MediaClinic. Read it in full before any change. In the author's working
 folder it adds to the family rules (`CLAUDE.md`: real data, snapshots, editing, builds) and never weakens them; the work order there is
 the roadmap `IMPROVEMENTS_SHORT_TERM R1.md`. Those two files are not published.
 
-Names below were checked against the v0.19.5 source. In the source the main file is `mediaclinic_v0_19_5.py`; on GitHub it is
+Names below were checked against the v0.19.5 source, and the v0.19.6 block against the v0.19.6 source. In the source the main file is `mediaclinic_v0_19_6.py`; on GitHub it is
 `mediaclinic.py`. When a rule and the code disagree, stop and report it. Do not silently follow either.
 
 ---
@@ -77,6 +77,18 @@ Each rule here comes from a real freeze or crash.
 - A rating with a known source goes through `write_rating_to_files(..., source=)`: never under another source's name.
 - A movie's collection data counts only when `id_flagged` is false (`collection_rules.py`).
 - A run that makes a new file calls `note_created`, so Undo removes it. Keep the old file until the new one is in place.
+
+### Added in v0.19.6
+- **Health mode** (`health_mode()`: `"nfo"`, `"nfo_xml"` or `"xml"`). Ask `nfo_in_use(path)` / `xml_in_use(path)` before reading,
+  checking or writing an NFO or a `movie.xml`; never test the old setting directly. In `"xml"` mode no NFO is written
+  (`_atomic_write_text` refuses it) and collections, NFO renames and title copies are not offered.
+- Rules that need a file the mode does not use are listed in `NFO_ONLY_RULES_OFF` / `XML_ONLY_RULES_OFF`. A new rule
+  that reads only one of the two files goes into the matching list and into its section of `HEALTH_RULE_SECTIONS`
+  (`settings_dialog.py`), so the Settings tab grays it with the rest.
+- A row's library comes from `library_of(path)`: movie folders can sit up to five levels deep inside a library.
+- Sync Ratings asks TMDB by the IMDb ID when there is no TMDB ID (`_fetch_tmdb_rating_by_imdb`); `ratings_skip_reason`
+  gives the reason a movie is skipped.
+- On Linux and macOS, open files and folders with `unix_open_command()`; never call `os.startfile` outside Windows.
 
 ## 4. Rows and scans
 

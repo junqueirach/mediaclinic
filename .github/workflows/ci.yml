@@ -24,6 +24,6 @@ jobs:
       - name: Run tests
         run: python -m pytest tests -v
       - name: Run end-to-end self-test (virtual display)
-        run: xvfb-run -a python -u tests/selftest_v0_19_5.py
+        run: xvfb-run -a python -u tests/selftest_v0_19_6.py
       - name: Run settings test harness (virtual display)
         run: PYTHONPATH=. xvfb-run -a python -u tests/settings_test_harness.py

@@ -6,19 +6,19 @@
 
 <p align="center"><img src="docs/screenshots/mediaclinic.png" alt="MediaClinic screenshot" width="900"></p>
 
-**Download for Windows:** get `MediaClinic-0.19.5-win64.zip` (about 32 MB) from the [latest release](https://github.com/junqueirach/mediaclinic/releases/latest). Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
+**Download for Windows:** get `MediaClinic-0.19.6-win64.zip` (about 32 MB) from the [latest release](https://github.com/junqueirach/mediaclinic/releases/latest). Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
 
-**New in v0.19.5:** a fix release after a review of every feature. Writes keep every file valid, ratings stay under their own source's name, *Language OK* counts only audio and subtitle tracks, codec names no longer count as differences, a save no longer fails while another program reads the file, Undo is complete after image fixes, and the tests are more reliable. See the [changelog](CHANGELOG.md).
+**New in v0.19.6:** what the first outside testers found. At the first start the app asks which program plays your movies: Kodi, Jellyfin, Emby, Plex or Infuse users get NFO-only checks, and `movie.xml` (old Windows media centers) is checked only when you choose it. *Settings → Health Rules* is split into General, NFO, `movie.xml` and comparison rules, and the parts your mode does not use are grayed. Sync Ratings also works for movies that have only an IMDb ID, movies inside folders of folders are found, and the app runs on Linux from source with a `MediaClinic.sh` launcher. See the [changelog](CHANGELOG.md).
 
 > **Windows SmartScreen:** the file is not code-signed, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. You can also run the app from source (see Quick start) and read every line of the code first.
 >
-> **VirusTotal:** a tester found two engines flagging the earlier exe with generic names. The flagged part was the PyInstaller loader that every Python exe built that way starts with, not the app: its code was byte-identical to the loader published on PyPI, the archive held only Python's standard library, the app's own modules, Pillow and openpyxl, and VirusTotal's sandboxes saw no network traffic or dropped files. Since the third build of v0.19.5 the exe is compiled with Nuitka (the Python code becomes C), which has no such loader; the trial of that build scored 0 of 69 on VirusTotal. The release notes carry the SHA-256 of the zip and of the exe.
+> **VirusTotal:** a tester found two engines flagging the earlier exe with generic names. The flagged part was the PyInstaller loader that every Python exe built that way starts with, not the app: its code was byte-identical to the loader published on PyPI, the archive held only Python's standard library, the app's own modules, Pillow and openpyxl, and VirusTotal's sandboxes saw no network traffic or dropped files. Since the third build of v0.19.5 the exe is compiled with Nuitka (the Python code becomes C), which has no such loader: that build scored 0 of 69 on VirusTotal, and the v0.19.6 exe 0 of 71. The release notes carry the SHA-256 of the zip and of the exe.
 
 ## How it works
 
 <p align="center"><img src="docs/screenshots/how-it-works.png" alt="How it works" width="900"></p>
 
-MediaClinic expects one subfolder per movie, the layout used by Plex, Kodi, Emby and Jellyfin. It checks Kodi `.nfo` and Emby/Jellyfin `movie.xml` files, so it also suits Plex libraries that use an NFO add-on. It checks every artwork file, metadata file and video, and shows one colour-coded health table, red for errors and yellow for warnings. From the same table you can repair the common problems in place.
+MediaClinic expects one subfolder per movie, the layout used by Plex, Kodi, Emby and Jellyfin (movie folders inside other folders are found too, up to five levels deep). It checks the `.nfo` files that Kodi, Jellyfin, Emby, Infuse and Plex (with its NFO agent) read. The `movie.xml` files of old Windows media centers (MediaBrowser, Media Center Master) are checked only if you choose them in the question at the first start, or later under *Settings → Health Rules → Health mode*: NFO only, NFO and `movie.xml`, or `movie.xml` only. It checks every artwork file, metadata file and video, and shows one colour-coded health table, red for errors and yellow for warnings. From the same table you can repair the common problems in place.
 
 ## What it checks
 
@@ -26,25 +26,25 @@ MediaClinic expects one subfolder per movie, the layout used by Plex, Kodi, Emby
 |---|---|
 | Artwork | `poster.jpg`, `folder.jpg`, `fanart.jpg` (or the Kodi names `<video>-poster.jpg`, `<video>-fanart.jpg`, `.png`, `.tbn`) present, decodable (corrupt kept apart from too small), right proportions, minimum resolution tier (4K to 360p), minimum file size, file format matching the extension |
 | Backdrops | `backdrop.jpg`, `backdrop1.jpg` and so on, plus Kodi extra fanart (`fanart1.jpg`, `extrafanart/`): count and average size |
-| Metadata | `MovieName.nfo` or `movie.nfo` (Kodi) and `movie.xml` (Emby/Jellyfin) present and well-formed; every error is listed with its line and tag name. DVD and Blu-ray folders (`VIDEO_TS`, `BDMV`) count as one movie. Every name that Kodi, Jellyfin, Emby and Plex read is recognised; folders that are not movies (TV series, folders that hold other movie folders) get no row and are listed in an "Ignored folders" window |
+| Metadata | `MovieName.nfo` or `movie.nfo` and, if your health mode uses it, `movie.xml`: present and well-formed; every error is listed with its line and tag name. DVD and Blu-ray folders (`VIDEO_TS`, `BDMV`) count as one movie. Every name that Kodi, Jellyfin, Emby and Plex read is recognised; folders that hold other movie folders are walked into (five levels), and folders that are not movies (TV series, empty folders) get no row and are listed in an "Ignored folders" window |
 | Identity | IMDB and TMDB IDs across all NFO/XML tags: missing, empty, conflicting, or present in one file only; duplicate movies (same ID, or same title and year, in another folder, also across libraries); optional online check that the IDs point to the right film |
-| Collections | The collection of each movie in the NFO and `movie.xml`: the two files agree, the name matches TMDB, the set folder has its poster and fanart. One name per collection: English, unless more than half of its titles are in another language, or a language you fix in Settings |
-| Ratings, titles, year | Rating and votes (legacy tags and Kodi v17+ `<ratings>` blocks), NFO title against XML local title, missing year |
-| Genres | Non-standard genres, synonyms, merged tags such as `Family/Fantasy`, translations from eight languages, genres present in only one of NFO and XML |
+| Collections | The collection of each movie in the NFO (and `movie.xml` when it is used): the two files agree, the name matches TMDB, the set folder has its poster and fanart. One name per collection: English, unless more than half of its titles are in another language, or a language you fix in Settings |
+| Ratings, titles, year | Rating and votes (legacy tags and Kodi v17+ `<ratings>` blocks), NFO title against XML local title (when both are used), missing year |
+| Genres | Non-standard genres, synonyms, merged tags such as `Family/Fantasy`, translations from eight languages, genres present in only one of NFO and XML (when both are used) |
 | Video (FFprobe) | Resolution class, audio tracks and languages, embedded subtitles, hard-coded subtitles you mark by hand, required language. *Language OK* counts audio and subtitle tracks only: the metadata language tags of the NFO and XML do not count. One probe per video, cached |
 
-Every check is a **health rule** you can switch on or off, or tune, in *Settings → Health Rules*.
+Every check is a **health rule** you can switch on or off, or tune, in *Settings → Health Rules*, in four parts: general rules, NFO rules, `movie.xml` rules and NFO-against-`movie.xml` comparisons. Parts your health mode does not use stay visible but grayed.
 
 ## What it fixes
 
-- **Normalize Genres** and **Normalize Sources**: written to both NFO and XML; movies without genres can get them from TMDb or OMDb after a preview
-- **Sync Ratings** from TMDb and OMDb (you supply your own free API keys)
+- **Normalize Genres** and **Normalize Sources**: written to the NFO and, when it is used, the `movie.xml`; movies without genres can get them from TMDb or OMDb after a preview
+- **Sync Ratings** from TMDb and OMDb (you supply your own free API keys); a movie with only an IMDb ID is looked up on TMDb by that ID, and the end message names any movie that was skipped and why
 - **Verify IMDb/TMDb IDs** against TMDb (title in any translation, year ±1) with a sortable report
 - **Movie collections**: a *Group by collection* view with one row per collection, *Check Collections Online* (TMDB), Fix, Set, Rename, Join and Remove from Collection, *Collection Artwork* to choose the set's poster and fanart, and Kodi's movie set information folder; a renamed collection takes its folder and images along, and Undo puts everything back
 - **Panel for the selected movie**: poster, its issues with Fix buttons, files and actions (Ctrl+B hides it)
 - **Auto Repair** for one movie, a selection or the whole library, with a dry-run preview: IDs, ratings, genres, year, titles and collections; a movie's own artwork is never touched
 - **Fetch Poster, Fanart and Backdrops** from TMDB or fanart.tv with thumbnails, or pick **frames from the video** with FFmpeg; new files follow the folder's naming style (Kodi or Emby)
-- **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to NFO and XML
+- **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to the NFO (and `movie.xml` when it is used)
 - **Backup History / Undo**: every backup records what it changed, and a whole run can be restored
 - **Fix image proportions / size**: for one movie or a batch, with a before/after preview and a backup first; an optional AI upscale is downloaded on request and checked by SHA-256
 - **Make titles the same** (NFO and XML) and rename an NFO to the name Kodi expects, with a preview for the whole library
@@ -65,16 +65,16 @@ pip install -r requirements.txt     # optional: pillow, openpyxl
 python mediaclinic.py
 ```
 
-**Linux and macOS:** there is no download yet, but the app runs from source, and the test suite runs on Ubuntu in CI. Install `python3-tk` and `ffmpeg` from your distribution (on macOS, a Python with Tk and `ffmpeg` from Homebrew), then:
+**Linux and macOS:** there is no download yet, but the app runs from source, and the test suite runs on Ubuntu in CI. On Debian or Ubuntu install `python3-tk python3-venv ffmpeg xdg-utils fonts-noto-color-emoji` (on macOS, a Python with Tk and `ffmpeg` from Homebrew), then:
 
 ```
 git clone https://github.com/junqueirach/mediaclinic
 cd mediaclinic
-pip install pillow openpyxl
-python3 mediaclinic.py
+python3 -m venv .venv && .venv/bin/pip install pillow openpyxl
+sh MediaClinic.sh
 ```
 
-Settings go to `~/.config/MediaMetadataClinic/`. Where your Kodi, Jellyfin, Emby or Plex runs does not matter: the app works on the files. Only Windows has been tested by hand, so a note with `logs/app.log` helps if something looks off.
+`MediaClinic.sh` says what is missing if Tk, Pillow or openpyxl is not installed. Settings go to `~/.config/MediaMetadataClinic/`. Where your Kodi, Jellyfin, Emby or Plex runs does not matter: the app works on the files. Windows is tested by hand and v0.19.6 was also checked on Ubuntu (under WSL); macOS is not tested, so a note with `logs/app.log` helps if something looks off.
 
 Run it from the folder that contains the `settings_*.py` files. FFmpeg and FFprobe are optional but recommended (point *Settings → Editor & FFmpeg* to their `bin` folder). Settings, your API keys and the last scan are stored in `%APPDATA%\MediaMetadataClinic\`, outside this repository, and since v0.19.4 so are the backups, so an update keeps Backup History and Undo (backups from an older version next to the program move there once). `logs/` is created next to the program. The full help is inside the app (F1).
 
@@ -84,9 +84,9 @@ This project is the clearest example of working with an AI under a written contr
 
 - [`docs/CLAUDE_RULES.md`](docs/CLAUDE_RULES.md) defines module boundaries, the save chain, naming rules and a safety checklist that every AI-edited change must respect
 - `settings_schema.json` plus `tests/settings_test_harness.py` check the settings subsystem after every change
-- `tests/selftest_v0_19_5.py` builds a synthetic library (NFO, XML, generated JPEGs and a real 3-second MKV) and runs more than 1,400 end-to-end checks, from health rules to Auto Repair and the export dialogs (TMDb calls are simulated); it runs in CI under a virtual display (checks that need Windows, such as the registry, backslash paths and the AI upscaler, are skipped on Linux) and never touches your real settings
+- `tests/selftest_v0_19_6.py` builds a synthetic library (NFO, XML, generated JPEGs and a real 3-second MKV) and runs more than 1,500 end-to-end checks, from health rules to Auto Repair and the export dialogs (TMDb calls are simulated); it runs in CI under a virtual display (checks that need Windows, such as the registry, backslash paths and the AI upscaler, are skipped on Linux) and never touches your real settings
 - The code is split into model, controller, context, dialog, export, help and genre-data modules so the AI can edit one part without breaking another
-- About 34,300 lines of Python in thirteen modules; 38 versions in total, the earlier ones in `archive/versions/`, starting from a 12 KB folder scanner
+- About 35,100 lines of Python in thirteen modules; 39 versions in total, the earlier ones in `archive/versions/`, starting from a 12 KB folder scanner
 - Changes per version are in [CHANGELOG.md](CHANGELOG.md)
 
 ---

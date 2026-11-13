@@ -170,7 +170,8 @@ def classify_folder(listing, peek=None, nfo_root=None, video_exts=None):
             sf = sub.files
             if (any(_ext(f[0]) in vx for f in sf.values())
                     or any(_ext(k) == ".nfo" for k in sf) or "movie.xml" in sf
-                    or is_disc(sf, sub.dirs) or any(SEASON_RE.match(_base(p)) for p in sub.dirs.values())):
+                    or is_disc(sf, sub.dirs) or any(SEASON_RE.match(_base(p)) for p in sub.dirs.values())
+                    or (sub.dirs and not sf)):            # v0.19.6 TR5: a folder of folders of folders (Single Movies\HD\<movie>)
                 hit = True
                 break
         if hit:

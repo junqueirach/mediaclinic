@@ -9,7 +9,7 @@ Metadata & MediaClinic audits and repairs Kodi, Jellyfin, Emby and Plex movie li
 One folder = one movie. A complete folder holds:
 - the video, e.g. **Movie Name (2001).mkv** (or .mp4, .avi …)
 - the Kodi metadata, **<video>.nfo** or **movie.nfo**
-- **movie.xml**, the Emby / Jellyfin metadata (optional)
+- **movie.xml**, a legacy format (optional): only Emby's XML plugin reads it, and Media Center Master writes it; Kodi, Jellyfin and Plex do not read it
 - **poster.jpg** (portrait, 2:3) and **fanart.jpg** (wide, 16:9)
 - **folder.jpg**, an identical copy of the poster (optional: every server reads poster.jpg)
 - extra backgrounds: **backdrop.jpg**, **backdrop1.jpg** … or Kodi's **<video>-fanart1.jpg** …
@@ -22,6 +22,12 @@ The Media Servers tab lists every name the servers read.
 3. Each row shows the health of one movie: green = no rule triggered, yellow = warnings, red = errors.
 4. Select a movie: the panel on the right shows its poster, its issues with a **Fix** button each, its files and the common actions.
 5. The last scan is saved and restored at the next start.
+6. At the first start the app asks once: **Which program plays your movies?** This is the **health mode**: it decides which files MediaClinic checks and repairs.
+- **Kodi, Jellyfin, Emby, Plex, Infuse…** (recommended): the .nfo files, as tinyMediaManager, Radarr or MediaElch make them. movie.xml is ignored (not read, not checked, not written; no .xml column).
+- **The above + old Windows media centers** (MediaBrowser, Media Center Master): the NFO and movie.xml, every check and fix of both.
+- **Only old Windows media centers**: movie.xml only. The NFO is ignored (not read, not checked, never written; no .nfo column). Title, year, rating, IDs and genres come from movie.xml, and the fixes write movie.xml. Collections, Rename NFO for Kodi and the **&** fix work on the NFO, so they are not offered.
+Change it later in **Settings → Health Rules → Health mode**; the app then offers a new scan.
+7. In the mode **The above + old Windows media centers**, a library where no movie has a movie.xml gets one more question after its scan: **NFO-only library?** **Yes, NFO only** switches the XML checks off for that library alone (no "Missing XML file" error, no NFO / XML comparison; the XML column shows —). Change it later in **Libraries…** with the **NFO only** button.
 
 ## Quick-start checklist
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
@@ -35,6 +41,7 @@ The Media Servers tab lists every name the servers read.
 | ◐ | warning — conflict, wrong proportions, a minor issue
 | ○ | missing
 | ✕ | error — corrupt image, XML error, unreadable value
+| — | not used — movie.xml in an NFO-only library, or the file the health mode does not use
 
 ## Files the app writes
 | settings.json | all settings (%APPDATA%\MediaMetadataClinic)

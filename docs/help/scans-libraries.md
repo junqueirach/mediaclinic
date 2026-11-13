@@ -15,11 +15,12 @@ You can scan several root folders. **Browse…** adds one folder; **Libraries…
 - The library box chooses what the table shows and what the scans cover ("All libraries" or one of them).
 - A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)". A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
 - Duplicates are found across libraries.
+- Movies can sit deeper: a folder that holds only other folders (Single Movies / HD / <movie>, Boxsets / <saga> / <movie>) is searched, down to 5 levels below the library. Every movie keeps its library in the Library column.
 
 ## Ignored folders
 A scan adds a row only for movie folders. These are not added:
 - TV series: tvshow.nfo, Season folders or episode files (S01E02, 1x02). Series support comes in v0.22.
-- Folders holding other movie folders: the library is one level too high; add the inner folders as libraries.
+- Folders of folders more than 5 levels below the library (shallower ones are searched for movies).
 - Folders with several separate videos: give each movie its own folder.
 - Folders with no video, NFO or XML, system folders ($RECYCLE.BIN, @eaDir …) and folders that could not be read.
 A folder with movie metadata is always a movie, and so is a folder with one video and no NFO. After a scan the **Ignored Folders of the Last Scan…** window opens when something was left out (filter, sort, double-click to open, **Export to TXT…**, **Copy All**); turn that off with "Show this window after a scan". **Tools → Ignored Folders of the Last Scan…** opens it at any time.

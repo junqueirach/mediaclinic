@@ -246,6 +246,43 @@ class DialogFrame(DialogBase):                                       ### NEW v0.
         return "break"
 
 
+### NEW v0.19.6 TR1b — the three health modes (the start question and Settings → Health Rules use the same words) ###
+HEALTH_MODES = (
+    ("nfo", "Kodi, Jellyfin, Emby, Plex, Infuse…", "recommended — most people choose this"),
+    ("nfo_xml", "The above + old Windows media centers", "MediaBrowser, Media Center Master"),
+    ("xml", "Only old Windows media centers", "MediaBrowser, Media Center Master"),
+)
+HEALTH_MODE_IDS = tuple(m[0] for m in HEALTH_MODES)
+HEALTH_MODE_NOTE = ("Kodi, Jellyfin, Emby, Plex and Infuse read the .nfo files (made by tinyMediaManager, Radarr, MediaElch, …):\n"
+                    "MediaClinic checks and repairs the NFO and ignores movie.xml. The old Windows media centers use movie.xml.\n"
+                    "Changing the mode offers a new scan of the libraries.")
+HEALTH_MODE_PATH = "Settings → Health Rules → Health mode"
+
+### NEW v0.19.6 TR1c — the four sections of the Health Rules tab and the health modes that use each ###
+HEALTH_RULE_SECTIONS = (
+    ("general", "General rules", ("nfo", "nfo_xml", "xml"), "every health mode"),
+    ("nfo", "NFO rules", ("nfo", "nfo_xml"), "modes 1 and 2"),
+    ("xml", "movie.xml rules", ("nfo_xml", "xml"), "modes 2 and 3"),
+    ("both", "NFO ↔ movie.xml comparisons", ("nfo_xml",), "mode 2"),
+)
+HEALTH_RULE_SECTION_OFF = {
+    "nfo": "Not used in mode 3 (movie.xml only). Choose mode 1 or 2 to use them.",
+    "xml": "Not used in mode 1. Choose mode 2 or 3 to use them.",
+    "both": "They compare the NFO with movie.xml: used in mode 2 only.",
+}
+
+
+def health_section_on(section, mode):
+    """True when the rules of *section* are used in health *mode*."""
+    return mode in next(s[2] for s in HEALTH_RULE_SECTIONS if s[0] == section)
+
+
+def health_mode_of(settings):
+    """The health mode in *settings*: one of HEALTH_MODE_IDS ("nfo" when missing or unknown)."""
+    m = (settings or {}).get("health_mode")
+    return m if m in HEALTH_MODE_IDS else "nfo"
+
+
 class SettingsFieldError(ValueError):                               ### NEW v0.19.4 B94 ###
     """A value in the Settings window that cannot be saved: *field* names it,
     *widget* is focused; nothing is applied."""
@@ -554,6 +591,7 @@ class SettingsDialog(DialogBase):
         # ── Jump to requested tab after UI is built ───────────────────────────
         self._nb = nb
         self.after(10, lambda: nb.select(min(self._initial_tab, len(nb.tabs()) - 1)))
+        self._fit_tab_row(nb)                                   ### NEW v0.19.6 TR8 ###
 
         # v0.19.0 — window size/position memory.  The hook is installed by the
         # main script (SettingsDialog._remember_window_hook); the harness and
@@ -564,6 +602,22 @@ class SettingsDialog(DialogBase):
                 _hook(self, "SettingsDialog", True)
             except Exception:
                 pass
+
+    def tab_row_width(self, nb):                                ### NEW v0.19.6 TR8 ###
+        """Pixels the notebook needs so that no tab name is cut off."""
+        nb.update_idletasks()
+        return int(nb.winfo_reqwidth())                         # ttk asks for the whole tab row
+
+    def _fit_tab_row(self, nb):                                 ### NEW v0.19.6 TR8 ###
+        """A wider system font (Linux draws "Helvetica" with DejaVu Sans) cut the tab names off
+        at 940 px ("Languag", "NFO / XM"): open the window as wide as the tab row needs."""
+        try:
+            need = self.tab_row_width(nb)
+            if need > 940:
+                self.geometry(f"{min(need, self.winfo_screenwidth() - 40)}x720")
+                self.minsize(min(need, self.winfo_screenwidth() - 40), 480)
+        except (tk.TclError, ValueError):
+            pass
 
     # ── v0.19.2 B58: where FFmpeg was found; "Search again" (deep, async) ─────
     @staticmethod
@@ -1702,6 +1756,10 @@ class SettingsDialog(DialogBase):
     def _build_tags_tab(self, nb, label="NFO / XML"):
         f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
 
+        # v0.19.6 TR1b — whether movie.xml is used at all is the health mode (Health Rules tab)
+        tk.Label(f, text=f"movie.xml is used only in the health modes for the old Windows media centers ({HEALTH_MODE_PATH}).",
+                 font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", justify="left").pack(anchor="w", padx=16, pady=(12, 0))
+
         tk.Label(f, text="NFO ↔ XML Tag Comparison Pairs",
                  font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(16, 4))
@@ -1730,9 +1788,12 @@ class SettingsDialog(DialogBase):
         self._tags_text.insert("1.0", "\n".join(lines))
 
         br = tk.Frame(f, bg="#1e1e2e"); br.pack(fill="x", padx=16, pady=(0, 4))
-        tk.Button(br, text="Reset to defaults", font=("Helvetica", 9),
+        self._tags_reset_btn = tk.Button(br, text="Reset to defaults", font=("Helvetica", 9),
                   bg="#45475a", fg="#f38ba8", relief="flat", cursor="hand2",
-                  command=self._reset_tags).pack(side="left")
+                  command=self._reset_tags)
+        self._tags_reset_btn.pack(side="left")
+        self._tags_note = tk.Label(br, text="", font=("Helvetica", 9, "italic"), bg="#1e1e2e", fg="#f9e2af")   # v0.19.6 TR1c
+        self._tags_note.pack(side="left", padx=12)
 
         # ── NEW v0.19.4 B110g — Collections: Kodi's movie set information folder ──
         tk.Label(f, text="Collections", font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
@@ -1906,24 +1967,48 @@ class SettingsDialog(DialogBase):
             tk.Label(f, text=text, font=("Helvetica", 11, "bold"),
                      bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=14, pady=(4, 2))
 
+        # ── NEW v0.19.6 TR1b — Health mode (first: it decides which files the rules below look at) ──
+        _section("Health mode — which program plays your movies?")
+        self._health_mode_initial = health_mode_of(self._s)
+        self._health_mode_var = tk.StringVar(value=self._health_mode_initial)
+        for _i, (_mid, _title, _sub) in enumerate(HEALTH_MODES, 1):
+            tk.Radiobutton(f, text=f"{_i}.  {_title}   ({_sub})", value=_mid, variable=self._health_mode_var,
+                           font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4", selectcolor="#313244",
+                           activebackground="#1e1e2e", activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=1)
+        tk.Label(f, text=HEALTH_MODE_NOTE, font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086",
+                 justify="left").pack(anchor="w", padx=42, pady=(2, 4))
+
+        # ── v0.19.6 TR1c: the current section and level (the rows below pack into it) ──
+        self._hr_sections = {}
+        _cur, _sec, _lvl = [f], [None], ["warning"]
+
+        def _level_tag(row, key):
+            if _sec[0]:
+                self._hr_sections[_sec[0]]["keys"].append(key)
+            tk.Label(row, text=_lvl[0], font=("Helvetica", 9), bg="#1e1e2e",
+                     fg="#f38ba8" if _lvl[0] == "error" else "#f9e2af").pack(side="right", padx=(8, 24))
+
         # ── Helper: plain checkbox row ─────────────────────────────────────────
         def _check_row(key, label_text):
+            _row = tk.Frame(_cur[0], bg="#1e1e2e"); _row.pack(fill="x", padx=22, pady=1)   # v0.19.6 TR1c
             val = hr_current.get(key, hr_defaults.get(key, True))
             v   = tk.BooleanVar(value=val)
             self._hr_vars[key] = v
-            tk.Checkbutton(f, text=label_text, variable=v,
+            _level_tag(_row, key)
+            tk.Checkbutton(_row, text=label_text, variable=v,
                            font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                            selectcolor="#313244", activebackground="#1e1e2e",
-                           activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=1)
+                           activeforeground="#cdd6f4").pack(side="left")
             return v
 
         # ── Helper: checkbox + inline combobox ────────────────────────────────
         def _check_combo_row(bool_key, str_key, label_text, values, default_str,
                              combo_width=12):
-            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            row = tk.Frame(_cur[0], bg="#1e1e2e"); row.pack(fill="x", padx=22, pady=1)
             b_val = hr_current.get(bool_key, hr_defaults.get(bool_key, True))
             bv    = tk.BooleanVar(value=b_val)
             self._hr_vars[bool_key] = bv
+            _level_tag(row, bool_key)
             s_val = hr_current.get(str_key, hr_defaults.get(str_key, default_str))
             sv    = tk.StringVar(value=s_val)
             self._hr_str_vars[str_key] = sv
@@ -1945,10 +2030,11 @@ class SettingsDialog(DialogBase):
         # ── Helper: checkbox + spinbox (int) ──────────────────────────────────
         def _check_spin_int_row(bool_key, int_key, label_text, default_int,
                                 from_, to_, width=4):
-            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            row = tk.Frame(_cur[0], bg="#1e1e2e"); row.pack(fill="x", padx=22, pady=1)
             b_val = hr_current.get(bool_key, hr_defaults.get(bool_key, True))
             bv    = tk.BooleanVar(value=b_val)
             self._hr_vars[bool_key] = bv
+            _level_tag(row, bool_key)
             i_val = hr_current.get(int_key, hr_defaults.get(int_key, default_int))
             iv    = tk.IntVar(value=i_val)
             self._hr_int_vars[int_key] = iv
@@ -1970,10 +2056,11 @@ class SettingsDialog(DialogBase):
         # ── Helper: checkbox + spinbox (float) ────────────────────────────────
         def _check_spin_flt_row(bool_key, flt_key, label_text, default_flt,
                                 from_, to_, incr=0.1, width=5):
-            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            row = tk.Frame(_cur[0], bg="#1e1e2e"); row.pack(fill="x", padx=22, pady=1)
             b_val = hr_current.get(bool_key, hr_defaults.get(bool_key, True))
             bv    = tk.BooleanVar(value=b_val)
             self._hr_vars[bool_key] = bv
+            _level_tag(row, bool_key)
             f_val = hr_current.get(flt_key, hr_defaults.get(flt_key, default_flt))
             fv    = tk.DoubleVar(value=f_val)
             self._hr_flt_vars[flt_key] = fv
@@ -1995,10 +2082,11 @@ class SettingsDialog(DialogBase):
 
         # ── Helper: checkbox + language combobox ──────────────────────────────
         def _check_lang_row(bool_key, str_key, label_text, lang_list, default_code):
-            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            row = tk.Frame(_cur[0], bg="#1e1e2e"); row.pack(fill="x", padx=22, pady=1)
             b_val = hr_current.get(bool_key, hr_defaults.get(bool_key, True))
             bv    = tk.BooleanVar(value=b_val)
             self._hr_vars[bool_key] = bv
+            _level_tag(row, bool_key)
             s_val = hr_current.get(str_key, hr_defaults.get(str_key, default_code))
             sv    = tk.StringVar(value=s_val)
             self._hr_str_vars[str_key] = sv
@@ -2027,12 +2115,13 @@ class SettingsDialog(DialogBase):
 
         # ── Helper: severity combobox (error / warning / off) ─── ### NEW v0.19.1 B24 ###
         def _level_row(str_key, label_text, default_str):
-            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            row = tk.Frame(_cur[0], bg="#1e1e2e"); row.pack(fill="x", padx=22, pady=1)
             s_val = hr_current.get(str_key, hr_defaults.get(str_key, default_str))
             if s_val not in ("error", "warning", "off"):
                 s_val = default_str
             sv = tk.StringVar(value=s_val)
             self._hr_str_vars[str_key] = sv
+            _sec[0] and self._hr_sections[_sec[0]]["keys"].append(str_key)
             tk.Label(row, text=label_text, font=("Helvetica", 10), bg="#1e1e2e",
                      fg="#cdd6f4").pack(side="left")
             ttk.Combobox(row, textvariable=sv, values=("error", "warning", "off"),
@@ -2041,13 +2130,14 @@ class SettingsDialog(DialogBase):
 
         # ── Helper: one value from a short list, shown by label ── ### NEW v0.19.3 B60 ###
         def _choice_row(str_key, label_text, options, default_str):
-            row = tk.Frame(f, bg="#1e1e2e"); row.pack(anchor="w", padx=22, pady=1)
+            row = tk.Frame(_cur[0], bg="#1e1e2e"); row.pack(fill="x", padx=22, pady=1)
             keys = [k for k, _l in options]
             s_val = hr_current.get(str_key, hr_defaults.get(str_key, default_str))
             if s_val not in keys:
                 s_val = default_str
             sv = tk.StringVar(value=s_val)                 # the stored value ("nfo" …)
             self._hr_str_vars[str_key] = sv
+            _sec[0] and self._hr_sections[_sec[0]]["keys"].append(str_key)
             shown = tk.StringVar(value=dict(options)[s_val])
             tk.Label(row, text=label_text, font=("Helvetica", 10), bg="#1e1e2e",
                      fg="#cdd6f4").pack(side="left")
@@ -2080,17 +2170,43 @@ class SettingsDialog(DialogBase):
                   relief="flat", cursor="hand2",
                   command=_reset_defaults).pack(anchor="w", padx=14, pady=(0, 8))
 
-        # ── GROUP A: Critical Error Rules ──────────────────────────────────────
-        _section("Critical Error Rules — mark movie as ERROR (red)")
+        # ── v0.19.6 TR1c: four sections by file; a rule line names its level (error / warning) ──
+        def _rules_section(sec):
+            sid, title, _modes, which = next(s for s in HEALTH_RULE_SECTIONS if s[0] == sec)
+            box = tk.Frame(f, bg="#1e1e2e"); box.pack(fill="x")
+            tk.Frame(box, bg="#45475a", height=1).pack(fill="x", padx=12, pady=(12, 0))
+            head = tk.Frame(box, bg="#1e1e2e"); head.pack(fill="x")
+            tk.Label(head, text=title, font=("Helvetica", 11, "bold"), bg="#1e1e2e", fg="#89b4fa").pack(side="left", padx=14, pady=(4, 2))
+            tk.Label(head, text=f"({which})", font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086").pack(side="right", padx=24)
+            note = tk.Label(box, text="", font=("Helvetica", 9, "italic"), bg="#1e1e2e", fg="#f9e2af", justify="left")
+            self._hr_sections[sec] = {"frame": box, "note": note, "head": head, "keys": []}   # the note is packed only when grayed
+            _cur[0] = box
+            _sec[0] = sec
 
+        def _level(lv):
+            _lvl[0] = lv
+
+        def _sub(title):                                        ### NEW v0.19.6 TR1d — a topic inside a section ###
+            tk.Label(_cur[0], text=title, font=("Helvetica", 10, "bold"), bg="#1e1e2e",
+                     fg="#fab387").pack(anchor="w", padx=18, pady=(10, 1))
+
+        _rules_section("general")
+        _sub("Video and audio")                                    # v0.19.6 TR1d
+        _level("error")
         _check_row("missing_video_file", "Missing video file")
-        _check_row("corrupt_nfo",        "Corrupt NFO file (XML parse error)")
-        _check_row("missing_nfo",        "Missing NFO file")
-        _check_row("corrupt_xml",        "Corrupt XML file (XML parse error)")
-        _check_row("missing_xml",        "Missing XML file")
-        _check_row("corrupt_poster",     "Corrupt poster image")
-        _check_row("corrupt_fanart",     "Corrupt fanart image")
-        _check_row("corrupt_folder",     "Corrupt folder image")
+        _check_row("no_audio_tracks",    "No audio tracks detected")
+        _check_combo_row("video_quality_minimum", "video_quality_minimum_level",
+                         "Video quality below minimum:",
+                         VIDEO_QUALITY_LEVELS, "720p", combo_width=12)
+        _level("warning")
+        _check_row("multiple_video_files",   "Multiple video files in same folder  (default: OFF)")
+        _check_lang_row("required_audio_language", "required_audio_language_code",
+                        "Required audio language missing:", AUDIO_LANGUAGES, "ENG")
+        _check_lang_row("required_subtitle_language", "required_subtitle_language_code",
+                        "Required subtitle language missing:", SUBTITLE_LANGUAGES, "POR")
+        _check_row("lang_not_ok",            "Target language not found (Lang OK? column)")
+        _sub("Movie IDs (IMDb / TMDB)")                                    # v0.19.6 TR1d
+        _level("error")
         _check_row("missing_imdb_id",    "Missing IMDb ID (no tag, or all tags empty)")
         _check_row("corrupt_imdb_id",    "IMDb ID conflict between tags, or tag empty in one file")
         _check_row("missing_tmdb_id",    "Missing TMDB ID (no tag, or all tags empty)")
@@ -2100,22 +2216,34 @@ class SettingsDialog(DialogBase):
         _level_row("no_source_level",
                    "  ↳ Movie with NO source (no IMDb, no TMDB) — report as:", "error")
         _check_row("corrupt_tmdb_id",    "TMDB ID conflict between tags, or tag empty in one file")
-        _check_row("rating_conflict",    "Rating conflict between NFO and XML (values differ)")
-        _check_row("votes_conflict",     "Votes conflict between NFO <votes> and XML <Votes>")
-        _check_row("genre_missing",      "Missing genre information")
-        _check_row("missing_movie_year", "Missing movie year in NFO/XML")
-        _check_row("no_audio_tracks",    "No audio tracks detected")
-        _check_combo_row("video_quality_minimum", "video_quality_minimum_level",
-                         "Video quality below minimum:",
-                         VIDEO_QUALITY_LEVELS, "720p", combo_width=12)
-
-        # ── GROUP B: Warning Rules ─────────────────────────────────────────────
-        _section("Warning Rules — mark movie as WARNING (yellow)  (default: OFF noted)")
-
-        _check_row("multiple_video_files",   "Multiple video files in same folder  (default: OFF)")
-        _check_row("imdb_id_partial",        "IMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
-        _check_row("tmdb_id_partial",        "TMDB ID present in one file only (NFO or XML)")   # NEW v0.18.3
+        _level("warning")
+        _check_row("id_format_invalid",      "IMDb / TMDB ID not valid (tt + 7–9 digits / digits; Auto Repair trims 'tt0133093/')")
         _check_row("duplicate_movie",        "Possible duplicate (same IMDb/TMDB ID or title + year in another folder)")  # NEW v0.18.4
+        _sub("Title, year and genres")                                    # v0.19.6 TR1d
+        _level("error")
+        _check_row("missing_movie_year", "Missing movie year in NFO/XML")
+        _check_row("genre_missing",      "Missing genre information")
+        _level("warning")
+        _check_row("missing_movie_title",    "Missing movie title in NFO/XML")
+        _check_row("year_out_of_range",      "Year out of range (before 1888 or after next year)")
+        _check_row("folder_name_mismatch",   "Folder name doesn't match movie title  (default: OFF)")
+        _check_row("genre_warning",          "Genre issues detected (non-standard genres)")
+        _sub("Rating and votes")                                    # v0.19.6 TR1d
+        _level("error")
+        _check_row("rating_conflict",    "Rating conflict (NFO and XML differ, or inside one file)")
+        _level("warning")
+        _check_row("missing_rating",     "Missing rating")
+        _check_row("rating_warning",     "Rating tag unreadable (non-numeric value)")
+        _check_spin_flt_row("suspicious_rating", "suspicious_rating_threshold",
+                            "Suspicious rating value (below):", 1.0, 0.0, 10.0, incr=0.1, width=5)
+        _check_row("missing_votes",          "Missing votes count")
+        _check_row("votes_warning",          "Votes tag unreadable (non-numeric value)")
+        _sub("Images: poster, fanart, folder")                                    # v0.19.6 TR1d
+        _level("error")
+        _check_row("corrupt_poster",     "Corrupt poster image")
+        _check_row("corrupt_fanart",     "Corrupt fanart image")
+        _check_row("corrupt_folder",     "Corrupt folder image")
+        _level("warning")
         _check_row("missing_poster",         "Missing poster")
         _check_row("poster_missing_with_folder",                              # NEW v0.19.2 F5
                    "  ↳ also when folder.jpg exists (servers use it as the poster; default: OFF)")
@@ -2123,20 +2251,6 @@ class SettingsDialog(DialogBase):
         _check_row("missing_folder",         "Missing folder image  (off by default — no media server needs it)")   # v0.19.2 B35
         _check_row("folder_optional_with_kodi_poster",                        # NEW v0.19.1 B23
                    "  ↳ folder.jpg optional when a Kodi poster (<video>-poster.jpg, .tbn) exists")
-        _check_row("nfo_name_not_kodi",                                       # NEW v0.19.1 B23
-                   "NFO named after the folder, not read by Kodi (<video>.nfo / movie.nfo)")
-        _check_row("nfo_unescaped_amp",                                       # NEW v0.19.2 B33
-                   "NFO has an unescaped '&' (Jellyfin may ignore the NFO; Auto Repair fixes it)")
-        _check_row("multiple_nfo_files",                                      # NEW v0.19.2 F5
-                   "More than one NFO the servers read (movie.nfo + <video>.nfo …)")
-        # ### NEW v0.19.3 I8 ### content of the NFO / XML (warnings)
-        _check_row("id_format_invalid",      "IMDb / TMDB ID not valid (tt + 7–9 digits / digits; Auto Repair trims 'tt0133093/')")
-        _check_row("year_premiered_differ",  "NFO <year> and the year of <premiered> differ")
-        _check_row("year_out_of_range",      "Year out of range (before 1888 or after next year)")
-        _check_row("numeric_field_invalid",  "Runtime / votes not a whole number, rating not 0–10")
-        _check_row("duplicate_single_tag",   "A tag that belongs once appears twice (<title>, <year> …)")
-        _check_row("empty_required_tag",     "Empty <title> / <plot> / <Overview>  (default: OFF)")
-        _check_row("unexpected_root",        "NFO root is not <movie> / XML root is not <Item> or <Title>")
         _check_row("poster_proportion",      "Poster has wrong proportions")
         _check_row("fanart_proportion",      "Fanart has wrong proportions")
         _check_row("folder_proportion",      "Folder image has wrong proportions")
@@ -2149,37 +2263,102 @@ class SettingsDialog(DialogBase):
         _check_row("image_file_too_small",   "Image file below minimum size (KB limits from the Image Sizes tab)")   # NEW v0.19.0
         _check_row("image_format_mismatch",  "Image format differs from its extension (e.g. a PNG named poster.jpg)")  # NEW v0.19.0
         _check_row("poster_folder_identical",  "Poster and folder image are different  (off by default — no media server needs it)")   # v0.19.2 B35
+        _sub("Backdrops")                                    # v0.19.6 TR1d
+        _level("warning")
         _check_spin_int_row("insufficient_backdrops", "backdrop_min_count",
                             "Backdrop images below minimum:", 5, 1, 50, width=4)
         _check_spin_int_row("backdrop_too_small", "backdrop_min_avg_kb",
                             "Backdrop images suspiciously small (avg KB below):", 20, 1, 500, width=5)
-        _check_row("missing_rating",     "Missing rating")
-        _check_row("rating_warning",     "Rating tag unreadable (non-numeric value)")
-        _check_spin_flt_row("suspicious_rating", "suspicious_rating_threshold",
-                            "Suspicious rating value (below):", 1.0, 0.0, 10.0, incr=0.1, width=5)
-        _check_row("genre_warning",          "Genre issues detected (non-standard genres)")
+        _sub("File content (NFO / XML)")                                    # v0.19.6 TR1d
+        _level("warning")
+        # ### NEW v0.19.3 I8 ### content of the NFO / XML (warnings)
+        _check_row("numeric_field_invalid",  "Runtime / votes not a whole number, rating not 0–10")
+        _check_row("duplicate_single_tag",   "A tag that belongs once appears twice (<title>, <year> …)")
+        _check_row("empty_required_tag",     "Empty <title> / <plot> / <Overview>  (default: OFF)")
+        _check_row("unexpected_root",        "NFO root is not <movie> / XML root is not <Item> or <Title>")
+        _check_row("nfo_xml_too_large",      "NFO or XML file too large (uses max KB from Improvements tab)")
+
+        _rules_section("nfo")
+        _level("error")
+        _check_row("missing_nfo",        "Missing NFO file")
+        _check_row("corrupt_nfo",        "Corrupt NFO file (XML parse error)")
+        _level("warning")
+        _check_row("nfo_name_not_kodi",                                       # NEW v0.19.1 B23
+                   "NFO named after the folder, not read by Kodi (<video>.nfo / movie.nfo)")
+        _check_row("nfo_unescaped_amp",                                       # NEW v0.19.2 B33
+                   "NFO has an unescaped '&' (Jellyfin may ignore the NFO; Auto Repair fixes it)")
+        _check_row("multiple_nfo_files",                                      # NEW v0.19.2 F5
+                   "More than one NFO the servers read (movie.nfo + <video>.nfo …)")
+        _check_row("genre_nfo_wrong_tags",   "NFO uses non-Kodi genre tags (<Genres>/<Genre>)")            # NEW v0.19.1
+        _check_row("year_premiered_differ",  "NFO <year> and the year of <premiered> differ")
+        _check_row("collection_mismatch",    "Collection missing or different from TMDB (Tools → Check Collections Online)")   # NEW v0.19.4 B110c
+        _check_row("collection_artwork",     "Collection folder / poster / fanart missing (only with a collection folder, NFO / XML tab)")   # NEW v0.19.4 B110g
+        _rules_section("xml")
+        _level("error")
+        _check_row("missing_xml",        "Missing movie.xml")
+        _check_row("corrupt_xml",        "Corrupt movie.xml (XML parse error)")
+        _check_row("votes_conflict",     "Votes conflict (NFO <votes> and XML <Votes>, or inside movie.xml)")
+        _rules_section("both")
+        _level("warning")
+        _check_row("imdb_id_partial",        "IMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
+        _check_row("tmdb_id_partial",        "TMDB ID present in one file only (NFO or XML)")   # NEW v0.18.3
         _check_row("genre_only_in_xml",      "Genres only in the XML (NFO has no <genre> tags)")          # NEW v0.19.1
         _check_row("genre_only_in_nfo",      "Genres only in the NFO (XML has no <Genre> tags)")          # NEW v0.19.1
-        _check_row("genre_nfo_wrong_tags",   "NFO uses non-Kodi genre tags (<Genres>/<Genre>)")            # NEW v0.19.1
-        _check_row("missing_votes",          "Missing votes count")
-        _check_row("votes_warning",          "Votes tag unreadable (non-numeric value)")
-        _check_row("lang_not_ok",            "Target language not found (Lang OK? column)")
-        _check_row("nfo_xml_too_large",      "NFO or XML file too large (uses max KB from Improvements tab)")
-        _check_lang_row("required_audio_language", "required_audio_language_code",
-                        "Required audio language missing:", AUDIO_LANGUAGES, "ENG")
-        _check_lang_row("required_subtitle_language", "required_subtitle_language_code",
-                        "Required subtitle language missing:", SUBTITLE_LANGUAGES, "POR")
-        _check_row("missing_movie_title",    "Missing movie title in NFO/XML")
         _check_row("title_mismatch",         "Title mismatch between NFO and XML")
         # ### NEW v0.19.3 B60 ### Repair All, when it cannot tell which local title is right
         _choice_row("title_sync_default", "  ↳ When Repair All cannot tell the right local title:",
                     (("nfo", "keep the NFO title"), ("skip", "skip and report")), "nfo")
-        _check_row("folder_name_mismatch",   "Folder name doesn't match movie title  (default: OFF)")
-        _check_row("collection_mismatch",    "Collection missing or different from TMDB (Tools → Check Collections Online)")   # NEW v0.19.4 B110c
-        _check_row("collection_artwork",     "Collection folder / poster / fanart missing (only with a collection folder, NFO / XML tab)")   # NEW v0.19.4 B110g
+
+        # gray the sections the health mode does not use, at once when the mode changes (before Save)
+        self._health_mode_var.trace_add("write", lambda *_: self._apply_health_sections())
+        self._apply_health_sections()
 
         # bottom padding
         tk.Frame(f, bg="#1e1e2e", height=16).pack()
+
+    def _apply_health_sections(self):                           ### NEW v0.19.6 TR1c ###
+        """Gray the rule sections the chosen health mode does not use: visible, not clickable, their values kept
+        (switching back shows them as they were). The NFO / XML tag pairs compare the two files: mode 2 only."""
+        mode = self._health_mode_var.get()
+        for sec, d in getattr(self, "_hr_sections", {}).items():
+            on = health_section_on(sec, mode)
+            d["note"].configure(text="" if on else HEALTH_RULE_SECTION_OFF.get(sec, ""))
+            if on:
+                d["note"].pack_forget()
+            else:
+                d["note"].pack(anchor="w", padx=22, after=d["head"])
+            self._set_tree_state(d["frame"], on, skip=(d["note"],))
+            if on:                                              # the combos / spinboxes follow their checkbox again
+                for k in d["keys"]:
+                    v = self._hr_vars.get(k)
+                    if v is not None:
+                        v.set(v.get())
+        if hasattr(self, "_tags_text"):
+            on = health_section_on("both", mode)
+            self._tags_text.configure(state="normal" if on else "disabled", fg="#cdd6f4" if on else "#6c7086")
+            if hasattr(self, "_tags_reset_btn"):
+                self._tags_reset_btn.configure(state="normal" if on else "disabled")
+            if hasattr(self, "_tags_note"):
+                self._tags_note.configure(text="" if on else "Used in health mode 2 only (" + HEALTH_MODE_PATH + ").")
+
+    @staticmethod
+    def _set_tree_state(w, on, skip=()):                        ### NEW v0.19.6 TR1c ###
+        for c in w.winfo_children():
+            if c in skip:
+                continue
+            cls = c.winfo_class()
+            try:
+                if cls in ("Checkbutton", "Radiobutton", "Button", "Spinbox"):
+                    c.configure(state="normal" if on else "disabled")
+                elif cls == "TCombobox":
+                    c.configure(state="readonly" if on else "disabled")
+                elif cls == "Label":
+                    if not hasattr(c, "_mc_fg"):
+                        c._mc_fg = c.cget("fg")
+                    c.configure(fg=c._mc_fg if on else "#585b70")
+            except tk.TclError:
+                pass
+            SettingsDialog._set_tree_state(c, on, skip)
 
     # ── Tab 11: Backup  (v0.12.0)  ───────────────────────────────────────────── ### MODIFIED_BY_CLAUDE_v18.2 — was Tab 9 ###
 
@@ -2481,7 +2660,10 @@ class SettingsDialog(DialogBase):
             hr_changed = (curr_hr != snap_hr)
         changed["health_rules"] = hr_changed
 
-        changed["any"] = any([img, lang, genres, tags, hr_changed])
+        # v0.19.6 TR1 — movie.xml on / off: health at once, then a new scan reads or drops the XML data
+        changed["xml"] = (hasattr(self, "_health_mode_var")                  # v0.19.6 TR1b: the health mode
+                          and self._health_mode_var.get() != getattr(self, "_health_mode_initial", "nfo"))
+        changed["any"] = any([img, lang, genres, tags, hr_changed, changed["xml"]])
         return changed
 
     def _offer_rescan(self, parent_app):
@@ -2672,6 +2854,8 @@ class SettingsDialog(DialogBase):
                 _s["dark_title_bar"] = bool(self._dark_title_var.get())
             if hasattr(self, "_scan_ignored_report_var"):                   ### NEW v0.19.2 B53 ###
                 _s["scan_ignored_report"] = bool(self._scan_ignored_report_var.get())
+            if hasattr(self, "_health_mode_var"):                           ### NEW v0.19.6 TR1b ###
+                _s["health_mode"] = health_mode_of({"health_mode": self._health_mode_var.get()})
             if hasattr(self, "_max_backup_mb_var"):
                 _s["max_backup_size_mb"] = max(0, self._num(self._max_backup_mb_var, int(_s.get("max_backup_size_mb", 500) or 0)))   # F20
             if hasattr(self, "_backup_cleanup_var"):                        ### NEW v0.19.3 I12 ###
@@ -2750,7 +2934,9 @@ class SettingsDialog(DialogBase):
         # v0.19.0: Image Sizes changes (quality tiers, KB minimums, proportion
         # toggles) are re-evaluated in place from the cached image facts, so
         # they follow the same track as the health rules and need no rescan.
-        if ((changed.get("health_rules") or changed.get("image_sizes"))        ### MODIFIED v0.19.0 ###
+        if changed.get("xml") and parent_app and hasattr(parent_app, "_apply_column_visibility"):   ### NEW v0.19.6 TR1 ###
+            parent_app.after(0, parent_app._apply_column_visibility)
+        if ((changed.get("health_rules") or changed.get("image_sizes") or changed.get("xml"))   ### MODIFIED v0.19.0; xml v0.19.6 ###
                 and parent_app and hasattr(parent_app, "_apply_health_rules_inplace")):
             def _apply_rules_now():
                 if getattr(parent_app, "_scanning", False):     ### NEW v0.19.4 B91 — wait until the scan ends ###
@@ -2778,6 +2964,7 @@ class SettingsDialog(DialogBase):
             changed.get("language"),                                ### MODIFIED v0.19.0 — image_sizes handled in place ###
             changed.get("genres"),
             changed.get("tags"),
+            changed.get("xml"),                                     ### NEW v0.19.6 TR1 ###
         ])
         if _scan_relevant and parent_app:
             parent_app.after(0, lambda: self._offer_rescan(parent_app))

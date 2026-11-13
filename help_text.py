@@ -1,7 +1,7 @@
 # =============================================================================
 # help_text.py
 # Metadata & MediaClinic — Help contents (structure markup, pure text)
-# Version: 0.19.5                                              ### REWRITTEN v0.19.4 B74 ###
+# Version: 0.19.6                                              ### REWRITTEN v0.19.4 B74 ###
 # Author:  Luiz Junqueira & Claude AI
 #
 # v0.19.4 B74 — the Help is written as STRUCTURE, not as pre-formatted text.
@@ -115,7 +115,7 @@ Metadata & MediaClinic audits and repairs Kodi, Jellyfin, Emby and Plex movie li
 One folder = one movie. A complete folder holds:
 - the video, e.g. **Movie Name (2001).mkv** (or .mp4, .avi …)
 - the Kodi metadata, **<video>.nfo** or **movie.nfo**
-- **movie.xml**, the Emby / Jellyfin metadata (optional)
+- **movie.xml**, a legacy format (optional): only Emby's XML plugin reads it, and Media Center Master writes it; Kodi, Jellyfin and Plex do not read it
 - **poster.jpg** (portrait, 2:3) and **fanart.jpg** (wide, 16:9)
 - **folder.jpg**, an identical copy of the poster (optional: every server reads poster.jpg)
 - extra backgrounds: **backdrop.jpg**, **backdrop1.jpg** … or Kodi's **<video>-fanart1.jpg** …
@@ -128,6 +128,12 @@ The Media Servers tab lists every name the servers read.
 3. Each row shows the health of one movie: green = no rule triggered, yellow = warnings, red = errors.
 4. Select a movie: the panel on the right shows its poster, its issues with a **Fix** button each, its files and the common actions.
 5. The last scan is saved and restored at the next start.
+6. At the first start the app asks once: **Which program plays your movies?** This is the **health mode**: it decides which files MediaClinic checks and repairs.
+- **Kodi, Jellyfin, Emby, Plex, Infuse…** (recommended): the .nfo files, as tinyMediaManager, Radarr or MediaElch make them. movie.xml is ignored (not read, not checked, not written; no .xml column).
+- **The above + old Windows media centers** (MediaBrowser, Media Center Master): the NFO and movie.xml, every check and fix of both.
+- **Only old Windows media centers**: movie.xml only. The NFO is ignored (not read, not checked, never written; no .nfo column). Title, year, rating, IDs and genres come from movie.xml, and the fixes write movie.xml. Collections, Rename NFO for Kodi and the **&** fix work on the NFO, so they are not offered.
+Change it later in **Settings → Health Rules → Health mode**; the app then offers a new scan.
+7. In the mode **The above + old Windows media centers**, a library where no movie has a movie.xml gets one more question after its scan: **NFO-only library?** **Yes, NFO only** switches the XML checks off for that library alone (no "Missing XML file" error, no NFO / XML comparison; the XML column shows —). Change it later in **Libraries…** with the **NFO only** button.
 
 ## Quick-start checklist
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
@@ -141,6 +147,7 @@ The Media Servers tab lists every name the servers read.
 | ◐ | warning — conflict, wrong proportions, a minor issue
 | ○ | missing
 | ✕ | error — corrupt image, XML error, unreadable value
+| — | not used — movie.xml in an NFO-only library, or the file the health mode does not use
 
 ## Files the app writes
 | settings.json | all settings (%APPDATA%\\MediaMetadataClinic)
@@ -181,8 +188,8 @@ Select one movie and the panel shows its poster, year, genres, rating, library a
 | Source | the IMDb and TMDB IDs of every tag: ⬤ all agree, ◐ partial or conflict, ○ missing, ✕ some tags filled and some empty. Hover shows the last Verify IDs result; double-click opens IMDb or TMDB.
 | Poster, Folder, Fanart | status and quality tier of each image (Images tab).
 | Backdrops | the number of backdrop images; hover: their average size.
-| .nfo / .xml | the metadata file status. Hover lists the errors with the line and the tag names (the first 5); double-click opens the file in your editor.
-| Language | The top-level XML <Language>: the language for metadata downloads on Jellyfin and Emby. Empty is normal.
+| .nfo / .xml | the metadata file status. Hover lists the errors with the line and the tag names (the first 5); double-click opens the file in your editor. The health mode hides the column of the file it does not use (.xml for Kodi, Jellyfin, Emby…; .nfo for movie.xml only); — means not used (an NFO-only library).
+| Language | movie.xml's top-level <Language>: the language for metadata downloads. Without movie.xml: the NFO's top-level <language> (the same meaning), else the language of the first audio track. The tooltip names the source. Empty is normal.
 | Video, Video Size, Quality | container, size and resolution class.
 | Audio | FFprobe audio tracks, e.g. EN (5.1), PT (2.0).
 | Language OK | Y / N: the target language in audio or subtitles (the heading shows the code, e.g. "PT OK?").
@@ -226,11 +233,12 @@ You can scan several root folders. **Browse…** adds one folder; **Libraries…
 - The library box chooses what the table shows and what the scans cover ("All libraries" or one of them).
 - A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)". A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
 - Duplicates are found across libraries.
+- Movies can sit deeper: a folder that holds only other folders (Single Movies / HD / <movie>, Boxsets / <saga> / <movie>) is searched, down to 5 levels below the library. Every movie keeps its library in the Library column.
 
 ## Ignored folders
 A scan adds a row only for movie folders. These are not added:
 - TV series: tvshow.nfo, Season folders or episode files (S01E02, 1x02). Series support comes in v0.22.
-- Folders holding other movie folders: the library is one level too high; add the inner folders as libraries.
+- Folders of folders more than 5 levels below the library (shallower ones are searched for movies).
 - Folders with several separate videos: give each movie its own folder.
 - Folders with no video, NFO or XML, system folders ($RECYCLE.BIN, @eaDir …) and folders that could not be read.
 A folder with movie metadata is always a movie, and so is a folder with one video and no NFO. After a scan the **Ignored Folders of the Last Scan…** window opens when something was left out (filter, sort, double-click to open, **Export to TXT…**, **Copy All**); turn that off with "Show this window after a scan". **Tools → Ignored Folders of the Last Scan…** opens it at any time.
@@ -299,7 +307,7 @@ Several movies: select with Ctrl+click, Shift+click, Shift+arrows or Shift+PageU
 | Poster, Folder, Fanart | the image in your viewer
 | Backdrops | the first backdrop
 | .nfo / .xml | the file in your editor (also when it has errors)
-| Language | movie.xml in your editor
+| Language | the file the value came from (movie.xml or the NFO) in your editor
 | Video, Quality | plays the video
 | Subtitles | the subtitle tracks
 | Library | the library folder
@@ -529,7 +537,7 @@ TAB_SETTINGS = """
 | Genres | the standard genre list, one per line
 | NFO / XML | the tag pairs of the Improvements Check; **Collections**: the collection folder and **Group the movie table by collection**
 | User Interface | alternating row colours, header tooltips, compact mode, the Repeat line, the Ignored folders window after a scan, dark title bars, "Check for updates at start"
-| Health Rules | every rule with its checkbox, level or threshold; **Reset to defaults**
+| Health Rules | **Health mode** (which program plays your movies: the NFO, NFO + movie.xml, or movie.xml only; changing it offers a new scan); the rules in four sections — **General**, **NFO**, **movie.xml** and **NFO ↔ movie.xml comparisons** — each rule with its checkbox, threshold and level (error / warning). The sections the health mode does not use stay visible but gray and cannot be changed; their settings are kept for when you switch back. **Reset to defaults**
 | Backup | the size limit, automatic deletion of the oldest backups, **Delete all backup folders**
 """
 

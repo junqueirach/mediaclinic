@@ -41,6 +41,10 @@ def _img_cell(row, key):
 
 
 def _file_status(row, key):
+    if key == "xml" and row.get("xml_used") is False:                # v0.19.6 TR1: movie.xml off / NFO-only library
+        return "Not used"
+    if key == "nfo" and row.get("nfo_used") is False:                # v0.19.6 TR1b: health mode "movie.xml only"
+        return "Not used"
     if not row.get(f"{key}_exists"):
         return "Missing"
     return "Error" if row.get(f"{key}_errors") else "OK"

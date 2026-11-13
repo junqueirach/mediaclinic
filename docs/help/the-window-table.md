@@ -24,8 +24,8 @@ Select one movie and the panel shows its poster, year, genres, rating, library a
 | Source | the IMDb and TMDB IDs of every tag: ⬤ all agree, ◐ partial or conflict, ○ missing, ✕ some tags filled and some empty. Hover shows the last Verify IDs result; double-click opens IMDb or TMDB.
 | Poster, Folder, Fanart | status and quality tier of each image (Images tab).
 | Backdrops | the number of backdrop images; hover: their average size.
-| .nfo / .xml | the metadata file status. Hover lists the errors with the line and the tag names (the first 5); double-click opens the file in your editor.
-| Language | The top-level XML <Language>: the language for metadata downloads on Jellyfin and Emby. Empty is normal.
+| .nfo / .xml | the metadata file status. Hover lists the errors with the line and the tag names (the first 5); double-click opens the file in your editor. The health mode hides the column of the file it does not use (.xml for Kodi, Jellyfin, Emby…; .nfo for movie.xml only); — means not used (an NFO-only library).
+| Language | movie.xml's top-level <Language>: the language for metadata downloads. Without movie.xml: the NFO's top-level <language> (the same meaning), else the language of the first audio track. The tooltip names the source. Empty is normal.
 | Video, Video Size, Quality | container, size and resolution class.
 | Audio | FFprobe audio tracks, e.g. EN (5.1), PT (2.0).
 | Language OK | Y / N: the target language in audio or subtitles (the heading shows the code, e.g. "PT OK?").

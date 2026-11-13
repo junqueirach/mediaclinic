@@ -383,7 +383,8 @@ def reset_wrong_types(merged):
 # default alone never reaches an existing user.  A migration runs exactly once
 # (marker in "settings_migrations"); a user who turns a rule on again later is
 # never overridden.  The App shows the notice once, through after().
-_MIGRATIONS = ("b35_folder_rules_off", "b55_library_filter_reset", "b110_collection_column_hidden")
+_MIGRATIONS = ("b35_folder_rules_off", "b55_library_filter_reset", "b110_collection_column_hidden",
+               "tr1_xml_integration_kept", "tr1b_health_mode")  # v0.19.6 TR1, TR1b
 SETTINGS_MIGRATION_NOTICES = []                                  # one message box each (B35)
 SETTINGS_MIGRATION_STATUS = []                                   # one status-bar line each (B55)
 B55_STATUS = "Library filter reset to 'All libraries' — every library is shown again"
@@ -418,6 +419,18 @@ def _run_settings_migrations(merged):
         hc = merged.get("hidden_columns")
         if isinstance(hc, list) and "collection" not in hc:
             merged["hidden_columns"] = hc + ["collection"]
+    if "tr1_xml_integration_kept" in todo:                       ### NEW v0.19.6 TR1 ###
+        # movie.xml is off for a new user (NFO files only); a user of an older version keeps what they had until they
+        # answer the question every user gets at the start (xml_choice_asked)
+        merged["xml_integration"] = True
+        _log.info("Settings migration tr1_xml_integration_kept: movie.xml stays on")
+    if "tr1b_health_mode" in todo:                               ### NEW v0.19.6 TR1b ###
+        # one key for the three health modes; the first v0.19.6 builds stored a yes/no (xml_integration) and asked
+        # another question (xml_choice_asked): the new question is asked once more
+        merged["health_mode"] = "nfo_xml" if merged.pop("xml_integration", False) else "nfo"
+        merged.pop("xml_choice_asked", None)
+        merged["health_mode_asked"] = False
+        _log.info(f"Settings migration tr1b_health_mode: health mode {merged['health_mode']}")
     merged["settings_migrations"] = done + todo
     save_settings(merged)                                        # once: the markers are on disk now
 
@@ -485,7 +498,7 @@ def save_settings(settings):
 # which made that file several MB and slowed every settings save.  It now has
 # its own file next to settings.json.
 
-RESULTS_SCHEMA = 3                                               ### NEW v0.19.4 I19 — 1 = the plain list before v0.19.4; 3 = v0.19.5 (B121, B123, B124) ###
+RESULTS_SCHEMA = 4                                               ### NEW v0.19.4 I19 — 1 = the plain list before v0.19.4; 3 = v0.19.5 (B121, B123, B124); 4 = v0.19.6 TR1 (the NFO's language) ###
 RESULTS_LAST_SCHEMA = [RESULTS_SCHEMA]                           ### NEW v0.19.5 — what the last row-by-row load found ###
 RESULTS_CACHE_NOTES = []                                         ### NEW v0.19.4 B93 — status-bar notes (the app shows them once) ###
 
