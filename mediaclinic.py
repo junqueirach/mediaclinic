@@ -9383,7 +9383,7 @@ def not_dup_report_lines(results):                               ### NEW v0.19.3
     L = ["", "=" * 60, _i18n.t("rp.marked_as_not_duplicates_cf7e", n=_n(len(pairs), 'pair'), menu_path=menu_path('not_dup_manage')), ""]   # v0.19.4 I13
     for p in pairs:
         a, b = names.get(p["a"]), names.get(p["b"])
-        L.append(f"  ✔  {a or _i18n.t("uf.folder_not_found_c787") + p['a']}  ≠  {b or _i18n.t("uf.folder_not_found_c787") + p['b']}"
+        L.append(f"  ✔  {a or _i18n.t('uf.folder_not_found_c787') + p['a']}  ≠  {b or _i18n.t('uf.folder_not_found_c787') + p['b']}"
                  f"   ({p.get('why', '')}, {p.get('at', '')})")
     return L
 
@@ -10394,7 +10394,7 @@ class SubtitleDialog(_DialogBase):
             if bold: kw["font"] = ("Consolas", 10, "bold")
             t.tag_configure(tag, **kw)
         t.insert("end", "  " + _i18n.t("au.sub.embedded") + "  ", "h")
-        t.insert("end", f"  {_i18n.t('au.sub.via') if FFPROBE_PATH else _i18n.t("uf.ffprobe_not_found_9fbe")}\n",
+        t.insert("end", f"  {_i18n.t('au.sub.via') if FFPROBE_PATH else _i18n.t('uf.ffprobe_not_found_9fbe')}\n",
                  "d" if FFPROBE_PATH else "n")
         if data.get("subs_internal"):
             for i, s in enumerate(data["subs_internal"], 1):
