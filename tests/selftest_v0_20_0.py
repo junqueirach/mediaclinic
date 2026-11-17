@@ -11631,7 +11631,8 @@ def ui_tests():
         _hid39 = on_ui(lambda: (app.iconify(), app.update(), sd.update(), (sd.winfo_ismapped(), sd.winfo_width()))[3])   # the 2026-11-13 state
         _shown39 = on_ui(_sd_shown39)
         check("I39: with the app window minimized Settings is not shown (the 2026-11-13 failure); brought back, it is shown for the window checks",
-              not _hid39[0] and _shown39[0], f"hidden={_hid39} shown={_shown39} — app window minimized or hidden by something on the desktop")
+              (not _hid39[0] or sys.platform != "win32") and _shown39[0],   # Linux shows a transient window over a minimized parent
+              f"hidden={_hid39} shown={_shown39} — app window minimized or hidden by something on the desktop")
         def _sd_wheel29():                                              ### NEW v0.19.2 B29 ###
             sd.deiconify(); sd.update()
             reg = getattr(sd, "_mc_wheel", None)
