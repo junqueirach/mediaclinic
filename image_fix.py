@@ -24,6 +24,7 @@ import math
 from PIL import Image, ImageFilter, ImageOps, ImageStat
 
 from settings_model import POSTER_QUALITY_TIERS, FANART_QUALITY_TIERS, UPSCALE_LIMITS
+import mc_i18n as _i18n                                           ### NEW v0.20.0 UI1e — the shown texts ###
 
 RATIO = {"poster": 2 / 3, "folder": 2 / 3, "fanart": 16 / 9}
 STRETCH_MAX = 0.03                      # a deviation up to 3 % is simply stretched (invisible)
@@ -36,6 +37,15 @@ METHOD_LABEL = {
     "stretch":     "Stretch (only for a small deviation)",
 }
 DEFAULT_METHOD = {"poster": "blur", "folder": "blur", "fanart": "crop_smart"}
+
+
+def method_label(m):                                             ### NEW v0.20.0 UI1e ###
+    """METHOD_LABEL[m] in the interface language (METHOD_LABEL stays the English list)."""
+    return _i18n.t("if.method." + m) if _i18n.has("if.method." + m) else METHOD_LABEL.get(m, m)
+
+
+def info_line():                                                 ### NEW v0.20.0 UI1e ###
+    return _i18n.t("if.info")
 JPEG_QUALITY = 92
 
 MARK = {"ok": "✓", "warn": "⚠", "no": "✕"}
@@ -90,12 +100,11 @@ def mark_for(factor, ai=False):
 
 
 def _mark_text(mark, ai):
-    if mark == "ok":
-        return "✓ recommended"
+    if mark == "ok":                                             # v0.20.0 UI1e: in the interface language
+        return _i18n.t("if.mark.ok")
     if mark == "warn":
-        return "⚠ check the preview — AI may invent detail, smooth text and faces" if ai \
-            else "⚠ not recommended — soft without AI"
-    return "✕ too far from the original"
+        return _i18n.t("if.mark.warn_ai") if ai else _i18n.t("if.mark.warn")
+    return _i18n.t("if.mark.no")
 
 
 def size_options(kind, cw, ch, ai=False):
@@ -110,7 +119,7 @@ def size_options(kind, cw, ch, ai=False):
         opts.append({"key": lbl, "w": w, "h": h, "factor": f, "mark": mk,
                      "label": f"{lbl} {w}×{h} (×{f:.2f}) {_mark_text(mk, ai)}"})
     opts.append({"key": "keep", "w": cw, "h": ch, "factor": 1.0, "mark": "ok",
-                 "label": f"Keep current size {cw}×{ch} (fix proportions only)"})
+                 "label": _i18n.t("if.keep", w=cw, h=ch)})                 # v0.20.0 UI1e
     good = [i for i, o in enumerate(opts[:-1]) if o["mark"] == "ok"]
     if good:
         default = min(good, key=lambda i: abs(math.log(opts[i]["factor"])))
@@ -129,10 +138,9 @@ def min_tier_note(kind, ch, min_label, ai_available=False):
     if mark_for(f, False) == "ok":
         return ""
     ai_mark = mark_for(f, True)
-    ai_txt = {"ok": "✓ with AI upscale", "warn": "⚠ even with AI upscale", "no": "✕ even with AI upscale"}[ai_mark]
-    plain_txt = {"warn": "⚠ without it", "no": "✕ without it"}[mark_for(f, False)]
-    return (f"Reaching {min_label} needs ×{f:.1f}. {ai_txt}, {plain_txt}. "
-            "A better online image is recommended.")
+    ai_txt = _i18n.t("if.ai." + ai_mark)                        # v0.20.0 UI1e
+    plain_txt = _i18n.t("if.plain." + mark_for(f, False))
+    return _i18n.t("if.min_note", tier=min_label, f=_i18n.num(f, 1), ai=ai_txt, plain=plain_txt)
 
 
 # ── Step 1: proportions ───────────────────────────────────────────────────────
@@ -234,10 +242,10 @@ def batch_choice(kind, w, h, method, min_label, ai=False):
         if need["mark"] == "ok":
             choice = need
         else:
-            return None, f"skipped — needs ×{need['factor']:.1f}; fix it individually or find a better image"
+            return None, _i18n.t("if.skipped", f=_i18n.num(need['factor'], 1))   # v0.20.0 UI1e
     elif choice["key"] == "keep" and min_label in t and ch < t[min_label]["h"] * 0.95:
         need = t[min_label]
         if need["mark"] != "ok":
-            return None, f"skipped — needs ×{need['factor']:.1f}; fix it individually or find a better image"
+            return None, _i18n.t("if.skipped", f=_i18n.num(need['factor'], 1))   # v0.20.0 UI1e
         choice = need
-    return (choice["w"], choice["h"]), f"{METHOD_LABEL[effective_method(w, h, kind, method)].split(' (')[0]} → {choice['w']}×{choice['h']}"
+    return (choice["w"], choice["h"]), f"{method_label(effective_method(w, h, kind, method)).split(' (')[0]} → {choice['w']}×{choice['h']}"

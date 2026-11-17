@@ -1,12 +1,12 @@
 # CLAUDE_RULES.md
 ## MediaClinic — Rules for AI-assisted editing
-### Version: 0.19.6 (rewritten 2026-11-04 from the code, updated 2026-11-07 and 2026-11-13; the v0.14.0 version covered only the settings subsystem)
+### Version: 0.20.0 (rewritten 2026-11-04 from the code, updated 2026-11-07, 2026-11-13 and 2026-11-17; the v0.14.0 version covered only the settings subsystem)
 
 This file is the guide for any Claude (or human) changing MediaClinic. Read it in full before any change. In the author's working
 folder it adds to the family rules (`CLAUDE.md`: real data, snapshots, editing, builds) and never weakens them; the work order there is
 the roadmap `IMPROVEMENTS_SHORT_TERM R1.md`. Those two files are not published.
 
-Names below were checked against the v0.19.5 source, and the v0.19.6 block against the v0.19.6 source. In the source the main file is `mediaclinic_v0_19_6.py`; on GitHub it is
+Names below were checked against the v0.19.5 source, the v0.19.6 block against the v0.19.6 source and the v0.20.0 notes against the v0.20.0 source. In the source the main file is `mediaclinic_v0_20_0.py`; on GitHub it is
 `mediaclinic.py`. When a rule and the code disagree, stop and report it. Do not silently follow either.
 
 ---
@@ -137,6 +137,11 @@ and polls for the result (no Tk in the worker).
 
 **A new setting:** add it to `DEFAULT_SETTINGS` (`settings_model.py`) and to `settings_schema.json`, read it in the tab builder, and write it back in `_save_close`.
 
+**Media programs:** before changing a rule, a fix, a written file name or `media_profiles.py` / `naming_catalog.py`, check the README table "What each program really reads" (Kodi, Plex, Emby, Jellyfin and Infuse — tested on real servers and an Apple TV; movies only, repeat the tests for series).
+
+Keys added in v0.20.0: `ui_language` (absent = follow Windows), `health_preset`, `library_inactive`, `media_programs` (F3: the ticked programs, a list of `media_profiles.PROGRAMS`; [] = not chosen = today's behaviour; it sets `health_mode`), `library_programs` (F3: {library key: [programs]}, a library's own choice; takes over its `library_nfo_only`), `first_start_pending` (6g: true only for a new user until Start in the first-start window), `programs_asked` (6g: the programs question was answered, Start / Save / Not now); `plex_nfo_checks` (6h: "" / "on" / "off", only Plex ticked → the NFO and collection checks); in `health_rules`: `id_not_kodi`, `xml_tags_old_readers`, `missing_logo_disc`, `nfo_online_art_links`, `profile_names_unread` (F3: "Not read by Infuse: …", on in every preset), `nfo_id_tags` (a choice "all" / "kodi", stored like `title_sync_default` and left out of the TR1c rule sections); in `export_prefs`: `posters`.
+Health reasons are stored in English and translated when shown (`_REASON_TEMPLATES` ↔ `reason.*` keys): never reword a stored reason without its template, its three catalog entries and its `tools/i18n_allow.json` entry.
+
 ---
 
 ## 7. Names you must not change
@@ -148,7 +153,7 @@ and polls for the result (no Tk in the worker).
 `_min_poster_kb_var`, `_min_folder_kb_var`, `_min_fanart_kb_var`, `_backdrop_count_var`, `_meta_src_var`, `_poster_ql_var`, `_folder_ql_var`, `_fanart_ql_var`, `_fanart_168_var`, `_poster_34_var`,
 `_show_header_tips_var`, `_alt_rows_var`, `_show_image_size_var`, `_compact_mode_var`, `_dark_theme_var`, `_auto_fit_var`, `_max_backup_mb_var`, `_genres_text`, `_tags_text`, `_ffprobe_cache_var`,
 `_fanarttv_var`, `_fanarttv_client_var`, `_ffmpeg_frame_timeout_var`, `_ffmpeg_run_budget_var`, `_ctx_repeat_var`, `_scan_ignored_report_var`, `_dark_title_var`, `_backup_cleanup_var`, `_coll_folder_var`,
-`_group_coll_var`, `_hr_vars`, `_hr_str_vars`.
+`_group_coll_var`, `_hr_vars`, `_hr_str_vars`, `_ui_language_var` (v0.20.0 UI1: Interface language, saved at once and read back by the Settings snapshot), `_plex_nfo_var` (v0.20.0 6h: the Plex NFO tick box; with `_plex_nfo_initial`), `_health_preset_var` (v0.20.0 HP1d: the health preset, saved as health_preset). `_program_vars` (v0.20.0 F3: {program: BooleanVar}, the tick boxes at the top of Health Rules, saved as media_programs; they set `_health_mode_var`).
 
 **Files in the config folder:** `settings.json`, `last_results.json` (`{schema, kind, rows}`; the old plain list is still read), `last_ignored.json`, `not_duplicates.json`, `collections_cache.json`,
 `no_collection.json`.

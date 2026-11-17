@@ -10,7 +10,7 @@
 A scan never writes to your files. While it runs, the actions that change files wait for it (the status bar says so).
 
 ## Libraries
-You can scan several root folders. **Browse…** adds one folder; **Libraries…** adds, removes and orders them. After the list changes the app offers Full Scan, Quick Scan or Not now.
+You can scan several root folders. **Browse…** adds one folder; **Libraries…** adds, removes and orders them. After the list changes the app offers Full Scan, Quick Scan or Not now. **Active / off** turns a library off without removing it: it is not scanned (its drive is not touched) and its movies leave the table and the counters, but they are kept; turned on again, they are back at once (a Quick Scan updates them). The collection folder part sets the one folder Kodi reads collection artwork from: **Choose…**, **Create…** (makes "Sets" next to the first library, after a yes) or **Clear**. Scans never list it as a movie or an ignored folder.
 - All libraries share one table; the **Library** column and the Movie Name tooltip show where a movie lives.
 - The library box chooses what the table shows and what the scans cover ("All libraries" or one of them).
 - A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)". A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
@@ -20,7 +20,7 @@ You can scan several root folders. **Browse…** adds one folder; **Libraries…
 ## Ignored folders
 A scan adds a row only for movie folders. These are not added:
 - TV series: tvshow.nfo, Season folders or episode files (S01E02, 1x02). Series support comes in v0.22.
-- Folders of folders more than 5 levels below the library (shallower ones are searched for movies).
+- Folders of folders 5 levels below the library: their movies would sit deeper than the scan looks (5 levels). The row says how deep the folder is; add it as a library to include its movies.
 - Folders with several separate videos: give each movie its own folder.
 - Folders with no video, NFO or XML, system folders ($RECYCLE.BIN, @eaDir …) and folders that could not be read.
 A folder with movie metadata is always a movie, and so is a folder with one video and no NFO. After a scan the **Ignored Folders of the Last Scan…** window opens when something was left out (filter, sort, double-click to open, **Export to TXT…**, **Copy All**); turn that off with "Show this window after a scan". **Tools → Ignored Folders of the Last Scan…** opens it at any time.

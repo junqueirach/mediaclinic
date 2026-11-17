@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# MediaClinic for Linux and macOS: runs the app from source (v0.19.6, TR8).
+# MediaClinic for Linux and macOS: runs the app from source (v0.20.0; TR8 since v0.19.6).
 # Needs Python 3.10 or newer with Tk, plus Pillow and openpyxl.
 #   Debian / Ubuntu:  sudo apt install python3-tk python3-venv ffmpeg xdg-utils fonts-noto-color-emoji
 #   (xdg-utils opens files and folders; the emoji font draws the icons. Desktop Ubuntu has both, WSL has neither.)

@@ -15,6 +15,8 @@
 # so the Series tab (F2) can pass its own columns later.
 # =============================================================================
 
+import mc_i18n as _i18n                                          ### NEW v0.20.0 UI1c — the shown words (pure module too) ###
+
 MAX_LEVELS = 3
 MAX_USER_PRESETS = 20
 
@@ -71,14 +73,14 @@ DEFAULT_SPEC = [{"key": "movie_name", "dir": "asc"}]
 
 # built-in presets, in menu order (Ctrl+1 … Ctrl+7)
 BUILTIN_PRESETS = [
-    {"name": "Problems first", "levels": [{"key": "health", "dir": "errors"}, {"key": "issues", "dir": "most"}]},
-    {"name": "Worst artwork first", "levels": [{"key": "poster", "dir": "worst"}, {"key": "fanart", "dir": "worst"}]},
-    {"name": "Missing metadata", "levels": [{"key": "source", "dir": "errors"},
+    {"id": "problems", "name": "Problems first", "levels": [{"key": "health", "dir": "errors"}, {"key": "issues", "dir": "most"}]},
+    {"id": "artwork", "name": "Worst artwork first", "levels": [{"key": "poster", "dir": "worst"}, {"key": "fanart", "dir": "worst"}]},
+    {"id": "metadata", "name": "Missing metadata", "levels": [{"key": "source", "dir": "errors"},
                                             {"key": "rating", "dir": "low", "empty": "first"}]},
-    {"name": "Best rated", "levels": [{"key": "rating", "dir": "high"}, {"key": "votes", "dir": "high"}]},
-    {"name": "Biggest files", "levels": [{"key": "vid_size", "dir": "largest"}]},
-    {"name": "By library", "levels": [{"key": "library", "dir": "asc"}, {"key": "movie_name", "dir": "asc"}]},
-    {"name": "By collection name", "levels": [{"key": "collection", "dir": "asc"}, {"key": "year", "dir": "oldest"},   # v0.19.4 fix 16
+    {"id": "best_rated", "name": "Best rated", "levels": [{"key": "rating", "dir": "high"}, {"key": "votes", "dir": "high"}]},
+    {"id": "biggest", "name": "Biggest files", "levels": [{"key": "vid_size", "dir": "largest"}]},
+    {"id": "library", "name": "By library", "levels": [{"key": "library", "dir": "asc"}, {"key": "movie_name", "dir": "asc"}]},
+    {"id": "collection", "name": "By collection name", "levels": [{"key": "collection", "dir": "asc"}, {"key": "year", "dir": "oldest"},   # v0.19.4 fix 16
                                               {"key": "movie_name", "dir": "asc"}]},
 ]
 
@@ -166,21 +168,34 @@ def old_text_for(spec):
     return _OLD_BY_LEVEL.get((spec[0]["key"], spec[0]["dir"]), "Movie Name (A-Z)")
 
 
-def describe(spec, label=None):
-    """"Sorted by Poster quality (worst first), then Rating (high → low), then Movie Name (A → Z)"."""
+def describe(spec, label=None, prefix=True):
+    """"Sorted by Poster quality (worst first), then Rating (high → low), then Movie Name (A → Z)".
+    ### MODIFIED v0.20.0 UI1c ### in the interface language; prefix=False leaves out "Sorted by " (the presets menu)."""
     label = label or LABEL
     soft = lambda t: t if len(t) > 1 and t[1] == " " else t[:1].lower() + t[1:]   # "A → Z" stays, "Worst first" → "worst first"
     parts = []
     for lvl in clean_spec(spec):
         txt = f"{label.get(lvl['key'], lvl['key'])} ({soft(dir_label(lvl['key'], lvl['dir']))}"
         if lvl.get("empty") == "first":
-            txt += ", empty first"
+            txt += _i18n.t("sort.empty_first")
         parts.append(txt + ")")
     if not any(l["key"] == "movie_name" for l in clean_spec(spec)):
-        parts.append("Movie Name (A → Z)")
+        parts.append(f"{label.get('movie_name', LABEL['movie_name'])} ({dir_label('movie_name', 'asc')})")
     # MODIFIED v0.19.5 AS-A22: no "empty values last" when a level asks for empty first
-    tail = "" if any(l.get("empty") == "first" for l in clean_spec(spec)) else " · empty values last"
-    return "Sorted by " + ", then ".join(parts) + tail
+    tail = "" if any(l.get("empty") == "first" for l in clean_spec(spec)) else _i18n.t("sort.empty_last")
+    levels = _i18n.t("sort.then_join").join(parts)
+    return _i18n.t("sort.describe", levels=levels, tail=tail) if prefix else levels + tail
+
+
+def relabel():                                                  ### NEW v0.20.0 UI1c ###
+    """The shown words in the current interface language: column labels, direction words and the built-in preset
+    names.  Keys, direction ids and everything stored (sort_spec, sort_option, user presets) stay the same."""
+    for k in LABEL:
+        LABEL[k] = _i18n.t("sort.col." + k)
+    for kind, dirs in DIRECTIONS.items():
+        DIRECTIONS[kind] = [(d, _i18n.t("sort.dir." + d), r) for d, _l, r in dirs]
+    for p in BUILTIN_PRESETS:
+        p["name"] = _i18n.t("sort.preset." + p["id"])
 
 
 def heading_marks(spec):
@@ -239,13 +254,13 @@ def valid_preset_name(name, presets, old=None):
     """'' when *name* can be used, otherwise the reason."""
     n = str(name or "").strip()
     if not n:
-        return "Type a name."
+        return _i18n.t("au.type_name")
     if len(n) > 40:
-        return "At most 40 characters."
+        return _i18n.t("uf.at_most_characters_5be4")
     taken = {p["name"].casefold() for p in BUILTIN_PRESETS} | {p["name"].casefold() for p in presets
                                                                if p.get("name") != old}
     if n.casefold() in taken:
-        return "A preset with this name exists already."
+        return _i18n.t("uf.a_preset_with_this_5853")
     if old is None and len(presets) >= MAX_USER_PRESETS:
-        return f"At most {MAX_USER_PRESETS} presets of your own."
+        return _i18n.t("uf.at_most_presets_of_988c", max_user_presets=MAX_USER_PRESETS)
     return ""

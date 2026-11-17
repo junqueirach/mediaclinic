@@ -11,7 +11,7 @@ One folder = one movie. A complete folder holds:
 - the Kodi metadata, **<video>.nfo** or **movie.nfo**
 - **movie.xml**, a legacy format (optional): only Emby's XML plugin reads it, and Media Center Master writes it; Kodi, Jellyfin and Plex do not read it
 - **poster.jpg** (portrait, 2:3) and **fanart.jpg** (wide, 16:9)
-- **folder.jpg**, an identical copy of the poster (optional: every server reads poster.jpg)
+- **folder.jpg**, an identical copy of the poster (optional: Plex, Jellyfin, Emby and Infuse read poster.jpg, and Kodi the poster's own name)
 - extra backgrounds: **backdrop.jpg**, **backdrop1.jpg** … or Kodi's **<video>-fanart1.jpg** …
 - external subtitles such as **Movie Name.pt.srt** (optional)
 The Media Servers tab lists every name the servers read.
@@ -22,18 +22,18 @@ The Media Servers tab lists every name the servers read.
 3. Each row shows the health of one movie: green = no rule triggered, yellow = warnings, red = errors.
 4. Select a movie: the panel on the right shows its poster, its issues with a **Fix** button each, its files and the common actions.
 5. The last scan is saved and restored at the next start.
-6. At the first start the app asks once: **Which program plays your movies?** This is the **health mode**: it decides which files MediaClinic checks and repairs.
-- **Kodi, Jellyfin, Emby, Plex, Infuse…** (recommended): the .nfo files, as tinyMediaManager, Radarr or MediaElch make them. movie.xml is ignored (not read, not checked, not written; no .xml column).
-- **The above + old Windows media centers** (MediaBrowser, Media Center Master): the NFO and movie.xml, every check and fix of both.
-- **Only old Windows media centers**: movie.xml only. The NFO is ignored (not read, not checked, never written; no .nfo column). Title, year, rating, IDs and genres come from movie.xml, and the fixes write movie.xml. Collections, Rename NFO for Kodi and the **&** fix work on the NFO, so they are not offered.
-Change it later in **Settings → Health Rules → Health mode**; the app then offers a new scan.
-7. In the mode **The above + old Windows media centers**, a library where no movie has a movie.xml gets one more question after its scan: **NFO-only library?** **Yes, NFO only** switches the XML checks off for that library alone (no "Missing XML file" error, no NFO / XML comparison; the XML column shows —). Change it later in **Libraries…** with the **NFO only** button.
+6. At the first start one window asks for the language, your movies folder, **Which programs play your movies?** (tick every one you use; nothing ticked is fine too), the strictness (Tight, Medium, Easy) and FFprobe (optional: nothing is included or downloaded for you; **Choose folder…** or **Download page**). Only **Start** saves the answers; closing the window brings it back at the next start. Pick the language first: **Restart now** shows the window again in that language. Someone updating from an older version sees only the programs question once, with **Not now**. The ticked programs set the **health mode**: it decides which files MediaClinic checks and repairs.
+- **Kodi, Plex, Jellyfin, Emby, Infuse** (NFO only; Plex itself reads no NFO, only the artwork — see below): the .nfo files, as tinyMediaManager, Radarr or MediaElch make them. movie.xml is ignored (not read, not checked, not written; no .xml column).
+- **One of them + MediaBrowser / Media Center Master** (NFO and movie.xml): the NFO and movie.xml, every check and fix of both.
+- **MediaBrowser / Media Center Master alone** (movie.xml only): movie.xml only. The NFO is ignored (not read, not checked, never written; no .nfo column). Title, year, rating, IDs and genres come from movie.xml, and the fixes write movie.xml. Collections, Rename NFO for Kodi and the **&** fix work on the NFO, so they are not offered.
+Change it later in **Settings → Health Rules → Which programs play your movies?**: tick every program you use (Kodi, Plex, Jellyfin, Emby, Infuse, MediaBrowser / Media Center Master). The ticks set the health mode, and the line under them shows the files checked and the names a fix writes: a name every ticked program reads: <video>.nfo, <video>-poster.jpg and <video>-fanart.jpg, the names Kodi recommends, which work with every Kodi setting and are read by every other program too (movie.nfo and poster.jpg work in Kodi only with the source setting "Movies are in separate folders that match the movie title"). A folder whose own names every ticked program reads keeps them. Nothing ticked keeps the mode as it was and each folder's own names. Reading never changes: every name these programs accept is still read. A library played by other programs gets its own choice in **Libraries… → Programs…** (it replaces that library's **NFO only** mark). A change between NFO and movie.xml offers a new scan.
+7. In the mode **NFO and movie.xml**, a library where no movie has a movie.xml gets one more question after its scan: **NFO-only library?** **Yes, NFO only** switches the XML checks off for that library alone (no "Missing XML file" error, no NFO / XML comparison; the XML column shows —). Change it later in **Libraries…** with the **NFO only** button.
 
 ## Quick-start checklist
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
 - **Settings → API Keys**: add the TMDB and OMDb keys (ratings, ID search and checks, artwork); a fanart.tv key adds more posters and backdrops.
-- **Settings → Language**: the target language of the Language column (default PT).
-- **Settings → Health Rules**: choose what counts as an error or a warning.
+- **Settings → Language**: the target language of the Language column (default PT). The language of the app itself is **Settings → User Interface → Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it).
+- **Settings → Health Rules**: choose what counts as an error or a warning. A **Health preset** (Easy / Medium / Tight) sets them all at once; a new user starts with Tight.
 - To triage: sort by **Health** (Errors first), click the **Errors** counter, or tick **Problems only**.
 
 ## Status icons

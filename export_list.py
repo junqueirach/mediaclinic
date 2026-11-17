@@ -19,10 +19,13 @@
 #   • CSV is written with a UTF-8 BOM so Excel detects accented characters.
 # =============================================================================
 
+import base64                                                    ### NEW v0.20.0 I38 ###
 import csv
 import html
+import io
 import os
 import re
+import mc_i18n as _i18n                                           ### NEW v0.20.0 UI1d — headings and cell words (UI-D2) ###
 
 # Status symbols (must match STATUS_* in the main script)
 _STATUS_TEXT = {"⬤": "OK", "◐": "Warning", "○": "Missing", "✕": "Error"}
@@ -34,7 +37,7 @@ def _status_text(sym):
 
 def _img_cell(row, key):
     if not row.get(f"{key}_exists"):
-        return "Missing"
+        return _i18n.t("ex.st.Missing")
     st = _status_text(row.get(f"{key}_status"))
     q  = row.get(f"{key}_quality", "—")
     return f"{st} {q}".strip() if q and q != "—" else st
@@ -42,12 +45,12 @@ def _img_cell(row, key):
 
 def _file_status(row, key):
     if key == "xml" and row.get("xml_used") is False:                # v0.19.6 TR1: movie.xml off / NFO-only library
-        return "Not used"
+        return _i18n.t("ex.st.Not used")
     if key == "nfo" and row.get("nfo_used") is False:                # v0.19.6 TR1b: health mode "movie.xml only"
-        return "Not used"
+        return _i18n.t("ex.st.Not used")
     if not row.get(f"{key}_exists"):
-        return "Missing"
-    return "Error" if row.get(f"{key}_errors") else "OK"
+        return _i18n.t("ex.st.Missing")
+    return _i18n.t("ex.st.Error") if row.get(f"{key}_errors") else _i18n.t("ex.st.OK")
 
 
 def _errors_text(row, key):
@@ -151,8 +154,8 @@ EXPORT_FIELDS = [
     ("audio",         "Audio",          _audio_text),
     ("lang_ok",       "Lang OK?",       lambda r: "" if r.get("lang_ok", "—") == "—" else r.get("lang_ok", "")),
     ("subtitles",     "Subtitles",      lambda r: "" if r.get("subs_summary", "—") == "—" else r.get("subs_summary", "")),
-    ("health",        "Health",         lambda r: (r.get("health_status") or "").capitalize()),
-    ("health_reasons","Health Reasons", lambda r: "; ".join(r.get("health_reasons", []) or [])),
+    ("health",        "Health",         lambda r: _health_text(r.get("health_status") or "")),
+    ("health_reasons","Health Reasons", lambda r: "; ".join(REASON_TEXT[0](x) for x in (r.get("health_reasons", []) or []))),
     ("library",       "Library",        lambda r: r.get("library_root") or os.path.dirname(r.get("subfolder_path", "") or "")),   # v0.19.0
     ("collection",    "Collection",     lambda r: ((r.get("coll_nfo") or {}).get("name") or "")),   # v0.19.4 B110a
     ("folder_name",   "Folder Name",    lambda r: r.get("subfolder", "")),
@@ -160,6 +163,7 @@ EXPORT_FIELDS = [
 ]
 
 _FIELD_MAP = {k: (label, fn) for k, label, fn in EXPORT_FIELDS}
+_EN_STATUS = dict(_STATUS_TEXT)                                    ### NEW v0.20.0 UI1d ###
 ALL_FIELD_KEYS = [k for k, _, _ in EXPORT_FIELDS]
 
 PRESETS = {
@@ -177,8 +181,32 @@ FORMATS = [
     ("tsv",           "Tab-separated text (.txt)",                       ".txt"),
     ("txt",           "Plain text list — one movie per line (.txt)",      ".txt"),
     ("xlsx",          "Excel workbook (.xlsx)",                          ".xlsx"),
+    ("html",          "HTML page — one file for any browser (.html)",    ".html"),   # v0.20.0 I38
 ]
 _FORMAT_EXT = {f: ext for f, _, ext in FORMATS}
+
+
+def relabel():                                                   ### NEW v0.20.0 UI1d ###
+    """Headings, status words and format names in the interface language (the main script calls it at start);
+    field keys, preset names (stored) and the movie data never change."""
+    EXPORT_FIELDS[:] = [(k, _i18n.t("ex.col." + k) if _i18n.has("ex.col." + k) else lbl, fn) for k, lbl, fn in EXPORT_FIELDS]
+    _FIELD_MAP.clear()
+    _FIELD_MAP.update({k: (label, fn) for k, label, fn in EXPORT_FIELDS})
+    FORMATS[:] = [(f, _i18n.t("ex.fmt." + f) if _i18n.has("ex.fmt." + f) else lbl, ext) for f, lbl, ext in FORMATS]
+    for sym, word in _EN_STATUS.items():
+        _STATUS_TEXT[sym] = _i18n.t("ex.st." + word)
+
+
+def preset_label(name):                                          ### NEW v0.20.0 UI1d ###
+    """A preset's shown name ("Basic" → "Básico"); the stored name stays English."""
+    return _i18n.t("ex.preset." + name) if _i18n.has("ex.preset." + name) else name
+
+
+def _health_text(status):
+    return _i18n.t("ex.health." + status) if _i18n.has("ex.health." + status) else status.capitalize()
+
+
+REASON_TEXT = [str]                                               # the main script puts reason_text here (UI1c templates)
 
 
 def xlsx_available():
@@ -226,23 +254,56 @@ def _txt_line(keys, values):
     return " | ".join([head] + rest) if head else " | ".join(rest)
 
 
-def export_rows(rows, field_keys, fmt, path):
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _no_formula(v):                                              ### NEW v0.20.0 AU8 (pre-build audit) ###
+    """A CSV / TSV cell Excel would run as a formula (a title or plot from a downloaded NFO that starts with
+    '=', '+', '-', '@') gets a leading apostrophe; numbers and a lone '-' stay as they are."""
+    if isinstance(v, str) and len(v) > 1 and v.startswith(_FORMULA_START):
+        try:
+            float(v.replace(",", "."))
+            return v
+        except ValueError:
+            return "'" + v
+    return v
+
+
+def _xl_text(v):                                                 # v0.20.0 AU8: one control character aborted the .xlsx
+    if isinstance(v, str):
+        try:
+            from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+            return ILLEGAL_CHARACTERS_RE.sub("", v)
+        except ImportError:
+            return v
+    return v
+
+
+def export_rows(rows, field_keys, fmt, path, posters=False, progress=None, cancelled=None, when=None, app_version=""):
     """
     Write *rows* (list of scan-result dicts) to *path* in format *fmt*.
     Returns the number of movies written.  Raises on I/O error or when
     fmt == 'xlsx' and openpyxl is unavailable.
+    v0.20.0 I38: fmt 'html' — one page (posters: small thumbnails embedded; progress / cancelled for a worker).
     """
+    if fmt == "html":
+        page = html_page(rows, field_keys, posters=posters, progress=progress, cancelled=cancelled,
+                         when=when, app_version=app_version)
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(page)
+        return len(rows)
+
     keys = [k for k in field_keys if k in _FIELD_MAP] or ["movie_name"]
     headers, data = build_table(rows, keys)
 
     if fmt in ("csv_comma", "csv_semicolon", "tsv"):
         delim = {"csv_comma": ",", "csv_semicolon": ";", "tsv": "\t"}[fmt]
-        enc   = "utf-8-sig" if fmt != "tsv" else "utf-8"
+        enc   = "utf-8-sig"                       # v0.20.0 AU8: TSV too (Excel garbled accents without the BOM)
         with open(path, "w", newline="", encoding=enc) as f:
             w = csv.writer(f, delimiter=delim, quotechar='"',
                            quoting=csv.QUOTE_MINIMAL, lineterminator="\r\n")
             w.writerow(headers)
-            w.writerows(data)
+            w.writerows([[_no_formula(v) for v in row] for row in data])
         return len(data)
 
     if fmt == "txt":
@@ -272,8 +333,11 @@ def export_rows(rows, field_keys, fmt, path):
                     except ValueError:
                         out.append(v)
                 else:
-                    out.append(v)
+                    out.append(_xl_text(v))
             ws.append(out)
+            for c in ws[ws.max_row]:                       # v0.20.0 AU8: text that starts with '=' stays text
+                if isinstance(c.value, str) and c.value.startswith("="):
+                    c.data_type = "s"
         ws.freeze_panes = "A2"
         ws.auto_filter.ref = ws.dimensions
         for i, h in enumerate(headers, 1):
@@ -283,6 +347,132 @@ def export_rows(rows, field_keys, fmt, path):
         return len(data)
 
     raise ValueError(f"Unknown export format: {fmt}")
+
+
+# ── v0.20.0 I38: HTML page (tester TR3) — one self-contained file, optional poster thumbnails ──
+HTML_THUMB_WIDTH = 120                     # pixels stored (shown at 60 × 90: sharp on a 200 % screen)
+_NUM_KEYS = ("year", "rating", "votes", "backdrops")
+_LINK_KEYS = ("imdb_link", "tmdb_link")
+
+
+def pil_available():
+    """True when Pillow can be imported (poster thumbnails need it)."""
+    try:
+        from PIL import Image  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def poster_data_uri(path, width=HTML_THUMB_WIDTH):
+    """A small JPEG of the poster as a data: URI ("" when it cannot be read)."""
+    if not path or not os.path.isfile(path):
+        return ""
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            im = im.convert("RGB")
+            im.thumbnail((width, width * 2))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=80, optimize=True)
+        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:
+        return ""
+
+
+_HTML_CSS = """
+:root{--bg:#ffffff;--fg:#1b1d22;--dim:#5f6570;--line:#d9dce2;--head:#f1f3f6;--link:#1a5fb4;--ok:#2e7d32;--warn:#a15c00;--err:#c62828;--hover:#f6f8fb}
+@media (prefers-color-scheme:dark){:root{--bg:#16181d;--fg:#e6e8ec;--dim:#9aa1ad;--line:#2c3038;--head:#1f2229;--link:#8ab4f8;--ok:#81c784;--warn:#ffb74d;--err:#ef9a9a;--hover:#1c1f25}}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1{font-size:20px;margin:0 0 4px}
+.meta{color:var(--dim);margin:0 0 12px}
+#q{width:100%;max-width:420px;padding:7px 10px;margin:0 0 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:var(--head);cursor:pointer;white-space:nowrap;user-select:none}
+th[aria-sort=ascending]::after{content:" \\25B2";font-size:10px}
+th[aria-sort=descending]::after{content:" \\25BC";font-size:10px}
+th.nosort{cursor:default}
+tbody tr:hover{background:var(--hover)}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+td.poster{width:68px}
+td.poster img{width:60px;height:90px;object-fit:cover;border-radius:3px;display:block}
+a{color:var(--link)}
+.h-ok{color:var(--ok)} .h-warning{color:var(--warn)} .h-error{color:var(--err)}
+#none{display:none;color:var(--dim);padding:12px 0}
+"""
+
+_HTML_JS = """
+(function(){
+var t=document.getElementById('t'),b=t.tBodies[0],q=document.getElementById('q'),none=document.getElementById('none');
+var rows=Array.prototype.slice.call(b.rows);
+q.addEventListener('input',function(){var s=q.value.toLowerCase(),n=0;
+rows.forEach(function(r){var on=!s||r.textContent.toLowerCase().indexOf(s)>=0;r.style.display=on?'':'none';if(on)n++;});
+none.style.display=n?'none':'block';});
+Array.prototype.forEach.call(t.tHead.rows[0].cells,function(th,i){if(th.classList.contains('nosort'))return;
+th.addEventListener('click',function(){var asc=th.getAttribute('aria-sort')!=='ascending';
+Array.prototype.forEach.call(t.tHead.rows[0].cells,function(o){o.removeAttribute('aria-sort');});
+th.setAttribute('aria-sort',asc?'ascending':'descending');var num=th.dataset.num==='1';
+rows.sort(function(a,c){var x=a.cells[i].dataset.v!==undefined?a.cells[i].dataset.v:a.cells[i].textContent,
+y=c.cells[i].dataset.v!==undefined?c.cells[i].dataset.v:c.cells[i].textContent;
+if(num){x=parseFloat(x);y=parseFloat(y);x=isNaN(x)?-1e18:x;y=isNaN(y)?-1e18:y;return asc?x-y:y-x;}
+return asc?x.localeCompare(y):y.localeCompare(x);});
+rows.forEach(function(r){b.appendChild(r);});});});
+})();
+"""
+
+
+def _e(s):
+    return html.escape("" if s is None else str(s), quote=True)
+
+
+def html_page(rows, field_keys, posters=False, progress=None, cancelled=None, title=None, when=None, app_version=""):
+    """The whole HTML page as text (pure apart from reading the posters).  *progress(i)* after each movie;
+    *cancelled()* → True stops with RuntimeError (no file is written)."""
+    keys = [k for k in field_keys if k in _FIELD_MAP] or ["movie_name"]
+    headers, data = build_table(rows, keys)
+    lang = {"pt_BR": "pt-BR"}.get(_i18n.current(), _i18n.current())
+    title = title or _i18n.t("ex.html.title")
+    meta = _i18n.tn("ex.html.count", len(data), as_text=_i18n.num(len(data)))
+    if when:
+        meta += " · " + _i18n.t("ex.html.made", when=when, version=app_version)
+    out = ['<!DOCTYPE html>', f'<html lang="{_e(lang)}">', '<head>', '<meta charset="utf-8">',
+           '<meta name="viewport" content="width=device-width, initial-scale=1">',
+           f'<title>{_e(title)}</title>', '<style>' + _HTML_CSS + '</style>', '</head>', '<body>',
+           f'<h1>{_e(title)}</h1>', f'<p class="meta">{_e(meta)}</p>',
+           f'<input id="q" type="search" placeholder="{_e(_i18n.t("ex.html.filter"))}" aria-label="{_e(_i18n.t("ex.html.filter"))}">',
+           '<div class="wrap"><table id="t"><thead><tr>']
+    if posters:
+        out.append(f'<th class="nosort">{_e(_i18n.t("ex.html.poster"))}</th>')
+    for k, h in zip(keys, headers):
+        num_attr = ' data-num="1"' if k in _NUM_KEYS else ""
+        out.append(f'<th{num_attr}>{_e(h)}</th>')
+    out.append('</tr></thead><tbody>')
+    for i, (r, values) in enumerate(zip(rows, data)):
+        if cancelled and cancelled():
+            raise RuntimeError(_i18n.t("ex.html.cancelled"))
+        cells = []
+        if posters:
+            uri = poster_data_uri(r.get("poster_path")) if r.get("poster_exists") else ""
+            img = ('<img src="' + uri + '" alt="" loading="lazy">') if uri else ""
+            cells.append('<td class="poster">' + img + '</td>')
+        for k, v in zip(keys, values):
+            if k in _LINK_KEYS and v:
+                cells.append(f'<td><a href="{_e(v)}" target="_blank" rel="noopener">{_e(v)}</a></td>')
+            elif k in _NUM_KEYS:
+                cells.append(f'<td class="num" data-v="{_e(v)}">{_e(v)}</td>')
+            elif k == "health":
+                cells.append(f'<td class="h-{_e(r.get("health_status") or "")}">{_e(v)}</td>')
+            else:
+                cells.append(f'<td>{_e(v)}</td>')
+        out.append('<tr>' + ''.join(cells) + '</tr>')
+        if progress:
+            progress(i + 1)
+    out += ['</tbody></table></div>', f'<p id="none">{_e(_i18n.t("ex.html.none"))}</p>',
+            '<script>' + _HTML_JS + '</script>', '</body>', '</html>', '']
+    return "\n".join(out)
 
 
 def suggested_filename(fmt, folder_name=""):

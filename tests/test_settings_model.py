@@ -11,7 +11,8 @@ import settings_model as m  # noqa: E402  (pure module: no tkinter, no I/O)
 
 def test_defaults_match_schema_keys():
     schema = json.loads((ROOT / "settings_schema.json").read_text(encoding="utf-8"))
-    assert set(m.DEFAULT_SETTINGS) == set(schema["properties"])
+    # ui_language (v0.20.0) has no default on purpose: absent = follow the Windows display language
+    assert set(m.DEFAULT_SETTINGS) == set(schema["properties"]) - {"ui_language"}
 
 
 def test_defaults_validate_against_schema():

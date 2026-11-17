@@ -12,6 +12,7 @@ What media servers read (checked 2026-10-27, plan B110.3):
 import html
 import re
 import unicodedata
+import mc_i18n as _i18n                                           ### NEW v0.20.0 UI1f — shown texts ###
 
 # ── reading ────────────────────────────────────────────────────────────────────
 _SET_RE = re.compile(r"<set(\s[^>]*?)?(\s*/>|>(.*?)</set\s*>)", re.S | re.I)   # MODIFIED v0.19.5 CO-D3: <set /> no longer runs on to the next </set>
@@ -416,22 +417,22 @@ def fix_target(row, cache, lib_lang="en", chosen=None, explicit=False):
     ### v0.19.5 CO-D2 ### explicit: the user's own Fix on this movie; only then is their own collection replaced."""
     tm = row.get("coll_tmdb")
     if row.get("coll_none") and not row.get("coll_nfo"):   # v0.19.4 fix 3b
-        return None, None, None, "you marked it as not in a collection"
+        return None, None, None, _i18n.t("uf.you_marked_it_as_4e43")
     if id_flagged(row):                                    # v0.19.5 CO-D1
-        return None, None, None, "Verify IDs flagged this movie's ID: fix the ID first"
+        return None, None, None, _i18n.t("uf.verify_ids_flagged_this_b670")
     if not tm:
-        return None, None, None, "not checked online — Check Collections Online first"
+        return None, None, None, _i18n.t("uf.not_checked_online_check_5afe")
     if not tm.get("id"):
-        return None, None, None, "TMDB lists no collection for this movie (your own collection is kept)"
+        return None, None, None, _i18n.t("uf.tmdb_lists_no_collection_c978")
     if not explicit and own_collection(row.get("coll_nfo"), tm, cache):   # v0.19.5 CO-D2
-        return None, None, None, "your own collection is kept (Fix Collection… on this movie can replace it)"
+        return None, None, None, _i18n.t("uf.your_own_collection_is_b0da")
     entry = (cache or {}).get(str(tm["id"])) or {}
     names, ovs = entry.get("names") or {}, entry.get("overviews") or {}
     order = [title_lang(row, lib_lang) or "en", "en"]             # fix 9 / fix 10: never the library language
     name = ov = None
     ch = (chosen or {}).get(int(tm["id"]))                        # v0.19.4 fix 5: the collection's one name
     if ch and not ch[0]:                                          # fix 10
-        return None, None, None, "TMDB gave no English name for the collection — run Check Collections Online again"
+        return None, None, None, _i18n.t("uf.tmdb_gave_no_english_7631")
     if ch:
         name, ov = ch[0], ch[1]
     for lg in ([] if ch else order):
@@ -441,7 +442,7 @@ def fix_target(row, cache, lib_lang="en", chosen=None, explicit=False):
     if not name:
         name = tm.get("name")
     if not name:
-        return None, None, None, "TMDB has no name for the collection"
+        return None, None, None, _i18n.t("uf.tmdb_has_no_name_a557")
     nfo = row.get("coll_nfo") or {}
     if nfo and norm_name(nfo.get("name")) == norm_name(name) and nfo.get("tmdbcolid") in (tm["id"], None):
         return None, None, None, "already right"                 # P4 (decision 4): no TMDB ID in the NFO is right too

@@ -116,7 +116,14 @@ DEFAULT_SETTINGS = {
     "image_fix_prefs":         {},       # NEW v0.19.2 F4: last choices of Fix image proportions / size (method per kind, ai_upscale, AI test result)
     "library_kinds":           {},       # NEW v0.19.4 I19: {library path: "movies" | "series"}; absent = "movies" (series from v0.22)
     "health_mode":             "nfo",    # NEW v0.19.6 TR1b: "nfo" (Kodi, Jellyfin, Emby, Plex, Infuse…), "nfo_xml" (+ movie.xml), "xml" (movie.xml only); existing users: "nfo_xml" by a migration
+    "media_programs":          [],       # NEW v0.20.0 F3a-2: the programs ticked in Settings → Health Rules (media_profiles.PROGRAMS); [] = not chosen: today's behaviour
+    "library_programs":        {},       # NEW v0.20.0 F3a-2: {library path key: [programs]} = Libraries… → Programs…; absent = as in Settings (library_nfo_only still drops MediaBrowser / MCM)
     "health_mode_asked":       False,    # NEW v0.19.6 TR1b: the start question (three buttons) was answered
+    "first_start_pending":     False,    # NEW v0.20.0 6g (I34): True only for a new user (no settings.json yet) until the first-start window's Start
+    "plex_nfo_checks":         "",       # NEW v0.20.0 6h (Plex test 2026-11-17): Plex reads no NFO — with ONLY Plex ticked, "off" switches the NFO / collection checks off, "on" keeps them, "" = not asked yet (they stay on)
+    "programs_asked":          False,    # NEW v0.20.0 6g: the first-start programs question was answered (Start / Save / Not now); closing it asks again
+    "health_preset":           "custom", # NEW v0.20.0 HP1d: "easy" / "medium" / "tight" / "custom"; a new user gets "tight" (settings_controller), an existing one the preset their rules equal
+    "library_inactive":        {},       # NEW v0.20.0 5j: {library path key: True} = unticked in Libraries… (not scanned, rows hidden and kept)
     "library_nfo_only":        {},       # NEW v0.19.6 TR1: {library path: True (NFO files only, no XML checks) | False (asked, keep them)}; absent = not asked yet
     "movie_panel_shown":       True,     # NEW v0.19.4 L3: the selected-movie panel (D6: shown at the first start)
     "movie_panel_width":       320,      # NEW v0.19.4 L3: its width in px (double-click on the divider resets)
@@ -154,9 +161,14 @@ DEFAULT_SETTINGS = {
         "duplicate_movie":                 True,      ### NEW v0.18.4 — same ID or title+year elsewhere ###
         "missing_poster":                  True,
         "missing_fanart":                  True,
+        "profile_names_unread":            True,      ### NEW v0.20.0 F3c — a file in a name a ticked program does not read (only with programs ticked) ###
+        "missing_logo_disc":               False,     ### NEW v0.20.0 RD8 — clear logo / disc art (Tight preset only) ###
         "missing_folder":                  False,     ### MODIFIED v0.19.2 B35 — default OFF: no media server needs folder.jpg ###
         "folder_optional_with_kodi_poster": True,     ### NEW v0.19.1 B23 — no folder.jpg warning when a Kodi "<video>-poster" exists ###
+        "xml_tags_old_readers":            True,      ### NEW v0.20.0 KR1.4 — movie.xml: an ID / the votes only in tags the old programs ignore ###
+        "id_not_kodi":                     True,      ### NEW v0.20.0 KR1.1 — an ID only in <imdbid> / <tmdbid> (Kodi reads <uniqueid>) ###
         "nfo_name_not_kodi":               True,      ### NEW v0.19.1 B23 — NFO only as <folder>.nfo while the video has another name ###
+        "nfo_online_art_links":            False,     ### NEW v0.20.0 RD9 — online artwork links for local artwork (Off in every preset) ###
         "nfo_unescaped_amp":               True,      ### NEW v0.19.2 B33 — a bare '&' in the NFO (Jellyfin may ignore the NFO) ###
         "multiple_nfo_files":              True,      ### NEW v0.19.2 F5 — movie.nfo and another readable NFO in one folder ###
         "poster_missing_with_folder":      False,     ### NEW v0.19.2 F5 — only folder.jpg: the servers use it as the poster ###
@@ -196,6 +208,7 @@ DEFAULT_SETTINGS = {
         "collection_artwork":              True,      ### NEW v0.19.4 B110g — set folder / poster / fanart (only with a collection folder) ###
         "collection_mismatch":             True,      ### NEW v0.19.4 B110c — missing / different collection (TMDB) ###
         "title_sync_default":              "nfo",     ### NEW v0.19.3 B60 — Repair All, unclear title: "nfo" keeps the NFO title, "skip" reports ###
+        "nfo_id_tags":                     "all",     ### NEW v0.20.0 RD12 — IDs written in the NFO: "all" (every tag style) / "kodi" (<uniqueid> only; existing ID tags still corrected) ###
         "id_format_invalid":               True,      ### NEW v0.19.3 I8 — IMDb tt + 7–9 digits, TMDb digits ###
         "year_premiered_differ":           True,      ### NEW v0.19.5 B126 ###
         "year_out_of_range":               True,      ### NEW v0.19.3 I8 — 1888 … next year + 1 ###
@@ -306,6 +319,13 @@ def api_failure_text(service_label, kind, other_note=""):
     """(message, advice) for a failure kind; other_note is appended to the
     daily-limit advice (e.g. " TMDb ratings still work.")."""
     msg, adv = _API_FAILURE_TEXT.get(kind, ("{s} could not be reached.", "Try again later."))
+    try:                                                         ### v0.20.0 AU23 — in the interface language ###
+        import mc_i18n as _i18n
+        k = f"au.fail.{kind if kind in _API_FAILURE_TEXT else 'other'}"
+        if _i18n.has(k + ".msg"):
+            return _i18n.t(k + ".msg", s=service_label), _i18n.t(k + ".adv", other=other_note)
+    except ImportError:
+        pass
     return msg.format(s=service_label), adv.format(other=other_note)
 
 
@@ -495,3 +515,108 @@ def fanart_quality_sort_key_missing_last(r, key, high_to_low):
     if val is None or val == "—":
         return 9999 if high_to_low else -1
     return fanart_quality_sort_key(val)
+
+
+### NEW v0.20.0 HP1d — health presets Easy / Medium / Tight (plan 9f.8; the table the user approved on 2026-11-13 in
+### HP1_HEALTH_PRESETS_PROPOSAL.md, generated from it).  Pure data: a preset sets the health-rule keys listed here and
+### leaves every other key alone (the audio / subtitle language codes, title_sync_default, the KB limits, and a value
+### key whose rule the preset turns off).  "by_mode": the value depends on the health mode (HEALTH_PRESET_BY_MODE).
+HEALTH_PRESET_IDS = ("easy", "medium", "tight")
+HEALTH_PRESET_DEFAULT = "tight"                 # a new user starts here (the user: "the default is the tight one")
+HEALTH_PRESET_BY_MODE = {'missing_folder': {'nfo': False, 'nfo_xml': True, 'xml': True}}
+HEALTH_PRESETS = {
+    'easy': {
+        'xml_tags_old_readers': False, 'missing_logo_disc': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'backdrop_too_small': False, 'collection_artwork': False, 'collection_mismatch': False,
+        'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True, 'corrupt_nfo': True,
+        'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True, 'duplicate_movie': False,
+        'duplicate_single_tag': False, 'empty_required_tag': False, 'fanart_proportion': False,
+        'fanart_quality_minimum': False, 'folder_name_mismatch': False, 'folder_optional_with_kodi_poster': True,
+        'folder_proportion': False, 'genre_missing': False, 'genre_nfo_wrong_tags': False,
+        'genre_only_in_nfo': False, 'genre_only_in_xml': False, 'genre_warning': False, 'id_format_invalid': True,
+        'id_not_kodi': True, 'image_file_too_small': False, 'image_format_mismatch': False, 'imdb_id_partial': False,
+        'insufficient_backdrops': False, 'lang_not_ok': False, 'missing_fanart': False, 'missing_folder': 'by_mode',
+        'missing_imdb_id': True, 'missing_movie_title': True, 'missing_movie_year': True, 'missing_nfo': True,
+        'missing_poster': True, 'missing_rating': False, 'missing_tmdb_id': True, 'missing_video_file': True,
+        'missing_votes': False, 'missing_xml': True, 'multiple_nfo_files': True, 'multiple_video_files': False,
+        'nfo_name_not_kodi': True, 'nfo_unescaped_amp': False, 'nfo_xml_too_large': False, 'no_audio_tracks': True,
+        'no_source_level': 'warning', 'numeric_field_invalid': False, 'poster_folder_identical': False,
+        'poster_folder_quality_minimum': False, 'poster_missing_with_folder': False, 'poster_proportion': False,
+        'rating_conflict': False, 'rating_warning': False, 'required_audio_language': False,
+        'required_subtitle_language': False, 'single_source_level': 'off', 'suspicious_rating': False,
+        'title_mismatch': False, 'tmdb_id_partial': False, 'unexpected_root': False, 'video_quality_minimum': False,
+        'votes_conflict': False, 'votes_warning': False, 'year_out_of_range': True, 'year_premiered_differ': False,
+    },
+    'medium': {
+        'xml_tags_old_readers': True, 'missing_logo_disc': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'backdrop_too_small': False, 'collection_artwork': False, 'collection_mismatch': False,
+        'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True, 'corrupt_nfo': True,
+        'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True, 'duplicate_movie': True,
+        'duplicate_single_tag': True, 'empty_required_tag': False, 'fanart_proportion': True,
+        'fanart_quality_level_minimum': '720p', 'fanart_quality_minimum': True, 'folder_name_mismatch': False,
+        'folder_optional_with_kodi_poster': True, 'folder_proportion': True, 'genre_missing': True,
+        'genre_nfo_wrong_tags': True, 'genre_only_in_nfo': False, 'genre_only_in_xml': False, 'genre_warning': False,
+        'id_format_invalid': True, 'id_not_kodi': True, 'image_file_too_small': True, 'image_format_mismatch': True,
+        'imdb_id_partial': True, 'insufficient_backdrops': False, 'lang_not_ok': False, 'missing_fanart': True,
+        'missing_folder': 'by_mode', 'missing_imdb_id': True, 'missing_movie_title': True,
+        'missing_movie_year': True, 'missing_nfo': True, 'missing_poster': True, 'missing_rating': True,
+        'missing_tmdb_id': True, 'missing_video_file': True, 'missing_votes': False, 'missing_xml': True,
+        'multiple_nfo_files': True, 'multiple_video_files': False, 'nfo_name_not_kodi': True,
+        'nfo_unescaped_amp': True, 'nfo_xml_too_large': False, 'no_audio_tracks': True, 'no_source_level': 'error',
+        'numeric_field_invalid': True, 'poster_folder_identical': False, 'poster_folder_quality_level': '720p',
+        'poster_folder_quality_minimum': True, 'poster_missing_with_folder': False, 'poster_proportion': True,
+        'rating_conflict': True, 'rating_warning': True, 'required_audio_language': False,
+        'required_subtitle_language': False, 'single_source_level': 'warning', 'suspicious_rating': True,
+        'suspicious_rating_threshold': 1.0, 'title_mismatch': True, 'tmdb_id_partial': True, 'unexpected_root': True,
+        'video_quality_minimum': True, 'video_quality_minimum_level': '720p', 'votes_conflict': True,
+        'votes_warning': True, 'year_out_of_range': True, 'year_premiered_differ': True,
+    },
+    'tight': {
+        'xml_tags_old_readers': True, 'missing_logo_disc': True, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'backdrop_min_avg_kb': 20, 'backdrop_min_count': 5, 'backdrop_too_small': True, 'collection_artwork': True,
+        'collection_mismatch': True, 'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True,
+        'corrupt_nfo': True, 'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True,
+        'duplicate_movie': True, 'duplicate_single_tag': True, 'empty_required_tag': True, 'fanart_proportion': True,
+        'fanart_quality_level_minimum': '1080p', 'fanart_quality_minimum': True, 'folder_name_mismatch': True,
+        'folder_optional_with_kodi_poster': True, 'folder_proportion': True, 'genre_missing': True,
+        'genre_nfo_wrong_tags': True, 'genre_only_in_nfo': True, 'genre_only_in_xml': True, 'genre_warning': True,
+        'id_format_invalid': True, 'id_not_kodi': True, 'image_file_too_small': True, 'image_format_mismatch': True,
+        'imdb_id_partial': True, 'insufficient_backdrops': True, 'lang_not_ok': True, 'missing_fanart': True,
+        'missing_folder': 'by_mode', 'missing_imdb_id': True, 'missing_movie_title': True,
+        'missing_movie_year': True, 'missing_nfo': True, 'missing_poster': True, 'missing_rating': True,
+        'missing_tmdb_id': True, 'missing_video_file': True, 'missing_votes': True, 'missing_xml': True,
+        'multiple_nfo_files': True, 'multiple_video_files': False, 'nfo_name_not_kodi': True,
+        'nfo_unescaped_amp': True, 'nfo_xml_too_large': True, 'no_audio_tracks': True, 'no_source_level': 'error',
+        'numeric_field_invalid': True, 'poster_folder_identical': False, 'poster_folder_quality_level': '1080p',
+        'poster_folder_quality_minimum': True, 'poster_missing_with_folder': True, 'poster_proportion': True,
+        'rating_conflict': True, 'rating_warning': True, 'required_audio_language': True,
+        'required_subtitle_language': True, 'single_source_level': 'error', 'suspicious_rating': True,
+        'suspicious_rating_threshold': 1.0, 'title_mismatch': True, 'tmdb_id_partial': True, 'unexpected_root': True,
+        'video_quality_minimum': True, 'video_quality_minimum_level': '1080p', 'votes_conflict': True,
+        'votes_warning': True, 'year_out_of_range': True, 'year_premiered_differ': True,
+    },
+}
+
+
+def health_preset_values(preset, mode="nfo"):
+    """{rule key: value} the preset sets in this health mode ("nfo", "nfo_xml", "xml"); {} for "custom" / unknown."""
+    out = {}
+    for k, v in HEALTH_PRESETS.get(preset, {}).items():
+        out[k] = HEALTH_PRESET_BY_MODE.get(k, {}).get(mode, False) if v == "by_mode" else v
+    return out
+
+
+def apply_health_preset(rules, preset, mode="nfo"):
+    """A copy of *rules* with the preset's values (keys the preset does not set are kept)."""
+    out = dict(rules or {})
+    out.update(health_preset_values(preset, mode))
+    return out
+
+
+def matching_health_preset(rules, mode="nfo"):
+    """The preset whose values *rules* hold exactly ("tight" first), else "custom"."""
+    r = rules or {}
+    for p in ("tight", "medium", "easy"):
+        if all(r.get(k) == v for k, v in health_preset_values(p, mode).items()):
+            return p
+    return "custom"

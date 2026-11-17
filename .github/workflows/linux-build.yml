@@ -1,0 +1,62 @@
+# v0.20.0 LX1 — the Linux download, built by GitHub Actions.
+# Runs by hand (Actions → Linux build → Run workflow) or on a version tag, and leaves
+# MediaClinic-<version>-linux-x64.tar.gz + .sha256 as a build artifact (it publishes nothing by itself).
+name: Linux build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    # The oldest Ubuntu runner GitHub offers: a binary runs on this glibc (2.35) and on newer distributions only.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: System packages (Tk, virtual display, FFmpeg)
+        run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb ffmpeg
+      - name: Python packages
+        run: pip install pyinstaller==6.11.1 pillow openpyxl jsonschema pytest
+      - name: Tests from source (virtual display)
+        run: |
+          python -m pytest tests -v
+          xvfb-run -a python -u tests/selftest_v0_20_0.py
+      - name: Version from the source
+        id: v
+        run: |
+          echo "version=$(python -c "import re; print(re.search(r'APP_VERSION = \"([^\"]+)\"', open('mediaclinic.py', encoding='utf-8').read()).group(1))")" >> "$GITHUB_OUTPUT"
+      - name: Build (PyInstaller, one folder)
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name MediaClinic \
+            --add-data "MediaClinic.ico:." --add-data "MediaClinic-small.ico:." --add-data "third_party:third_party" \
+            --collect-all PIL --collect-all openpyxl \
+            --hidden-import help_pt_br --hidden-import help_es \
+            --exclude-module win32api --exclude-module win32con --exclude-module pywintypes --exclude-module win32evtlog \
+            mediaclinic.py
+          cp LICENSE README.md MediaClinic.sh dist/MediaClinic/
+      - name: Smoke test (the binary starts and is still running after 20 s)
+        run: |
+          export MEDIACLINIC_CONFIG_DIR="$RUNNER_TEMP/mc_cfg" MEDIACLINIC_BACKUP_DIR="$RUNNER_TEMP/mc_bak"
+          mkdir -p "$MEDIACLINIC_CONFIG_DIR" "$MEDIACLINIC_BACKUP_DIR"
+          set +e
+          timeout 20 xvfb-run -a dist/MediaClinic/MediaClinic
+          rc=$?
+          set -e
+          if [ "$rc" -ne 124 ]; then echo "MediaClinic exited early (code $rc)"; exit 1; fi
+      - name: Package (.tar.gz + .sha256)
+        run: |
+          N="MediaClinic-${{ steps.v.outputs.version }}-linux-x64.tar.gz"
+          tar -C dist -czf "$N" MediaClinic
+          sha256sum "$N" > "$N.sha256"
+          cat "$N.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MediaClinic-linux-x64
+          path: MediaClinic-*-linux-x64.tar.gz*

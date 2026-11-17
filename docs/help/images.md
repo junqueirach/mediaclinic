@@ -35,5 +35,5 @@ Right-click → Artwork → **Fix Image Proportions / Size…** fixes a poster, 
 - **Method**: Blur fill keeps the whole image and fills the empty bands with a blurred copy (posters); Smart crop keeps the most detailed part (fanart); Centre crop; Solid fill. Up to 3 % is simply stretched.
 - **Size**: the tier nearest to the image, with its factor and a mark — ✓ recommended, ⚠ soft, ✕ too far (not offered). "Keep current size" fixes the proportions only. For a much bigger image use **Find a better one online**.
 - **AI upscale** (optional): **Download upscaler (about 45 MB)…** installs Real-ESRGAN (checked against its SHA-256) and tests it once; it needs a Vulkan graphics card. ×2 is recommended, up to ×4 allowed — check the preview: AI may invent detail.
-- "Also copy the result to folder.jpg" (ticked by default) keeps poster and folder the same picture. Every file is backed up first.
+- "Also copy the result to folder.jpg" is ticked when folder.jpg is the same picture as the poster; when it is a different picture, "Also fix folder.jpg (a different picture: fixed on its own, not replaced)" is offered instead. Every file is backed up first.
 - Several movies, or **Tools → Fix Image Proportions / Size — All Movies with Image Warnings…**: a preview lists every image and its fix; only ✓ sizes are used. You can minimise the window while it runs; **■ Stop** stops it.

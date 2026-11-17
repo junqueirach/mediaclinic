@@ -1,12 +1,64 @@
 # =============================================================================
 # Metadata & MediaClinic
-# Version: 0.19.6                                              ### MODIFIED v0.19.6 ###
+# Version: 0.20.0                                              ### MODIFIED v0.20.0 ###
 # Author:  Luiz Junqueira & Claude AI
 # Contact: info@mediaclinic.dev                              ### MODIFIED v0.19.2 B49 ###
 #
 # CHANGELOG
 # ---------
-# v0.19.6 (current)                                         ### NEW v0.19.6 ###
+# v0.20.0 (current)                                         ### NEW v0.20.0 ###
+#   - Setup: copied from v0.19.6 (file names _v0_20_0). Plan Part 6a (UI1), Part 6 (F3), Part 9f (HP1, KR1, I34 …).
+#   - UI1a (no visible change in English): mc_i18n.py (t / tn / pick_language, catalogs EN / PT-BR / ES);
+#          the interface language follows Windows (Portuguese → PT-BR, Spanish → ES, other → English) until
+#          Settings → User Interface → Interface language stores a choice (saved at once, used from the next
+#          start, Restart now); health reasons carry the code of their rule (HealthReason) and ⚠ Fix issues
+#          reads the code first.
+#   - UI1b-UI1f: every window, message, report, Settings tab, the Help and About in English, Portuguese (Brazil)
+#          and Spanish; health reasons shown in the language (stored in English); Full Scan / Quick Scan stay
+#          English (UI-D4); a source scan fails on any shown text outside the catalogs (tools/i18n_allow.json).
+#   - Reddit testers on v0.19.6 (9f.12): read-only files named, with "Clear read-only" (RD1); Auto Size Columns
+#          fast on a large library (RD2); "Missing folder image" names folder.jpg (RD3); Ignored Folders says why
+#          each folder was skipped (RD4); Fix image with a DIFFERENT folder.jpg fixes each on its own (RD7).
+#   - XB1: switching the health mode to NFO + movie.xml no longer makes every movie "Missing XML file".
+#   - What Kodi really reads (KR1.1-KR1.4): an ID only in <imdbid>/<tmdbid> (Auto Repair adds <uniqueid>),
+#          <premiered> counts as the year, a lone NFO any name is read, movie.xml writers add <IMDbId>/<TMDbId>/
+#          <VoteCount>.
+#   - Health presets (HP1d): Easy / Medium / Tight / Custom at the top of Health Rules; a new user gets Tight.
+#   - New rules and fixes: Missing clear logo / disc art (RD8, Tight only); Remove online artwork links from the
+#          NFO (RD9, only for artwork present locally, backup + Undo); Check Genres Against TMDB (I36, nothing
+#          ticked); HTML export with optional poster thumbnails (I38).
+#   - Libraries: Active / off per library (5j: not scanned, rows hidden and kept); the collection folder is set
+#          in the Libraries window (CF1).
+#   - Linux download prepared (LX1): GitHub Actions workflow (not in the repository yet); a non-Windows build
+#          offers only the download page.
+#   - Reddit testers round 2 (2026-11-16): a multi-part movie's NFO / art named after the stack (Movie.nfo,
+#          Movie-poster.jpg) and the folder's only NFO with <movie> are read (RD10); the table and panel show
+#          "— Part 1 + Part 2" (RD10b, display only); a value that is not an ID ('7840' in an IMDb tag) is set
+#          apart, Auto Repair checks the movie's own ID first, Enter ID cleans what is typed, the TMDB chooser rows
+#          are clickable (RD11); Normalize IDs asks for the ID when a tag holds only such a value (RD11b); new files get Kodi's recommended long
+#          names <video>.nfo / <video>-poster.jpg / <video>-fanart.jpg (KN1); the 'Kodi does not read' rules only with
+#          Kodi ticked (KN2); pre-build audit AU1–AU19 (plan_assets/run_0200/AUDIT_2026-11-17.md: ID writers only
+#          touch tags directly in <movie>, scan / restore / close keep every library's rows, exports, settings
+#          loading, Replace All Backdrops, reports and texts in PT / ES, threads); Settings → Health Rules → NFO "ID tags written in the NFO": every tag style /
+#          <uniqueid> only (RD12).
+#   - Tests: Settings-window checks fixed when the app window is minimized (I39); the RD2 width test measures
+#          each text once (it hit its 300 s limit under load).
+#   - F3 (media programs, 2026-11-16): Settings → Health Rules opens with tick boxes for the programs that play
+#          the movies (Kodi, Plex, Jellyfin, Emby, Infuse, MediaBrowser / Media Center Master; media_profiles.py);
+#          they set the health mode and the names a fix writes (a name every ticked program reads), and switch off
+#          what those programs do not use; Libraries… → Programs… per library. Every NFO / movie.xml writer goes
+#          through _metadata_targets (F3b). New warning "Not read by Infuse: …" with its fix Rename Files for My
+#          Programs (preview, backup, Undo; F3c / F3c2). Convert movie.xml → NFO (F3d). Infuse's names follow the
+#          user's Apple TV test (it reads poster.jpg / fanart.jpg, ignores movie.nfo).
+#   - First-start window (6g: I34 + F3e, one page): language, movies folder, the programs, strictness (Tight /
+#          Medium / Easy) and FFprobe; an existing user sees the programs question once (Not now / Save). It
+#          replaces the v0.19.6 three-button start question. KR1.5: the folder.jpg-optional text no longer names .tbn.
+#   - Server checks (6h, 2026-11-17): Plex, Emby and Jellyfin tested on real servers, Infuse on an Apple TV
+#          (MEDIA_SERVERS_REFERENCE.md in the project folder). Plex reads no NFO: with only Plex ticked a
+#          pop-up asks once whether to switch the NFO and collection checks off (plex_nfo_checks); the name
+#          tables follow the tests (Plex: no NFO, <video>-poster; Emby: <video>-fanart).
+#   - Not in this version yet: RD5.
+# v0.19.6 (previous)
 #   - Setup: copied from v0.19.5 (file names _v0_19_6). What the first outside testers found (plan Part 9e).
 #   - Health mode (TR1, TR1b): a question at the first start for every user, "Which program plays
 #          your movies?" — three big buttons: Kodi, Jellyfin, Emby, Plex, Infuse… (the NFO; movie.xml
@@ -912,9 +964,17 @@ def _apply_theme(root):                                          ### NEW v0.19.4
     return style
 
 
+import mc_i18n as _i18n                                         ### NEW v0.20.0 UI1c — needed by the registry below ###
+
+
 def _n(n, word, fmt="", plural=None):                            ### NEW v0.19.4 B105 — one plurals helper ###
     """'1 movie', '2 movies', '0 movies' — *fmt* formats the number (e.g.
-    ','), *plural* for irregular words ('entry' → 'entries' is automatic)."""
+    ','), *plural* for irregular words ('entry' → 'entries' is automatic).
+    ### MODIFIED v0.20.0 UI1c ### a word with a catalog key ("n.movie" …) comes from tn() in the interface
+    language (CLDR plurals; "," → num(): 1,204 / 1.204); other words keep the English rule until UI1d."""
+    if plural is None and _i18n.has("n." + word):
+        shown = _i18n.num(n) if fmt == "," else (format(n, fmt) if fmt else None)
+        return _i18n.tn("n." + word, n, as_text=shown)
     try:
         one = float(n) == 1
     except (TypeError, ValueError):
@@ -933,24 +993,53 @@ def _n(n, word, fmt="", plural=None):                            ### NEW v0.19.4
 # entries by changing only the lists below.
 ACTIONS = {}
 
+### NEW v0.20.0 UI1c — labels in the interface language ###
+# A label is (icon, catalog key, shortcut hint): the catalog holds the words only, the code adds the icon, two
+# spaces and "  (Ctrl+…)", so the English labels stay exactly as before and menu_path() / the right-click Repeat
+# work in every language.  Labels built at import are rebuilt by _i18n_refresh() once the language is chosen
+# (init_interface_language, before the first widget) — the module constants below are plain strings again then.
+_I18N_LABELS = {}                                               # global name → (icon, key, hint)
+
+
+def ui_label(icon, key, hint=""):                                ### NEW v0.20.0 UI1c ###
+    """'🕘  Backup History / Undo…' / '📤  Export Movie List…  (Ctrl+Shift+E)' in the interface language."""
+    s = _i18n.t(key)
+    return (f"{icon}  {s}" if icon else s) + (f"  ({hint})" if hint else "")
+
+
+def _label_const(name, icon, key, hint=""):                      ### NEW v0.20.0 UI1c ###
+    """A module-level menu label that follows the interface language (rebuilt by _i18n_refresh)."""
+    _I18N_LABELS[name] = (icon, key, hint)
+    return ui_label(icon, key, hint)
+
+
+def _spec(name):                                                 ### NEW v0.20.0 UI1c ###
+    """The (icon, key, hint) of a label constant, for register_action."""
+    return _I18N_LABELS[name]
+
 
 def register_action(aid, label, run=None, keys=(), needs_results=False, path="Tools", part="movies"):
     """### v0.19.4 I14 ### part: the action works only while that part is shown
-    (None = app-wide: Settings, Help, Backup History, About …)."""
-    ACTIONS[aid] = {"id": aid, "label": label, "run": run, "keys": tuple(keys),
-                    "needs_results": needs_results, "path": path, "part": part}
+    (None = app-wide: Settings, Help, Backup History, About …).
+    ### v0.20.0 UI1c ### *label* is (icon, catalog key, hint); the shown label follows the interface language."""
+    spec = tuple(label) if isinstance(label, tuple) else None
+    ACTIONS[aid] = {"id": aid, "label": ui_label(*spec) if spec else label, "spec": spec, "run": run,
+                    "keys": tuple(keys), "needs_results": needs_results, "path": path, "part": part}
 
 
 def menu_path(aid):
     """'Tools → Backup History / Undo…' for messages (the label without its
-    topic emoji and shortcut hint)."""
+    topic emoji and shortcut hint).  ### v0.20.0 UI1c ### in the interface language."""
     a = ACTIONS[aid]
+    if a.get("spec"):
+        lbl = _i18n.t(a["spec"][1])
+        return f"{_i18n.t('path.' + a['path'].lower())} → {lbl}" if a["path"] else lbl
     lbl = re.sub(r"^\S+\s{2,}", "", a["label"].strip())
     lbl = re.sub(r"\s+\((?:Ctrl|F\d)[^)]*\)$", "", lbl)
     return f"{a['path']} → {lbl}" if a["path"] else lbl
 
 
-register_action("backup_history", "🕘  Backup History / Undo…", lambda app: BackupHistoryDialog(app), part=None)
+register_action("backup_history", ("🕘", "act.backup_history"), lambda app: BackupHistoryDialog(app), part=None)
 
 # PIL/Pillow — used for thumbnail display in Fetch Image dialogs ### NEW v0.16.0 ###
 try:
@@ -980,6 +1069,7 @@ from settings_model import (
 )
 import settings_controller as _sc
 import naming_catalog as _nc                                  ### NEW v0.19.2 F5 — names the servers accept ###
+import media_profiles as _mp                                 ### NEW v0.20.0 F3 — what each program reads, names a fix writes ###
 import sort_engine as _se                                     ### NEW v0.19.3 B63 — the sort builder (pure) ###
 import folder_classifier as _fc                               ### NEW v0.19.2 B53 — folders that are not movies ###
 try:
@@ -999,15 +1089,18 @@ from settings_dialog import SettingsDialog, _inject_globals as _sd_inject
 from settings_dialog import bind_wheel                          ### NEW v0.19.2 B29 — one wheel helper ###
 from settings_dialog import modal as _modal                      ### NEW v0.19.4 B98 — grabs saved and given back ###
 from settings_dialog import HEALTH_MODES, HEALTH_MODE_PATH, health_mode_of   # v0.19.6 TR1b
+from settings_dialog import programs_info_text as _sd_programs_info_text   # v0.20.0 6g
 from settings_dialog import DialogBase as _DialogBase, DialogFrame   ### NEW v0.19.4 L4 / I15a — one dialog frame ###
 import collection_rules as _cr                                   ### NEW v0.19.4 B110 — movie collections (pure) ###
 from genre_data  import GENRE_SYNONYMS as _GENRE_SYNONYMS, GENRE_TRANSLATIONS as _GENRE_TRANSLATIONS  ### NEW v0.18.3 ###
+import settings_model as _sm                                    ### NEW v0.20.0 HP1d ###
 import help_text   as _help                                      ### NEW v0.18.3 ###
+import mc_i18n      as _i18n                                     ### NEW v0.20.0 UI1a — interface texts EN / PT-BR / ES ###
 import export_list as _export                                    ### NEW v0.18.3 ###
 
 # ── App identity ──────────────────────────────────────────────────────────────
 APP_NAME    = "Metadata & MediaClinic"
-APP_VERSION = "0.19.6"                                           ### MODIFIED v0.19.6 ###
+APP_VERSION = "0.20.0"                                           ### MODIFIED v0.20.0 ###
 APP_AUTHOR  = "Luiz Junqueira & Claude AI"
 APP_EMAIL   = "info@mediaclinic.dev"                         ### MODIFIED v0.19.2 B49 — the project address ###
 APP_WEBSITE = "https://www.mediaclinic.dev"                      ### NEW v0.19.2 B49 (.dev = HTTPS only) ###
@@ -1329,7 +1422,7 @@ def _app_icon_path():                                           ### NEW v0.19.2 
 # The GitHub check does NOT go through _http_get_json (TMDb / OMDb client with
 # rate limits, API pauses and the "TMDb did not answer" dialog): a release
 # check must never start those (section C names this one exception).
-CHECK_UPDATES_LABEL = "⬆  Check for Updates…"   ### MODIFIED v0.19.4 B108 d ###
+CHECK_UPDATES_LABEL = _label_const("CHECK_UPDATES_LABEL", "⬆", "act.check_updates")   ### MODIFIED v0.19.4 B108 d ###
 _DEFAULT_UPDATE_API = "https://api.github.com/repos/junqueirach/mediaclinic/releases/latest"
 
 
@@ -1392,6 +1485,11 @@ def _download_allowed(url):                                      ### NEW v0.19.2
     if u.startswith(("https://github.com/", "https://objects.githubusercontent.com/")):
         return True
     return bool(os.environ.get("MEDIACLINIC_UPDATE_API")) and u.startswith("file:")
+
+
+def _is_windows():                                               ### NEW v0.20.0 LX1 ###
+    """The Windows build: only there is the release zip installed by the app (Linux: the download page)."""
+    return sys.platform == "win32"
 
 
 def release_package(rel):                                        ### NEW v0.19.2 B56 ###
@@ -1523,24 +1621,24 @@ class UpdateDialog(_DialogBase):                                 ### NEW v0.19.2
     def __init__(self, app, rel):
         super().__init__(app)
         self._app, self._rel = app, rel
-        self.title("Check for updates")
+        self.title(_i18n.t("mc.check_for_updates_eb1b"))
         self.configure(bg=self._BG)
         self.transient(app)
         self.resizable(False, False)
         self.bind("<Escape>", lambda e: self.destroy())
         st = rel.get("status")
-        head = {"newer": "⬆  A new version is available", "latest": "✓  You have the latest version",
-                "none": "No release published yet", "error": "Could not check for updates"}.get(st, "Check for updates")
+        head = _i18n.t({"newer": "au.upd.newer", "latest": "au.upd.latest", "none": "au.upd.none",
+                        "error": "au.upd.error"}.get(st, "au.upd.check"))          # v0.20.0 AU15: translated
         tk.Label(self, text=head, font=("Helvetica", 13, "bold"), bg=self._BG,
                  fg=C_OK if st in ("newer", "latest") else C_WARN).pack(anchor="w", padx=18, pady=(16, 6))
         if st == "newer":
-            body = f"Your version:\t{APP_VERSION}\nNew version:\t{rel.get('version')}\n\n{rel.get('url')}"
+            body = _i18n.t("mc.your_version_new_version_400a", app_version=APP_VERSION, get=rel.get('version'), get2=rel.get('url'))
         elif st == "latest":
-            body = f"MediaClinic {APP_VERSION} is the newest release."
+            body = _i18n.t("mc.mediaclinic_is_the_newest_c6d5", app_version=APP_VERSION)
         elif st == "none":
-            body = "There is no release on GitHub yet."
+            body = _i18n.t("mc.there_is_no_release_7889")
         else:
-            body = f"{rel.get('error')}\n\nCheck the internet connection, or open the Releases page."
+            body = _i18n.t("mc.check_the_internet_connection_00de", get=rel.get('error'))
         tk.Label(self, text=body, justify="left", anchor="w", bg=self._BG, fg=self._FG,
                  font=("Helvetica", 10), wraplength=480).pack(anchor="w", padx=18)
         bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=18, pady=(14, 14))
@@ -1553,13 +1651,13 @@ class UpdateDialog(_DialogBase):                                 ### NEW v0.19.2
             b.pack(side="left", padx=(0, 8))
             self.buttons[key] = b
         if st == "newer":
-            if _is_frozen() and release_package(rel)[0] is not None:
-                btn("install", "⬇ Download and install", self._install, accent=True)
-            btn("open", "Open download page", lambda: (open_url_with_browser(rel.get("url") or RELEASES_URL), self.destroy()))
-            btn("skip", "Skip this version", self._skip)
+            if _is_frozen() and _is_windows() and release_package(rel)[0] is not None:   # v0.20.0 LX1: the zip is the Windows build
+                btn("install", _i18n.t("uf.download_and_install_be7c"), self._install, accent=True)
+            btn("open", _i18n.t("uf.open_download_page_224f"), lambda: (open_url_with_browser(rel.get("url") or RELEASES_URL), self.destroy()))
+            btn("skip", _i18n.t("uf.skip_this_version_b795"), self._skip)
         elif st in ("none", "error"):
-            btn("open", "Open the Releases page", lambda: (open_url_with_browser(RELEASES_URL), self.destroy()))
-        btn("close", "Close", self.destroy)
+            btn("open", _i18n.t("uf.open_the_releases_page_c0ea"), lambda: (open_url_with_browser(RELEASES_URL), self.destroy()))
+        btn("close", _i18n.t("mc.close_d3d2"), self.destroy)    # v0.20.0 AU15
         _remember_window(self, "UpdateDialog", resizable=False)
 
     def _skip(self):
@@ -1848,8 +1946,8 @@ BACKUP_FAILED_TEXT = "backup failed — not changed (see logs\\app.log)"
 
 
 class BackupFailed(RuntimeError):                               ### NEW v0.19.2 B40 ###
-    def __init__(self):
-        super().__init__(BACKUP_FAILED_TEXT)
+    def __init__(self, msg=None):                               # v0.20.0 RV8: BackupFailed("…") raised TypeError
+        super().__init__(msg or BACKUP_FAILED_TEXT)
 
 
 def _backup_ok(movie_name, *file_paths):                         ### NEW v0.19.2 B40 ###
@@ -1934,7 +2032,7 @@ def open_in_editor(filepath):
         else:
             subprocess.Popen([unix_open_command(), filepath])          # v0.19.6 TR8
     except Exception as e:
-        messagebox.showerror("Cannot open", str(e))
+        messagebox.showerror(_i18n.t("mc.cannot_open_6a5c"), str(e))
 
 
 def unix_open_command():                                        ### NEW v0.19.6 TR8 ###
@@ -1957,21 +2055,16 @@ def os_open(path):
         else:
             subprocess.Popen([unix_open_command(), path])              # v0.19.6 TR8
     except Exception as e:
-        messagebox.showerror("Cannot open", str(e))
+        messagebox.showerror(_i18n.t("mc.cannot_open_6a5c"), str(e))
 
-OPEN_LOGS_LABEL = "📂  Open Logs Folder"                          ### NEW v0.19.2 B32 ###
-EXTRAFANART_MENU_LABEL = "🗑  Delete extrafanart Subfolders — All Movies…"   ### NEW v0.19.2 B34 ###
+OPEN_LOGS_LABEL = _label_const("OPEN_LOGS_LABEL", "📂", "act.open_logs")                          ### NEW v0.19.2 B32 ###
+EXTRAFANART_MENU_LABEL = _label_const("EXTRAFANART_MENU_LABEL", "🗑", "act.extrafanart_all")   ### NEW v0.19.2 B34 ###
 
 
 def extrafanart_warning_text(n_folders, n_images):              ### NEW v0.19.2 B34 ###
     """The confirmation text shown before anything is deleted (user wording,
     2026-10-15): who uses these images and who does not."""
-    return ("extrafanart folders hold extra backdrop images.\n"
-            "  •  Emby and Jellyfin USE them (shown as extra backdrops).\n"
-            "  •  Kodi and Plex do NOT read them.\n"
-            "Delete them only if you do not use Emby or Jellyfin.\n\n"
-            f"{_n(n_folders, 'folder')}, {_n(n_images, 'image')} will be moved to the backup folder\n"
-            f"({menu_path('backup_history')} can undo it).")   # v0.19.4 I13
+    return (_i18n.t("rp.extrafanart_folders_hold_extra_8b21", n=_n(n_folders, 'folder'), n2=_n(n_images, 'image'), menu_path=menu_path('backup_history')))   # v0.19.4 I13
 _logs_popen = subprocess.Popen                                   # replaced by the self-test
 
 
@@ -1987,22 +2080,21 @@ def open_logs_folder():                                         ### NEW v0.19.2 
             return _logs_popen([unix_open_command(), log_dir])
         os_open(log_dir)
     except Exception as e:
-        messagebox.showerror("Open logs folder", f"Could not open {log_dir}:\n{e}")
+        messagebox.showerror(_i18n.t("mc.open_logs_folder_38e3"), _i18n.t("mc.could_not_open_6f77", log_dir=log_dir, e=e))
 
 
 def open_with_scraper(folder_path):
     """Launch the configured scraper with the movie folder as argument."""
     scraper = SETTINGS.get("scraper_path", "").strip()
     if not scraper or not os.path.isfile(scraper):
-        messagebox.showwarning("Scraper Not Set",
-                               "No scraper configured.\n"
-                               "Go to Settings → Scraper to select your scraper executable.")
+        messagebox.showwarning(_i18n.t("mc.scraper_not_set_e275"),
+                               _i18n.t("mc.no_scraper_configured_go_db46"))
         return
     try:
         subprocess.Popen([scraper, folder_path],
                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except Exception as e:
-        messagebox.showerror("Cannot launch scraper", str(e))
+        messagebox.showerror(_i18n.t("mc.cannot_launch_scraper_494d"), str(e))
 
 
 # ── Browser helpers ───────────────────────────────────────────────────────────
@@ -2475,7 +2567,7 @@ def evaluate_image(probe, image_type, settings=None):         ### NEW v0.19.0 ##
         reasons.append("File is empty (0 bytes)")
     elif probe.get("format") is None:
         flags["corrupt"] = True
-        reasons.append("Not a recognised image file (no JPEG/PNG signature)")
+        reasons.append("Not a recognised image file (no JPEG / PNG / GIF / BMP / WebP signature)")
     elif probe.get("decode_ok") is False:
         flags["corrupt"] = True
         reasons.append(f"{probe.get('format')} data cannot be decoded (truncated or damaged file)")
@@ -2510,7 +2602,7 @@ def evaluate_image(probe, image_type, settings=None):         ### NEW v0.19.0 ##
             if s.get("fanart_accept_168", False):
                 if not (ok_169 or ok_168):
                     flags["bad_ratio"] = True
-                    reasons.append(f"Proportions {w}×{h} ({ratio:.2f}) — expected 16:9 (≈1.78) or 16:8 (≈1.50)")
+                    reasons.append(f"Proportions {w}×{h} ({ratio:.2f}) — expected 16:9 (≈1.78) or 3:2 (≈1.50)")   # v0.20.0: 1.50 is 3:2
             elif not ok_169:
                 flags["bad_ratio"] = True
                 reasons.append(f"Proportions {w}×{h} ({ratio:.2f}) — expected 16:9 landscape (≈1.78)")
@@ -2569,28 +2661,27 @@ def _artwork_row_fields(lst):                                  ### NEW v0.19.1 B
 def _art_found_line(d, key):                                   ### NEW v0.19.1 B23 ###
     """Tooltip header: the file that was found (and whether it is Kodi naming)."""
     name = os.path.basename(d.get(f"{key}_path") or "") or f"{key}.jpg"
-    line = f"Found: {name}" + ("  (Kodi naming)" if d.get(f"{key}_style") == "kodi" else "")
+    line = _i18n.t("au.tip.found", name=name) + (_i18n.t("au.tip.kodi_naming") if d.get(f"{key}_style") == "kodi" else "")   # AU23
     srv = d.get(f"{key}_servers")                                ### NEW v0.19.2 F5 — who reads this name ###
     if srv is not None:
-        line += "\nRead by: " + (_nc.servers_text(srv) or "no media server (MediaClinic only)")
+        line += "\n" + _i18n.t("au.tip.read_by", who=_nc.servers_text(srv) or _i18n.t("uf.no_media_server_mediaclinic_0584"))
     for n in d.get("art_notes") or []:
         if n.lower().startswith(name.lower() + ":"):
             line += f"\n[!] {n}"
     if key == "poster" and d.get("extra_art"):
-        line += "\nOther artwork (information only): " + ", ".join(d["extra_art"][:6])
+        line += _i18n.t("uf.other_artwork_information_only_98f8") + ", ".join(d["extra_art"][:6])
     return line
 
 
 def _art_missing_tip(d, key, expected):                        ### NEW v0.19.1 B23 ###
     """Tooltip for a missing poster / folder / fanart: where it would be
     written and every name Kodi (and MediaClinic) accepts."""
-    lines = [f"{os.path.basename(expected) or key + '.jpg'}", "[MISSING]", f"Expected: {expected}"]
+    lines = [f"{os.path.basename(expected) or key + '.jpg'}", _i18n.t("au.tip.missing"), _i18n.t("au.tip.expected", p=expected)]
     tried = d.get(f"{key}_tried") or []
     if tried:
-        lines.append("Looked for: " + ", ".join(tried))
+        lines.append(_i18n.t("au.tip.looked", names=", ".join(tried)))
     if key == "folder" and d.get("poster_exists") and d.get("poster_style") == "kodi":
-        lines.append("Optional: Kodi uses the '<video>-poster' image "
-                     "(Settings → Health Rules → folder.jpg optional)")
+        lines.append(_i18n.t("uf.optional_kodi_uses_the_04f6"))
     return "\n".join(lines)
 
 
@@ -2726,6 +2817,27 @@ def classify_videos(lst):                                       ### NEW v0.19.2 
     return lst.video_cache
 
 
+def _stack_title(lst):                                           ### NEW v0.20.0 RD10 ###
+    """'Movie' for a multi-part movie 'Movie-CD1.mkv' + 'Movie-CD2.mkv' (Kodi's stack name: it reads 'Movie.nfo' and
+    'Movie-poster.jpg' for the stack), else None.  Jellyfin reads movie.nfo / 'Movie-CD1.nfo' instead."""
+    cv = classify_videos(lst)
+    if cv.get("group") != "stack" or not cv.get("main"):
+        return None
+    return _nc.stack_title(os.path.splitext(cv["main"][0])[0])
+
+
+def stack_parts_label(row):                                      ### NEW v0.20.0 RD10b (the user, 2026-11-16) ###
+    """' — Part 1 + Part 2' ('Parte' in Portuguese / Spanish) for a multi-part movie, '' otherwise.  Shown after the
+    movie name in the table and the movie panel only: the stored name, the sort and the files are unchanged (a file
+    named '… - Parte 1' would not be joined by Kodi / Jellyfin, so the app never writes it)."""
+    if row.get("video_group") != "stack":
+        return ""
+    n = 1 + sum(1 for k in (row.get("video_kinds") or {}).values() if k == "part")
+    if n < 2:
+        return ""
+    return " — " + " + ".join(_i18n.t("rd10.part", n=i) for i in range(1, n + 1))
+
+
 def video_kinds_text(kinds):                                     ### NEW v0.19.2 F5 ###
     """{'a.mkv': 'trailer', …} → '+ 1 trailer, 2 extras' (tooltips)."""
     cnt = {}
@@ -2804,6 +2916,9 @@ def _art_candidates(lst, kind, vb):
         out += [(disc["listing"], f"{disc['vb']}-{kind}{e}", True) for e in _ART_EXTS]
     elif vb:
         out += [(lst, f"{vb}-{kind}{e}", True) for e in _ART_EXTS]
+        st = _stack_title(lst)                                   ### NEW v0.20.0 RD10 — 'Movie-poster.jpg' for a stack (Kodi) ###
+        if st and st.lower() != vb.lower():
+            out += [(lst, f"{st}-{kind}{e}", True) for e in _ART_EXTS]
     out += [(lst, f"{kind}{e}", False) for e in _ART_EXTS]
     if kind == "poster":
         if disc:
@@ -2863,13 +2978,51 @@ def resolve_artwork(lst, kind, vb=None):
 
 
 def _art_default_path(lst, kind, vb):                            ### NEW v0.19.4 P3 (A1) ###
-    """(path, style) where a NEW poster / fanart / folder image goes, in the folder's naming style (Kodi reads it)."""
+    """(path, style) where a NEW poster / fanart / folder image goes, in the folder's naming style (Kodi reads it).
+    ### MODIFIED v0.20.0 F3c ### with programs ticked (Settings → Health Rules / Libraries… → Programs…): the name
+    every ticked program reads (media_profiles.write_name); nothing ticked: the folder's style as before."""
+    pn = _profile_art_path(lst, kind, vb)
+    if pn:
+        return pn
+    return _style_default_path(lst, kind, vb)
+
+
+def _style_default_path(lst, kind, vb):                            ### v0.20.0 F3c — the B23 / P3 rule, unchanged ###
     disc = _disc_info(lst)
     if kind != "folder" and artwork_style(lst, vb) == "kodi":
         if disc:
             return os.path.join(disc["dir"], f"{disc['vb']}-{kind}.jpg"), "kodi"
         return os.path.join(lst.path, f"{vb}-{kind}.jpg"), "kodi"
     return os.path.join(lst.path, f"{kind}.jpg"), "plain"
+
+
+def _profile_art_paths(lst, kind, vb):                            ### NEW v0.20.0 F3c ###
+    """[(path, style)] where a new poster / fanart goes for the library's ticked programs: one path (the name they
+    all read), or one per program when no single name serves them all (D-F3c-1); [] = nothing ticked."""
+    if kind not in ("poster", "fanart"):
+        return []
+    progs = media_programs(library_of(lst.path))
+    if not progs:
+        return []
+    disc = _disc_info(lst)
+    sd = _style_default_path(lst, kind, vb)                        # the folder's own style, when every ticked program
+    if _mp.read_by_all(kind, os.path.basename(sd[0]), (disc["vb"] if disc else vb) or "", progs):   # reads it
+        return [sd]                                                # (a Kodi folder keeps "<video>-poster.jpg")
+    one = _mp.write_name(kind, progs)
+    pats = (one,) if one else _mp.names_for_each(kind, progs)
+    out = []
+    for pat in pats:
+        v = disc["vb"] if disc else vb
+        if "{video}" in pat and not v:
+            continue
+        d = disc["dir"] if (disc and "{video}" in pat) else lst.path
+        out.append((os.path.join(d, _mp.expand(pat, v) + ".jpg"), "kodi" if "{video}-" in pat else "plain"))
+    return out
+
+
+def _profile_art_path(lst, kind, vb):                             ### NEW v0.20.0 F3c ###
+    ps = _profile_art_paths(lst, kind, vb)
+    return ps[0] if ps else None
 
 
 def artwork_write_target(sub_path, kind, kodi_name=False):
@@ -2883,7 +3036,11 @@ def artwork_write_target(sub_path, kind, kodi_name=False):
     lst = _FolderListing(sub_path)
     vb = _video_basename(lst)
     r = resolve_artwork(lst, kind, vb)
-    if (kodi_name and r["exists"] and kind != "folder" and not r["name"].lower().endswith(".tbn")
+    _progs = media_programs(library_of(sub_path)) if kind != "folder" else ()          # v0.20.0 F3c
+    if (kodi_name and r["exists"] and kind != "folder" and not r["name"].lower().endswith(".tbn") and _progs
+            and _mp.unread_by(kind, r["name"], (_disc_info(lst) or {}).get("vb") or vb, _progs)):
+        return _art_default_path(lst, kind, vb)[0], None              # v0.20.0 F3c: e.g. cover.jpg for Infuse — left
+    if (kodi_name and r["exists"] and kind != "folder" and not r["name"].lower().endswith(".tbn") and not _progs
             and "kodi" not in art_servers(r["name"], kind, vb)):          ### NEW v0.19.4 P3 (A1) — Fetch only ###
         # cover.jpg / backdrop.jpg / "<video>.jpg"…: another server's name, not read by Kodi — left as it is; the
         # new image gets the name Kodi reads (it used to overwrite that file and Kodi still had no image)
@@ -2911,8 +3068,21 @@ def artwork_targets_for_fetch(sub_path, mode):                 ### NEW v0.19.1 B
     kind = "poster" if mode == "poster" else "fanart"
     main, rm = artwork_write_target(sub_path, kind, kodi_name=True)   # P3 (A1): a NEW image goes where Kodi reads it
     targets, to_remove = [main], ([rm] if rm else [])
-    if kind == "poster":
-        lst = _FolderListing(sub_path)
+    _lst = _FolderListing(sub_path)                                     ### NEW v0.20.0 F3c ###
+    _progs = media_programs(library_of(sub_path))
+    if _progs and kind in _mp.conflicts(_progs):                        # no single name: one file per program (D-F3c-1)
+        _disc = _disc_info(_lst)                                        # each program that does not read the main
+        _v = (_disc["vb"] if _disc else _video_basename(_lst)) or ""    # file gets its own first name
+        for _pg in _mp.clean_programs(_progs):
+            _pat = (_mp.READS[_pg][kind] or (None,))[0]
+            if not _pat or _mp.read_by_all(kind, os.path.basename(main), _v, (_pg,)) or ("{video}" in _pat and not _v):
+                continue
+            _d = _disc["dir"] if (_disc and "{video}" in _pat) else sub_path
+            _p = os.path.join(_d, _mp.expand(_pat, _v) + ".jpg")
+            if os.path.normcase(_p) not in {os.path.normcase(x) for x in targets}:
+                targets.append(_p)
+    if kind == "poster" and not (_progs and not _mp.uses("folder", _progs)):   # v0.20.0 F3c: Infuse alone: no folder.jpg
+        lst = _lst
         fold = resolve_artwork(lst, "folder")
         rules = SETTINGS.get("health_rules", {}) or {}
         if fold["exists"] or artwork_style(lst) == "plain" or not rules.get("folder_optional_with_kodi_poster", True):
@@ -3017,9 +3187,8 @@ REPLACE_BACKDROPS_TMP_EXT = ".mcnew"                           ### NEW v0.19.4 B
 
 def replace_backdrops_none_text(movie, n_existing, want, n_failed, n_offered):   ### NEW v0.19.4 B78 ###
     """Replace All Backdrops when not one new image arrived: the originals stay."""
-    return (f"{movie}\nNone of the {_n(want, 'backdrop')} asked for could be downloaded "
-            f"({n_failed} failed, {n_offered} offered).\n\n"
-            f"Nothing was changed: the {_n(n_existing, 'backdrop')} in the folder {'was' if n_existing == 1 else 'were'} kept.")
+    return (f"{movie}\n" + _i18n.t("au.rb_none", want=_n(want, 'backdrop'), failed=n_failed, offered=n_offered) + "\n\n"   # AU23
+            + _i18n.t("au.rb_kept_one" if n_existing == 1 else "au.rb_kept_many", n=_n(n_existing, 'backdrop')))
 
 
 def copy_poster_needed(row):                                    ### NEW v0.19.4 B103 — ONE test for the menu count and the action ###
@@ -3052,8 +3221,8 @@ def _copy_image_as(src, dest):                                 ### NEW v0.19.1 B
 
 
 # ── v0.19.2 F4: fix image proportions / size ─────────────────────────────────
-IMAGE_FIX_LABEL = "🖼  Fix Image Proportions / Size…"   ### MODIFIED v0.19.4 B108 d/f ###
-IMAGE_FIX_ALL_LABEL = "🖼  Fix Image Proportions / Size — All Movies with Image Warnings…"   ### MODIFIED v0.19.4 B108 d/f ###
+IMAGE_FIX_LABEL = _label_const("IMAGE_FIX_LABEL", "🖼", "act.image_fix")   ### MODIFIED v0.19.4 B108 d/f ###
+IMAGE_FIX_ALL_LABEL = _label_const("IMAGE_FIX_ALL_LABEL", "🖼", "act.image_fix_all")   ### MODIFIED v0.19.4 B108 d/f ###
 IMAGE_FIX_ACTION = "Fix Image Proportions / Size"          # backup label and window titles; MODIFIED v0.19.5 B116, as in the menu (old runs keep their stored label)
 
 
@@ -3093,15 +3262,15 @@ UPSCALER_HUNG_SEC = 30                                           ### NEW v0.19.3
 def upscaler_state():                                            ### NEW v0.19.2 F4 / F4b ###
     """(usable, text for the dialog) of the optional AI upscaler."""
     if os.name != "nt":
-        return False, "AI upscale: Windows only"
+        return False, _i18n.t("uf.ai_upscale_windows_only_cca7")
     if not upscaler_installed():
-        return False, "AI upscale: not installed"
+        return False, _i18n.t("uf.ai_upscale_not_installed_2ab7")
     t = (SETTINGS.get("image_fix_prefs") or {}).get("ai_test", "")
     if t == "ok":
-        return True, "AI upscale: ready (Real-ESRGAN)"
+        return True, _i18n.t("uf.ai_upscale_ready_real_6301")
     if t:
-        return False, f"AI upscale off — {t}. Plain resize limits apply."
-    return False, "AI upscale: installed, not tested yet"
+        return False, _i18n.t("uf.ai_upscale_off_plain_3cd7", t=t)
+    return False, _i18n.t("uf.ai_upscale_installed_not_0882")
 
 
 def upscaler_download_info():                                    ### NEW v0.19.2 F4 / F4b ###
@@ -3243,13 +3412,13 @@ def upscale_function(cancel=None):                               ### NEW v0.19.2
                                           hung_after=UPSCALER_HUNG_SEC)          ### MODIFIED v0.19.3 B62 ###
             if st != FF_OK or rc != 0 or not os.path.isfile(out):
                 if st == FF_HUNG:
-                    _up.failed.append(f"the upscaler stopped responding (no CPU for {UPSCALER_HUNG_SEC} s)")
+                    _up.failed.append(_i18n.t("uf.the_upscaler_stopped_responding_26d4", upscaler_hung_sec=UPSCALER_HUNG_SEC))
                     logger.warning(f"AI upscaler stopped responding (no CPU for {UPSCALER_HUNG_SEC} s) — stopped, plain resize used")
                 elif st == FF_TIMEOUT:
-                    _up.failed.append(f"the upscaler took longer than {max(60, _ff_run_budget())} s")
+                    _up.failed.append(_i18n.t("uf.the_upscaler_took_longer_3091", max=max(60, _ff_run_budget())))
                     logger.warning("AI upscale took longer than the run budget — stopped, plain resize used")
                 else:
-                    _up.failed.append(f"status {st}, exit code {rc}")
+                    _up.failed.append(_i18n.t("uf.status_exit_code_4eed", st=st, rc=rc))
                     logger.warning(f"AI upscale failed ({st}, exit code {rc}): {(err or '')[-300:]} — plain resize used")
                 return None
             with _PILImage.open(out) as im:
@@ -3315,6 +3484,17 @@ def image_fix_copy_default(row, kind):                           ### NEW v0.19.3
     (fanart, or the other file is missing)."""
     other = _FIX_PAIR.get(kind)
     return other if other and row.get(f"{other}_exists") and row.get(f"{other}_path") else None
+
+
+def image_fix_pair_mode(row, kind):                             ### NEW v0.20.0 RD7 ###
+    """(other, mode) for the poster / folder.jpg pair of a fix of *kind*: mode "copy" when the two are the same
+    picture (the result is copied, as in B66), "fix" when they are different pictures (the other one is fixed on its
+    own and keeps its picture), or (None, None).  A Reddit tester's different folder.jpg was replaced by the fixed
+    poster; the user (2026-11-14): fix each, keep both."""
+    other = image_fix_copy_default(row, kind)
+    if not other:
+        return None, None
+    return other, ("fix" if _poster_folder_differ(row) else "copy")
 
 
 class _FixWritten(list):                                         ### NEW v0.19.5 WR-B6 ###
@@ -3426,20 +3606,18 @@ def image_fix_batch_plan(rows, settings=None):                   ### NEW v0.19.2
 
 
 def image_fix_batch_copy(row, kind):                             ### NEW v0.19.3 B66 ###
-    """copy_to for one batch line: the poster fix also writes folder.jpg when
-    folder.jpg is identical or needs a fix itself; a good, different folder.jpg
-    is left alone."""
+    """copy_to for one batch line: the poster fix also writes folder.jpg when folder.jpg is the same picture.
+    ### MODIFIED v0.20.0 RD7 ### a different folder.jpg is never replaced: when it needs a fix it has its own line."""
     if kind != "poster" or not image_fix_copy_default(row, "poster"):
         return False
-    return "folder" if ("folder" in image_fix_kinds(row) or not _poster_folder_differ(row)) else False
+    return "folder" if image_fix_pair_mode(row, "poster")[1] == "copy" else False
 
 
 def image_fix_batch_text(plan):                                  ### NEW v0.19.2 F4 ###
     """Preview text of the batch."""
     todo = [p for p in plan if p[3]]
     movies = {id(p[0]) for p in plan}
-    lines = [f"{IMAGE_FIX_ACTION} — {_n(len(todo), 'image')} to fix, {len(plan) - len(todo)} skipped, "
-             f"in {_n(len(movies), 'movie')}", ""]
+    lines = [_i18n.t("rp.to_fix_skipped_in_efdc", shown_action=shown_action(IMAGE_FIX_ACTION), n=_n(len(todo), 'image'), v=len(plan) - len(todo), n2=_n(len(movies), 'movie')), ""]
     last = None
     for r, k, _m, target, note in plan:
         if id(r) != last:
@@ -3448,10 +3626,10 @@ def image_fix_batch_text(plan):                                  ### NEW v0.19.2
         w, h = _dim_of(r, k)
         _cp = image_fix_batch_copy(r, k) if target else False     ### NEW v0.19.3 B66 ###
         lines.append(f"   {os.path.basename(r.get(f'{k}_path') or '')} {w}×{h}: {note}"
-                     + (f"  (+ copied to {os.path.basename(r.get('folder_path') or 'folder.jpg')})" if _cp else ""))
-    lines += ["", "Only ✓ sizes are used here (no enlargement above ×1.25). Fix a skipped image on its own",
-              "(right-click → Fix Image Proportions / Size…) or find a better image online.",
-              f"Every changed file is backed up first ({menu_path('backup_history')})."]   # v0.19.4 I13
+                     + (_i18n.t("if.copied_to", name=os.path.basename(r.get('folder_path') or 'folder.jpg')) if _cp else ""))
+    lines += ["", _i18n.t("rp.only_sizes_are_used_82e7"),
+              _i18n.t("rp.right_click_fix_image_a8cb"),
+              _i18n.t("rp.every_changed_file_is_43d6", menu_path=menu_path('backup_history'))]   # v0.19.4 I13
     return "\n".join(lines)
 
 
@@ -3465,12 +3643,27 @@ def resolve_nfo(lst, sub_name, vb=None):
     for cl, n, kodi in _nfo_order(lst, sub_name, vb):             ### MODIFIED v0.19.2 F5 — movie.nfo first ###
         if cl.has(n):
             real = cl.files[n.lower()][0]
-            if kodi is None:            # folder-named NFO: Kodi reads it only when it IS the video name
+            if kodi is None:            # folder-named NFO: Kodi reads it when it IS the video name …
                 disc = _disc_info(lst)
                 vb2 = vb if vb is not None else _video_basename(lst)
-                kodi = (not disc) and ((not vb2) or real.lower() == f"{vb2.lower()}.nfo")
+                kodi = (not disc) and ((not vb2) or real.lower() == f"{vb2.lower()}.nfo" or _lone_nfo(lst))   # … or alone (KR1.3)
             return cl.path_of(n), True, real, kodi
+    if not _disc_info(lst) and _lone_nfo(lst):                    ### NEW v0.20.0 RD10 — Kodi reads the folder's only NFO, any name ###
+        real = next(f[0] for n, f in lst.files.items() if n.endswith(".nfo"))
+        try:                                                      # a release-info text file is not a movie NFO
+            with open(lst.path_of(real), "rb") as fh:
+                head = fh.read(4096).lower()
+        except OSError:
+            head = b""
+        if b"<movie" in head:
+            return lst.path_of(real), True, real, True
     return lst.path_of(f"{sub_name}.nfo"), False, f"{sub_name}.nfo", True
+
+
+def _lone_nfo(lst):                                              ### NEW v0.20.0 KR1.3 ###
+    """True when the folder holds exactly one .nfo: Kodi then reads it whatever its name ("Movies are in separate
+    folders", VideoTagLoaderNFO).  One place: the rule, Auto Repair and the rename offers all read nfo_kodi_name."""
+    return sum(1 for n in lst.files if n.endswith(".nfo")) == 1
 
 
 def _nfo_order(lst, sub_name, vb=None):                          ### NEW v0.19.2 F5 ###
@@ -3486,6 +3679,9 @@ def _nfo_order(lst, sub_name, vb=None):                          ### NEW v0.19.2
     order.append((lst, "movie.nfo", True))
     if vb and not disc:
         order.append((lst, f"{vb}.nfo", True))
+        st = _stack_title(lst)                                   ### NEW v0.20.0 RD10 — 'Movie.nfo' next to 'Movie-CD1.mkv' (PatK9) ###
+        if st and st.lower() != vb.lower():
+            order.append((lst, f"{st}.nfo", True))               # Kodi FindNFO: after the first part's names
     order.append((lst, f"{sub_name}.nfo", None))
     return order
 
@@ -3504,8 +3700,8 @@ def readable_nfos(lst, sub_name, vb=None):                       ### NEW v0.19.2
 
 # ── v0.19.3 B73: rename a folder-named NFO so Kodi reads it ─────────────────
 NFO_RENAME_ACTION = "Rename NFO for Kodi"                         # backup label (Backup History / Undo)
-NFO_RENAME_LABEL = "🏷  Rename NFO for Kodi…"
-NFO_RENAME_ALL_LABEL = "🏷  Rename NFOs for Kodi — All Movies with a folder-named NFO…"
+NFO_RENAME_LABEL = _label_const("NFO_RENAME_LABEL", "🏷", "act.nfo_rename")
+NFO_RENAME_ALL_LABEL = _label_const("NFO_RENAME_ALL_LABEL", "🏷", "act.nfo_rename_all")
 NFO_MOVIE_NOTE = ("movie.nfo: Kodi reads it when the source is set to \"Movies are in separate folders "
                   "that match the movie title\"; Jellyfin and Emby always read it.")
 
@@ -3540,7 +3736,7 @@ def apply_nfo_rename(plan, mode, movie_name, batch_ref=None, backup=True):   ###
     """Rename the NFO (worker thread; no Tk): backup first, never over an
     existing file, Undo-able (the manifest records the new name).  Returns
     the new path; raises on failure."""
-    if not nfo_in_use():                                         # v0.19.6 TR1b
+    if not nfo_in_use(library_of(os.path.dirname(plan["src"]))):   # v0.19.6 TR1b; v0.20.0 F3: the library's own programs
         raise RuntimeError("the NFO is not used in this health mode (movie.xml only) — not renamed")
     dest = next((d for m, d, _n in plan["choices"] if m == mode), None)
     if dest is None:
@@ -3570,14 +3766,14 @@ def apply_nfo_rename(plan, mode, movie_name, batch_ref=None, backup=True):   ###
 
 def nfo_rename_batch_text(items):                                ### NEW v0.19.3 B73 ###
     """Preview text: [(row, plan)] → one line per movie."""
-    lines = [f"Rename NFO for Kodi — {_n(len(items), 'movie')}", ""]
+    lines = [_i18n.t("rp.rename_nfo_for_kodi_121b", n=_n(len(items), 'movie')), ""]
     for r, p in items:
         dest = next(n for m, _d, n in p["choices"] if m == p["default"])
         lines.append(f"🎬 {r.get('movie_name') or r.get('subfolder', '')}")
         lines.append(f"   {p['name']}  →  {dest}" + (f"   ({p['why']})" if p.get("why") else ""))
-    lines += ["", "<video>.nfo for one video; movie.nfo for a DVD / Blu-ray folder, a multi-part movie or several",
-              "versions. " + NFO_MOVIE_NOTE,
-              f"Every NFO is backed up first; {menu_path('backup_history')} puts the old name back."]   # v0.19.4 I13
+    lines += ["", _i18n.t("au.nfo_rename_head"),
+              _i18n.t("rp.versions_4c57", nfo_movie_note=NFO_MOVIE_NOTE),
+              _i18n.t("rp.every_nfo_is_backed_eaff", menu_path=menu_path('backup_history'))]   # v0.19.4 I13
     return "\n".join(lines)
 
 
@@ -3641,6 +3837,33 @@ def library_of(path, libraries=None):
     return _norm_lib(best) if best else _norm_lib(os.path.dirname(os.path.normpath(path)))
 
 
+def too_deep_reason(level):                                     ### NEW v0.20.0 RD4 ###
+    """Why a folder of folders *level* levels below the library was not searched, with the numbers (a Reddit
+    tester read only "this library may be one level too high" and could not tell why their box sets were left out)."""
+    return (f"Too deep: this folder is {level} levels below the library and holds more folders; the scan looks for "
+            f"movies down to {SCAN_MAX_DEPTH + 1} levels, so the folders inside were not searched. Add this folder "
+            f"as a library to include them")
+
+
+def _is_collection_folder(path):                                 ### NEW v0.20.0 CF1 ###
+    """The collection folder (Libraries… → Collection folder) holds collection artwork, not movies: the scans skip it."""
+    cf = SETTINGS.get("collection_folder") or ""
+    return bool(cf) and _pkey(path) == _pkey(cf)
+
+
+def suggest_collection_folder(libraries):                        ### NEW v0.20.0 CF1 ###
+    """'Sets' next to the first movie folder (Z:\\Filmes → Z:\\Sets), or inside it when it is a drive root."""
+    libs = [x for x in (libraries or []) if x]
+    if not libs:
+        return ""
+    first = os.path.normpath(libs[0])
+    drive, rest = os.path.splitdrive(first)
+    if not rest.strip("\\/"):                                    # v0.20.0 AU12: "Z:\" gave the drive-RELATIVE "Z:Sets"
+        return os.path.join(drive + os.sep if drive else first, "Sets")
+    parent = os.path.dirname(first.rstrip("\\/")) or first
+    return os.path.join(parent if parent != first else first, "Sets")
+
+
 def walk_container(path, root, depth=1, known=(), cancelled=None):
     """The folders below a folder of folders: (entries, ignored, listings, kinds).  A movie folder becomes a
     SubEntry; a deeper folder of folders is walked too, down to SCAN_MAX_DEPTH; any other folder goes to the
@@ -3655,6 +3878,8 @@ def walk_container(path, root, depth=1, known=(), cancelled=None):
     for sp in subs:
         if cancelled and cancelled():
             break
+        if _is_collection_folder(sp):                              # v0.20.0 CF1: collection artwork, not movies
+            continue
         if _pkey(sp) in known:
             entries.append(SubEntry(sp, root, depth))
             continue
@@ -3665,14 +3890,14 @@ def walk_container(path, root, depth=1, known=(), cancelled=None):
             entries += e2; ignored += i2; listings.update(l2); kinds.update(k2)
         elif kind in _fc.IGNORED_KINDS:
             if kind == "container":
-                reason = f"A folder of folders more than {SCAN_MAX_DEPTH} levels below the library: not searched deeper"
+                reason = too_deep_reason(depth + 1)                 # MODIFIED v0.20.0 RD4 — with the numbers
             ignored.append(ignored_item(sp, kind, reason, detail, lst, root=root))
         else:
             entries.append(SubEntry(sp, root, depth)); listings[sp] = lst; kinds[sp] = kind
     return entries, ignored, listings, kinds
 
 
-IGNORED_MENU_LABEL = "🚫  Ignored Folders of the Last Scan…"   ### NEW v0.19.2 B53 ###
+IGNORED_MENU_LABEL = _label_const("IGNORED_MENU_LABEL", "🚫", "act.ignored_folders")   ### NEW v0.19.2 B53 ###
 IGNORED_REPORT_AUTO = True        # the self-test turns the automatic window off   ### NEW v0.19.2 B53 ###
 _IGNORED_EXPORT_DIR = [""]        # last folder of "Export to TXT…" in this session
 
@@ -3694,6 +3919,15 @@ def export_ignored_txt(path, lines):                            ### NEW v0.19.2 
     """UTF-8 with BOM (Notepad shows accents), CRLF line ends, lines not wrapped."""
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         f.write("\r\n".join(lines) + "\r\n")
+
+
+def extra_art_names(lst, vb=None):                              ### NEW v0.20.0 RD9 (was inside naming_row_fields) ###
+    """The folder's extra artwork files (clearlogo, landscape, disc …, also as '<video>-<kind>'), sorted."""
+    return sorted({f[0] for f in lst.files.values()
+                   if os.path.splitext(f[0])[1].lower() in _ART_EXTS
+                   and (os.path.splitext(f[0])[0].lower() in _nc.EXTRA_ART_KINDS
+                        or (vb and os.path.splitext(f[0])[0].lower().startswith(vb.lower() + "-")
+                            and os.path.splitext(f[0])[0].lower()[len(vb) + 1:] in _nc.EXTRA_ART_KINDS))})
 
 
 def naming_row_fields(lst, sub_name, vb=None):                   ### NEW v0.19.2 F5 ###
@@ -3726,11 +3960,7 @@ def naming_row_fields(lst, sub_name, vb=None):                   ### NEW v0.19.2
         if vb and r["name"].lower().startswith(vb.lower() + "-") and not r["name"].startswith(vb + "-"):
             art_notes.append(f"{r['name']}: Kodi matches '<video>-{key}' case-sensitively — "
                              f"rename it to '{vb}-{key}…' for Kodi")
-    extra = sorted({f[0] for f in lst.files.values()
-                    if os.path.splitext(f[0])[1].lower() in _ART_EXTS
-                    and (os.path.splitext(f[0])[0].lower() in _nc.EXTRA_ART_KINDS
-                         or (vb and os.path.splitext(f[0])[0].lower().startswith(vb.lower() + "-")
-                             and os.path.splitext(f[0])[0].lower()[len(vb) + 1:] in _nc.EXTRA_ART_KINDS))})
+    extra = extra_art_names(lst, vb)                             # v0.20.0 RD9: one helper
     extra_dirs = sorted(lst.dirs[d].rsplit(os.sep, 1)[-1] for d in lst.dirs if d in _nc.EXTRA_FOLDERS)
     return {"nfo_all": [n for n, _p in nfos], "nfo_all_differ": differ, "xml_notes": xml_notes,
             "art_notes": art_notes, "extra_art": extra, "extra_dirs": extra_dirs, **servers}
@@ -3837,6 +4067,18 @@ def count_backdrops(sub_path, listing=None):                     ### MODIFIED v0
         m = _kodi_rx.match(n)
         return (2, int(m.group(1))) if m else (9, n)
     paths.sort(key=_sort_key)
+    ### NEW v0.20.0 AU5 (pre-build audit) ### the image the scan uses as the MAIN fanart (background.jpg, backdrop.jpg
+    # when there is no fanart.jpg) is not also a backdrop: Replace All Backdrops replaced or deleted it ("Missing fanart")
+    try:
+        _main = resolve_artwork(lst, "fanart", _vb0)
+        # a plain backdrop*.jpg stays a backdrop (B17: replacing it leaves a fanart in place); background.jpg,
+        # art.jpg … chosen as THE fanart were deleted by the swap ("Missing fanart")
+        if (_main.get("exists") and _main.get("path")
+                and not re.match(r"^backdrop\d*\.", os.path.basename(_main["path"]).lower())):
+            _mk = os.path.normcase(_main["path"])
+            paths = [p for p in paths if os.path.normcase(p) != _mk]
+    except Exception:
+        pass
     count = len(paths)
     total_bytes = sum(sizes.get(p, 0) for p in paths)
     avg_bytes = (total_bytes // count) if count > 0 else 0          ### NEW v0.15.0 ###
@@ -4062,6 +4304,8 @@ def _get_video_resolution(video_path, use_ffprobe=None):
     """Return (width, height) of first video stream, or (None, None).
     ### MODIFIED v0.19.1 I5 — from the one cached probe ###"""
     for s in _probe_streams(video_path, "video", use_ffprobe):
+        if (s.get("disposition") or {}).get("attached_pic") == 1:   # v0.20.0 AU16: an embedded cover image (MP4 /
+            continue                                                # MKV cover art) is not the video
         w = s.get("width"); h = s.get("height")
         if w and h:
             return int(w), int(h)
@@ -4476,6 +4720,395 @@ def _write_amp_fix(nfo_path):                                   ### NEW v0.19.2 
         return True, n
     except Exception as e:
         return False, f"{os.path.basename(nfo_path)}: {e}"
+
+
+# ── v0.20.0 RD9: online artwork links in the NFO (tester C) ─────────────────
+MEDIA_RENAME_ACTION = "Rename files for my programs"            ### NEW v0.20.0 F3c2 — backup label (Backup History / Undo) ###
+MEDIA_RENAME_LABEL = _label_const("MEDIA_RENAME_LABEL", "🏷", "act.media_rename")
+MEDIA_RENAME_ALL_LABEL = _label_const("MEDIA_RENAME_ALL_LABEL", "🏷", "act.media_rename_all")
+
+
+def media_rename_candidate(row):                                  ### NEW v0.20.0 F3c2 ###
+    """True when the row has the "Not read by …" warning (no I/O): the renamer has something to look at."""
+    return any(reason_code(r) == "profile_names_unread" or str(r).startswith("Not read by ")
+               for r in (row.get("health_reasons") or []))
+
+
+def media_rename_plan(row, settings=None):                       ### NEW v0.20.0 F3c2 ###
+    """(moves, skipped) for one movie (media_profiles.plan_renames on the row's files: one folder listing).
+    None when no program is ticked for its library or the row has nothing to rename."""
+    progs = media_programs(_lib_root_of(row), settings)
+    sub = row.get("subfolder_path")
+    if not progs or not sub or not os.path.isdir(sub):
+        return None
+    cur = {k: (os.path.basename(row[p]) if row.get(e) and row.get(p) else None)
+           for k, e, p in (("nfo", "nfo_exists", "nfo_path"), ("poster", "poster_exists", "poster_path"),
+                           ("fanart", "fanart_exists", "fanart_path"))}
+    for k in list(cur):                                          # only files in the movie folder itself (not a disc sub-folder)
+        p = row.get(f"{k}_path")
+        if cur[k] and os.path.normcase(os.path.dirname(p)) != os.path.normcase(sub):
+            cur[k] = None
+    if not any(cur.values()):
+        return None
+    lst = _FolderListing(sub)
+    if classify_videos(lst)["group"] in ("stack", "versions"):     # D-F3c-7: not for several videos yet
+        return None
+    vb = "" if _disc_info(lst) else (_video_basename(lst) or "")
+    moves, skipped = _mp.plan_renames(cur, [v[0] for v in lst.files.values()], vb, progs)
+    return (moves, skipped) if (moves or skipped) else None
+
+
+def apply_media_renames(row, moves, batch_ref=None):              ### NEW v0.20.0 F3c2 ###
+    """Rename the files of *moves* (worker thread; no Tk): backup first, never over an existing file, Undo-able
+    (the backup manifest records the new name, as Rename NFO for Kodi).  Returns the number renamed; raises on the
+    first failure (the files renamed before it stay renamed and are in the backup)."""
+    sub = row["subfolder_path"]
+    name = row.get("movie_name") or row.get("subfolder", "")
+    done = 0
+    for _kind, src_name, dst_name in moves:
+        src, dst = os.path.join(sub, src_name), os.path.join(sub, dst_name)
+        if not os.path.isfile(src):
+            raise RuntimeError(f"{src_name} not found")
+        if os.path.exists(dst):
+            raise RuntimeError(f"{dst_name} already exists — not renamed")
+        ok = _batch_backup_ok(name, batch_ref, src) if batch_ref is not None else _backup_ok(name, src)
+        if not ok:
+            raise BackupFailed()
+        _sc._replace_retry(src, dst, op=os.rename)
+        _sc.note_renamed(src, dst)
+        _cache_forget(src)
+        _cache_forget(dst)
+        logger.info(f"{MEDIA_RENAME_ACTION}: {name} — {src_name} → {dst_name}")
+        done += 1
+    return done
+
+
+def media_rename_preview_text(items, programs_text):              ### NEW v0.20.0 F3c2 ###
+    """Preview: [(row, (moves, skipped))] → one block per movie."""
+    lines = [_i18n.t("f3r.preview_head", programs=programs_text, n=_n(len(items), 'movie')), ""]
+    for r, (moves, skipped) in items:
+        lines.append(f"🎬 {r.get('movie_name') or r.get('subfolder', '')}")
+        for _k, s, d in moves:
+            lines.append(f"   {s}  →  {d}")
+        for _k, s, why in skipped:
+            lines.append(f"   ⚠ {s}: " + _i18n.t(f"f3r.skip.{why}"))
+    return "\n".join(lines)
+
+
+### NEW v0.20.0 F3d — Convert movie.xml → NFO (users moving from MediaBrowser / Media Center Master) ###
+XML2NFO_ACTION = "Convert movie.xml to NFO"                       # backup label (Backup History / Undo)
+XML2NFO_LABEL = _label_const("XML2NFO_LABEL", "🔄", "act.xml2nfo")
+XML2NFO_ALL_LABEL = _label_const("XML2NFO_ALL_LABEL", "🔄", "act.xml2nfo_all")
+
+
+def xml2nfo_candidate(row):
+    """True: the folder has a movie.xml (read or only seen) and no NFO at all (no I/O)."""
+    return (not row.get("nfo_exists") and not row.get("nfo_on_disk")
+            and bool(row.get("xml_exists") or row.get("xml_on_disk")) and bool(row.get("subfolder_path")))
+
+
+def movie_xml_to_nfo(xml_path):
+    """(nfo_text, imdb, tmdb, n_fields) from a MediaBrowser / Media Center Master movie.xml: the fields every NFO
+    program reads (reports/Movie metadata source to tag map.md): titles, year, release date, runtime, plot,
+    outline, tagline, rating and votes, genres, tags, countries, studios, director, writers, actors, collection,
+    date added.  The IDs are returned, not written: the caller writes them with _write_both_source_ids (the
+    "ID tags written in the NFO" setting, RD12).  Raises ValueError when the file does not parse."""
+    import xml.etree.ElementTree as _ET
+    try:
+        with open(xml_path, "rb") as _f:                         # bytes: the parser follows the file's own encoding
+            root = _ET.fromstring(_f.read())
+    except Exception as ex:
+        raise ValueError(f"movie.xml does not parse: {ex}")
+
+    def first(*paths):
+        for p in paths:
+            e = root.find(p)
+            if e is not None and (e.text or "").strip():
+                return e.text.strip()
+        return ""
+
+    def every(*paths):
+        out = []
+        for p in paths:
+            for e in root.findall(p):
+                v = (e.text or "").strip()
+                if v and v not in out:
+                    out.append(v)
+        return out
+
+    lines, n = ["<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>", "<movie>"], 0
+
+    def add(tag, value, attrs=""):
+        nonlocal n
+        if value not in (None, ""):
+            lines.append(f"  <{tag}{attrs}>{_xml_text(value)}</{tag}>")
+            n += 1
+
+    add("title", first("LocalTitle", "Title"))
+    add("originaltitle", first("OriginalTitle"))
+    add("sorttitle", first("SortTitle"))
+    add("mpaa", first("ContentRating", "MPAARating"))                # v0.20.0 AU6: the age rating was dropped
+    rating, votes = first("IMDBrating", "Rating"), first("Votes", "VoteCount")
+    try:
+        rating = f"{float(rating.replace(',', '.')):.1f}" if rating else ""
+    except ValueError:
+        rating = ""
+    votes = re.sub(r"\D", "", votes)
+    if rating:
+        lines.append('  <ratings>')
+        lines.append(f'    <rating name="imdb" max="10" default="true">')
+        lines.append(f'      <value>{rating}</value>')
+        if votes:
+            lines.append(f'      <votes>{votes}</votes>')
+        lines.append('    </rating>')
+        lines.append('  </ratings>')
+        add("rating", rating)
+        add("votes", votes)
+    year = first("ProductionYear")
+    add("year", year if re.fullmatch(r"(18|19|20)\d\d", year or "") else "")
+    add("outline", first("Outline", "ShortDescription"))
+    add("plot", first("Overview", "Description", "Plot", "Synopsis"))
+    add("tagline", first("TagLines/Tagline", "Taglines/Tagline", "Tagline"))
+    rt = re.match(r"\d+", first("RunningTime", "Runtime") or "")
+    add("runtime", rt.group(0) if rt else "")
+    prem = re.match(r"(\d{4}-\d{2}-\d{2})", first("PremiereDate", "ReleaseDate") or "")
+    add("premiered", prem.group(1) if prem else "")
+    for g in every("Genres/Genre"):
+        add("genre", g)
+    for g in every("Tags/Tag"):
+        add("tag", g)
+    for c in every("Countries/Country", "Country"):
+        add("country", c)
+    for s in every("Studios/Studio"):
+        add("studio", s)
+    people = [(p.findtext("Name") or "", p.findtext("Type") or "", p.findtext("Role") or "")
+              for p in root.findall("Persons/Person")]
+    directors = [nm.strip() for nm, ty, _r in people if nm.strip() and ty.strip().lower() == "director"]
+    for d in directors or [x.strip() for x in (first("Director") or "").split("|") if x.strip()]:
+        add("director", d)
+    for w in [nm.strip() for nm, ty, _r in people if nm.strip() and ty.strip().lower() in ("writer", "screenwriter")]:
+        add("credits", w)
+    order = 0
+    for nm, ty, role in people:
+        if nm.strip() and ty.strip().lower() in ("actor", "gueststar", ""):
+            lines.append("  <actor>")
+            lines.append(f"    <name>{_xml_text(nm.strip())}</name>")
+            if role.strip():
+                lines.append(f"    <role>{_xml_text(role.strip())}</role>")
+            lines.append(f"    <order>{order}</order>")
+            lines.append("  </actor>")
+            order += 1
+            n += 1
+    coll = first("TmdbCollectionName", "CollectionName")
+    if coll:
+        lines.append(f"  <set>\n    <name>{_xml_text(coll)}</name>\n  </set>")
+        n += 1
+    added = re.match(r"(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})", first("Added", "DateAdded") or "")
+    add("dateadded", f"{added.group(1)} {added.group(2)}" if added else "")
+    lines.append("</movie>")
+    imdb = next((v for v in (first("IMDB"), first("IMDbId"), first("IMDB_ID")) if re.fullmatch(r"tt\d{7,9}", v)), "")
+    tmdb = next((v for v in (first("TMDbId"), first("TMDB"), first("TMDB_ID")) if re.fullmatch(r"\d{1,9}", v)), "")
+    return "\n".join(lines) + "\n", imdb, tmdb, n
+
+
+def xml2nfo_target(row, settings=None):
+    """The NFO a conversion writes: the name every ticked program reads (Infuse: <video>.nfo), else movie.nfo."""
+    sub = row["subfolder_path"]
+    pat = _mp.write_name("nfo", media_programs(_lib_root_of(row), settings))
+    if pat and "{video}" in pat:
+        ### MODIFIED v0.20.0 AU6 (pre-build audit) ### the video's own name only for a single video: a DVD / Blu-ray
+        # folder got 'VTS_01_1.nfo' (read by no program, and every later Convert refused the folder) and a stack
+        # 'Movie-cd1.nfo'; those get movie.nfo, as the NFO rename does
+        # from the scan's row, no disk access (the preview lists hundreds of movies on the Tk thread)
+        _single = (row.get("video_ext") not in ("DVD", "BLU-RAY")
+                   and row.get("video_group") not in ("stack", "versions") and (row.get("video_count") or 0) <= 1)
+        vb = os.path.splitext(os.path.basename(row.get("video_path") or ""))[0] if _single else ""
+        if vb:
+            return os.path.join(sub, _mp.expand(pat, vb))
+    return os.path.join(sub, "movie.nfo")
+
+
+def apply_xml2nfo(row, batch_ref):
+    """Write the NFO made from the folder's movie.xml (worker thread; no Tk).  The NFO is new: the run's
+    manifest records it, so Undo removes it; movie.xml is not changed.  Returns the NFO path; raises on failure."""
+    sub = row["subfolder_path"]
+    xml = os.path.join(sub, "movie.xml")
+    if not os.path.isfile(xml):
+        raise RuntimeError("movie.xml not found")
+    def _movie_nfo(f):                                           # v0.20.0 AU6: a release-info text file is not one
+        try:
+            with open(os.path.join(sub, f), "rb") as fh:
+                head = fh.read(4096)
+            low = head.lower()                                   # v0.20.0 RV5: a Kodi URL-only NFO and a UTF-16 NFO
+            return (b"<movie" in low or head[:2] in (b"\xff\xfe", b"\xfe\xff")   # count as NFOs too
+                    or re.search(rb"https?://(www\.)?(themoviedb\.org|imdb\.com)/", low) is not None)
+        except OSError:
+            return True                                          # unreadable: never written over
+    if any(f.lower().endswith(".nfo") and _movie_nfo(f) for f in os.listdir(sub)):
+        raise RuntimeError("the folder already has an NFO — not converted")
+    text, imdb, tmdb, n = movie_xml_to_nfo(xml)
+    if not n and not (imdb or tmdb):
+        raise RuntimeError("movie.xml has none of the fields an NFO holds")
+    dest = xml2nfo_target(row)
+    if os.path.exists(dest):                                     # v0.20.0 AU6: never over a release-info file of that name
+        raise RuntimeError(f"{os.path.basename(dest)} already exists — not converted")
+    _atomic_write_text(dest, text)
+    name = row.get("movie_name") or row.get("subfolder", "")
+    _sc.note_created(_BACKUP_ROOT, name, batch_ref, dest, None, logger=logger)
+    if imdb or tmdb:
+        ok, err = _write_both_source_ids(dest, None, imdb or None, tmdb or None)
+        if not ok:
+            logger.warning(f"{XML2NFO_ACTION}: {name}: IDs not written: {err}")
+    logger.info(f"{XML2NFO_ACTION}: {name} — movie.xml → {os.path.basename(dest)} ({n} fields)")
+    return dest
+
+
+ART_LINKS_ACTION = "Remove online artwork links"                  # backup label (Backup History / Undo)
+ART_LINKS_LABEL = _label_const("ART_LINKS_LABEL", "🔗", "act.art_links")
+ART_LINKS_ALL_LABEL = _label_const("ART_LINKS_ALL_LABEL", "🔗", "act.art_links_all")
+# one name per artwork kind: the NFO's aspect="…" and the local file names (clearlogo.png / logo.png, disc / discart / cdart …)
+_ART_KIND_NORM = {"poster": "poster", "fanart": "fanart", "clearlogo": "clearlogo", "logo": "clearlogo",
+                  "disc": "discart", "discart": "discart", "cdart": "discart", "landscape": "landscape", "thumb": "landscape",
+                  "banner": "banner", "clearart": "clearart", "keyart": "keyart", "characterart": "characterart"}
+_NFO_TAG_RE = re.compile(r"<(/?)([A-Za-z_][\w.:-]*)([^<>]*?)(/?)>")
+_NFO_SKIP_RE = re.compile(r"<!--.*?-->|<!\[CDATA\[.*?\]\]>", re.S)
+_ASPECT_RE = re.compile(r"""\baspect\s*=\s*["']([^"']*)["']""", re.I)
+_URL_RE = re.compile(r"^\s*https?://\S+\s*$", re.I)
+_EMPTY_FANART_RE = re.compile(r"<fanart\b[^<>]*>\s*</fanart\s*>", re.I)
+
+
+def _thumb_kind(aspect):
+    return _ART_KIND_NORM.get((aspect or "").strip().lower() or "poster")
+
+
+def _online_art_spans(text):
+    """[(start, end, kind)] of the online artwork links of an NFO text: a <thumb>URL</thumb> that is a direct child
+    of the root (kind from aspect="…", none = poster) or of the root's <fanart> (kind fanart).  Actor images,
+    collection (<set>) artwork, local paths, comments and CDATA are never listed."""
+    skip = [(m.start(), m.end()) for m in _NFO_SKIP_RE.finditer(text)]
+    stack, out, open_thumb = [], [], None
+    for m in _NFO_TAG_RE.finditer(text):
+        if any(a <= m.start() < b for a, b in skip):
+            continue
+        close, name, attrs, selfc = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
+        if close:
+            if open_thumb and name == "thumb" and len(stack) == open_thumb[2]:
+                inner = text[open_thumb[1]:m.start()]
+                if "<" not in inner and _URL_RE.match(inner):
+                    out.append((open_thumb[0], m.end(), open_thumb[3]))
+                open_thumb = None
+            while stack and stack.pop() != name:
+                pass
+            continue
+        if selfc:
+            continue
+        stack.append(name)
+        if name == "thumb":
+            kind = (_thumb_kind((_ASPECT_RE.search(attrs or "") or [None, ""])[1]) if len(stack) == 2
+                    else "fanart" if len(stack) == 3 and stack[1] == "fanart" else None)
+            open_thumb = (m.start(), m.end(), len(stack), kind) if kind else None
+    return out
+
+
+def _cut_span(text, s, e):
+    """Remove text[s:e]; a span alone on its line takes the whole line (no blank line is left)."""
+    ls = text.rfind("\n", 0, s) + 1
+    le = text.find("\n", e)
+    le = len(text) if le < 0 else le
+    if not text[ls:s].strip() and not text[e:le].strip():
+        return text[:ls] + text[min(le + 1, len(text)):]
+    return text[:s] + text[e:]
+
+
+def strip_online_art_links(text, local_kinds):
+    """Pure: (new text, {kind: links removed}) — removes only the online links of the artwork kinds in *local_kinds*
+    (the ones the folder has as files); everything else stays byte for byte.  A <fanart> left empty goes too."""
+    local = set(local_kinds or ())
+    removed = {}
+    for s, e, k in reversed([x for x in _online_art_spans(text) if x[2] in local]):
+        removed[k] = removed.get(k, 0) + 1
+        text = _cut_span(text, s, e)
+    if removed.get("fanart"):
+        m = _EMPTY_FANART_RE.search(text)
+        if m:
+            text = _cut_span(text, m.start(), m.end())
+    return text, removed
+
+
+def nfo_online_art_kinds(nfo_path):
+    """The artwork kinds the NFO links online (the scan: from the parsed root, no second read)."""
+    try:
+        root = _parse_root(nfo_path) if nfo_path else None
+    except Exception:
+        root = None
+    if root is None:
+        return []
+    kinds = {_thumb_kind(t.get("aspect")) for t in root.findall("thumb") if len(t) == 0 and _URL_RE.match(t.text or "")}
+    kinds |= {"fanart" for t in root.findall("fanart/thumb") if len(t) == 0 and _URL_RE.match(t.text or "")}
+    kinds.discard(None)
+    return sorted(kinds)
+
+
+def local_art_kinds(row):
+    """The artwork kinds the movie folder has as files (from the row)."""
+    k = {"poster"} if row.get("poster_exists") else set()
+    if row.get("fanart_exists"):
+        k.add("fanart")
+    return k | ({_ART_KIND_NORM.get(x) for x in extra_art_kinds(row.get("extra_art"))} - {None})
+
+
+def art_links_removable(row):
+    """The kinds whose online links the fix would remove (linked in the NFO and present as files)."""
+    return sorted(set(row.get("nfo_art_links") or ()) & local_art_kinds(row))
+
+
+def art_links_candidate(row):
+    """For the menus: the movie may have links to remove (rows of scans before v0.20.0 have no nfo_art_links
+    and are checked on disk)."""
+    return bool(row.get("nfo_exists")) and ("nfo_art_links" not in row or bool(art_links_removable(row)))
+
+
+def art_links_plan(row):
+    """What the fix would remove from this movie's NFO, read from disk now (worker thread; no writes):
+    {"nfo", "local", "removed": {kind: n}} or None."""
+    nfo = _metadata_targets(row)[0]   # v0.20.0 F3b
+    if not nfo or not os.path.isfile(nfo):
+        return None
+    lst = _FolderListing(row["subfolder_path"])
+    vb = _video_basename(lst)
+    local = {k for k in ("poster", "fanart") if resolve_artwork(lst, k, vb)["exists"]}
+    local |= {_ART_KIND_NORM.get(x) for x in extra_art_kinds(extra_art_names(lst, vb))} - {None}
+    text, _bom = _read_for_edit(nfo)
+    _new, removed = strip_online_art_links(text, local)
+    return {"nfo": nfo, "local": sorted(local), "removed": removed} if removed else None
+
+
+def write_art_links_fix(nfo_path, local_kinds):
+    """Remove the online links of *local_kinds* from the NFO (the caller makes the backup).  The line endings and the
+    BOM stay (_atomic_write_text).  Returns (ok, {kind: n} | error)."""
+    try:
+        text, _bom = _read_for_edit(nfo_path)
+        new, removed = strip_online_art_links(text, local_kinds)
+        if not removed:
+            return True, {}
+        if _parse_root(nfo_path) is not None:                   # parsed before → must parse now
+            ET.fromstring(_AMP_FIX_RE.sub("&amp;", new))
+        _atomic_write_text(nfo_path, new)
+        return True, removed
+    except Exception as e:
+        return False, f"{os.path.basename(nfo_path)}: {e}"
+
+
+def art_links_preview_text(items):
+    """The dry-run count: [(row, plan), …] → kind and number of links per movie."""
+    total = sum(sum(p["removed"].values()) for _r, p in items)
+    L = [_i18n.t("rd9.pv_head", n=len(items), links=total), "=" * 60, "", _i18n.t("rd9.pv_note"), ""]
+    for r, p in items:
+        L.append(f"  {r.get('movie_name') or r.get('subfolder', '?')}:  "
+                 + ", ".join(f"{k} {v}" for k, v in sorted(p["removed"].items())))
+    return "\n".join(L)
+
+
 _TAGNAME_RE = re.compile(r'[A-Za-z_][\w.\-:]*')
 
 
@@ -5100,6 +5733,29 @@ def extract_votes_from_files(nfo_path, xml_path):          ### NEW v0.16.0 ###
     return chosen, STATUS_OK, src
 
 
+def xml_old_reader_gaps(xml_path):                               ### NEW v0.20.0 KR1.4 ###
+    """What movie.xml holds only in tags the MediaBrowser 3 / Emby movie.xml parser ignores: "imdb" (only <IMDB_ID>),
+    "tmdb" (only <TMDB> / <TMDB_ID>, no <TMDbId>), "votes" (only <Votes>, no <VoteCount>).  Media Center Master writes
+    every variant (checked on 11 of the user's files, 2026-11-15), so its files never show this."""
+    if not xml_path:
+        return []
+    try:
+        root = _parse_root(xml_path)                              # cached: no second read
+    except Exception:
+        return []
+    if root is None:
+        return []
+    v = lambda t: (root.findtext(t) or "").strip()
+    out = []
+    if v("IMDB_ID") and not (v("IMDB") or v("IMDbId")):
+        out.append("imdb")
+    if (v("TMDB") or v("TMDB_ID")) and not v("TMDbId"):
+        out.append("tmdb")
+    if v("Votes") and not v("VoteCount"):
+        out.append("votes")
+    return out
+
+
 def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
     """
     Extract IMDB and TMDB IDs from all 12 authoritative tags.
@@ -5120,6 +5776,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
     """
     imdb_xml = []; tmdb_xml = []
     imdb_nfo = []; tmdb_nfo = []
+    kodi_sees, kodi_any_uid, kodi_plain_tt = set(), False, False      ### NEW v0.20.0 KR1.1 — what Kodi reads ###
     imdb_error = False; tmdb_error = False
     # ### NEW v0.19.1 B13 ### an EMPTY tag is tracked apart from a parse error:
     # all tags of a source empty → MISSING ("empty tags ready to fill"); some
@@ -5164,6 +5821,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
                     else: tmdb_empty = True                    ### MODIFIED v0.19.1 B13 ###
                 elif not mdb and txt.startswith("tt"):
                     imdb_nfo.append(txt)
+                    kodi_plain_tt = True                       # KR1.1: Kodi reads a plain <id> only without <uniqueid>
             for el in root_nfo.findall("imdbid"):
                 txt = (el.text or "").strip()
                 if txt: imdb_nfo.append(txt)
@@ -5176,6 +5834,9 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
             for el in root_nfo.findall("uniqueid"):
                 typ = (el.get("type") or "").strip().lower()
                 txt = (el.text or "").strip()
+                kodi_any_uid = True                            # KR1.1
+                if txt and typ in ("imdb", "tmdb", "themoviedb"):
+                    kodi_sees.add("imdb" if typ == "imdb" else "tmdb")
                 if typ == "imdb":
                     if txt: imdb_nfo.append(txt)
                     else: imdb_empty = True
@@ -5183,6 +5844,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
                     if txt: tmdb_nfo.append(txt)
                     else: tmdb_empty = True
         except Exception:
+            kodi_sees, kodi_any_uid = {"imdb", "tmdb"}, True             # KR1.1: not parsed → no Kodi warning
             # Malformed NFO — regex fallback
             try:
                 content = _read_text(nfo_path) or ""           ### MODIFIED v0.18.3 ###
@@ -5211,6 +5873,19 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
             if v and v not in seen: seen.add(v); out.append(v)
         return out
 
+    ### NEW v0.20.0 RD11 — a value that is not an ID of its kind ('7840' in an IMDb tag: FileBot wrote the TMDB number
+    # there) is set apart: it is not the movie's IMDb ID, so the movie gets "Missing IMDb ID" and the ID repairs fill it
+    # (they used to take '7840' as the IMDb ID and stop).  An ID with junk around it ('tt0133093/') stays: struct_fix cleans it.
+    def _split_bad(vals, kind):
+        good, bad = [], []
+        for v in vals:
+            ok = (_IMDB_OK.match(v) if kind == "imdb" else v.isdigit()) or _id_fixed(kind, v)
+            (good if ok else bad).append(v)
+        return good, bad
+    imdb_xml, _bx = _split_bad(imdb_xml, "imdb"); imdb_nfo, _bn = _split_bad(imdb_nfo, "imdb")
+    tmdb_xml, _tx = _split_bad(tmdb_xml, "tmdb"); tmdb_nfo, _tn = _split_bad(tmdb_nfo, "tmdb")
+    imdb_bad = _dedup(_bx + _bn); tmdb_bad = _dedup(_tx + _tn)
+
     imdb_all = _dedup(imdb_xml + imdb_nfo)
     tmdb_all = _dedup(tmdb_xml + tmdb_nfo)
 
@@ -5224,7 +5899,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
         (bool(imdb_nfo) and not imdb_xml and xml_path and os.path.isfile(xml_path))
     )
 
-    if imdb_error or (imdb_empty and imdb_all):                ### MODIFIED v0.19.1 B13 ###
+    if imdb_error or ((imdb_empty or imdb_bad) and imdb_all) or (imdb_bad and not imdb_all):   ### MODIFIED v0.19.1 B13; v0.20.0 RD11 ###
         imdb_val    = imdb_all[0] if imdb_all else None
         imdb_status = STATUS_ERROR
     elif not imdb_all:
@@ -5243,7 +5918,7 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
         (bool(tmdb_nfo) and not tmdb_xml and xml_path and os.path.isfile(xml_path))
     )
 
-    if tmdb_error or (tmdb_empty and tmdb_all):                ### MODIFIED v0.19.1 B13 ###
+    if tmdb_error or ((tmdb_empty or tmdb_bad) and tmdb_all) or (tmdb_bad and not tmdb_all):   ### MODIFIED v0.19.1 B13; v0.20.0 RD11 ###
         tmdb_val    = tmdb_all[0] if tmdb_all else None
         tmdb_status = STATUS_ERROR
     elif not tmdb_all:
@@ -5260,8 +5935,13 @@ def extract_source_ids_from_files(nfo_path, xml_path):     ### NEW v0.16.0 ###
         "imdb_val": imdb_val, "imdb_status": imdb_status, "imdb_all_vals": imdb_all,
         "tmdb_val": tmdb_val, "tmdb_status": tmdb_status, "tmdb_all_vals": tmdb_all,
         # ### NEW v0.19.1 B13 ### True = the source has tags, all of them empty
-        "imdb_empty_tags": bool(imdb_empty and not imdb_all and not imdb_error),
-        "tmdb_empty_tags": bool(tmdb_empty and not tmdb_all and not tmdb_error),
+        "imdb_empty_tags": bool(imdb_empty and not imdb_all and not imdb_error and not imdb_bad),
+        "tmdb_empty_tags": bool(tmdb_empty and not tmdb_all and not tmdb_error and not tmdb_bad),
+        "imdb_invalid_vals": imdb_bad, "tmdb_invalid_vals": tmdb_bad,          # v0.20.0 RD11
+        # ### NEW v0.20.0 KR1.1 ### the NFO's IDs Kodi cannot see: only in <imdbid> / <tmdbid> / <id moviedb>, in no
+        # <uniqueid> (a plain <id>tt…</id> counts for Kodi when the NFO has no <uniqueid> at all) — Kodi VideoInfoTag ParseNative
+        "nfo_kodi_missing": sorted(k for k, have in (("imdb", imdb_nfo), ("tmdb", tmdb_nfo))
+                                   if have and k not in (kodi_sees | ({"imdb"} if kodi_plain_tt and not kodi_any_uid else set()))),
     }
 
 
@@ -5339,8 +6019,19 @@ def get_movie_ids_robust(nfo_path, xml_path):
     """
     Extract IMDb and TMDb IDs from NFO and/or XML, with fallback parser.
     Returns (imdb_id, tmdb_id) — first non-empty value wins.
+    ### MODIFIED v0.20.0 AU3 (pre-build audit) ### only a VALID value counts, as in the scan (RD11): '7840' in an IMDb
+    tag (FileBot) is skipped, so Ratings Sync / Verify IDs never ask the services for /find/7840; junk around an ID
+    ('tt0133093/') is cleaned; <id> tags of nested elements are ignored.
     """
     imdb_id = tmdb_id = None
+
+    def _gi(v):
+        v = (v or "").strip()
+        return v if _IMDB_OK.match(v) else _id_fixed("imdb", v) if v else None
+
+    def _gt(v):
+        v = (v or "").strip()
+        return v if v.isdigit() else _id_fixed("tmdb", v) if v else None
 
     for filepath, is_nfo in [(nfo_path, True), (xml_path, False)]:
         if not filepath or not os.path.isfile(filepath):
@@ -5356,40 +6047,42 @@ def get_movie_ids_robust(nfo_path, xml_path):
                     v = (el.text or "").strip()
                     typ = (el.get('type') or '').strip().lower()
                     if v and typ == 'imdb':
-                        imdb_id = imdb_id or v
+                        imdb_id = imdb_id or _gi(v)
                     elif v and typ in ('tmdb', 'themoviedb'):
-                        tmdb_id = tmdb_id or v
+                        tmdb_id = tmdb_id or _gt(v)
                 # NFO: <imdbid>, <id moviedb="imdb">, <id>tt…</id>
                 for tag in ['imdbid']:
                     el = root.find(tag)
                     if el is not None and el.text and el.text.strip():
-                        imdb_id = imdb_id or el.text.strip()
-                for el in root.iter('id'):
+                        imdb_id = imdb_id or _gi(el.text)
+                for el in root.findall('id'):
                     v = (el.text or "").strip()
                     mdb = el.get('moviedb', '')
                     if mdb.lower() == 'imdb' and v:
-                        imdb_id = imdb_id or v
+                        imdb_id = imdb_id or _gi(v)
                     elif mdb.lower() in ('tmdb', 'themoviedb') and v:
-                        tmdb_id = tmdb_id or v
+                        tmdb_id = tmdb_id or _gt(v)
                     elif not mdb and v.startswith('tt'):
-                        imdb_id = imdb_id or v
+                        imdb_id = imdb_id or _gi(v)
                 for tag in ['tmdbid']:
                     el = root.find(tag)
                     if el is not None and el.text and el.text.strip():
-                        tmdb_id = tmdb_id or el.text.strip()
+                        tmdb_id = tmdb_id or _gt(el.text)
             else:
                 # XML
                 for tag in ['IMDB', 'IMDbId', 'IMDB_ID']:
                     el = root.find(tag)
                     if el is not None and el.text and el.text.strip():
-                        imdb_id = imdb_id or el.text.strip(); break
+                        imdb_id = imdb_id or _gi(el.text)
+                        if imdb_id: break
                 for tag in ['TMDbId', 'TMDB', 'TMDB_ID']:
                     el = root.find(tag)
                     if el is not None and el.text and el.text.strip():
-                        tmdb_id = tmdb_id or el.text.strip(); break
+                        tmdb_id = tmdb_id or _gt(el.text)
+                        if tmdb_id: break
         else:
-            imdb_id = imdb_id or fb.get("imdbid") or None
-            tmdb_id = tmdb_id or fb.get("tmdbid") or None
+            imdb_id = imdb_id or _gi(fb.get("imdbid")) or None
+            tmdb_id = tmdb_id or _gt(fb.get("tmdbid")) or None
 
     return imdb_id, tmdb_id
 
@@ -5616,7 +6309,7 @@ def write_genres_to_nfo(nfo_path, genres):
     If no genre tags exist, inserts before </movie> or at end of file.
     """
     if not nfo_path or not os.path.isfile(nfo_path):
-        return False, "NFO file not found"
+        return False, _i18n.t("uf.nfo_file_not_found_29d6")
     try:
         file_lines = _read_lines_for_edit(nfo_path)   ### MODIFIED v0.19.2 B37 — strict UTF-8, never rewritten with U+FFFD ###
 
@@ -5644,7 +6337,7 @@ def write_genres_to_nfo(nfo_path, genres):
             body = re.sub(r"<genre>[^<]*</genre>", "", _all, flags=re.I)
             closes = list(re.finditer(r"</movie\s*>", body, re.I))
             if not closes:
-                return False, "the NFO has no </movie> — genres not written"
+                return False, _i18n.t("uf.m.nfo_no_movie_genres")
             at = closes[-1].start()
             _atomic_write_text(nfo_path, body[:at] + "".join(f"<genre>{_xml_text(g)}</genre>" for g in genres) + body[at:])
             return True, ""
@@ -5721,7 +6414,7 @@ def write_genres_to_xml(xml_path, genres):
     line endings through _atomic_write_text) and B39 (escaping) kept.
     """                                                              ### NEW v0.11.0 ###
     if not xml_path or not os.path.isfile(xml_path):
-        return False, "XML file not found"
+        return False, _i18n.t("uf.xml_file_not_found_2a3f")
     try:
         content = "".join(_read_lines_for_edit(xml_path))   ### MODIFIED v0.19.2 B37 — strict UTF-8, never rewritten with U+FFFD ###
         items = [f"<Genre>{_xml_text(g)}</Genre>" for g in genres]   ### MODIFIED v0.19.2 B39 ###
@@ -5770,12 +6463,12 @@ def write_collection_to_nfo(nfo_path, name, tmdbcolid=None, overview=None):   ##
     """The NFO's first <set> becomes <set tmdbcolid="N"><name>…</name>[<overview>]</set> (character position;
     an existing overview is kept); inserted before </movie> when there is none.  (ok, error)."""
     if not nfo_path or not os.path.isfile(nfo_path):
-        return False, "NFO not found"
+        return False, _i18n.t("uf.nfo_not_found_c720")
     try:
         text = _read_for_edit(nfo_path)[0]                       # B37: strict UTF-8 (a cp1252 NFO is refused)
         new = _cr.replace_set_in_text(text, name, tmdbcolid, overview)
         if new is None:
-            return False, "the NFO has no </movie>"
+            return False, _i18n.t("uf.m.nfo_no_movie")
         if new != text:
             _atomic_write_text(nfo_path, new)                    # BOM + line endings kept
         return True, ""
@@ -5786,7 +6479,7 @@ def write_collection_to_nfo(nfo_path, name, tmdbcolid=None, overview=None):   ##
 def remove_collection_from_nfo(nfo_path):                        ### NEW v0.19.4 B110e ###
     """The NFO's first <set> block removed (only the explicit 'Remove from Collection…' does this)."""
     if not nfo_path or not os.path.isfile(nfo_path):
-        return False, "NFO not found"
+        return False, _i18n.t("uf.nfo_not_found_c720")
     try:
         text = _read_for_edit(nfo_path)[0]
         new = _cr.remove_set_in_text(text)
@@ -5806,12 +6499,12 @@ def write_collection_to_xml(xml_path, name, tmdbcolid=None):     ### NEW v0.19.4
     """movie.xml: TMDbCollectionId / CollectionNumber (id or 0), CollectionName (+ TmdbCollectionName when present);
     name None = no collection.  The stray NFO-style <set> block is removed.  (ok, error)."""
     if not xml_path or not os.path.isfile(xml_path):
-        return False, "movie.xml not found"
+        return False, _i18n.t("uf.movie_xml_not_found_c069")
     try:
         text = _read_for_edit(xml_path)[0]                       # strict UTF-8
         new = _cr.xml_collection_text(text, name, tmdbcolid)
         if new is None:
-            return False, "movie.xml has no </Title>"
+            return False, _i18n.t("uf.m.xml_no_title")
         if new != text:
             _atomic_write_text(xml_path, new)                    # BOM + line endings kept
         return True, ""
@@ -5819,16 +6512,16 @@ def write_collection_to_xml(xml_path, name, tmdbcolid=None):     ### NEW v0.19.4
         return False, f"movie.xml: {e}"
 
 
-FIX_COLL_LABEL = "🗂  Fix Collection…"                                ### NEW v0.19.4 B110e ###
-SYNC_COLL_XML_LABEL = "🗂  Sync Collection (NFO ↔ movie.xml)…"       ### NEW v0.19.4 fix 6 ###
-FIX_COLL_ALL_LABEL = "🗂  Fix Collections — All Movies…"              ### NEW v0.19.4 B110e ###
-SET_COLL_LABEL = "🗂  Set Collection…"                                ### NEW v0.19.4 B110e ###
-REMOVE_COLL_LABEL = "🗂  Remove from Collection…"                     ### NEW v0.19.4 B110e ###
-CHECK_COLL_ONE_LABEL = "🗂  Check Collection Online"                  ### NEW v0.19.4 B110e ###
-CREATE_COLL_LABEL = "🗂  Create Collection Folder…"                     ### NEW v0.19.4 B110g ###
-CREATE_COLL_ALL_LABEL = "🗂  Create Collection Folders — All…"          ### NEW v0.19.4 B110g ###
+FIX_COLL_LABEL = _label_const("FIX_COLL_LABEL", "🗂", "act.fix_collection")                                ### NEW v0.19.4 B110e ###
+SYNC_COLL_XML_LABEL = _label_const("SYNC_COLL_XML_LABEL", "🗂", "act.sync_collection_xml")       ### NEW v0.19.4 fix 6 ###
+FIX_COLL_ALL_LABEL = _label_const("FIX_COLL_ALL_LABEL", "🗂", "act.fix_collections_all")              ### NEW v0.19.4 B110e ###
+SET_COLL_LABEL = _label_const("SET_COLL_LABEL", "🗂", "act.set_collection")                                ### NEW v0.19.4 B110e ###
+REMOVE_COLL_LABEL = _label_const("REMOVE_COLL_LABEL", "🗂", "act.remove_collection")                     ### NEW v0.19.4 B110e ###
+CHECK_COLL_ONE_LABEL = _label_const("CHECK_COLL_ONE_LABEL", "🗂", "act.check_collection")                  ### NEW v0.19.4 B110e ###
+CREATE_COLL_LABEL = _label_const("CREATE_COLL_LABEL", "🗂", "act.create_collection_folder")                     ### NEW v0.19.4 B110g ###
+CREATE_COLL_ALL_LABEL = _label_const("CREATE_COLL_ALL_LABEL", "🗂", "act.create_collection_folders_all")          ### NEW v0.19.4 B110g ###
 COLL_FOLDERS = {}                     ### NEW v0.19.4 B110g — {group key: folder state}; empty = not checked ###
-COLL_ART_LABEL = "🖼  Collection Artwork…"                            ### NEW v0.19.4 fix 2g ###
+COLL_ART_LABEL = _label_const("COLL_ART_LABEL", "🖼", "act.collection_artwork")                            ### NEW v0.19.4 fix 2g ###
 
 
 def _coll_root(settings=None):                                   ### NEW v0.19.4 fix 2e ###
@@ -6071,17 +6764,17 @@ def collection_folder_items(rows, root, complete=False):         ### NEW v0.19.4
 
 
 def collection_folder_text(items):                               ### NEW v0.19.4 B110g ###
-    L = [f"{_n(len(items), 'collection')} — Kodi's movie set information folder:", ""]
+    L = [_i18n.t("rp.kodi_s_movie_set_8b59", n=_n(len(items), 'collection')), ""]
     for it in items:
         L.append(f"  {it['name']}:  {'create ' if it['make'] else ''}{it['dir']}")
         for t in it["need"]:
-            L.append(f"      {t}.jpg  ← TMDB")
+            L.append(_i18n.t("rp.jpg_tmdb_7a1e", t=t))
         for t, fn in sorted(it["have"].items()):
-            L.append(f"      {fn}  (exists — kept, unless you tick Replace below)")
+            L.append(_i18n.t("rp.exists_kept_unless_you_c866", fn=fn))
         if not it["tmdb"]:
-            L.append("      your own collection (no TMDB collection) — choose its images with Collection Artwork…")
-    L += ["", "Existing files are kept unless you tick Replace below; then the old ones go to replaced\\ in that folder.",
-          "Undo (Backup History) puts them back and removes what this run creates."]
+            L.append(_i18n.t("rp.your_own_collection_no_31c7"))
+    L += ["", _i18n.t("rp.existing_files_are_kept_670d"),
+          _i18n.t("rp.undo_backup_history_puts_b8e3")]
     return "\n".join(L)
 def collection_fix_items(rows, cache=None, lib_lang="en"):        ### NEW v0.19.4 B110e ###
     """([(row, (name, tmdbcolid, overview))], {why: count}) — the movies the collection fix changes."""
@@ -6133,14 +6826,13 @@ def collection_siblings(rows, results):                          ### NEW v0.19.4
 
 def collection_fix_text(items, skipped):                         ### NEW v0.19.4 B110e ###
     """The preview: one line per movie 'current → new'; the skipped counts."""
-    L = [f"{_n(len(items), 'movie')} get the collection TMDB lists for them (NFO <set>):", ""]
+    L = [_i18n.t("rp.get_the_collection_tmdb_e068", n=_n(len(items), 'movie')), ""]
     for r, (name, cid, _ov) in items:
         cur = (r.get("coll_nfo") or {}).get("name") or "(none)"
         L.append(f"  {r.get('movie_name') or r.get('subfolder')}:  {cur}  →  {name}  (TMDB {cid})")
     if skipped:
         L += ["", "Not changed:"] + [f"  {k} — {why}" for why, k in sorted(skipped.items())]
-    L += ["", "Each NFO and movie.xml is backed up first (Backup History / Undo); movie.xml gets the same collection "
-              "(TMDbCollectionId, CollectionNumber, CollectionName)."]
+    L += ["", _i18n.t("rp.each_nfo_and_movie_ff11")]
     return "\n".join(L)
 
 
@@ -6248,7 +6940,7 @@ _REFUSAL_KINDS = ("daily_limit", "invalid_key")
 
 def api_failure_message(service, kind):                         ### NEW v0.19.1 B22 ###
     """"<message> <advice>" for a service + failure kind (never contains a key)."""
-    other = " TMDB ratings still work." if service == "omdb" else ""
+    other = (" " + _i18n.t("uf.tmdb_ratings_still_work_c20a").strip()) if service == "omdb" else ""   # v0.20.0 AU23
     m, a = api_failure_text(_SERVICE_LABEL.get(service, service), kind, other)
     return f"{m} {a}"
 
@@ -6387,7 +7079,7 @@ def _service_run_begin(on_failure=None, alternatives=None, cancel_check=None):  
     "continue" | "cancel" is asked once per service at its first failure."""
     _RUN.blocked = {}
     _RUN.skipped = collections.Counter()
-    _RUN.decided = set()
+    _RUN.decided = {}                                   # v0.20.0 AU4: service → the user's answer
     _RUN.on_failure = on_failure
     _RUN.alternatives = dict(alternatives or {})
     _RUN.cancel_check = cancel_check
@@ -6442,16 +7134,18 @@ def _run_on_failure(service, kind):                             ### NEW v0.19.1 
     if getattr(_RUN, "blocked", None) is None:
         return None
     if service in _RUN.decided:
-        return "continue"
+        ### MODIFIED v0.20.0 AU4 (pre-build audit) ### the answer is remembered: "Pause this run" used to hold for the
+        # first failure only — the second one blocked the service for the rest of the run
+        return _RUN.decided[service]
     cb = getattr(_RUN, "on_failure", None)
     if not cb:
         return None
-    _RUN.decided.add(service)
+    _RUN.decided[service] = "continue"                          # asked once, also when the callback fails
     try:
-        return cb(service, kind, (_RUN.alternatives or {}).get(service)) or "continue"
+        _RUN.decided[service] = cb(service, kind, (_RUN.alternatives or {}).get(service)) or "continue"
     except Exception as ex:
         logger.error(f"service failure callback: {ex}")
-        return "continue"
+    return _RUN.decided[service]
 
 
 def _wait_for_pause(service):                                   ### NEW v0.19.1 B22 ###
@@ -6716,7 +7410,7 @@ def _tmdb_download_image(url, dest_path, retries=2):           ### NEW v0.18.0 #
             logger.error(f"_tmdb_download_image: {last_err}")
             return False, last_err
 
-    return False, last_err
+    return False, last_err.replace(" (will retry)", "")             # v0.20.0 AU16: the retries are used up
 
 
 def _fetch_tmdb_rating(tmdb_id, api_key):
@@ -6862,7 +7556,11 @@ def write_rating_to_files(nfo_path, xml_path, rating, votes, movie_name="rating_
             if _rt:
                 if not re.search(r"<(IMDBrating|Rating)\b", content, re.I):
                     content = _insert_before_root_close(content, _rt.group(1), f"<Rating>{rating}</Rating>")
-                if not re.search(r"<(Votes|VoteCount)\b", content, re.I):
+                # MODIFIED v0.20.0 KR1.4: both vote tags, as Media Center Master writes them — the MediaBrowser / Emby
+                # movie.xml parser reads <VoteCount>, other readers <Votes>
+                if not re.search(r"<VoteCount\b", content, re.I):
+                    content = _insert_before_root_close(content, _rt.group(1), f"<VoteCount>{votes}</VoteCount>")
+                if not re.search(r"<Votes\b", content, re.I):
                     content = _insert_before_root_close(content, _rt.group(1), f"<Votes>{votes}</Votes>")
             _atomic_write_text(xml_path, content)                    ### MODIFIED v0.19.0 — atomic ###
         except Exception as e:
@@ -7184,6 +7882,12 @@ def _scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=Fals
         "source_tmdb_all": src_ids["tmdb_all_vals"],
         "source_imdb_empty": src_ids["imdb_empty_tags"],       ### NEW v0.19.1 B13 ###
         "source_tmdb_empty": src_ids["tmdb_empty_tags"],       ### NEW v0.19.1 B13 ###
+        "source_imdb_invalid": src_ids["imdb_invalid_vals"],   ### NEW v0.20.0 RD11 ###
+        "source_tmdb_invalid": src_ids["tmdb_invalid_vals"],
+        "nfo_kodi_id_missing": src_ids.get("nfo_kodi_missing", []),   ### NEW v0.20.0 KR1.1 ###
+        "xml_reader_gaps": xml_old_reader_gaps(xml_path if xe else None),   ### NEW v0.20.0 KR1.4 ###
+        "nfo_premiered_year": premiered_year(nfo_path if ne else None),   ### NEW v0.20.0 KR1.2 ###
+        "nfo_art_links": nfo_online_art_kinds(nfo_path if ne else None),   ### NEW v0.20.0 RD9 ###
         "duplicate_of": [],
     }
     _refill_audio_row(_row)                                    ### NEW v0.19.1 B16 ###
@@ -7261,6 +7965,10 @@ def _results_from_json(data):
         "video_bytes": 0, "video_size": "—", "video_status": STATUS_MISSING,
         "subs_external": [], "subs_internal": [], "subs_hard": [], "subs_summary": "None",
         "source_imdb_empty": False, "source_tmdb_empty": False,
+        "source_imdb_invalid": [], "source_tmdb_invalid": [],   # v0.20.0 RD11
+        "nfo_kodi_id_missing": [], "nfo_premiered_year": None,   ### NEW v0.20.0 KR1.1 / KR1.2 ###
+        "nfo_art_links": [],                                     ### NEW v0.20.0 RD9 ###
+        "xml_reader_gaps": [],                                   ### NEW v0.20.0 KR1.4 ###
         # v0.19.2 F5 — naming intelligence                    ### NEW v0.19.2 F5 ###
         "nfo_all": [], "nfo_all_differ": False, "xml_notes": [], "art_notes": [], "extra_art": [], "extra_dirs": [],
         "video_kinds": {}, "video_group": None,
@@ -7405,7 +8113,7 @@ def _sort_year_key(r):
 def sort_labels():
     """Key → label, with the Lang OK? column named after the target language."""
     lab = dict(_se.LABEL)
-    lab["lang_ok"] = f"{SETTINGS.get('lang_ok_code', 'PT')} OK?"
+    lab["lang_ok"] = lang_ok_heading(SETTINGS.get("lang_ok_code", "PT"))   # v0.20.0 UI1c
     return lab
 
 
@@ -7446,14 +8154,10 @@ def run_improvements(data_list, checks=None):
         if checks.get("large_xml", True):
             if d["xml_exists"] and d["xml_bytes"] > max_xml_kb * 1024:
                 issues.append(
-                    f"[Large XML] movie.xml is {d['xml_bytes']//1024} KB "
-                    f"(threshold: {max_xml_kb} KB). "
-                    "Large XML files may contain stale or duplicate data — consider reviewing.")
+                    _i18n.t("uf.large_xml_movie_xml_9e6e", v=d['xml_bytes']//1024, max_xml_kb=max_xml_kb))
             if d["nfo_exists"] and d["nfo_bytes"] > max_nfo_kb * 1024:
                 issues.append(
-                    f"[Large NFO] {os.path.basename(d['nfo_path'])} is "
-                    f"{d['nfo_bytes']//1024} KB "
-                    f"(threshold: {max_nfo_kb} KB). Review for excess data.")
+                    _i18n.t("uf.large_nfo_is_kb_99d3", nfo_path=os.path.basename(d['nfo_path']), v=d['nfo_bytes']//1024, max_nfo_kb=max_nfo_kb))
 
         # ── 2.2  NFO ↔ XML mismatch ───────────────────────────────────────────
         if checks.get("nfo_xml_diff", True) and d["nfo_exists"] and d["xml_exists"]:
@@ -7486,8 +8190,7 @@ def run_improvements(data_list, checks=None):
                         nv = ", ".join(nfo_vals[:3])
                         xv = ", ".join(xml_vals[:3])
                         issues.append(
-                            f"[NFO↔XML Mismatch] {label}: "
-                            f"NFO='{nv}' vs XML='{xv}'")
+                            _i18n.t("uf.nfo_xml_mismatch_nfo_01cb", label=label, nv=nv, xv=xv))
 
                 # Check XML standalone tags vs MediaInfo block
                 for standalone, mi_path, mi_label, mi_tol in XML_INTERNAL_PAIRS:
@@ -7502,8 +8205,7 @@ def run_improvements(data_list, checks=None):
                     if _diff:
                         sv = ", ".join(sa_vals[:2]); mv = ", ".join(mi_vals[:2])
                         issues.append(
-                            f"[XML Internal] {mi_label}: "
-                            f"standalone='{sv}' vs MediaInfo='{mv}'")
+                            _i18n.t("uf.xml_internal_standalone_vs_2ab5", mi_label=mi_label, sv=sv, mv=mv))
 
         # ── 2.3  FFprobe vs NFO/XML ───────────────────────────────────────────
         if (checks.get("ffprobe_diff", True) and d.get("video_path") and
@@ -7512,7 +8214,8 @@ def run_improvements(data_list, checks=None):
             probe = _get_ffprobe_full(d["video_path"])
             if probe:
                 streams = probe.get("streams", [])
-                v_streams = [s for s in streams if s.get("codec_type") == "video"]
+                v_streams = [s for s in streams if s.get("codec_type") == "video"
+                             and (s.get("disposition") or {}).get("attached_pic") != 1]   # v0.20.0 AU16: not cover art
                 a_streams = [s for s in streams if s.get("codec_type") == "audio"]
                 fmt       = probe.get("format", {})
 
@@ -7533,31 +8236,27 @@ def run_improvements(data_list, checks=None):
                             if fp_w and nfo_w:
                                 if not _vals_match(nfo_w, [str(fp_w)], 0):
                                     issues.append(
-                                        f"[FFprobe vs NFO] Video width: "
-                                        f"FFprobe={fp_w} vs NFO={nfo_w[0]}")
+                                        _i18n.t("uf.ffprobe_vs_nfo_video_ddcd", fp_w=fp_w, v=nfo_w[0]))
                             if fp_h and nfo_h:
                                 if not _vals_match(nfo_h, [str(fp_h)], 0):
                                     issues.append(
-                                        f"[FFprobe vs NFO] Video height: "
-                                        f"FFprobe={fp_h} vs NFO={nfo_h[0]}")
+                                        _i18n.t("uf.ffprobe_vs_nfo_video_17e8", fp_h=fp_h, v=nfo_h[0]))
                             if fp_dur and nfo_dur:
                                 if not _vals_match(nfo_dur, [str(int(fp_dur))], 5):
                                     issues.append(
-                                        f"[FFprobe vs NFO] Duration: "
-                                        f"FFprobe={int(fp_dur)}s vs NFO={nfo_dur[0]}s")
+                                        _i18n.t("uf.ffprobe_vs_nfo_duration_ee89", fp_dur=int(fp_dur), v=nfo_dur[0]))
                             if fp_codec and nfo_codec:                  ### MODIFIED v0.19.5 B127 ###
                                 _unk += unknown_codecs([fp_codec], nfo_codec)
                                 if codecs_differ([fp_codec], nfo_codec):
                                     issues.append(
-                                        f"[FFprobe vs NFO] Video codec: "
-                                        f"FFprobe={fp_codec} vs NFO={nfo_codec[0]}")
+                                        _i18n.t("uf.ffprobe_vs_nfo_video_173a", fp_codec=fp_codec, v=nfo_codec[0]))
                             ### NEW v0.19.5 B127 ### every audio track
                             _a_nfo = _xpath_get(nfo_root, "fileinfo.streamdetails.audio.codec")
                             _a_fp = [s.get("codec_name") for s in a_streams if s.get("codec_name")]
                             if _a_nfo and _a_fp:
                                 _unk += unknown_codecs(_a_fp, _a_nfo)
                                 if codecs_differ(_a_fp, _a_nfo):
-                                    issues.append(f"[FFprobe vs NFO] Audio codec: FFprobe={', '.join(_a_fp[:4])} vs NFO={', '.join(_a_nfo[:4])}")
+                                    issues.append(_i18n.t("uf.ffprobe_vs_nfo_audio_126d", join=', '.join(_a_fp[:4]), join2=', '.join(_a_nfo[:4])))
 
                     if d["xml_exists"] and v_streams:
                         xml_root = _parse_xml_to_dict(d["xml_path"])
@@ -7568,33 +8267,30 @@ def run_improvements(data_list, checks=None):
                             if fp_w and xml_w:
                                 if not _vals_match(xml_w, [str(fp_w)], 0):
                                     issues.append(
-                                        f"[FFprobe vs XML] Video width: "
-                                        f"FFprobe={fp_w} vs XML={xml_w[0]}")
+                                        _i18n.t("uf.ffprobe_vs_xml_video_f92e", fp_w=fp_w, v=xml_w[0]))
                             if fp_h and xml_h:
                                 if not _vals_match(xml_h, [str(fp_h)], 0):
                                     issues.append(
-                                        f"[FFprobe vs XML] Video height: "
-                                        f"FFprobe={fp_h} vs XML={xml_h[0]}")
+                                        _i18n.t("uf.ffprobe_vs_xml_video_d7c5", fp_h=fp_h, v=xml_h[0]))
                             if fp_dur and xml_dur:
                                 if not _vals_match(xml_dur, [str(int(fp_dur))], 5):
                                     issues.append(
-                                        f"[FFprobe vs XML] Duration: "
-                                        f"FFprobe={int(fp_dur)}s vs XML={xml_dur[0]}s")
+                                        _i18n.t("uf.ffprobe_vs_xml_duration_e332", fp_dur=int(fp_dur), v=xml_dur[0]))
                             ### NEW v0.19.5 B127 ### the XML's video codec and every audio track
                             _v_xml = _xpath_get(xml_root, "MediaInfo.Video.Codec") or _xpath_get(xml_root, "VideoCodec")
                             if fp_codec and _v_xml:
                                 _unk += unknown_codecs([fp_codec], _v_xml)
                                 if codecs_differ([fp_codec], _v_xml):
-                                    issues.append(f"[FFprobe vs XML] Video codec: FFprobe={fp_codec} vs XML={_v_xml[0]}")
+                                    issues.append(_i18n.t("uf.ffprobe_vs_xml_video_a38e", fp_codec=fp_codec, v=_v_xml[0]))
                             _a_xml = _xpath_get(xml_root, "MediaInfo.Audio.Codec") or _xpath_get(xml_root, "AudioCodec")
                             _a_fp = [s.get("codec_name") for s in a_streams if s.get("codec_name")]
                             if _a_fp and _a_xml:
                                 _unk += unknown_codecs(_a_fp, _a_xml)
                                 if codecs_differ(_a_fp, _a_xml):
-                                    issues.append(f"[FFprobe vs XML] Audio codec: FFprobe={', '.join(_a_fp[:4])} vs XML={', '.join(_a_xml[:4])}")
+                                    issues.append(_i18n.t("uf.ffprobe_vs_xml_audio_6898", join=', '.join(_a_fp[:4]), join2=', '.join(_a_xml[:4])))
 
         if _unk:                                                ### NEW v0.19.5 B127 — not a problem; so the table can grow ###
-            issues.append("[Codec name not recognized] " + ", ".join(sorted(set(_unk))) + " (not compared)")
+            issues.append(_i18n.t("uf.codec_name_not_recognized_db7e") + ", ".join(sorted(set(_unk))) + " (not compared)")
 
         # ── 2.4  poster.jpg vs folder.jpg different sizes ─────────────────────
         if checks.get("poster_folder", True):
@@ -7604,14 +8300,10 @@ def run_improvements(data_list, checks=None):
                 if pw and ph and fw and fh:
                     if pw != fw or ph != fh:
                         issues.append(
-                            f"[Image Size] poster.jpg ({pw}×{ph}) and "
-                            f"folder.jpg ({fw}×{fh}) have different dimensions — "
-                            "they should be identical copies.")
+                            _i18n.t("uf.image_size_poster_jpg_ad94", pw=pw, ph=ph, fw=fw, fh=fh))
                 if abs(d["poster_bytes"] - d["folder_bytes"]) > 1024:
                     issues.append(
-                        f"[Image Size] poster.jpg ({format_size(d['poster_bytes'])}) "
-                        f"and folder.jpg ({format_size(d['folder_bytes'])}) "
-                        "differ in file size — they may not be the same image.")
+                        _i18n.t("uf.image_size_poster_jpg_6524", format_size=format_size(d['poster_bytes']), format_size2=format_size(d['folder_bytes'])))
 
         # ── 2.5  Proportions & file size ─────────────────────────────────────
         if checks.get("proportions", True):
@@ -7628,9 +8320,7 @@ def run_improvements(data_list, checks=None):
             bc = d["backdrop_count"]
             if bc < min_bk:
                 issues.append(
-                    f"[Backdrops] Only {_n(bc, 'backdrop')} found "
-                    f"(minimum recommended: {min_bk}). "
-                    "Use 'Extract 10 backdrop frames' to add more.")
+                    _i18n.t("uf.backdrops_only_found_minimum_9e9f", n=_n(bc, 'backdrop'), min_bk=min_bk))
 
         if issues:
             results.append((name, issues))
@@ -7643,10 +8333,10 @@ def format_improvements_report(results, error_rows=None):
     error_rows: list of (movie_name, [error_string, ...]) for scan errors — shown in red.
     """
     if not results and not error_rows:
-        return "[OK] No improvements needed — all checks passed!\n"
+        return _i18n.t("rp.ok_no_improvements_needed_9e7a")
     lines = []
     if results:
-        lines.append(f"Improvement Report — {_n(len(results), 'movie')} with findings\n")
+        lines.append(_i18n.t("rp.improvement_report_with_findings_c0b0", n=_n(len(results), 'movie')))
         lines.append("=" * 60 + "\n")
         for name, issues in results:
             lines.append(f"\n📁  {name}\n")
@@ -7654,14 +8344,14 @@ def format_improvements_report(results, error_rows=None):
             for iss in issues:
                 lines.append(f"  • {iss}\n")
         lines.append("\n" + "=" * 60 + "\n")
-        lines.append(f"Total improvement issues: {sum(len(v) for _, v in results)}\n")
+        lines.append(_i18n.t("rp.total_improvement_issues_5177", sum=sum(len(v) for _, v in results)))
     else:
-        lines.append("[OK] No improvement issues found.\n\n")
+        lines.append(_i18n.t("rp.ok_no_improvement_issues_cac8"))
 
     # Append scan errors (item 3)
     if error_rows:
         lines.append("\n" + "=" * 60 + "\n")
-        lines.append(f"SCAN ERRORS — {_n(sum(len(v) for _, v in error_rows), 'error')} in {_n(len(error_rows), 'movie')}\n")
+        lines.append(_i18n.t("rp.scan_errors_in_0cc9", n=_n(sum(len(v) for _, v in error_rows), 'error'), n2=_n(len(error_rows), 'movie')))
         lines.append("=" * 60 + "\n")
         for name, errs in error_rows:
             lines.append(f"\n📁  {name}\n")
@@ -8088,7 +8778,7 @@ class FrameExtractionDialog(_DialogBase):
 
     def __init__(self, parent, video_path, sub_path, timeout_sec=60):
         super().__init__(parent)
-        self.title("Extract Backdrop(s)…")
+        self.title(_i18n.t("mc.extract_backdrop_s_72c6"))
         self.geometry("540x360")
         self.configure(bg=C_BG)
         self.transient(parent); _modal(self)
@@ -8103,13 +8793,13 @@ class FrameExtractionDialog(_DialogBase):
         self._pct_target  = 0       # target for smooth animation
         self._pct_current = 0       # current animated value
 
-        tk.Label(self, text="🎬  Extracting backdrop frames…",
+        tk.Label(self, text=_i18n.t("mc.extracting_backdrop_frames_abaa"),
                  font=("Helvetica", 12, "bold"), bg=C_BG, fg=C_TEXT
                  ).pack(pady=(16, 2))
         tk.Label(self, text=os.path.basename(video_path),
                  font=("Consolas", 9), bg=C_BG, fg=C_DIM).pack(pady=(0, 8))
 
-        self.status_var = tk.StringVar(value="Preparing…")
+        self.status_var = tk.StringVar(value=_i18n.t("au.preparing"))
         tk.Label(self, textvariable=self.status_var, font=("Helvetica", 10),
                  bg=C_BG, fg=C_SUBTEXT, wraplength=500).pack()
 
@@ -8131,23 +8821,24 @@ class FrameExtractionDialog(_DialogBase):
         ctrl = tk.Frame(self, bg=C_BG); ctrl.pack(pady=(6, 0))
 
         # Backdrop count spinner (item 14)
-        tk.Label(ctrl, text="Backdrops to extract:", font=("Helvetica", 9),
+        tk.Label(ctrl, text=_i18n.t("mc.backdrops_to_extract_4557"), font=("Helvetica", 9),
                  bg=C_BG, fg=C_SUBTEXT).pack(side="left", padx=(0, 4))
         self._count_var = tk.IntVar(value=SETTINGS.get("backdrop_count", 10))
-        tk.Spinbox(ctrl, from_=1, to=50, textvariable=self._count_var,
+        self._spins = []                                         # v0.20.0 AU16: shown, not changeable (see _start)
+        self._spins.append(tk.Spinbox(ctrl, from_=1, to=50, textvariable=self._count_var,
                    width=4, font=("Helvetica", 9),
                    bg=C_SURFACE, fg=C_TEXT, buttonbackground=C_SURFACE2,
-                   relief="flat").pack(side="left", padx=(0, 18))
+                   relief="flat")); self._spins[-1].pack(side="left", padx=(0, 18))
 
-        tk.Label(ctrl, text="Per-frame timeout (s):", font=("Helvetica", 9),
+        tk.Label(ctrl, text=_i18n.t("mc.per_frame_timeout_s_3287"), font=("Helvetica", 9),
                  bg=C_BG, fg=C_SUBTEXT).pack(side="left")
         self._timeout_var = tk.IntVar(value=timeout_sec)
-        tk.Spinbox(ctrl, from_=10, to=300, textvariable=self._timeout_var,
+        self._spins.append(tk.Spinbox(ctrl, from_=10, to=300, textvariable=self._timeout_var,
                    width=5, font=("Helvetica", 9),
                    bg=C_SURFACE, fg=C_TEXT, buttonbackground=C_SURFACE2,
-                   relief="flat").pack(side="left", padx=(6, 0))
+                   relief="flat")); self._spins[-1].pack(side="left", padx=(6, 0))
 
-        tk.Button(self, text="  Cancel  ", font=("Helvetica", 10, "bold"),
+        tk.Button(self, text=_i18n.t("mc.cancel_2fee"), font=("Helvetica", 10, "bold"),
                   bg=C_ERR, fg=C_BG, relief="flat", cursor="hand2",
                   command=self._on_cancel).pack(pady=(10, 16))
 
@@ -8195,7 +8886,7 @@ class FrameExtractionDialog(_DialogBase):
 
     def _on_cancel(self):
         self._cancelled = True                                   # the runner kills FFmpeg within 0.2 s (v0.19.2 B28)
-        self.status_var.set("Cancelling…")                       ### MODIFIED v0.19.2 B28 ###
+        self.status_var.set(_i18n.t("mc.st.cancelling"))                       ### MODIFIED v0.19.2 B28 ###
 
     def _start(self):
         ### MODIFIED v0.19.4 B99a — the Tk variables are read HERE, on the Tk thread ###
@@ -8207,14 +8898,22 @@ class FrameExtractionDialog(_DialogBase):
             n = int(self._count_var.get())
         except (tk.TclError, ValueError):
             n = SETTINGS.get("backdrop_count", 10)
-        threading.Thread(target=self._worker, args=(max(10, t), max(1, min(50, n))),   # item 14: configurable count
+        ### v0.20.0 AU16 (pre-build audit) ### the run starts with these values at once: the boxes now show them
+        # (greyed) instead of looking changeable — a change did nothing.  Settings → FFmpeg holds both values.
+        for _sp in getattr(self, "_spins", []):
+            try:
+                _sp.configure(state="disabled")
+            except tk.TclError:
+                pass
+        self._used = (max(10, t), max(1, min(50, n)))
+        threading.Thread(target=self._worker, args=self._used,   # item 14: configurable count
                          daemon=True).start()
 
     def _worker(self, t_limit=60, n_frames=10):
         video      = self._video_path
         sub        = self._sub_path
 
-        ui_post(lambda: self.status_var.set("Reading video duration…"))
+        ui_post(lambda: self.status_var.set(_i18n.t("mc.st.reading_duration")))
         _cancel = lambda: self._cancelled                       ### NEW v0.19.2 B28 — plain flag, no Tk ###
         _t_run = time.monotonic()
         self._ff_state.update(active=True, i=0, n=n_frames, t_frame=_t_run, t_run=_t_run)
@@ -8240,24 +8939,16 @@ class FrameExtractionDialog(_DialogBase):
                 # Use a safe default estimate of 3600s and warn rather than abort
                 duration  = 3600.0
                 estimated = True
-                ui_post(lambda: self.status_var.set(
-                    "⚠ FFprobe could not read duration — using 1-hour estimate."))
+                ui_post(lambda: self.status_var.set(_i18n.t("mc.fx.dur_estimate")))      # v0.20.0 UI1e
             else:
-                self._finish_error("Cannot read video duration",
-                    "FFprobe could not read the video length.\n\n"
-                    "Possible causes:\n• Corrupt or incomplete file\n"
-                    "• Unsupported container format\n"
-                    "• File still being downloaded\n\n"
-                    "Try playing the file in VLC to confirm it works.")
+                self._finish_error(_i18n.t("mc.fx.no_duration_t"), _i18n.t("mc.fx.no_duration"))   # v0.20.0 UI1e
                 return
 
         if estimated:
-            ui_post(lambda: self.status_var.set(
-                "⚠ Duration estimated — extraction may start at wrong timestamp."))
+            ui_post(lambda: self.status_var.set(_i18n.t("mc.fx.dur_estimated")))         # v0.20.0 UI1e
 
         if duration < 20:
-            self._finish_error("Video too short",
-                f"Video is only {duration:.0f}s — need at least 20s for extraction.")
+            self._finish_error(_i18n.t("mc.fx.too_short_t"), _i18n.t("mc.fx.too_short", s=f"{duration:.0f}"))   # v0.20.0 UI1e
             return
 
         if duration < 120:
@@ -8292,7 +8983,7 @@ class FrameExtractionDialog(_DialogBase):
             self._pct_target = int(i * pct_per_frame)
 
             ui_post(lambda i=i, m=mins, s=secs_r, fn=fname, n=n_frames:
-                       self.status_var.set(f"Frame {i+1}/{n}  at {m}:{s:02d}  →  {fn}"))
+                       self.status_var.set(_i18n.t("mc.st.frame", i=i + 1, n=n, m=m, s=f"{s:02d}", fn=fn)))
 
             t0 = time.time()
             ok, err_msg = extract_single_frame(video, ts, out_p, timeout_sec=t_limit, cancel=_cancel)   ### MODIFIED v0.19.2 B28 ###
@@ -8317,11 +9008,11 @@ class FrameExtractionDialog(_DialogBase):
                 avg = sum(frame_times) / len(frame_times)
                 remaining = avg * (n_frames - i - 1)
                 if remaining > 60:
-                    eta = f"ETA: {int(remaining//60)}m {int(remaining%60)}s"
+                    eta = _i18n.t("au.eta_m", m=int(remaining//60), s=int(remaining%60))
                 elif remaining > 0:
-                    eta = f"ETA: {int(remaining)}s"
+                    eta = _i18n.t("au.eta_s", s=int(remaining))
                 else:
-                    eta = "Almost done…"
+                    eta = _i18n.t("au.almost")
                 ui_post(lambda e=eta: self.eta_var.set(e))
 
         self._extracted = [p for _, p in extracted]
@@ -8332,9 +9023,9 @@ class FrameExtractionDialog(_DialogBase):
                 try: os.remove(p)
                 except OSError: pass
             ui_post(lambda: (
-                self.status_var.set("Cancelled."),
-                messagebox.showinfo("Cancelled",
-                    "Extraction cancelled. Partial files removed.", parent=self),
+                self.status_var.set(_i18n.t("mc.st.cancelled")),
+                messagebox.showinfo(_i18n.t("mc.cancelled_a149"),
+                    _i18n.t("mc.extraction_cancelled_partial_files_a5f0"), parent=self),
                 self.destroy()))
             return
 
@@ -8342,7 +9033,7 @@ class FrameExtractionDialog(_DialogBase):
         if slow_stop:                                            ### NEW v0.19.2 B28 ###
             msg = B28_SLOW_TEXT.format(frames=_n(n_ok, "frame"))
             logger.warning(f"Extract Backdrop(s) stopped (slow file): {video}")
-            ui_post(lambda: (messagebox.showwarning("Stopped", msg, parent=self), self.destroy()))
+            ui_post(lambda: (messagebox.showwarning(_i18n.t("mc.stopped_c23e"), msg, parent=self), self.destroy()))
             return
         if n_bad == 0:
             ### UPDATED v0.18.0 — build file-range string correctly for all cases ###
@@ -8351,22 +9042,16 @@ class FrameExtractionDialog(_DialogBase):
                 files_str = only_fname
             else:                                                ### MODIFIED v0.19.1 B23 — real names (Kodi or plain) ###
                 files_str = f"{extracted[0][0]} → {extracted[-1][0]}"
-            msg = (f"Done! All {_n(n_frames, 'frame')} extracted!\n\n"
-                   f"Saved to: {sub}\n"
-                   f"Files: {files_str}")
-            ui_post(lambda: (messagebox.showinfo("Done", msg, parent=self), self.destroy()))
+            msg = (_i18n.t("mc.done_all_extracted_saved_d051", n=_n(n_frames, 'frame'), sub=sub, files_str=files_str))
+            ui_post(lambda: (messagebox.showinfo(_i18n.t("mc.done_f929"), msg, parent=self), self.destroy()))
         elif n_ok == 0:
             detail = "\n".join(f"  Frame {fi} at {ts}: {em}" for fi,ts,_,em in failed[:5])
-            msg = (f"❌  No frames extracted.\n\nAll {n_frames} failed:\n{detail}\n\n"
-                   "• Check the video codec is supported by your FFmpeg build\n"
-                   "• Increase the per-frame timeout for large files\n"
-                   "• Verify the file plays in VLC")
-            ui_post(lambda: (messagebox.showerror("Failed", msg, parent=self), self.destroy()))
+            msg = (_i18n.t("mc.no_frames_extracted_all_4ab3", n_frames=n_frames, detail=detail))
+            ui_post(lambda: (messagebox.showerror(_i18n.t("mc.failed_d7c8"), msg, parent=self), self.destroy()))
         else:
             detail = "\n".join(f"  Frame {fi} at {ts}: {em}" for fi,ts,_,em in failed[:3])
-            msg = (f"Partial: {n_ok}/{n_frames} frames saved.\n\nFailed ({n_bad}):\n{detail}\n\n"
-                   "Saved frames are usable. Failed frames may be damaged sections.")
-            ui_post(lambda: (messagebox.showwarning("Partial", msg, parent=self), self.destroy()))
+            msg = (_i18n.t("mc.partial_frames_saved_failed_8c74", n_ok=n_ok, n_frames=n_frames, n_bad=n_bad, detail=detail))
+            ui_post(lambda: (messagebox.showwarning(_i18n.t("mc.partial_44ff"), msg, parent=self), self.destroy()))
 
     def _finish_error(self, title, message):
         ui_post(lambda: (messagebox.showerror(title, message, parent=self), self.destroy()))
@@ -8378,20 +9063,20 @@ class _SetCollectionDialog(DialogFrame):                         ### NEW v0.19.4
     OWN = "Your own collection — the name above, no TMDB link"
 
     def __init__(self, parent, used, current="", api_key="", lang="en", n_movies=1):
-        super().__init__(parent, title="Set Collection", heading="🗂  Set Collection", geometry=f"{px(600)}x{px(430)}")
+        super().__init__(parent, title=_i18n.t("mc.set_collection_9065"), heading="🗂  " + _i18n.t("mc.set_collection_9065"), geometry=f"{px(600)}x{px(430)}")
         self.result = None
         self._api, self._lang, self._found, self._gen, self._ready = api_key, lang or "en", [], 0, None
-        tk.Label(self.body, text=f"{_n(n_movies, 'movie')}: choose a collection in use or type a name, then search TMDB:",
+        tk.Label(self.body, text=_i18n.t("mc.choose_a_collection_in_56e7", n=_n(n_movies, 'movie')),
                  bg=C_BG, fg=C_TEXT, font=("Helvetica", 10)).pack(anchor="w", padx=16, pady=(6, 4))
         row = tk.Frame(self.body, bg=C_BG); row.pack(fill="x", padx=16)
         self._var = tk.StringVar(value=current or "")
         self._cb = ttk.Combobox(row, textvariable=self._var, values=list(used), width=44)
         self._cb.pack(side="left")
         self._cb.focus_set()
-        self._search_btn = tk.Button(row, text=" Search TMDB ", command=self.search, bg=C_SURFACE2, fg=C_TEXT, relief="flat",
+        self._search_btn = tk.Button(row, text=_i18n.t("mc.search_tmdb_3504"), command=self.search, bg=C_SURFACE2, fg=C_TEXT, relief="flat",
                                      cursor="hand2", font=("Helvetica", 9), state="normal" if api_key else "disabled")
         self._search_btn.pack(side="left", padx=(6, 0))
-        self._status = tk.Label(self.body, text="" if api_key else "No TMDB API key (Settings): your own collection only.",
+        self._status = tk.Label(self.body, text="" if api_key else _i18n.t("mc.no_tmdb_api_key_def6"),
                                 bg=C_BG, fg=C_DIM, font=("Helvetica", 9), anchor="w")
         self._status.pack(fill="x", padx=16, pady=(4, 2))
         self._list = tk.Listbox(self.body, height=8, bg=C_SURFACE, fg=C_TEXT, selectbackground=C_ACCENT, selectforeground=C_BG,
@@ -8401,18 +9086,18 @@ class _SetCollectionDialog(DialogFrame):                         ### NEW v0.19.4
         self._list.selection_set(0)
         self._list.bind("<<ListboxSelect>>", lambda e: self._on_pick())
         self._folder = tk.BooleanVar(value=True)
-        tk.Checkbutton(self.body, text="Then make the collection folder and choose its poster / fanart (Collection Artwork…)",
+        tk.Checkbutton(self.body, text=_i18n.t("mc.then_make_the_collection_2f74"),
                        variable=self._folder, bg=C_BG, fg=C_TEXT, selectcolor=C_SURFACE, activebackground=C_BG,
                        activeforeground=C_TEXT, font=("Helvetica", 9)).pack(anchor="w", padx=12, pady=(6, 0))
-        self.add_button("Cancel", self.destroy)
-        self.add_button("Set", self._ok, kind="ok", main=True)
+        self.add_button(_i18n.t("mc.cancel_ea47"), self.destroy)
+        self.add_button(_i18n.t("mc.set_5d5b"), self._ok, kind="ok", main=True)
 
     def search(self, q=None):
         q = (q if q is not None else self._var.get()).strip()
         if not (q and self._api):
             return
         self._typed = self._var.get()                               # P7 (B11): "your own collection" gets it back
-        self._status.configure(text=f"Searching TMDB for “{q}”…")
+        self._status.configure(text=_i18n.t("mc.searching_tmdb_for_4c89", q=q))
         self._gen += 1
         gen = self._gen
 
@@ -8441,17 +9126,25 @@ class _SetCollectionDialog(DialogFrame):                         ### NEW v0.19.4
             for cid, nm in found:
                 self._list.insert("end", f"{nm}   (TMDB collection {cid})")
             if err:
-                self._status.configure(text=f"TMDB search failed: {err}")
+                self._status.configure(text=_i18n.t("mc.tmdb_search_failed_b8ba", err=err))
             elif not found:
-                self._status.configure(text="TMDB has no collection with that name: it will be your own collection.")
+                self._status.configure(text=_i18n.t("mc.tmdb_has_no_collection_a1ca"))
             else:
-                self._status.configure(text=f"{_n(len(found), 'TMDB collection')} found: choose one, or keep your own name.")
+                self._status.configure(text=_i18n.t("mc.found_choose_one_or_a903", n=_n(len(found), 'TMDB collection')))
                 self._list.selection_clear(0, "end"); self._list.selection_set(1); self._on_pick()
             self.searched = len(found)                             # read by the self-test
         elif tries < 1800:                                         # P7 (B12): 90 s (the fetch retries)
-            self.after(50, lambda: self._poll(gen, tries + 1))
+            self._poll_aid = self.after(50, lambda: self._poll(gen, tries + 1))
         else:
-            self._status.configure(text="TMDB did not answer — try Search again (or keep your own name).")
+            self._status.configure(text=_i18n.t("mc.tmdb_did_not_answer_0415"))
+
+    def destroy(self):                                             ### NEW v0.20.0 AU10 — no search poll after closing ###
+        try:
+            if getattr(self, "_poll_aid", None):
+                self.tk.call("after", "cancel", self._poll_aid)
+        except tk.TclError:
+            pass
+        super().destroy()
 
     def _on_pick(self):
         sel = self._list.curselection()
@@ -8501,9 +9194,9 @@ class ReportWindow(DialogFrame):                                 ### NEW v0.19.4
         for tag, (fg, bold) in (tags or {}).items():
             t.tag_configure(tag, foreground=fg, font=("Consolas", 10, "bold") if bold else None)
         self._render(text)
-        self.add_button("📋 Copy", self._copy, kind="main")
-        self.add_button("💾 Save to .txt", self._save, kind="ok")
-        self.add_button("Close", self.destroy, main=True)
+        self.add_button(_i18n.t("mc.copy_008e"), self._copy, kind="main")
+        self.add_button(_i18n.t("mc.save_to_txt_9177"), self._save, kind="ok")
+        self.add_button(_i18n.t("mc.close_d3d2"), self.destroy, main=True)
         _remember_window(self, memory_key, resizable=True)
 
     def _render(self, text):
@@ -8528,13 +9221,13 @@ class ReportWindow(DialogFrame):                                 ### NEW v0.19.4
         try:
             with open(p, "w", encoding="utf-8") as f:
                 f.write(self._raw)
-            saved_offer_open(self, "Saved", p, "Report saved to")       ### v0.19.4 B109b ###
+            saved_offer_open(self, _i18n.t("au.saved"), p, _i18n.t("uf.report_saved_to_a49c"))       ### v0.19.4 B109b ###
         except Exception as e:
-            messagebox.showerror("Save failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("mc.save_failed_e32a"), str(e), parent=self)
 
 
 def _improvements_tag(line, st):                                  ### MODIFIED v0.19.4 I16 — was ImprovementsDialog._render ###
-    if "SCAN ERRORS" in line:
+    if "SCAN ERRORS" in line or line.startswith(_i18n.t("rp.scan_errors_in_0cc9", n=0, n2=0).split("—")[0].strip()):   # AU14
         st["err"] = True
     if line.startswith("=") or line.startswith("─"):
         return "sep"
@@ -8580,76 +9273,76 @@ def format_library_statistics(results):                        ### NEW v0.18.4 #
     from collections import Counter
     n = len(results)
     sep = "=" * 60
-    L = [f"Library Statistics \u2014 {_n(n, 'movie')}",
-         f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", sep, ""]
+    T = _i18n.t                                                   # v0.20.0 AU23: in the interface language
+    L = [T("au.st.title", movies=_n(n, 'movie')),
+         _i18n.t("rp.generated_8af8", strftime=datetime.datetime.now().strftime('%Y-%m-%d %H:%M')), sep, ""]
     if not n:
-        return "\n".join(L + ["No movies loaded."])
+        return "\n".join(L + [T("au.st.none")])
     def _pct(k): return f"{k:5d}  ({k * 100 // n:3d}%)"
     hs = Counter(r.get("health_status", "warning") for r in results)
     roots = Counter((r.get("library_root") or os.path.dirname(r.get("subfolder_path") or "")) for r in results)   ### NEW v0.19.0 ###
     if roots:
-        L += ["LIBRARIES"] + [f"  {_pct(c)}   {k}" for k, c in sorted(roots.items())] + [""]
-    L += ["HEALTH",
-          f"  OK       {_pct(hs.get('ok', 0))}",
-          f"  Warning  {_pct(hs.get('warning', 0))}",
-          f"  Error    {_pct(hs.get('error', 0))}", ""]
+        L += [T("au.st.libraries")] + [f"  {_pct(c)}   {k}" for k, c in sorted(roots.items())] + [""]
+    L += [T("au.st.health"),
+          T("au.st.ok", pct=_pct(hs.get('ok', 0))),
+          T("au.st.warning", pct=_pct(hs.get('warning', 0))),
+          T("au.st.error", pct=_pct(hs.get('error', 0))), ""]
     total_bytes = sum(r.get("video_bytes", 0) or 0 for r in results)
     with_video  = sum(1 for r in results if r.get("video_count", 0) >= 1)
-    L += ["VIDEO",
-          f"  Movies with a video file   {_pct(with_video)}",
-          f"  Total video size           {format_size(total_bytes)}",
-          f"  Average video size         {format_size(total_bytes // max(with_video, 1))}"]
+    L += [T("au.st.video"),
+          _i18n.t("uf.movies_with_a_video_07d2", pct=_pct(with_video)),
+          _i18n.t("uf.total_video_size_343e", format_size=format_size(total_bytes)),
+          _i18n.t("uf.average_video_size_294e", format_size=format_size(total_bytes // max(with_video, 1)))]
     vq = Counter(r.get("video_quality", "\u2014") for r in results)
     for q in sorted(vq, key=_quality_sort_key):
         L.append(f"    {q:12s} {_pct(vq[q])}")
     ac = Counter(t.get("language", "UND") for r in results for t in r.get("audio_tracks", []) or [])
     if ac:
-        L.append("  Audio languages (tracks): " + ", ".join(f"{k} {v}" for k, v in ac.most_common(12)))
+        L.append(_i18n.t("uf.audio_languages_tracks_d9a7") + ", ".join(f"{k} {v}" for k, v in ac.most_common(12)))
     L.append("")
-    L += ["SUBTITLES / LANGUAGE",
-          f"  Lang OK? = Y               {_pct(sum(1 for r in results if r.get('lang_ok') == 'Y'))}",
-          f"  Lang OK? = N               {_pct(sum(1 for r in results if r.get('lang_ok') == 'N'))}",
-          f"  External subtitle files    {_pct(sum(1 for r in results if r.get('subs_external')))}",
-          f"  Embedded subtitle tracks   {_pct(sum(1 for r in results if r.get('subs_internal')))}"]
+    L += [T("au.st.subs"),
+          T("au.st.lang_y", pct=_pct(sum(1 for r in results if r.get('lang_ok') == 'Y'))),
+          T("au.st.lang_n", pct=_pct(sum(1 for r in results if r.get('lang_ok') == 'N'))),
+          _i18n.t("uf.external_subtitle_files_6bb8", pct=_pct(sum(1 for r in results if r.get('subs_external')))),
+          _i18n.t("uf.embedded_subtitle_tracks_987f", pct=_pct(sum(1 for r in results if r.get('subs_internal'))))]
     xl = Counter((r.get("language") or "\u2014") for r in results)
-    L.append("  Language column: " + ", ".join(f"{k} {v}" for k, v in xl.most_common(10)))   # v0.19.6 TR1: not only movie.xml
+    L.append(T("au.st.lang_col") + ", ".join(f"{k} {v}" for k, v in xl.most_common(10)))   # v0.19.6 TR1: not only movie.xml
     L.append("")
-    L += ["ARTWORK"]
-    for key, label in (("poster", "Poster"), ("folder", "Folder"), ("fanart", "Fanart")):
+    L += [T("au.st.artwork")]
+    for key, label in (("poster", T("au.st.poster")), ("folder", T("au.st.folder")), ("fanart", T("au.st.fanart"))):
         present = sum(1 for r in results if r.get(f"{key}_exists"))
         qc = Counter(r.get(f"{key}_quality", "\u2014") for r in results if r.get(f"{key}_exists"))
-        L.append(f"  {label:7s} present {_pct(present)}   " +
+        L.append(f"  {label:7s} " + T("au.st.present") + f" {_pct(present)}   " +
                  ", ".join(f"{q} {c}" for q, c in sorted(qc.items(), key=lambda kv: _poster_quality_sort_key(kv[0]) if key != 'fanart' else _fanart_quality_sort_key(kv[0]))))
     bcs = [r.get("backdrop_count", 0) for r in results]
-    L.append(f"  Backdrops: total {sum(bcs)}, average {sum(bcs) / n:.1f} per movie, "
-             f"{_n(sum(1 for b in bcs if b == 0), 'movie')} without any")
+    L.append(_i18n.t("uf.backdrops_total_average_per_11c0", sum=sum(bcs), v=format(sum(bcs) / n, '.1f'), n=_n(sum(1 for b in bcs if b == 0), 'movie')))
     L.append("")
-    L += ["METADATA",
-          f"  NFO present                {_pct(sum(1 for r in results if r.get('nfo_exists')))}",
-          f"  XML present                {_pct(sum(1 for r in results if r.get('xml_exists')))}",
-          f"  IMDb ID present            {_pct(sum(1 for r in results if r.get('source_imdb_val')))}",
-          f"  TMDB ID present            {_pct(sum(1 for r in results if r.get('source_tmdb_val')))}",
-          f"  Rating present             {_pct(sum(1 for r in results if r.get('rating_status') not in (STATUS_MISSING, STATUS_ERROR)))}",
-          f"  Duplicates flagged         {_pct(sum(1 for r in results if r.get('duplicate_of')))}", ""]
+    L += [T("au.st.metadata"),
+          T("au.st.nfo", pct=_pct(sum(1 for r in results if r.get('nfo_exists')))),
+          T("au.st.xml", pct=_pct(sum(1 for r in results if r.get('xml_exists')))),
+          _i18n.t("uf.imdb_id_present_82a7", pct=_pct(sum(1 for r in results if r.get('source_imdb_val')))),
+          _i18n.t("uf.tmdb_id_present_bda2", pct=_pct(sum(1 for r in results if r.get('source_tmdb_val')))),
+          T("au.st.rating", pct=_pct(sum(1 for r in results if r.get('rating_status') not in (STATUS_MISSING, STATUS_ERROR)))),
+          T("au.st.dups", pct=_pct(sum(1 for r in results if r.get('duplicate_of')))), ""]
     gc = Counter(g for r in results for g in (r.get("genres") or []))
-    L += ["GENRES (top 20)"]
+    L += [T("au.st.genres")]
     for g, c in gc.most_common(20):
         L.append(f"  {c:5d}  {g}")
     L.append("")
     dec = Counter()
     for r in results:
         y = str(r.get("movie_year", "-"))
-        dec[(y[:3] + "0s") if y.isdigit() and len(y) == 4 else "unknown"] += 1
-    L += ["DECADES"]
+        dec[(y[:3] + "0s") if y.isdigit() and len(y) == 4 else T("au.st.unknown")] += 1
+    L += [T("au.st.decades")]
     for d, c in sorted(dec.items()):
         L.append(f"  {d:8s} {_pct(c)}")
     L.append("")
     rated = [r.get("rating_value") for r in results if (r.get("rating_value") or -1) >= 0]
     if rated:
-        L.append(f"RATINGS   average {sum(rated) / len(rated):.2f} over {_n(len(rated), 'rated movie')}")   # v0.19.4 B105
+        L.append(_i18n.t("uf.ratings_average_over_8faf", v=format(sum(rated) / len(rated), '.2f'), n=_n(len(rated), 'rated movie')))   # v0.19.4 B105
     cnt = Counter(_reason_key(x) for r in results for x in r.get("health_reasons", []))
     if cnt:
-        L += ["", "MOST COMMON HEALTH ISSUES"]
+        L += ["", _i18n.t("uf.most_common_health_issues_ca22")]
         for k, c in cnt.most_common(15):
             L.append(f"  {c:5d}  {k}")
     return "\n".join(L)
@@ -8665,12 +9358,12 @@ def format_duplicates_report(results):                         ### NEW v0.18.4 #
         if len(keep) > 1:
             groups.append((why, keep))
     sep = "=" * 60
-    L = [f"Duplicate Movies Report \u2014 {_n(len(results), 'movie')} checked",
-         f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", sep, ""]
+    L = [_i18n.t("rp.duplicate_movies_report_checked_f8b1", n=_n(len(results), 'movie')),
+         _i18n.t("rp.generated_8af8", strftime=datetime.datetime.now().strftime('%Y-%m-%d %H:%M')), sep, ""]
     marked = not_dup_report_lines(results)
     if not groups:
-        return "\n".join(L + ["No duplicates found."] + marked)
-    L.append(f"{_n(len(groups), 'group')} of possible duplicates:")
+        return "\n".join(L + [_i18n.t("au.no_dups")] + marked)
+    L.append(_i18n.t("rp.of_possible_duplicates_aff1", n=_n(len(groups), 'group')))
     L.append("")
     for why, rows in groups:
         L.append(f"\U0001f4c1  {why}")
@@ -8687,10 +9380,10 @@ def not_dup_report_lines(results):                               ### NEW v0.19.3
     if not pairs:
         return []
     names = {_pkey(r.get("subfolder_path", "")): r.get("movie_name") or r.get("subfolder") for r in results}
-    L = ["", "=" * 60, f"Marked as not duplicates ({_n(len(pairs), 'pair')}) — {menu_path('not_dup_manage')}", ""]   # v0.19.4 I13
+    L = ["", "=" * 60, _i18n.t("rp.marked_as_not_duplicates_cf7e", n=_n(len(pairs), 'pair'), menu_path=menu_path('not_dup_manage')), ""]   # v0.19.4 I13
     for p in pairs:
         a, b = names.get(p["a"]), names.get(p["b"])
-        L.append(f"  ✔  {a or '(folder not found) ' + p['a']}  ≠  {b or '(folder not found) ' + p['b']}"
+        L.append(f"  ✔  {a or _i18n.t("uf.folder_not_found_c787") + p['a']}  ≠  {b or _i18n.t("uf.folder_not_found_c787") + p['b']}"
                  f"   ({p.get('why', '')}, {p.get('at', '')})")
     return L
 
@@ -8825,13 +9518,13 @@ def health_tooltip_lines(row, width=90):                       ### NEW v0.19.3 B
         return ""
     head = []
     if errs:
-        head.append(f"{len(errs)} error{'s' if len(errs) != 1 else ''}")
+        head.append(_n(len(errs), "error"))                     # v0.20.0 UI1c (same English)
     if warns:
-        head.append(f"{len(warns)} warning{'s' if len(warns) != 1 else ''}")
-    out = ["", "", "Health: " + ", ".join(head)]
+        head.append(_n(len(warns), "warning"))
+    out = ["", "", _i18n.t("tip.health", list=", ".join(head))]
     for mark, items in (("✕", errs), ("⚠", warns)):
         for r in items:
-            out.extend(textwrap.wrap(str(r), width=width, initial_indent=f"  {mark}  ",
+            out.extend(textwrap.wrap(reason_text(r), width=width, initial_indent=f"  {mark}  ",
                                      subsequent_indent="      ") or [f"  {mark}"])
     return "\n".join(out)
 
@@ -8888,22 +9581,20 @@ def format_health_report(results):                               ### ADDED_BY_CL
     sep  = "=" * 60
     dash = "\u2500" * 48
     lines = [
-        f"Health Status Report \u2014 {_n(len(results), 'movie')} checked",
-        f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        _i18n.t("rp.health_status_report_checked_9eb6", n=_n(len(results), 'movie')),
+        _i18n.t("rp.generated_8af8", strftime=datetime.datetime.now().strftime('%Y-%m-%d %H:%M')),
         sep, "",
-        (f"\u26a0  WARNING movies: {len(warnings)}"
-         f"    \u2715  ERROR movies: {len(errors)}"
-         f"    \u2713  OK movies: {ok_count}"),
+        (_i18n.t("rp.warning_movies_error_movies_9105", n=len(warnings), n2=len(errors), ok_count=ok_count)),
         "",
     ]
     _hr110 = SETTINGS.get("health_rules", {}) or {}                ### NEW v0.19.4 B110c ###
     _nc110 = sum(1 for r in results if r.get("coll_tmdb") is None and collection_check_ready(r)[0])   # P4 (B13)
     if _nc110 and _hr110.get("collection_mismatch", True):
-        lines += [f"Collections not checked online: {_n(_nc110, 'movie')} (Tools → Check Collections Online)", ""]
+        lines += [_i18n.t("rp.collections_not_checked_online_034b", n=_n(_nc110, 'movie')), ""]
     # Most common issues (v0.18.4)
     counter = Counter(_reason_key(x) for r in results for x in r.get("health_reasons", []))
     if counter:
-        lines.append("Most common issues:")
+        lines.append(_i18n.t("rp.most_common_issues_ec76"))
         for key, n in counter.most_common(15):
             lines.append(f"  {n:5d}  {key}")
         lines.append("")
@@ -8912,7 +9603,7 @@ def format_health_report(results):                               ### ADDED_BY_CL
         return r.get("movie_name") or r.get("subfolder", "Unknown")
     _roots = {(r.get("library_root") or os.path.dirname(r.get("subfolder_path") or "")) for r in results}   ### NEW v0.19.0 ###
     def _lib_line(r):
-        return [f"  Library: {r.get('library_root') or os.path.dirname(r.get('subfolder_path') or '')}"] if len(_roots) > 1 else []
+        return [_i18n.t("au.rp.library", lib=r.get('library_root') or os.path.dirname(r.get('subfolder_path') or ''))] if len(_roots) > 1 else []
     def _split(r):
         """(errors, warnings) — rows from older caches only have health_reasons."""
         e, w = r.get("health_errors"), r.get("health_warnings")
@@ -8922,27 +9613,27 @@ def format_health_report(results):                               ### ADDED_BY_CL
         return (e or []), (w or [])
     for r in sorted(errors, key=_display_name):
         name = _display_name(r); year = r.get("movie_year", "-")
-        lines.append(f"\U0001f4c1  {name}  [{year}]               [ERROR]")
+        lines.append(_i18n.t("rp.error_6cf9", name=name, year=year))
         lines.extend(_lib_line(r))                                ### NEW v0.19.0 ###
         lines.append(dash)
         e, w = _split(r)
-        for reason in e:
-            lines.append(f"  \u2715  {reason}")
+        for reason in e:                     # v0.20.0 AU14: in the interface language (as the panel / tooltip)
+            lines.append(f"  \u2715  {reason_text(reason)}")
         for reason in w:                     # v0.18.4 — warnings of red movies are listed too
-            lines.append(f"  \u26a0  {reason}")
+            lines.append(f"  \u26a0  {reason_text(reason)}")
         lines.append("")
     for r in sorted(warnings, key=_display_name):
         name = _display_name(r); year = r.get("movie_year", "-")
-        lines.append(f"\U0001f4c1  {name}  [{year}]               [WARNING]")
+        lines.append(_i18n.t("rp.warning_2099", name=name, year=year))
         lines.extend(_lib_line(r))                                ### NEW v0.19.0 ###
         lines.append(dash)
         for reason in r.get("health_reasons", []):
-            lines.append(f"  \u26a0  {reason}")
+            lines.append(f"  \u26a0  {reason_text(reason)}")
         lines.append("")
     lines += [
         sep,
-        f"Total issues: {total_issues} across {_n(affected, 'movie')}",
-        f"{_n(ok_count, 'movie')} {'has' if ok_count == 1 else 'have'} no health issues.",
+        _i18n.t("rp.total_issues_across_f1ec", total_issues=total_issues, n=_n(affected, 'movie')),
+        _i18n.t("au.rp.ok_one" if ok_count == 1 else "au.rp.ok_many", movies=_n(ok_count, 'movie')),   # v0.20.0 AU14
     ]
     return "\n".join(lines)
 
@@ -8950,15 +9641,18 @@ def format_health_report(results):                               ### ADDED_BY_CL
 def _health_tag(line, st):                                        ### MODIFIED v0.19.4 I16 — was HealthReportDialog._render ###
     if line.startswith("=") or line.startswith("\u2500"):
         return "sep"
-    if "[ERROR]" in line and "\U0001f4c1" in line:
-        return "mv_err"
-    if "[WARNING]" in line and "\U0001f4c1" in line:
-        return "mv_warn"
+    if "\U0001f4c1" in line:                                        # v0.20.0 AU14: the markers of the interface language
+        _l = line.rstrip()                                       # ([ERRO] / [AVISO] / [ADVERTENCIA] lost their colour)
+        if _l.endswith(_i18n.t("rp.error_6cf9", name="", year="").rstrip().rsplit(" ", 1)[-1]):
+            return "mv_err"
+        if _l.endswith(_i18n.t("rp.warning_2099", name="", year="").rstrip().rsplit(" ", 1)[-1]):
+            return "mv_warn"
     if line.strip().startswith("\u2715"):
         return "err_line"
     if line.strip().startswith("\u26a0"):
         return "warn_line"
-    if "no health issues" in line or line.strip().startswith("\u2713"):   # has / have (v0.19.4 B105)
+    if ("no health issues" in line or line.strip().startswith("\u2713")   # has / have (v0.19.4 B105)
+            or line.endswith(_i18n.t("au.rp.ok_many", movies="")) or line.endswith(_i18n.t("au.rp.ok_one", movies=""))):
         return "ok"
     if line.startswith("Health Status Report") or line.startswith("Total issues") or line.startswith("Generated"):
         return "h"
@@ -8970,9 +9664,9 @@ class HealthReportDialog(ReportWindow):                          ### MODIFIED v0
 
     def __init__(self, parent, report_text, movie_count):
         import datetime
-        super().__init__(parent, f"\U0001f3e5  Health Status Report \u2014 {_n(movie_count, 'movie')}", report_text,
-                         heading="\U0001f3e5  Health Status Report", geometry="780x580",
-                         memory_key="HealthReportDialog", save_title="Save Health Report",
+        super().__init__(parent, _i18n.t("uf.health_status_report_a42a", n=_n(movie_count, 'movie')), report_text,
+                         heading=_i18n.t("uf.health_status_report_c0c1"), geometry="780x580",
+                         memory_key="HealthReportDialog", save_title=_i18n.t("uf.save_health_report_f844"),
                          save_name=f"health_report_{datetime.datetime.now().strftime('%Y-%m-%d')}.txt",
                          classify=_health_tag,
                          tags={"h": (C_ACCENT, True), "mv_err": (C_ERR, True), "mv_warn": (C_WARN, True),
@@ -8991,7 +9685,7 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         super().__init__(app)
         self._app = app
         self._opener = os_open                       # the self-test replaces it (no Explorer window)
-        self.title("🚫  Ignored Folders")
+        self.title(_i18n.t("mc.ignored_folders_ef40"))
         self.geometry("1100x560")
         self.configure(bg=C_BG)
         self.transient(app)
@@ -9002,12 +9696,12 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         self._kept = kept_metadata_items(getattr(app, "_results", []) or [])
         self._items = [dict(i) for i in data.get("items", []) if i.get("kind") in _fc.IGNORED_KINDS]
         self._root_items = [{"path": os.path.join(root, n), "library_root": root, "kind": "root_video",
-                             "reason": "Video directly in the library folder (not in its own folder)", "detail": n}
+                             "reason": _i18n.t("uf.video_directly_in_the_b24c"), "detail": n}
                             for root, names in sorted((data.get("root_videos") or {}).items()) for n in sorted(names)]
         self._all = self._items + self._root_items + self._kept
         n_movies = len(getattr(app, "_results", []) or []) - len(self._kept)
         self._n_movies = max(0, n_movies)
-        tk.Label(self, text="🚫  Folders not added as movies", font=("Helvetica", 13, "bold"),
+        tk.Label(self, text=_i18n.t("mc.folders_not_added_as_fcb6"), font=("Helvetica", 13, "bold"),
                  bg=C_BG, fg=C_ACCENT).pack(anchor="w", padx=16, pady=(14, 2))
         self._summary = tk.Label(self, text=_fc.summary_line(self._n_movies, self._items + self._kept),
                                  font=("Helvetica", 10), bg=C_BG, fg=C_TEXT, justify="left",
@@ -9021,19 +9715,19 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         self._hint.pack(anchor="w", fill="x", padx=16, pady=(2, 6))
         # filter
         fr0 = tk.Frame(self, bg=C_BG); fr0.pack(anchor="w", padx=16, pady=(0, 4))
-        tk.Label(fr0, text="Show:", font=("Helvetica", 10, "bold"), bg=C_BG, fg=C_TEXT).grid(row=0, column=0, sticky="nw")
+        tk.Label(fr0, text=_i18n.t("mc.show_917d"), font=("Helvetica", 10, "bold"), bg=C_BG, fg=C_TEXT).grid(row=0, column=0, sticky="nw")
         self._filter = tk.StringVar(value="all")
         counts = {}
         for i in self._all:
             counts[i["kind"]] = counts.get(i["kind"], 0) + 1
-        labels = dict(_fc.KIND_LABEL, root_video="Videos in the library folder",
-                      metadata_only="No video, kept in the table")
+        labels = dict(_fc.KIND_LABEL, root_video=_i18n.t("ig.label.root_video"),
+                      metadata_only=_i18n.t("ig.label.kept"))      # v0.20.0 UI1d
         self._filter_buttons = {}
         for k in ("all",) + _fc.IGNORED_KINDS[:4] + ("root_video", "unreadable", "system", "metadata_only"):
             n = len(self._all) if k == "all" else counts.get(k, 0)
             if k != "all" and not n:
                 continue
-            b = tk.Radiobutton(fr0, text=f"{'All' if k == 'all' else labels[k]} ({n:,})", value=k,
+            b = tk.Radiobutton(fr0, text=f"{_i18n.t('au.all') if k == 'all' else labels[k]} ({n:,})", value=k,
                                variable=self._filter, command=self._fill, font=("Helvetica", 10),
                                bg=C_BG, fg=C_TEXT, selectcolor=C_SURFACE,
                                activebackground=C_BG, activeforeground=C_TEXT)
@@ -9045,7 +9739,7 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         self._tree = t = ttk.Treeview(lf, columns=[c for c, _h, _w in self._COLS], show="headings",
                                       selectmode="extended")
         for c, h, w in self._COLS:
-            t.heading(c, text=h, command=lambda c=c: self._sort_by(c))
+            t.heading(c, text=_i18n.t("hd.ig." + c), command=lambda c=c: self._sort_by(c))   # v0.20.0 UI1e
             t.column(c, width=w, minwidth=80, stretch=True, anchor="w")
         vs = ttk.Scrollbar(lf, orient="vertical", command=t.yview)
         hs = ttk.Scrollbar(lf, orient="horizontal", command=t.xview)
@@ -9061,15 +9755,15 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         # bottom
         bf = tk.Frame(self, bg=C_BG); bf.pack(fill="x", padx=16, pady=(4, 12))
         self._auto_var = tk.BooleanVar(value=bool(SETTINGS.get("scan_ignored_report", True)))
-        tk.Checkbutton(bf, text="Show this window after a scan", variable=self._auto_var, command=self._auto_changed,
+        tk.Checkbutton(bf, text=_i18n.t("mc.show_this_window_after_792f"), variable=self._auto_var, command=self._auto_changed,
                        font=("Helvetica", 10), bg=C_BG, fg=C_TEXT, selectcolor=C_SURFACE,
                        activebackground=C_BG, activeforeground=C_TEXT).pack(side="left")
-        self._close_btn = tk.Button(bf, text="  Close  ", font=("Helvetica", 10, "bold"), bg=C_ACCENT, fg=C_BG,
+        self._close_btn = tk.Button(bf, text=_i18n.t("mc.close_cbdd"), font=("Helvetica", 10, "bold"), bg=C_ACCENT, fg=C_BG,
                                     relief="flat", cursor="hand2", default="active", command=self.destroy)
         self._close_btn.pack(side="right")
-        tk.Button(bf, text="  📋 Copy all  ", font=("Helvetica", 10), bg=C_SURFACE2, fg=C_TEXT, relief="flat",
+        tk.Button(bf, text=_i18n.t("mc.copy_all_2652"), font=("Helvetica", 10), bg=C_SURFACE2, fg=C_TEXT, relief="flat",
                   cursor="hand2", command=self._copy_all).pack(side="right", padx=(0, 8))
-        tk.Button(bf, text="  💾 Export to TXT…  ", font=("Helvetica", 10, "bold"), bg=C_OK, fg=C_BG,
+        tk.Button(bf, text=_i18n.t("mc.export_to_txt_22d1"), font=("Helvetica", 10, "bold"), bg=C_OK, fg=C_BG,
                   relief="flat", cursor="hand2", command=self._export).pack(side="right", padx=(0, 8))
         self._fill()
         _remember_window(self, "IgnoredFoldersDialog", resizable=True)
@@ -9081,7 +9775,7 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         folder = i["path"]
         if lib and _pkey(os.path.dirname(os.path.normpath(folder))) == _pkey(lib):
             folder = os.path.basename(os.path.normpath(folder))
-        why = i.get("reason") or _fc.KIND_REASON.get(i["kind"], "")
+        why = _fc.shown_reason(i.get("reason") or _fc.KIND_REASON.get(i["kind"], ""), i["kind"])   # v0.20.0 UI1d
         return (folder, lib, why, i.get("detail", ""))
 
     def _fill(self):
@@ -9126,9 +9820,9 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         if row and row not in self._tree.selection():
             self._tree.selection_set(row)
         m = tk.Menu(self, tearoff=0, bg=C_SURFACE, fg=C_TEXT, activebackground=C_HOVER, activeforeground=C_TEXT)
-        m.add_command(label="📂  Open folder", command=self._open_selected)
-        m.add_command(label="📋  Copy Path", command=self._copy_paths)
-        m.add_command(label="📋  Copy All Shown", command=self._copy_shown)
+        m.add_command(label=_i18n.t("mc.open_folder_e589"), command=self._open_selected)
+        m.add_command(label=_i18n.t("mc.copy_path_f7f9"), command=self._copy_paths)
+        m.add_command(label=_i18n.t("mc.copy_all_shown_cd88"), command=self._copy_shown)
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:
@@ -9154,7 +9848,7 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
     def _export(self):
         import datetime
         p = filedialog.asksaveasfilename(
-            parent=self, title="Export Ignored Folders", defaultextension=".txt",
+            parent=self, title=_i18n.t("mc.export_ignored_folders_b29c"), defaultextension=".txt",
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
             initialdir=_IGNORED_EXPORT_DIR[0] or None,
             initialfile=f"MediaClinic ignored folders {datetime.date.today().isoformat()}.txt")
@@ -9163,9 +9857,9 @@ class IgnoredFoldersDialog(_DialogBase):                         ### NEW v0.19.2
         try:
             export_ignored_txt(p, self.report_lines())
             _IGNORED_EXPORT_DIR[0] = os.path.dirname(p)
-            saved_offer_open(self, "Exported", p)                        ### MODIFIED v0.19.4 B109b ###
+            saved_offer_open(self, _i18n.t("au.exported"), p)                        ### MODIFIED v0.19.4 B109b ###
         except OSError as e:
-            messagebox.showerror("Export failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("mc.export_failed_efb7"), str(e), parent=self)
 
     def _auto_changed(self):
         SETTINGS["scan_ignored_report"] = bool(self._auto_var.get())
@@ -9192,7 +9886,7 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         self._src = None                 # PIL image (full size), loaded by a worker
         self._ph = {}                    # PhotoImages (Tk thread only)
         self._opts = []
-        self.title(f"🛠  {IMAGE_FIX_ACTION} — {row.get('movie_name', row.get('subfolder', ''))}")
+        self.title(f"🛠  {shown_action(IMAGE_FIX_ACTION)} — {row.get('movie_name', row.get('subfolder', ''))}")
         self.configure(bg=self._BG)
         # ### MODIFIED v0.19.3 B62 ### not transient: its own taskbar button and a
         # minimise button, so the user can put it aside while Apply runs
@@ -9205,10 +9899,10 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         probl = image_fix_kinds(row)
         self._kind = tk.StringVar(value=kind or (probl[0] if probl else (kinds[0] if kinds else "poster")))
         lab = dict(bg=self._BG, fg=self._FG, font=("Helvetica", 10))
-        tk.Label(self, text=f"🛠  {IMAGE_FIX_ACTION}", font=("Helvetica", 13, "bold"),
+        tk.Label(self, text=f"🛠  {shown_action(IMAGE_FIX_ACTION)}", font=("Helvetica", 13, "bold"),
                  bg=self._BG, fg=C_ACCENT).pack(anchor="w", padx=16, pady=(14, 2))
         kf = tk.Frame(self, bg=self._BG); kf.pack(anchor="w", padx=16, pady=(2, 2))
-        tk.Label(kf, text="Image:", **dict(lab, font=("Helvetica", 10, "bold"))).pack(side="left")
+        tk.Label(kf, text=_i18n.t("mc.image_4619"), **dict(lab, font=("Helvetica", 10, "bold"))).pack(side="left")
         self._kind_btns = {}
         for k in _FIX_KINDS:
             b = tk.Radiobutton(kf, text=_FIX_KIND_LABEL[k] + ("  ◐" if k in probl else ""), value=k,
@@ -9223,7 +9917,7 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         pv = tk.Frame(self, bg=self._BG); pv.pack(padx=16, pady=4)
         P = self.PREVIEW
         self._cv = {}
-        for col, (key, title) in enumerate((("before", "Before"), ("after", "After"))):
+        for col, (key, title) in enumerate((("before", _i18n.t("au.before")), ("after", _i18n.t("au.after")))):
             tk.Label(pv, text=title, **dict(lab, font=("Helvetica", 10, "bold"))).grid(row=0, column=col)
             c = tk.Canvas(pv, width=P, height=P, bg="#11111b", highlightthickness=0)
             c.grid(row=1, column=col, padx=8)
@@ -9233,22 +9927,22 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         self._before_lbl = tk.Label(pv, text="", bg=self._BG, fg=self._DIM, font=("Helvetica", 9))
         self._before_lbl.grid(row=2, column=0)
         of = tk.Frame(self, bg=self._BG); of.pack(fill="x", padx=16, pady=(6, 2))
-        tk.Label(of, text="Method:", **dict(lab, font=("Helvetica", 10, "bold"))).grid(row=0, column=0, sticky="w")
+        tk.Label(of, text=_i18n.t("mc.method_7232"), **dict(lab, font=("Helvetica", 10, "bold"))).grid(row=0, column=0, sticky="w")
         self._method_cb = ttk.Combobox(of, state="readonly", width=46,
-                                       values=[_ifx.METHOD_LABEL[m] for m in _ifx.METHODS])
+                                       values=[_ifx.method_label(m) for m in _ifx.METHODS])   # v0.20.0 UI1e
         self._method_cb.grid(row=0, column=1, sticky="w", padx=(8, 0))
         self._method_cb.bind("<<ComboboxSelected>>", lambda e: (self._build_sizes(), self._render_after()))
-        tk.Label(of, text="Size:", **dict(lab, font=("Helvetica", 10, "bold"))).grid(row=1, column=0, sticky="nw", pady=(6, 0))
+        tk.Label(of, text=_i18n.t("mc.size_af64"), **dict(lab, font=("Helvetica", 10, "bold"))).grid(row=1, column=0, sticky="nw", pady=(6, 0))
         self._sizes_fr = tk.Frame(of, bg=self._BG); self._sizes_fr.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(6, 0))
         self._size = tk.StringVar()
         self._note = tk.Label(self, text="", justify="left", anchor="w", wraplength=760,
                               bg=self._BG, fg=C_WARN, font=("Helvetica", 9, "bold"))
         self._note.pack(anchor="w", fill="x", padx=16)
-        tk.Label(self, text=_ifx.INFO_LINE, justify="left", anchor="w", wraplength=760,
+        tk.Label(self, text=_ifx.info_line(), justify="left", anchor="w", wraplength=760,
                  bg=self._BG, fg=C_DIM, font=("Helvetica", 9)).pack(anchor="w", fill="x", padx=16, pady=(2, 4))
         af = tk.Frame(self, bg=self._BG); af.pack(anchor="w", padx=16)
         self._ai_var = tk.BooleanVar(value=False)
-        self._ai_cb = tk.Checkbutton(af, text="AI upscale (Real-ESRGAN)", variable=self._ai_var,
+        self._ai_cb = tk.Checkbutton(af, text=_i18n.t("mc.ai_upscale_real_esrgan_4ad4"), variable=self._ai_var,
                                      command=lambda: (self._build_sizes(), self._render_after()),
                                      selectcolor=C_SURFACE, activebackground=self._BG,
                                      activeforeground=self._FG, **lab)
@@ -9257,7 +9951,7 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         self._ai_mode = tk.StringVar(value={"gentle": AI_MODE_LABELS[0], "fast": AI_MODE_LABELS[1]}[upscaler_mode()])
         ttk.Combobox(af, textvariable=self._ai_mode, values=AI_MODE_LABELS, state="readonly", width=30,
                      font=("Helvetica", 9)).pack(side="left", padx=(8, 0))
-        self._ai_btn = tk.Button(af, text="Download upscaler (about 45 MB)…", font=("Helvetica", 9),
+        self._ai_btn = tk.Button(af, text=_i18n.t("mc.download_upscaler_about_mb_645b"), font=("Helvetica", 9),
                                  bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
                                  command=self._ai_download)
         self._ai_btn.pack(side="left", padx=(8, 0))
@@ -9272,12 +9966,12 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
                                        activeforeground=C_OK, anchor="w")
         self._copy_cb.pack(side="left", padx=8, pady=6)
         bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=16, pady=(8, 12))
-        tk.Button(bf, text="  🌐 Find a better one online  ", font=("Helvetica", 10, "bold"), bg=C_ACCENT,
+        tk.Button(bf, text=_i18n.t("mc.find_a_better_one_8da0"), font=("Helvetica", 10, "bold"), bg=C_ACCENT,
                   fg=C_BG, relief="flat", cursor="hand2", command=self._find_online).pack(side="left")
-        self._cancel_btn = tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10), bg=C_SURFACE2, fg=self._FG,
+        self._cancel_btn = tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), font=("Helvetica", 10), bg=C_SURFACE2, fg=self._FG,
                                      relief="flat", cursor="hand2", command=self._close)   ### v0.19.3 B62 — Stop while working ###
         self._cancel_btn.pack(side="right")
-        self._apply_btn = tk.Button(bf, text="  ✔ Apply  ", font=("Helvetica", 10, "bold"), bg=C_OK,
+        self._apply_btn = tk.Button(bf, text=_i18n.t("mc.apply_b4f1"), font=("Helvetica", 10, "bold"), bg=C_OK,
                                     fg=C_BG, relief="flat", cursor="hand2", default="active",
                                     command=self._apply)
         self._apply_btn.pack(side="right", padx=(0, 8))
@@ -9303,9 +9997,9 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         if not self._ai_btn.winfo_manager():
             self._ai_btn.pack(side="left", padx=(8, 0), before=self._ai_lbl)
         if upscaler_installed():
-            self._ai_btn.configure(text="Test again", command=self._ai_test, state="normal")
+            self._ai_btn.configure(text=_i18n.t("mc.test_again_0bcd"), command=self._ai_test, state="normal")
         else:
-            self._ai_btn.configure(text="Download upscaler (about 45 MB)…", command=self._ai_download,
+            self._ai_btn.configure(text=_i18n.t("mc.download_upscaler_about_mb_645b"), command=self._ai_download,
                                    state="normal" if upscaler_download_info() else "disabled")
         self._ai_lbl.configure(text=why)
 
@@ -9322,19 +10016,26 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
     # ── image ─────────────────────────────────────────────────────────────────
     def _method(self):
         lbl = self._method_cb.get()
-        return next((m for m in _ifx.METHODS if _ifx.METHOD_LABEL[m] == lbl), _ifx.DEFAULT_METHOD[self._kind.get()])
+        return next((m for m in _ifx.METHODS if _ifx.method_label(m) == lbl), _ifx.DEFAULT_METHOD[self._kind.get()])
 
     def _copy_target(self):                                       ### NEW v0.19.3 B66 ###
-        """The other file to write too ("folder" / "poster"), or False."""
-        other = image_fix_copy_default(self._row, self._kind.get())
-        return other if (other and self._copy_var.get()) else False
+        """The other file to copy the result to ("folder" / "poster"), or False.
+        ### v0.20.0 RD7 ### only when the two are the same picture."""
+        other, mode = image_fix_pair_mode(self._row, self._kind.get())
+        return other if (other and mode == "copy" and self._copy_var.get()) else False
+
+    def _also_fix_target(self):                                   ### NEW v0.20.0 RD7 ###
+        """The other file to fix on its own (a different picture: never replaced), or False."""
+        other, mode = image_fix_pair_mode(self._row, self._kind.get())
+        return other if (other and mode == "fix" and self._copy_var.get()) else False
 
     def _update_copy_box(self):                                   ### NEW v0.19.3 B66 ###
-        other = image_fix_copy_default(self._row, self._kind.get())
-        self._copy_var.set(True)
+        other, mode = image_fix_pair_mode(self._row, self._kind.get())   # v0.20.0 RD7
+        self._copy_var.set(bool(other) and (mode == "copy" or other in image_fix_kinds(self._row)))
         if other:
             name = os.path.basename(self._row.get(f"{other}_path") or _IMAGE_FILES.get(other, other))
-            self._copy_cb.configure(text=f"Also copy the result to {name}")
+            self._copy_cb.configure(text=_i18n.t("mc.also_copy_the_result_c789", name=name) if mode == "copy" else
+                                    _i18n.t("mc.also_fix_a_different_fc41", name=name))
             if not self._copy_cb.winfo_manager():
                 self._copy_cb.pack(side="left", padx=8, pady=6)
             self._copy_fr.configure(bg=C_SURFACE)
@@ -9348,8 +10049,8 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         self._update_copy_box()                                   ### NEW v0.19.3 B66 ###
         path = self._row.get(f"{kind}_path")
         self._src = None
-        self._facts.configure(text=f"Loading {os.path.basename(path or '')}…")
-        self._method_cb.set(_ifx.METHOD_LABEL[_fix_method_for(kind)])
+        self._facts.configure(text=_i18n.t("mc.loading_d3c1", v=os.path.basename(path or '')))
+        self._method_cb.set(_ifx.method_label(_fix_method_for(kind)))
         for c in self._cv.values():
             c.delete("all")
 
@@ -9372,15 +10073,16 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
             return
         kind = self._kind.get()
         if img is None:
-            self._facts.configure(text=f"Cannot open the image: {err}")
+            self._facts.configure(text=_i18n.t("mc.cannot_open_the_image_68ee", err=err))
             self._apply_btn.configure(state="disabled")
             return
         self._src = img
         w, h = img.size
         want = "2:3 (0.67)" if kind != "fanart" else "16:9 (1.78)"
-        desc = self._row.get(f"{kind}_desc") or "no problem found"
-        self._facts.configure(text=f"{os.path.basename(self._row.get(f'{kind}_path') or '')} — {w}×{h}, "
-                                   f"ratio {w / h:.2f} (wanted {want}), {classify_image_quality(w, h, kind)}.  {desc}")
+        desc = self._row.get(f"{kind}_desc") or _i18n.t("m3.no_problem")
+        self._facts.configure(text=_i18n.t("m3.fix_facts", name=os.path.basename(self._row.get(f"{kind}_path") or ""), w=w, h=h,
+                                           ratio=_i18n.num(w / h, 2), want=want, quality=classify_image_quality(w, h, kind),
+                                           desc=desc))                 # v0.20.0 UI1d
         self._show(self._cv["before"], img, "before")
         self._before_lbl.configure(text=f"{w}×{h}")
         self._apply_btn.configure(state="normal")
@@ -9406,8 +10108,7 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
                                 state="disabled" if o["mark"] == "no" else "normal")
             rb.grid(row=i % 4, column=i // 4, sticky="w", padx=(0, 14))
             if o["mark"] == "no":
-                _add_btn_tooltip(rb, f"Too far from the original (×{o['factor']:.2f}) — not offered. "
-                                     "Find a better image online instead.")
+                _add_btn_tooltip(rb, _i18n.t("mc.too_far_from_the_6ddd", factor=format(o['factor'], '.2f')))
         self._note.configure(text=_ifx.min_tier_note(kind, ch, _min_quality_level(kind), self._ai_ok))
 
     def _target(self):
@@ -9441,13 +10142,13 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         if gen != self._gen or not self.winfo_exists():
             return
         if out is None:
-            self._after_lbl.configure(text=f"Preview failed: {err}")
+            self._after_lbl.configure(text=_i18n.t("mc.preview_failed_dc56", err=err))
             return
         self._show(self._cv["after"], out, "after")
         w, h = self._src.size
         cw, ch = _ifx.corrected_size(w, h, self._kind.get(), self._method())
         tw, th = target or (cw, ch)
-        self._after_lbl.configure(text=f"{tw}×{th}" + ("  (AI upscale)" if self._ai_var.get() and th > ch else ""))
+        self._after_lbl.configure(text=f"{tw}×{th}" + (_i18n.t("m3.ai_tag") if self._ai_var.get() and th > ch else ""))
 
     def _show(self, canvas, img, key):
         P = self.PREVIEW
@@ -9477,13 +10178,14 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         self._stop = [False]
         stop = self._stop
         up = upscale_function(cancel=lambda: stop[0]) if (self._ai_var.get() and self._ai_ok) else None
-        self._apply_btn.configure(state="disabled", text="  Working…  ")
+        self._apply_btn.configure(state="disabled", text=_i18n.t("mc.working_5229"))
         row, app = self._row, self._app
         copy_to = self._copy_target()                             ### NEW v0.19.3 B66 ###
+        also_fix = self._also_fix_target()                        ### NEW v0.20.0 RD7 ###
         ### NEW v0.19.3 B62 — the movie is busy, the window says so, Stop works ###
         self._working, self._t0 = True, time.monotonic()
         app._busy_fix.add(_pkey(row["subfolder_path"]))
-        self._cancel_btn.configure(text="  ■ Stop  ")
+        self._cancel_btn.configure(text=_i18n.t("mc.stop_e729"))
         self._waiting = _IMAGE_FIX_LOCK.locked()
         self._tick()
 
@@ -9493,15 +10195,24 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
                     self._waiting = False
                     if stop[0]:
                         raise ImageFixStopped()
-                    written = _with_backup_action(IMAGE_FIX_ACTION, apply_image_fix, row, kind, method, target, up,
-                                                  None, lambda: stop[0], copy_to)   # v0.19.3 B66
+                    def _fix_both():                            # v0.20.0 RD7: one backup run for both files
+                        _ref = [None]
+                        w = apply_image_fix(row, kind, method, target, up, _ref, lambda: stop[0], copy_to)   # v0.19.3 B66
+                        if not also_fix:
+                            return w
+                        w2 = apply_image_fix(row, also_fix, method, target, up, _ref, lambda: stop[0], False)
+                        both = _FixWritten(list(w) + list(w2))
+                        both.problems = list(getattr(w, "problems", [])) + list(getattr(w2, "problems", []))
+                        return both
+                    written = _with_backup_action(IMAGE_FIX_ACTION, _fix_both)
                 _probs = list(getattr(written, "problems", []))          # v0.19.5 WR-B6
                 if up is not None and getattr(up, "failed", None):
-                    written = list(written) + [f"(AI upscale failed — {up.failed[-1]}; the plain resize was used)"]
+                    written = list(written) + [_i18n.t("uf.ai_upscale_failed_the_ba55", v=up.failed[-1])]
                 written = list(written) + [f"(NOT DONE: {p})" for p in _probs]
                 err = None
             except Exception as ex:
                 written, err = [], str(ex)
+                self._ro_path = ex.filename if isinstance(ex, _sc.ReadOnlyFileError) else None   # v0.20.0 RD1
                 logger.warning(f"Fix image failed: {row.get('subfolder')} {kind}: {ex}")
             try:
                 ui_post(lambda: self._done(written, err))
@@ -9517,12 +10228,12 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
                 return
             sec = int(time.monotonic() - self._t0)
             if getattr(self, "_waiting", False):
-                txt = f"Waiting for the other image fix to finish… {_fmt_mmss(sec)}"
+                txt = _i18n.t("uf.waiting_for_the_other_ebe3", fmt_mmss=_fmt_mmss(sec))
             else:
-                txt = f"Working… {_fmt_mmss(sec)}"
+                txt = _i18n.t("au.working", t=_fmt_mmss(sec))
                 if self._ai_var.get() and self._ai_ok:
-                    txt += f" (AI upscale, limit {_fmt_mmss(max(60, _ff_run_budget()))})"
-            self._work_lbl.configure(text=txt + " · you can minimise this window and keep working")
+                    txt += _i18n.t("uf.ai_upscale_limit_b389", fmt_mmss=_fmt_mmss(max(60, _ff_run_budget())))
+            self._work_lbl.configure(text=_i18n.t("mc.you_can_minimise_this_d055", txt=txt))
             self.after(1000, self._tick)
         except tk.TclError:
             pass
@@ -9531,10 +10242,24 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         """Cancel / Esc / [X]: closes; while a fix runs it asks whether to stop it."""
         if not self._working:
             return self.destroy()
-        if messagebox.askyesno(IMAGE_FIX_ACTION, "The fix is still running.\n\nStop it? Nothing is changed when it stops.",
+        if messagebox.askyesno(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.the_fix_is_still_4a31"),
                                parent=self):
             self._stop[0] = True
-            self._work_lbl.configure(text="Stopping…")
+            self._work_lbl.configure(text=_i18n.t("mc.stopping_47b5"))
+
+    def _offer_clear_read_only(self, path, parent):             ### NEW v0.20.0 RD1 ###
+        """The image is read-only: ask once; yes = clear the mark and run Apply again (a new backup is made)."""
+        if not messagebox.askyesno(shown_action(IMAGE_FIX_ACTION),
+                                   _i18n.t("mc.is_marked_read_only_a749", path=os.path.basename(path), path2=path), parent=parent):
+            return
+        if not _sc.clear_read_only(path):
+            messagebox.showerror(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.read_only_could_not_9064", path=path), parent=parent)
+            return
+        try:
+            if self.winfo_exists():
+                self._apply()
+        except tk.TclError:
+            pass
 
     def _done(self, written, err):
         app, row = self._app, self._row
@@ -9548,19 +10273,23 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         name = row.get("movie_name") or row.get("subfolder", "")
         if err:
             try:
-                self._apply_btn.configure(state="normal", text="  ✔ Apply  ")
-                self._cancel_btn.configure(text="  Cancel  ")
+                self._apply_btn.configure(state="normal", text=_i18n.t("mc.apply_b4f1"))
+                self._cancel_btn.configure(text=_i18n.t("mc.cancel_2fee"))
                 self._work_lbl.configure(text="")
             except tk.TclError:
                 pass
             if self._stop[0]:
                 return self.destroy()
+            ro = getattr(self, "_ro_path", None)                ### NEW v0.20.0 RD1 ###
+            if ro:
+                self._ro_path = None
+                return self._offer_clear_read_only(ro, app if iconic else self)
             if iconic:
-                app._image_fix_notice(f"🛠  Fix image not done: {name} — {err}", self)
+                app._image_fix_notice(_i18n.t("uf.fix_image_not_done_df1b", name=name, err=err), self)
                 ### MODIFIED v0.19.3 B68 — the pop-up too, over the main window ###
-                messagebox.showerror(IMAGE_FIX_ACTION, f"{name}\n\nNot changed: {err}", parent=app)
+                messagebox.showerror(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.not_changed_db11", name=name, err=err), parent=app)
                 return
-            messagebox.showerror(IMAGE_FIX_ACTION, f"Not changed: {err}", parent=self if self.winfo_exists() else app)
+            messagebox.showerror(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.not_changed_a687", err=err), parent=self if self.winfo_exists() else app)
             return
         self.applied = True
         app._schedule_refresh([row["subfolder_path"]], need_ffprobe=False)
@@ -9569,13 +10298,11 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
         except tk.TclError:
             pass
         if iconic:                                               # the user put it aside: status line + flash …
-            app._image_fix_notice(f"🛠  Fix image done: {name} — " + ", ".join(os.path.basename(p) for p in written[:3]))
+            app._image_fix_notice(_i18n.t("uf.fix_image_done_1f98", name=name) + ", ".join(os.path.basename(p) for p in written[:3]))
             # ### MODIFIED v0.19.3 B68 ### … and the pop-up as well (user request)
-            messagebox.showinfo(IMAGE_FIX_ACTION, f"{name}\n\nWritten:\n" + "\n".join(os.path.basename(p) for p in written)
-                                + f"\n\nThe old file was backed up ({menu_path('backup_history')}).", parent=app)
+            messagebox.showinfo(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.written_the_old_file_ecc5", name=name, join="\n".join(os.path.basename(p) for p in written), menu_path=menu_path('backup_history')), parent=app)
             return
-        messagebox.showinfo(IMAGE_FIX_ACTION, "Written:\n" + "\n".join(os.path.basename(p) for p in written)
-                            + f"\n\nThe old file was backed up ({menu_path('backup_history')}).", parent=app)
+        messagebox.showinfo(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.written_the_old_file_227f", join="\n".join(os.path.basename(p) for p in written), menu_path=menu_path('backup_history')), parent=app)
 
 
 class NfoRenameDialog(_DialogBase):                             ### NEW v0.19.3 B73 ###
@@ -9586,30 +10313,29 @@ class NfoRenameDialog(_DialogBase):                             ### NEW v0.19.3 
     def __init__(self, app, row, plan):
         super().__init__(app)
         self._app, self._row, self._plan = app, row, plan
-        self.title(f"🏷  {NFO_RENAME_ACTION} — {row.get('movie_name') or row.get('subfolder', '')}")
+        self.title(f"🏷  {shown_action(NFO_RENAME_ACTION)} — {row.get('movie_name') or row.get('subfolder', '')}")
         self.configure(bg=self._BG)
         self.transient(app)
         self.bind("<Escape>", lambda e: self.destroy())
         lab = dict(bg=self._BG, fg=self._FG, font=("Helvetica", 10))
-        tk.Label(self, text="🏷  Rename the NFO so Kodi reads it", font=("Helvetica", 13, "bold"),
+        tk.Label(self, text=_i18n.t("mc.rename_the_nfo_so_0564"), font=("Helvetica", 13, "bold"),
                  bg=self._BG, fg=C_ACCENT).pack(anchor="w", padx=16, pady=(14, 4))
-        tk.Label(self, text=f"Now: {plan['name']}  — named after the folder; Kodi reads "
-                            f"'<video file name>.nfo' or 'movie.nfo'."
-                            + (f"\nThis is a {plan['why']}: movie.nfo covers all of it." if plan.get("why") else ""),
+        tk.Label(self, text=_i18n.t("m3.nfo_now", name=plan["name"])
+                            + (_i18n.t("m3.nfo_why", why=plan["why"]) if plan.get("why") else ""),
                  justify="left", anchor="w", wraplength=620, **lab).pack(anchor="w", fill="x", padx=16)
         self._mode = tk.StringVar(value=plan["default"])
         for mode, _dest, name in plan["choices"]:
             rec = "  (recommended)" if mode == plan["default"] else ""
-            tk.Radiobutton(self, text=f"Rename to  {name}{rec}", value=mode, variable=self._mode,
+            tk.Radiobutton(self, text=_i18n.t("mc.rename_to_6305", name=name, rec=rec), value=mode, variable=self._mode,
                            selectcolor=C_SURFACE, activebackground=self._BG, activeforeground=self._FG,
                            **dict(lab, font=("Helvetica", 10, "bold"))).pack(anchor="w", padx=24, pady=(6, 0))
-        tk.Label(self, text=NFO_MOVIE_NOTE + "\nThe NFO is backed up first; Backup History / Undo puts the old name back.",
+        tk.Label(self, text=_i18n.t("mc.the_nfo_is_backed_26fc", nfo_movie_note=NFO_MOVIE_NOTE),
                  justify="left", anchor="w", wraplength=620, bg=self._BG, fg=C_SUBTEXT,
                  font=("Helvetica", 9)).pack(anchor="w", fill="x", padx=16, pady=(8, 0))
         bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=16, pady=(12, 14))
-        tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10), bg=C_SURFACE2, fg=self._FG, relief="flat",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), font=("Helvetica", 10), bg=C_SURFACE2, fg=self._FG, relief="flat",
                   cursor="hand2", command=self.destroy).pack(side="right")
-        self._ok_btn = tk.Button(bf, text="  ✔ Rename  ", font=("Helvetica", 10, "bold"), bg=C_OK,
+        self._ok_btn = tk.Button(bf, text=_i18n.t("mc.rename_e570"), font=("Helvetica", 10, "bold"), bg=C_OK,
                                  fg=C_BG, relief="flat", cursor="hand2", command=self._apply)
         self._ok_btn.pack(side="right", padx=(0, 8))
         _remember_window(self, "NfoRenameDialog", resizable=False)
@@ -9639,23 +10365,22 @@ class NfoRenameDialog(_DialogBase):                             ### NEW v0.19.3 
         except tk.TclError:
             pass
         if err:
-            messagebox.showerror(NFO_RENAME_ACTION, f"Not renamed: {err}", parent=app)
+            messagebox.showerror(shown_action(NFO_RENAME_ACTION), _i18n.t("mc.not_renamed_4a73", err=err), parent=app)
             return
         app._schedule_refresh([self._row["subfolder_path"]], need_ffprobe=False)
-        messagebox.showinfo(NFO_RENAME_ACTION, f"Renamed:\n{self._plan['name']}  →  {os.path.basename(dest)}"
-                            f"\n\nThe old file was backed up ({menu_path('backup_history')}).", parent=app)
+        messagebox.showinfo(shown_action(NFO_RENAME_ACTION), _i18n.t("mc.renamed_the_old_file_201c", name=self._plan['name'], dest=os.path.basename(dest), menu_path=menu_path('backup_history')), parent=app)
 
 
 class SubtitleDialog(_DialogBase):
     def __init__(self, parent, name, data):
         super().__init__(parent)
         self.bind("<Escape>", lambda e: self.destroy())   ### NEW v0.19.2 B45 — Esc closes (nothing written) ###
-        self.title(f"Subtitles — {name}"); self.geometry("640x420")
+        self.title(_i18n.t("mc.subtitles_7c28", name=name)); self.geometry("640x420")
         self.configure(bg=C_BG); self.transient(parent); _modal(self)
-        tk.Label(self, text=f"Subtitles — {name}", font=("Helvetica", 13, "bold"),
+        tk.Label(self, text=_i18n.t("mc.subtitles_7c28", name=name), font=("Helvetica", 13, "bold"),
                  bg=C_BG, fg=C_ACCENT).pack(anchor="w", padx=16, pady=(14, 2))
         if data.get("video_path"):
-            tk.Label(self, text=f"Video: {os.path.basename(data['video_path'])}",
+            tk.Label(self, text=_i18n.t("mc.video_9ef8", video_path=os.path.basename(data['video_path'])),
                      font=("Consolas", 9), bg=C_BG, fg=C_DIM).pack(anchor="w", padx=16)
         fr = tk.Frame(self, bg=C_BG); fr.pack(fill="both", expand=True, padx=16, pady=(6,6))
         t  = tk.Text(fr, wrap="word", bg=C_SURFACE, fg=C_TEXT,
@@ -9668,8 +10393,8 @@ class SubtitleDialog(_DialogBase):
             kw = {"foreground": fg_c}
             if bold: kw["font"] = ("Consolas", 10, "bold")
             t.tag_configure(tag, **kw)
-        t.insert("end", "  EMBEDDED SUBTITLES  ", "h")
-        t.insert("end", f"  {'(via ffprobe)' if FFPROBE_PATH else '(ffprobe not found)'}\n",
+        t.insert("end", "  " + _i18n.t("au.sub.embedded") + "  ", "h")
+        t.insert("end", f"  {_i18n.t('au.sub.via') if FFPROBE_PATH else _i18n.t("uf.ffprobe_not_found_9fbe")}\n",
                  "d" if FFPROBE_PATH else "n")
         if data.get("subs_internal"):
             for i, s in enumerate(data["subs_internal"], 1):
@@ -9677,25 +10402,25 @@ class SubtitleDialog(_DialogBase):
                 t.insert("end", f"    {i}. ", "d"); t.insert("end", s["lang"], "l")
                 t.insert("end", f"{tl}\n", "d")
         elif FFPROBE_PATH:
-            t.insert("end", "    None found\n", "n")
+            t.insert("end", "    " + _i18n.t("au.sub.none") + "\n", "n")
         t.insert("end", "\n  " + "─"*50 + "\n\n", "s")
-        t.insert("end", "  EXTERNAL FILES\n", "h")
+        t.insert("end", "  " + _i18n.t("au.sub.external") + "\n", "h")
         if data.get("subs_external"):
             for i, s in enumerate(data["subs_external"], 1):
                 t.insert("end", f"    {i}. ", "d"); t.insert("end", s["lang"], "l")
                 t.insert("end", f'  →  {s["file"]}\n', "d")
         else:
-            t.insert("end", "    None found\n", "n")
+            t.insert("end", "    " + _i18n.t("au.sub.none") + "\n", "n")
         t.configure(state="disabled")
         ### MODIFIED v0.19.3 B65 — Open on OpenSubtitles.org next to Close ###
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(4, 14))
         _osub = getattr(parent, "_open_opensubtitles", None)
-        self._osub_btn = tk.Button(bf, text="  🌐 Open on OpenSubtitles.org  ", font=("Helvetica", 10, "bold"),
+        self._osub_btn = tk.Button(bf, text=_i18n.t("mc.open_on_opensubtitles_org_1528"), font=("Helvetica", 10, "bold"),
                                    bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                                    state="normal" if _osub else "disabled",
                                    command=(lambda: _osub(data)) if _osub else None)
         self._osub_btn.pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Close  ", font=("Helvetica", 10, "bold"),
+        tk.Button(bf, text=_i18n.t("mc.close_cbdd"), font=("Helvetica", 10, "bold"),
                   bg=C_ACCENT, fg=C_BG, relief="flat", cursor="hand2",
                   command=self.destroy).pack(side="left")
         _remember_window(self, "SubtitleDialog", resizable=True)   ### NEW v0.19.0 — window memory ###
@@ -9721,8 +10446,8 @@ class ErrorDialog(DialogFrame):                                  ### MODIFIED v0
                 sl = f.readlines()
         except Exception: pass
         for i, e in enumerate(errors, 1):
-            loc = f"Line {e['line']}" + (f", Col {e['col']}" if e["col"] else "")
-            t.insert("end", f"  Error {i}:  ", "eh")
+            loc = _i18n.t("au.err.line", n=e['line']) + (_i18n.t("au.err.col", n=e['col']) if e["col"] else "")
+            t.insert("end", "  " + _i18n.t("au.err.n", n=i) + "  ", "eh")
             t.insert("end", f"{loc}\n", "ed")
             t.insert("end", f"    {e['message']}\n", "ed")
             if 0 < e["line"] <= len(sl):
@@ -9735,21 +10460,21 @@ class ErrorDialog(DialogFrame):                                  ### MODIFIED v0
             if os.path.isfile(filepath):
                 open_in_editor(filepath)
             else:
-                messagebox.showwarning("File Not Found",
-                                       f"Cannot open file — not found:\n{filepath}", parent=self)
+                messagebox.showwarning(_i18n.t("mc.file_not_found_3d9a"),
+                                       _i18n.t("mc.cannot_open_file_not_8141", filepath=filepath), parent=self)
         # ### MODIFIED v0.19.2 B46 ### two buttons did the same thing ("Open File"
         # and "Open in Editor to Fix"): one "Open in Editor" + "Open Folder"
-        self._editor_btn = self.add_button("Open in Editor", _open_file, kind="ok")   ### MODIFIED v0.19.4 L4 ###
-        self._folder_btn = self.add_button("Open Folder", lambda: os_open(os.path.dirname(filepath)), kind="warn")
-        self.add_button("Close", self.destroy, kind="main", main=True)
+        self._editor_btn = self.add_button(_i18n.t("mc.open_in_editor_2e24"), _open_file, kind="ok")   ### MODIFIED v0.19.4 L4 ###
+        self._folder_btn = self.add_button(_i18n.t("mc.open_folder_49f9"), lambda: os_open(os.path.dirname(filepath)), kind="warn")
+        self.add_button(_i18n.t("mc.close_d3d2"), self.destroy, kind="main", main=True)
         _remember_window(self, "ErrorDialog", resizable=True)   ### NEW v0.19.0 — window memory ###
 
 class CopyMovieNameDialog(DialogFrame):                          ### MODIFIED v0.19.4 L4 — the dialog frame ###
     """Show multiple movie name options and let user pick one to copy."""
     def __init__(self, parent, titles):
-        super().__init__(parent, title="Copy Movie Name", geometry="480x280")
+        super().__init__(parent, title=_i18n.t("mc.copy_movie_name_128f"), geometry="480x280")
 
-        tk.Label(self.body, text="Multiple movie names found.\nSelect one to copy:",
+        tk.Label(self.body, text=_i18n.t("mc.multiple_movie_names_found_212f"),
                  font=("Helvetica", 11), bg=C_BG, fg=C_TEXT,
                  justify="center").pack(pady=(16, 8))
 
@@ -9760,8 +10485,8 @@ class CopyMovieNameDialog(DialogFrame):                          ### MODIFIED v0
                            selectcolor=C_SURFACE, activebackground=C_BG,
                            activeforeground=C_TEXT).pack(anchor="w", padx=30)
 
-        self.add_button("Cancel", self.destroy)                      ### MODIFIED v0.19.4 L4 — main button on the right ###
-        self.add_button("Copy", self._copy, kind="ok", main=True)
+        self.add_button(_i18n.t("mc.cancel_ea47"), self.destroy)                      ### MODIFIED v0.19.4 L4 — main button on the right ###
+        self.add_button(_i18n.t("mc.copy_5fb6"), self._copy, kind="ok", main=True)
         _remember_window(self, "CopyMovieNameDialog", resizable=True)   ### NEW v0.19.0 — window memory ###
 
     def _copy(self):
@@ -9788,7 +10513,7 @@ class RatingsCompareDialog(_DialogBase):                        ### NEW v0.15.0 
                  show_checkboxes=True,   ### FIX v0.15.0 — hide for single-movie ###
                  fallback_mode=False):   ### NEW v0.19.0 — both sources invalid ###
         super().__init__(parent)
-        self.title("Ratings Sync — No Valid Rating" if fallback_mode else "Ratings Sync — Choose Source")
+        self.title(_i18n.t("mc.ratings_sync_no_valid_99eb") if fallback_mode else _i18n.t("mc.ratings_sync_choose_source_f934"))
         self.configure(bg=C_BG)
         self.resizable(False, False)
         self.transient(parent); _modal(self)
@@ -9821,8 +10546,7 @@ class RatingsCompareDialog(_DialogBase):                        ### NEW v0.15.0 
         tk.Label(self, text=movie_label, bg=C_BG, fg=C_ACCENT,
                  font=("Helvetica", 10, "bold"), wraplength=460).pack(padx=16, pady=(14, 6))
         if fallback_mode:                                       ### NEW v0.19.0 ###
-            tk.Label(self, text="Neither TMDB nor OMDb returned a rating with votes for this movie.\n"
-                                "Type the values to write, or skip it.",
+            tk.Label(self, text=_i18n.t("mc.neither_tmdb_nor_omdb_62c2"),
                      bg=C_BG, fg=C_PEACH, font=("Helvetica", 9), justify="center",
                      wraplength=460).pack(padx=16, pady=(0, 6))
 
@@ -9841,9 +10565,9 @@ class RatingsCompareDialog(_DialogBase):                        ### NEW v0.15.0 
                  font=("Consolas", 9, "bold"), width=22).grid(row=0, column=2, padx=4, pady=2)
 
         # Rating row
-        tmdb_r_disp = f"{float(tmdb_r):.1f}" if tmdb_ok else "Not Available"
-        omdb_r_disp = f"{float(omdb_r):.1f}" if omdb_ok else "Not Available"
-        tk.Label(tbl, text="Rating", bg=_bg_ok, fg=_val_fg, font=("Consolas", 9), width=10).grid(row=1, column=0, padx=4, pady=2)
+        tmdb_r_disp = f"{float(tmdb_r):.1f}" if tmdb_ok else _i18n.t("au.na")
+        omdb_r_disp = f"{float(omdb_r):.1f}" if omdb_ok else _i18n.t("au.na")
+        tk.Label(tbl, text=_i18n.t("mc.rating_dda9"), bg=_bg_ok, fg=_val_fg, font=("Consolas", 9), width=10).grid(row=1, column=0, padx=4, pady=2)
         tk.Label(tbl, text=tmdb_r_disp, bg=_bg_ok if tmdb_ok else _bg_dim,
                  fg=_val_fg if tmdb_ok else _dim_fg,
                  font=("Consolas", 9), width=22).grid(row=1, column=1, padx=4, pady=2)
@@ -9853,12 +10577,12 @@ class RatingsCompareDialog(_DialogBase):                        ### NEW v0.15.0 
 
         # Votes row                                           ### UPDATED v0.17.0 — comma-formatted votes ###
         def _fmt_votes(v):
-            if v is None: return "Not Available"
+            if v is None: return _i18n.t("au.na")
             try: return f"{int(str(v).replace(',','').replace('.','').strip()):,}"
             except Exception: return str(v)
-        tmdb_v_disp = _fmt_votes(tmdb_v) if tmdb_ok else "Not Available"
-        omdb_v_disp = _fmt_votes(omdb_v) if omdb_ok else "Not Available"
-        tk.Label(tbl, text="Votes", bg=_bg_ok, fg=_val_fg, font=("Consolas", 9), width=10).grid(row=2, column=0, padx=4, pady=2)
+        tmdb_v_disp = _fmt_votes(tmdb_v) if tmdb_ok else _i18n.t("au.na")
+        omdb_v_disp = _fmt_votes(omdb_v) if omdb_ok else _i18n.t("au.na")
+        tk.Label(tbl, text=_i18n.t("mc.votes_8c35"), bg=_bg_ok, fg=_val_fg, font=("Consolas", 9), width=10).grid(row=2, column=0, padx=4, pady=2)
         tk.Label(tbl, text=tmdb_v_disp, bg=_bg_ok if tmdb_ok else _bg_dim,
                  fg=_val_fg if tmdb_ok else _dim_fg,
                  font=("Consolas", 9), width=22).grid(row=2, column=1, padx=4, pady=2)
@@ -9876,20 +10600,20 @@ class RatingsCompareDialog(_DialogBase):                        ### NEW v0.15.0 
             self._apply_all_var.set(False); self._use_votes_var.set(False)
             if show_checkboxes:
                 tk.Checkbutton(
-                    self, text="Apply this choice to all remaining movies with zero votes and no rating",
+                    self, text=_i18n.t("mc.apply_this_choice_to_d689"),
                     variable=self._apply_fallback_var, bg=C_BG, fg=C_TEXT,
                     activebackground=C_BG, selectcolor=C_SURFACE,
                     font=("Helvetica", 9), wraplength=460, justify="left").pack(padx=16, pady=(0, 6), anchor="w")
         elif show_checkboxes:
             cbf = tk.Frame(self, bg=C_BG); cbf.pack(padx=16, pady=(0, 6), anchor="w")
             apply_all_cb = tk.Checkbutton(
-                cbf, text="Apply this choice to all remaining movies",
+                cbf, text=_i18n.t("mc.apply_this_choice_to_0a3e"),
                 variable=self._apply_all_var, bg=C_BG, fg=C_TEXT,
                 activebackground=C_BG, selectcolor=C_SURFACE,
                 font=("Helvetica", 9))
             apply_all_cb.pack(anchor="w")
             use_votes_cb = tk.Checkbutton(
-                cbf, text="Use the source with more votes",
+                cbf, text=_i18n.t("mc.use_the_source_with_5be2"),
                 variable=self._use_votes_var, bg=C_BG, fg=C_TEXT,
                 activebackground=C_BG, selectcolor=C_SURFACE,
                 font=("Helvetica", 9))
@@ -9915,28 +10639,28 @@ class RatingsCompareDialog(_DialogBase):                        ### NEW v0.15.0 
 
         # Pre-selection label
         if pre_choice == "average":                                  # B21: no average is computed
-            tk.Label(self, text="(Equal votes — choose the value to keep)",
+            tk.Label(self, text=_i18n.t("mc.equal_votes_choose_the_6aef"),
                      bg=C_BG, fg=C_PEACH, font=("Helvetica", 9)).pack()
 
         # Buttons                                              ### UPDATED v0.17.0 — added Type Values ###
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(6, 14))
-        tk.Button(bf, text="  Type Values  ", bg=C_PEACH, fg=C_BG,  ### NEW v0.17.0 ###
+        tk.Button(bf, text=_i18n.t("mc.type_values_a77a"), bg=C_PEACH, fg=C_BG,  ### NEW v0.17.0 ###
                   relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"),
                   command=self._use_manual).pack(side="left", padx=(0, 6))
-        tmdb_btn = tk.Button(bf, text="  Use TMDB  ", bg=C_ACCENT if tmdb_ok else C_SURFACE2,
+        tmdb_btn = tk.Button(bf, text=_i18n.t("mc.use_tmdb_b599"), bg=C_ACCENT if tmdb_ok else C_SURFACE2,
                              fg=C_BG, relief="flat", cursor="hand2" if tmdb_ok else "arrow",
                              state="normal" if tmdb_ok else "disabled",
                              font=("Helvetica", 10, "bold"),
                              command=self._use_tmdb)
         tmdb_btn.pack(side="left", padx=(0, 6))
-        omdb_btn = tk.Button(bf, text="  Use OMDb/IMDb  ", bg=C_OK if omdb_ok else C_SURFACE2,
+        omdb_btn = tk.Button(bf, text=_i18n.t("mc.use_omdb_imdb_0201"), bg=C_OK if omdb_ok else C_SURFACE2,
                              fg=C_BG, relief="flat", cursor="hand2" if omdb_ok else "arrow",
                              state="normal" if omdb_ok else "disabled",
                              font=("Helvetica", 10, "bold"),
                              command=self._use_omdb)
         omdb_btn.pack(side="left", padx=(0, 6))
-        tk.Button(bf, text="  Skip  " if fallback_mode else "  Cancel  ",   ### MODIFIED v0.19.0 ###
+        tk.Button(bf, text=_i18n.t("mc.skip_1908") if fallback_mode else _i18n.t("mc.cancel_2fee"),   ### MODIFIED v0.19.0 ###
                   bg=C_SURFACE2, fg=C_TEXT, relief="flat",
                   cursor="hand2", font=("Helvetica", 10),
                   command=self._cancel).pack(side="left")
@@ -9990,7 +10714,7 @@ class _TypeRatingsDialog(_DialogBase):                         ### NEW v0.17.0 #
 
     def __init__(self, parent, movie_name):
         super().__init__(parent)
-        self.title("Type Values")
+        self.title(_i18n.t("mc.type_values_cc1c"))
         self.configure(bg=C_BG)
         self.resizable(False, False)
         self.transient(parent); _modal(self)
@@ -10000,19 +10724,19 @@ class _TypeRatingsDialog(_DialogBase):                         ### NEW v0.17.0 #
         movie_label = movie_name[:60] + "…" if len(movie_name) > 60 else movie_name
         tk.Label(self, text=movie_label, bg=C_BG, fg=C_ACCENT,
                  font=("Helvetica", 10, "bold"), wraplength=360).pack(padx=20, pady=(14, 4))
-        tk.Label(self, text="Enter rating and vote count to apply manually.",
+        tk.Label(self, text=_i18n.t("mc.enter_rating_and_vote_8860"),
                  bg=C_BG, fg=C_SUBTEXT,
                  font=("Helvetica", 9)).pack(padx=20, pady=(0, 8))
 
         gf = tk.Frame(self, bg=C_BG); gf.pack(padx=20, pady=4)
-        tk.Label(gf, text="Rating (0.0 – 10.0):", bg=C_BG, fg=C_TEXT,
+        tk.Label(gf, text=_i18n.t("mc.rating_9d6e"), bg=C_BG, fg=C_TEXT,
                  font=("Helvetica", 9), anchor="e", width=20).grid(row=0, column=0, padx=(0,6), pady=6)
         self._r_var = tk.StringVar()
         tk.Entry(gf, textvariable=self._r_var, width=12,
                  bg=C_SURFACE, fg=C_TEXT, insertbackground=C_TEXT,
                  font=("Consolas", 10), relief="flat").grid(row=0, column=1, pady=6)
 
-        tk.Label(gf, text="Votes (integer):", bg=C_BG, fg=C_TEXT,
+        tk.Label(gf, text=_i18n.t("mc.votes_integer_73e1"), bg=C_BG, fg=C_TEXT,
                  font=("Helvetica", 9), anchor="e", width=20).grid(row=1, column=0, padx=(0,6), pady=6)
         self._v_var = tk.StringVar()
         tk.Entry(gf, textvariable=self._v_var, width=12,
@@ -10028,7 +10752,7 @@ class _TypeRatingsDialog(_DialogBase):                         ### NEW v0.17.0 #
                   relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"),
                   command=self._ok).pack(side="left", padx=6)
-        tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=C_TEXT,
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT,
                   relief="flat", cursor="hand2",
                   font=("Helvetica", 10),
                   command=self.destroy).pack(side="left", padx=6)
@@ -10044,20 +10768,20 @@ class _TypeRatingsDialog(_DialogBase):                         ### NEW v0.17.0 #
 
     def _ok(self):
         r_str = self._r_var.get().strip().replace(",", ".")
-        v_str = self._v_var.get().strip().replace(",", "")
+        v_str = self._v_var.get().strip().replace(",", "").replace(".", "").replace(" ", "")   # v0.20.0 UI1d: 12,345 / 12.345
         try:
             r_val = float(r_str)
             if not (0.0 <= r_val <= 10.0):
                 raise ValueError("out of range")
         except ValueError:
-            self._err_lbl.configure(text="Rating must be a number between 0.0 and 10.0.")
+            self._err_lbl.configure(text=_i18n.t("mc.rating_must_be_a_101f"))
             return
         try:
             v_val = int(v_str)
             if v_val < 0:
                 raise ValueError("negative")
         except ValueError:
-            self._err_lbl.configure(text="Votes must be a non-negative integer.")
+            self._err_lbl.configure(text=_i18n.t("mc.votes_must_be_a_548c"))
             return
         self.result_r = r_val
         self.result_v = v_val
@@ -10068,7 +10792,7 @@ class CustomGenreDialog(_DialogBase):                           ### NEW v0.15.0 
     """Ask user whether to delete custom genres for a specific movie."""
     def __init__(self, parent, movie_name, custom_genres, show_apply_all=False):  ### MODIFIED v0.19.0 ###
         super().__init__(parent)
-        self.title("Custom Genres Found")
+        self.title(_i18n.t("mc.custom_genres_found_14a8"))
         self.configure(bg=C_BG)
         self.resizable(False, False)
         self.transient(parent); _modal(self)
@@ -10077,26 +10801,26 @@ class CustomGenreDialog(_DialogBase):                           ### NEW v0.15.0 
         self.apply_all = False                                  ### NEW v0.19.0 ###
         self._apply_all_var = tk.BooleanVar(value=False)
         movie_label = movie_name[:60] + "…" if len(movie_name) > 60 else movie_name
-        tk.Label(self, text=f"Movie: {movie_label}",
+        tk.Label(self, text=_i18n.t("mc.movie_0c8b", movie_label=movie_label),
                  bg=C_BG, fg=C_ACCENT, font=("Helvetica", 10, "bold"),
                  wraplength=380).pack(padx=16, pady=(14, 4))
         genre_list = ", ".join(custom_genres[:8])
         if len(custom_genres) > 8: genre_list += f" … (+{len(custom_genres)-8} more)"
-        tk.Label(self, text=f"Custom genre(s) found:\n  {genre_list}",
+        tk.Label(self, text=_i18n.t("mc.custom_genre_s_found_d853", genre_list=genre_list),
                  bg=C_BG, fg=C_ERR, font=("Helvetica", 9),
                  wraplength=380, justify="left").pack(padx=16, pady=(0, 10))
-        tk.Label(self, text="Delete the Custom Genre(s)?",
+        tk.Label(self, text=_i18n.t("mc.delete_the_custom_genre_f4ba"),
                  bg=C_BG, fg=C_TEXT, font=("Helvetica", 10)).pack(padx=16, pady=(0, 10))
         if show_apply_all:                                      ### NEW v0.19.0 ###
-            tk.Checkbutton(self, text="Apply this choice to all remaining movies",
+            tk.Checkbutton(self, text=_i18n.t("mc.apply_this_choice_to_0a3e"),
                            variable=self._apply_all_var, bg=C_BG, fg=C_TEXT,
                            activebackground=C_BG, selectcolor=C_SURFACE,
                            font=("Helvetica", 9)).pack(padx=16, pady=(0, 8), anchor="w")
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(0, 14))
-        tk.Button(bf, text="  Yes  ", bg=C_ERR, fg=C_BG, font=("Helvetica", 10, "bold"),
+        tk.Button(bf, text=_i18n.t("mc.yes_f4b5"), bg=C_ERR, fg=C_BG, font=("Helvetica", 10, "bold"),
                   relief="flat", cursor="hand2",
                   command=self._yes).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  No  ", bg=C_OK, fg=C_BG, font=("Helvetica", 10, "bold"),
+        tk.Button(bf, text=_i18n.t("mc.no_f872"), bg=C_OK, fg=C_BG, font=("Helvetica", 10, "bold"),
                   relief="flat", cursor="hand2",
                   command=self._no).pack(side="left")
         self.bind("<Return>", lambda e: self._no())
@@ -10143,8 +10867,10 @@ class HelpDialog(_DialogBase):
 
     def __init__(self, parent, tab=0):          ### NEW v0.16.0 — tab parameter ###
         super().__init__(parent)
-        self.title(f"Help — {APP_NAME}  v{APP_VERSION}")
-        self.geometry("860x680")
+        self.title(_i18n.t("mc.help_v_b96c", app_name=APP_NAME, app_version=APP_VERSION))
+        ### MODIFIED v0.20.0 UI1e — the default size follows the display scale (px), capped to the screen: at 150 % the
+        ### fixed 860×680 left the text a narrow strip (worse with the longer PT / ES contents list); 100 % unchanged
+        self.geometry(f"{min(px(860), self.winfo_screenwidth() - 80)}x{min(px(680), self.winfo_screenheight() - 80)}")
         self.configure(bg=C_BG)
         self._prev_grab = parent.grab_current()                 ### NEW v0.19.2 B43 — e.g. Settings; given back on close ###
         self.transient(parent); _modal(self)
@@ -10156,7 +10882,8 @@ class HelpDialog(_DialogBase):
         body = tk.Frame(self, bg=C_BG); body.pack(fill="both", expand=True)
         self._toc = tk.Listbox(body, bg=C_BG, fg=C_TEXT, selectbackground=C_SURFACE2, selectforeground=C_ACCENT,
                                font=("Helvetica", 10), relief="flat", highlightthickness=0, activestyle="none",
-                               exportselection=False, width=28)
+                               exportselection=False,
+                               width=max(28, max(len(l) for l, _t in _help.tabs()) + 1))   # v0.20.0 UI1e: PT / ES names are longer (English stays 28)
         self._toc.pack(side="left", fill="y", padx=(8, 0), pady=8)
         style = ttk.Style()
         style.layout("Help.TNotebook.Tab", [])                    # the tab row is hidden; the list shows the topics
@@ -10171,7 +10898,7 @@ class HelpDialog(_DialogBase):
 
         # v0.19.1 — tabs and their order come from help_text.HELP_TABS (the
         # Help menu uses the same list); Version History removed.  ### MODIFIED v0.19.1 ###
-        for _lbl, _txt in _help.HELP_TABS:
+        for _lbl, _txt in _help.tabs():                         # v0.20.0 UI1e: in the interface language
             self._add_tab(nb, _lbl, _txt)
         self._add_about_tab(nb)
         self._nb = nb
@@ -10185,7 +10912,7 @@ class HelpDialog(_DialogBase):
         if 0 <= tab < len(tabs):
             nb.select(tabs[tab])
 
-        tk.Button(self, text="  Close  ", font=("Helvetica",10,"bold"),
+        tk.Button(self, text=_i18n.t("mc.close_cbdd"), font=("Helvetica",10,"bold"),
                   bg=C_ACCENT, fg=C_BG, relief="flat", cursor="hand2",
                   command=self._close).pack(pady=(6,12))           ### MODIFIED v0.19.2 B43 ###
 
@@ -10235,12 +10962,13 @@ class HelpDialog(_DialogBase):
         ### REWRITTEN v0.19.2 B49 — shorter, aligned identity rows (tab stop), clickable
         ### links (right-click: Copy link), the icon, a version line with Copy and the
         ### Check for updates button (B50).
-        frame = tk.Frame(nb, bg=C_BG); nb.add(frame, text=_help.ABOUT_LABEL)   ### MODIFIED v0.19.1 ###
+        frame = tk.Frame(nb, bg=C_BG); nb.add(frame, text=_help.about_label())   ### MODIFIED v0.19.1; v0.20.0 UI1e ###
         fr = tk.Frame(frame, bg=C_BG)
         fr.pack(fill="both", expand=True)
         fr.rowconfigure(0, weight=1); fr.columnconfigure(0, weight=1)
         body_font = ("Helvetica", 10)
-        col = tk_font.Font(font=body_font).measure("Created by") + 34
+        _idl = (_i18n.t("ab.created_by"), _i18n.t("ab.website"), "GitHub", "Reddit", _i18n.t("ab.contact"))   # v0.20.0 UI1e
+        col = max(tk_font.Font(font=body_font).measure(x) for x in _idl) + 34
         t = tk.Text(fr, wrap="word", bg=C_SURFACE, fg=C_TEXT, font=body_font, relief="flat",
                     padx=24, pady=20, spacing1=2, spacing3=2, tabs=(col,), cursor="arrow")
         sb = ttk.Scrollbar(fr, orient="vertical", command=t.yview)
@@ -10272,31 +11000,31 @@ class HelpDialog(_DialogBase):
         except Exception:
             pass
         ins(f"  {APP_NAME}\n", "title")
-        ins(f"  Version {APP_VERSION}\n\n", "dim")
-        ins("  Created by\t", "dim"); ins(f"{APP_AUTHOR}\n")
-        ins("  Website\t", "dim"); link("www.mediaclinic.dev", APP_WEBSITE, "link_web"); ins("\n")
+        ins("  " + _i18n.t("ab.version", v=APP_VERSION) + "\n\n", "dim")          # v0.20.0 UI1e: About in the language
+        ins("  " + _idl[0] + "\t", "dim"); ins(f"{APP_AUTHOR}\n")
+        ins("  " + _idl[1] + "\t", "dim"); link("www.mediaclinic.dev", APP_WEBSITE, "link_web"); ins("\n")
         ins("  GitHub\t", "dim"); link("github.com/junqueirach/mediaclinic", APP_GITHUB, "link_github"); ins("\n")
         ins("  Reddit\t", "dim"); link("r/MediaClinic", APP_REDDIT, "link_reddit"); ins("\n")
-        ins("  Contact\t", "dim"); link(APP_EMAIL, f"mailto:{APP_EMAIL}", "link_mail"); ins("\n\n")
+        ins("  " + _idl[4] + "\t", "dim"); link(APP_EMAIL, f"mailto:{APP_EMAIL}", "link_mail"); ins("\n\n")
         ins("  " + "─" * 41 + "\n\n", "sep")
-        ins("  Keeps KODI / Emby / Jellyfin movie libraries\n  clean, complete and metadata-perfect.\n\n")
-        ins("  What it does\n", "hdr")
-        for b in ABOUT_FEATURES:
+        ins("  " + _i18n.t("ab.tagline") + "\n\n")
+        ins("  " + _i18n.t("ab.what") + "\n", "hdr")
+        for b in about_features():
             ins(f"  •  {b}\n", "bullet")
         ins("\n  " + "─" * 41 + "\n\n", "sep")
-        ins("  Version history: the CHANGELOG at the top of the program file\n  and the ")
-        link("Releases page", APP_GITHUB + "/releases", "link_releases"); ins(" on GitHub.\n")
-        ins("  Questions, ideas and bug reports: ")
+        ins("  " + _i18n.t("ab.hist_a"))
+        link(_i18n.t("ab.releases"), APP_GITHUB + "/releases", "link_releases"); ins(_i18n.t("ab.hist_b"))
+        ins("  " + _i18n.t("ab.questions"))
         link("r/MediaClinic", APP_REDDIT, "link_reddit2"); ins(", ")
-        link("a GitHub issue", APP_GITHUB + "/issues", "link_issue"); ins("\n  or ")
+        link(_i18n.t("ab.issue"), APP_GITHUB + "/issues", "link_issue"); ins(_i18n.t("ab.or"))
         link(APP_EMAIL, f"mailto:{APP_EMAIL}", "link_mail2"); ins(".\n\n")
         ins(f"  {version_line()}  ", "dim")
         t.tag_bind("link_copy", "<Button-1>", lambda e: self._about_copy_version())
         t.tag_bind("link_copy", "<Enter>", lambda e: t.configure(cursor="hand2"))
         t.tag_bind("link_copy", "<Leave>", lambda e: t.configure(cursor="arrow"))
-        ins("Copy", "link", "link_copy"); ins("\n\n  ")
+        ins(_i18n.t("ab.copy"), "link", "link_copy"); ins("\n\n  ")
         app = self.master
-        self._about_update_btn = tk.Button(t, text="  ⬆ Check for updates  ", font=("Helvetica", 10, "bold"),
+        self._about_update_btn = tk.Button(t, text=_i18n.t("mc.check_for_updates_808d"), font=("Helvetica", 10, "bold"),
                                            bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
                                            command=lambda: getattr(app, "_check_updates_now", lambda: None)())
         t.window_create("end", window=self._about_update_btn)
@@ -10311,14 +11039,14 @@ class HelpDialog(_DialogBase):
             self.clipboard_clear(); self.clipboard_append(addr)
             flash_status(self, copied_text(addr))               ### NEW v0.19.4 B109a ###
             try:
-                self.master._sb_action.configure(text=f"  Email address copied: {addr}")
+                self.master._sb_action.configure(text=_i18n.t("mc.email_address_copied_a585", addr=addr))
             except (AttributeError, tk.TclError):
                 pass
         return False
 
     def _about_copy_menu(self, e, url):                          ### NEW v0.19.2 B49 ###
         m = tk.Menu(self, tearoff=0, bg=C_SURFACE, fg=C_TEXT, activebackground=C_HOVER, activeforeground=C_TEXT)
-        m.add_command(label="Copy link", command=lambda: (self.clipboard_clear(),
+        m.add_command(label=_i18n.t("mc.copy_link_b758"), command=lambda: (self.clipboard_clear(),
                                                           self.clipboard_append(url[7:] if url.startswith("mailto:") else url),
                                                           flash_status(self, copied_text(url))))   # v0.19.4 B109a
         try:
@@ -10342,6 +11070,11 @@ ABOUT_FEATURES = (                                               ### NEW v0.19.2
 )
 
 
+def about_features():                                            ### NEW v0.20.0 UI1e ###
+    """ABOUT_FEATURES in the interface language (ABOUT_FEATURES stays the English list)."""
+    return [_i18n.t(f"ab.feat.{i}") for i in range(1, len(ABOUT_FEATURES) + 1)]
+
+
 def _open_link(url):                                             ### NEW v0.19.2 B49 ###
     """webbrowser.open; False when nothing answered (e.g. no mail program)."""
     try:
@@ -10353,7 +11086,8 @@ def _open_link(url):                                             ### NEW v0.19.2
 def version_line():                                              ### NEW v0.19.2 B49 ###
     """'Metadata & MediaClinic 0.19.2 · Windows exe · Windows (build 26300) ·
     Python 3.14.0 · Tk 8.6.15' for bug reports (copied, never sent)."""
-    kind = "Windows exe" if _is_frozen() else "running from source"           ### MODIFIED TR7 — Nuitka too ###
+    kind = (("Windows exe" if sys.platform == "win32" else f"{sys.platform} build") if _is_frozen()   # v0.20.0 LX1
+            else "running from source")                                  ### MODIFIED TR7 — Nuitka too; stays English (bug reports, UI1e) ###
     try:
         osv = f"Windows (build {sys.getwindowsversion().build})" if os.name == "nt" else sys.platform
     except Exception:
@@ -10560,9 +11294,20 @@ def _atomic_write_text(path, text, encoding="utf-8"):          ### NEW v0.19.0 #
     writer (ratings, genres, source IDs, Auto Repair).
     ### MODIFIED v0.19.2 B37 ### a file that starts with a UTF-8 BOM keeps it
     (_read_for_edit returns the text without the BOM)."""
-    if str(path).lower().endswith(".nfo") and not nfo_in_use():
+    if str(path).lower().endswith(".nfo") and not nfo_in_use(library_of(os.path.dirname(str(path)))):   # v0.20.0 F3: per library
         raise RuntimeError("the NFO is not used in this health mode (movie.xml only) — not changed")   # v0.19.6 TR1b
+    if os.path.basename(str(path)).lower() == "movie.xml" and not xml_in_use(library_of(os.path.dirname(str(path)))):
+        raise RuntimeError("movie.xml is not used for this library (health mode / NFO only) — not changed")   # v0.20.0 F3b
     tmp = f"{path}.mctmp"
+    ### NEW v0.20.0 AU2 ### the text is written as UTF-8: a prolog that names another encoding (ISO-8859-1) would make
+    # Kodi / Jellyfin read "AmÃ©lie" — the declaration follows the bytes
+    if encoding.lower().replace("_", "-") in ("utf-8", "utf-8-sig"):
+        text = re.sub(r"""\A(﻿?<\?xml\b[^>]*?\bencoding=)(["'])(?!utf-?8\2)[^"']*\2""",
+                      lambda m: f"{m.group(1)}{m.group(2)}UTF-8{m.group(2)}", text, count=1, flags=re.I)
+    try:                                                        # v0.20.0 AU2: a hidden / system NFO stays so
+        _keep_attr = getattr(os.stat(path), "st_file_attributes", 0) & 0x6
+    except OSError:
+        _keep_attr = 0
     newline = None                                              ### NEW v0.19.3 B60 — keep the file's line endings ###
     try:
         with open(path, "rb") as f:
@@ -10583,6 +11328,13 @@ def _atomic_write_text(path, text, encoding="utf-8"):          ### NEW v0.19.0 #
             except OSError:
                 pass
         _sc._replace_retry(tmp, path)                           # v0.19.5 WR-B1
+        if _keep_attr and os.name == "nt":                      # v0.20.0 AU2
+            try:
+                import ctypes as _ct
+                _a = getattr(os.stat(path), "st_file_attributes", 0)
+                _ct.windll.kernel32.SetFileAttributesW(str(path), _a | _keep_attr)
+            except Exception:
+                pass
         _cache_forget(path)                                     ### NEW v0.19.3 I11 ###
     finally:
         if os.path.exists(tmp):
@@ -10628,25 +11380,62 @@ def _insert_line_before_root_close(file_lines, new_line, preferred=()):   ### NE
 def _require_xml(text):                                          ### NEW v0.19.5 WR-A2, AS-A7 ###
     """A writer's result must parse: a corrupt file gets no more junk, and no fix is reported as done."""
     try:
-        ET.fromstring(text.lstrip("\ufeff").encode("utf-8"))
+        ### MODIFIED v0.20.0 AU2 ### a bare '&' ("Fast & Furious") is accepted, as the reader (_parse_root) and Kodi do:
+        # every ID / year / title write used to refuse such an NFO that scans fine
+        ET.fromstring(_AMP_FIX_RE.sub("&amp;", text.lstrip("\ufeff")).encode("utf-8"))
     except ET.ParseError as e:
         raise ValueError(f"the file is not valid XML ({e}); nothing written")
 
 
+_XML_TOKEN_RE = re.compile(r"<!--.*?-->|<!\[CDATA\[.*?\]\]>|<[?!][^>]*>|<(/?)([A-Za-z_][\w.:-]*)[^>]*?(/?)>", re.S)
+
+
+def _root_child_test(text):                                      ### NEW v0.20.0 AU2 (pre-build audit) ###
+    """A function pos → True when *pos* sits directly inside the root element (depth 1), the only place the readers
+    (root.find / findall) look.  The line writers used to edit the first matching tag at ANY depth: an actor's
+    <tmdbid> (tinyMediaManager writes one per actor) got the movie's ID and the movie got none."""
+    marks, depth = [], 0                                         # (end of tag, depth after it)
+    for m in _XML_TOKEN_RE.finditer(text):
+        if m.group(2) is None:
+            continue                                             # comment, CDATA, <?xml?>, <!DOCTYPE>
+        if m.group(1):
+            depth -= 1
+        elif not m.group(3):
+            depth += 1
+        marks.append((m.end(), depth))
+    ends = [e for e, _d in marks]
+    import bisect as _bisect
+
+    def at_root(pos):
+        i = _bisect.bisect_right(ends, pos) - 1
+        return i >= 0 and marks[i][1] == 1
+    return at_root
+
+
+def _relines(lines, text):                                       # v0.20.0 AU2: the list is edited in place
+    lines[:] = text.splitlines(keepends=True)
+
+
 def _set_tag_in_lines(lines, tag, value, attr_pat=r"(?:\s[^>]*?)?"):   ### NEW v0.19.5 WR-A1, WR-A4 ###
     """The first <tag> gets *value*, in place: plain text, CDATA or the empty form <tag />. Attributes stay. True when found.
-    (The readers take the first tag, so a second tag added at the end was never read.)"""
-    pair = re.compile(rf"(<{tag}{attr_pat}>)(?:\s*<!\[CDATA\[.*?\]\]>\s*|[^<]*)(</\s*{tag}\s*>)", re.IGNORECASE)
+    (The readers take the first tag, so a second tag added at the end was never read.)
+    ### MODIFIED v0.20.0 AU2 ### only a tag directly inside the root (an <actor>'s <tmdbid> is never touched), and a
+    value on its own line(s) is replaced too (it used to be skipped: the old value stayed and was still read)."""
+    pair = re.compile(rf"(<{tag}{attr_pat}>)(?:\s*<!\[CDATA\[.*?\]\]>\s*|[^<]*)(</\s*{tag}\s*>)", re.IGNORECASE | re.S)
     single = re.compile(rf"<({tag})({attr_pat})\s*/>", re.IGNORECASE)
-    for i, line in enumerate(lines):
-        p, s = pair.search(line), single.search(line)
-        if p and (not s or p.start() < s.start()):
-            lines[i] = line[:p.start()] + p.group(1) + str(value) + p.group(2) + line[p.end():]
-            return True
-        if s:
-            lines[i] = line[:s.start()] + f"<{s.group(1)}{s.group(2).rstrip()}>{value}</{s.group(1)}>" + line[s.end():]
-            return True
-    return False
+    text = "".join(lines)
+    at_root = _root_child_test(text)
+    hits = [(m.start(), "p", m) for m in pair.finditer(text) if at_root(m.start())]
+    hits += [(m.start(), "s", m) for m in single.finditer(text) if at_root(m.start())]
+    if not hits:
+        return False
+    _pos, kind, m = min(hits, key=lambda h: h[0])
+    if kind == "p":
+        new = m.group(1) + str(value) + m.group(2)
+    else:
+        new = f"<{m.group(1)}{m.group(2).rstrip()}>{value}</{m.group(1)}>"
+    _relines(lines, text[:m.start()] + new + text[m.end():])
+    return True
 
 
 def _write_tag_in_files(nfo_path, xml_path, nfo_tag, xml_tag, value):   ### NEW v0.19.0 ###
@@ -10694,12 +11483,22 @@ def _update_uniqueid_lines(lines, id_type, value):               ### NEW v0.19.1
     types = "imdb" if id_type == "IMDB" else "(?:tmdb|themoviedb)"
     pair = re.compile(rf'(<uniqueid\b[^>]*\btype=["\']?{types}["\']?[^>/]*>)[^<]*(</\s*uniqueid\s*>)', re.IGNORECASE)
     single = re.compile(rf'<uniqueid\b([^>]*\btype=["\']?{types}["\']?[^>]*?)\s*/>', re.IGNORECASE)
-    out = []
-    for ln in lines:
-        ln = pair.sub(lambda m: f"{m.group(1)}{value}{m.group(2)}", ln)
-        ln = single.sub(lambda m: f"<uniqueid{m.group(1)}>{value}</uniqueid>", ln)
-        out.append(ln)
-    return out
+    ### MODIFIED v0.20.0 AU2 ### on the whole text (a value on its own line was never updated) and only directly
+    # inside the root
+    text = "".join(lines)
+    at_root = _root_child_test(text)
+    text = pair.sub(lambda m: f"{m.group(1)}{value}{m.group(2)}" if at_root(m.start()) else m.group(0), text)
+    at_root = _root_child_test(text)
+    text = single.sub(lambda m: f"<uniqueid{m.group(1)}>{value}</uniqueid>" if at_root(m.start()) else m.group(0), text)
+    return text.splitlines(keepends=True)
+
+
+def nfo_id_tags_kodi_only(settings=None):                      ### NEW v0.20.0 RD12 ###
+    """True when Settings → Health Rules → NFO "ID tags written in the NFO" is "<uniqueid> only": the ID writers then
+    add no <imdbid> / <tmdbid> / <id> / <id moviedb> tag (the ones the NFO has are still corrected) and no empty
+    placeholder tag in the NFO.  Kodi, Jellyfin and Emby read <uniqueid>.  movie.xml is not affected."""
+    s = settings if settings is not None else SETTINGS
+    return (s.get("health_rules") or {}).get("nfo_id_tags", "all") == "kodi"
 
 
 def _write_source_id_to_files(nfo_path, xml_path, id_type, chosen_id):  ### FIXED v0.16.0 ###
@@ -10767,14 +11566,15 @@ def _write_source_id_to_files(nfo_path, xml_path, id_type, chosen_id):  ### FIXE
             lines = _read_lines_for_edit(nfo_path)   ### MODIFIED v0.19.2 B37 — strict UTF-8, never rewritten with U+FFFD ###
 
             lines = _update_uniqueid_lines(lines, id_type, chosen_id)   ### NEW v0.19.1 B19 ###
+            _ko = nfo_id_tags_kodi_only()                            ### NEW v0.20.0 RD12 — correct, never add ###
             if id_type == "IMDB":
                 # Write <imdbid>
                 lines, found = _replace_tag_in_lines(lines, "imdbid", chosen_id)
-                if not found:
+                if not found and not _ko:
                     lines = _insert_tag_before_close(lines, "imdbid", chosen_id, ["movie"])
                 # Write <id moviedb="imdb">
                 lines, found = _replace_attr_tag(lines, "imdb", chosen_id)
-                if not found:
+                if not found and not _ko:
                     indent = _detect_indent(lines)
                     new_line = f'{indent}<id moviedb="imdb">{chosen_id}</id>\n'
                     lines = _insert_line_before_root_close(lines, new_line, preferred=("movie",))   ### FIXED v0.19.0 ###
@@ -10782,19 +11582,19 @@ def _write_source_id_to_files(nfo_path, xml_path, id_type, chosen_id):  ### FIXE
                 # Use [^<]* instead of tt\d+ so corrupt values like
                 # "tt33384756/" are fully replaced.  ### FIX v0.17.0-bug1 ###
                 bare_found = _set_tag_in_lines(lines, "id", chosen_id, r"\s*")   # MODIFIED v0.19.5 WR-A1
-                if not bare_found:                             ### FIX v0.17.0 — insert if missing ###
+                if not bare_found and not _ko:                 ### FIX v0.17.0 — insert if missing ###
                     indent = _detect_indent(lines)
                     bare_line = f"{indent}<id>{chosen_id}</id>\n"
                     lines = _insert_line_before_root_close(lines, bare_line, preferred=("movie",))   ### FIXED v0.19.0 ###
             else:
                 # Write <tmdbid>
                 lines, found = _replace_tag_in_lines(lines, "tmdbid", chosen_id)
-                if not found:
+                if not found and not _ko:
                     lines = _insert_tag_before_close(lines, "tmdbid", chosen_id, ["movie"])
                 # Write <id moviedb="tmdb"> or <id moviedb="themoviedb">
                 lines, found_t  = _replace_attr_tag(lines, "tmdb", chosen_id)
                 lines, found_t2 = _replace_attr_tag(lines, "themoviedb", chosen_id)
-                if not found_t and not found_t2:
+                if not found_t and not found_t2 and not _ko:
                     indent   = _detect_indent(lines)
                     new_line = f'{indent}<id moviedb="tmdb">{chosen_id}</id>\n'
                     lines = _insert_line_before_root_close(lines, new_line, preferred=("movie",))   ### FIXED v0.19.0 ###
@@ -10851,13 +11651,16 @@ def _write_empty_source_tags(nfo_path, xml_path, id_type, dry_run=False):    ###
     for kind, path, roots in (("xml", xml_path, ("Item",)), ("nfo", nfo_path, ("movie",))):
         if not (path and os.path.isfile(path)) or _parse_root(path) is None:
             continue
+        if kind == "nfo" and nfo_id_tags_kodi_only():              # v0.20.0 RD12: no empty tags in a trimmed NFO
+            continue
         try:
             lines = _read_lines_for_edit(path)   ### MODIFIED v0.19.2 B37 — strict UTF-8, never rewritten with U+FFFD ###
             text = "".join(lines)
             indent = next((m.group(1) for m in (re.match(r'^([ \t]+)<', ln) for ln in lines) if m), "  ")
             added = False
+            _at_root = _root_child_test(text)                       # v0.20.0 AU2: an actor's <tmdbid> does not count
             for k, new_tag, rx in _EMPTY_ID_TAGS[id_type]:
-                if k != kind or re.search(rx, text, re.IGNORECASE):
+                if k != kind or any(_at_root(m.start()) for m in re.finditer(rx, text, re.IGNORECASE)):
                     continue
                 if dry_run:                                      ### NEW v0.19.4 B83 ###
                     return True, ""
@@ -11161,15 +11964,15 @@ def image_entry_text(e):
     w, h = e.get("width", 0), e.get("height", 0)
     dims = f"{'~' if e.get('dims_typical') else ''}{w}×{h} ({_friendly_ratio(w, h)})"
     if e.get("source") == "frame":                                   ### v0.19.1 B11 ###
-        low = f"  ⚠ below the {e.get('min_level', '1080p')} minimum" if e.get("low_res") else ""
-        return "Frame", f"{w}×{h} ({_friendly_ratio(w, h)})  at {_fmt_time(e.get('time'))}{low}"
+        low = _i18n.t("rp.below_the_minimum_9baf", get=e.get('min_level', '1080p')) if e.get("low_res") else ""
+        return _i18n.t("rp.frame_3bb3"), _i18n.t("rp.at_1ef4", w=w, h=h, friendly_ratio=_friendly_ratio(w, h), fmt_time=_fmt_time(e.get('time')), low=low)
     if e.get("source") == "fanarttv":
         extra = f"  ♥{e.get('likes', 0)}"
         if e.get("lang") not in ("", "00", None):
             extra += f"  {e['lang']}"
         if e.get("kind") == "moviethumb":
-            extra += "  thumb"
-        return "fanart.tv", dims + extra
+            extra += _i18n.t("rp.thumb_9b62")
+        return _i18n.t("rp.fanart_tv_1348"), dims + extra
     sz = e.get("file_size", 0)
     return "TMDB", dims + (f"  {format_size(sz)}" if sz else "")
 
@@ -11413,7 +12216,7 @@ def _save_image_from(src, dest):                                ### NEW v0.19.1 
             copy_image_atomic(src, dest)                        ### MODIFIED v0.19.4 B79 ###
             return True, None
         except OSError as e:
-            return False, f"Could not copy the frame: {e}"
+            return False, _i18n.t("uf.could_not_copy_the_d7b6", e=e)
     return _tmdb_download_image(src, dest)
 
 
@@ -11443,9 +12246,9 @@ def image_sources_tip(mode):                                    ### NEW v0.19.1 
     """Menu suffix when no source can serve the selection."""
     if mode == "poster":
         if not SETTINGS.get("tmdb_api_key", "").strip() and not fanarttv_key():
-            return " (no TMDB / fanart.tv API key)"
-        return " (no TMDB ID — or IMDb ID with a fanart.tv key)"
-    return " (no TMDB ID, no fanart.tv source, no video for frames)"
+            return _i18n.t("ctx.no_src_poster_keys")
+        return _i18n.t("ctx.no_src_poster")
+    return _i18n.t("ctx.no_src_other")
 
 
 _TMDB_LANG_FOR_ISO = {
@@ -11479,6 +12282,119 @@ def _tmdb_find_imdb(imdb_id, api_key, fetch=None):
            f"&external_source=imdb_id")
     data = fetch(url)
     return list(data.get("movie_results") or [])
+
+
+# ── v0.20.0 I36: check the genres a movie already has against TMDB (F1.6's rule: the file wins until the user ticks) ──
+GENRES_TMDB_ACTION = "Check Genres Against TMDB"                  # backup label (Backup History / Undo)
+GENRES_TMDB_LABEL = _label_const("GENRES_TMDB_LABEL", "🎬", "act.genres_tmdb")
+GENRES_TMDB_ALL_LABEL = _label_const("GENRES_TMDB_ALL_LABEL", "🎬", "act.genres_tmdb_all")
+
+
+def genres_tmdb_candidates(rows):
+    """Movies that have genres and an IMDb or TMDB ID (a movie without genres is Normalize Genres' job)."""
+    return [r for r in rows if r.get("genres") and ((r.get("source_tmdb_val") or "").strip() or (r.get("source_imdb_val") or "").strip())]
+
+
+def genres_tmdb_compare(rows, api_key, lang="en-US", fetch=None, progress=None, cancelled=None):
+    """Worker: [(row, file genres, TMDB genres)] for the movies whose genres differ from TMDB's (both normalized, order
+    and case ignored), and the errors.  Nothing is written."""
+    items, errors = [], []
+    for i, r in enumerate(rows):
+        if cancelled and cancelled():
+            break
+        try:
+            tid = (r.get("source_tmdb_val") or "").strip()
+            if not tid and (r.get("source_imdb_val") or "").strip():
+                found = _tmdb_find_imdb(r["source_imdb_val"].strip(), api_key, fetch)
+                tid = str(found[0].get("id") or "") if found else ""
+            if tid:
+                data = _tmdb_movie_full(tid, api_key, lang, fetch) or {}
+                names = [g.get("name") for g in (data.get("genres") or []) if g.get("name")]
+                if names:
+                    new = list(normalize_genre_list(names)[0])
+                    cur = list(r.get("genres") or [])
+                    if {g.lower() for g in new} != {g.lower() for g in normalize_genre_list(cur)[0]}:
+                        items.append((r, cur, new))
+        except Exception as ex:
+            errors.append(f"{r.get('movie_name') or r.get('subfolder', '?')}: {ex}")
+        if progress:
+            progress(i + 1)
+    return items, errors
+
+
+class GenresTmdbDialog(_DialogBase):                              ### NEW v0.20.0 I36 ###
+    """The movies whose genres differ from TMDB: file → TMDB per movie, nothing ticked (the file keeps its genres
+    unless the user ticks the movie).  Click or Space ticks a row."""
+    _BG = C_BG; _FG = C_TEXT
+
+    def __init__(self, app, items, checked):
+        super().__init__(app)
+        self._items = list(items)
+        self.ticks = [False] * len(self._items)
+        self.result = False
+        self.title(shown_action(GENRES_TMDB_ACTION))
+        self.configure(bg=self._BG)
+        self.transient(app); _modal(self)
+        self.resizable(True, True)
+        tk.Label(self, text=_i18n.t("i36.head", n=len(self._items), m=checked), bg=self._BG, fg=C_ACCENT,
+                 font=("Helvetica", 11, "bold"), justify="left").pack(anchor="w", padx=16, pady=(14, 2))
+        tk.Label(self, text=_i18n.t("i36.note"), bg=self._BG, fg=C_SUBTEXT, font=("Helvetica", 9), justify="left",
+                 wraplength=720).pack(anchor="w", padx=16, pady=(0, 8))
+        fr = tk.Frame(self, bg=self._BG); fr.pack(fill="both", expand=True, padx=16)
+        cols = (("tick", "", 34), ("movie", _i18n.t("i36.col_movie"), 260), ("file", _i18n.t("i36.col_file"), 220),
+                ("tmdb", _i18n.t("i36.col_tmdb"), 220))
+        self._tv = ttk.Treeview(fr, columns=[c for c, _l, _w in cols], show="headings", height=14, selectmode="browse")
+        for c, l, w in cols:
+            self._tv.heading(c, text=l); self._tv.column(c, width=w, anchor="center" if c == "tick" else "w", stretch=c != "tick")
+        self._tv.pack(side="left", fill="both", expand=True)
+        sb = ttk.Scrollbar(fr, orient="vertical", command=self._tv.yview); sb.pack(side="right", fill="y")
+        self._tv.configure(yscrollcommand=sb.set)
+        for i, (r, cur, new) in enumerate(self._items):
+            name = r.get("movie_name") or r.get("subfolder", "")
+            y = r.get("movie_year")
+            self._tv.insert("", "end", iid=str(i), values=("☐", f"{name} ({y})" if y and y != "-" else name,
+                                                           " / ".join(cur), " / ".join(new)))
+        self._tv.bind("<ButtonRelease-1>", self._click)
+        self._tv.bind("<space>", lambda e: self._toggle(self._tv.focus()))
+        bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=16, pady=(10, 14))
+        kw = dict(relief="flat", cursor="hand2", font=("Helvetica", 10))
+        tk.Button(bf, text=_i18n.t("i36.all"), bg=C_SURFACE2, fg=self._FG, command=lambda: self._set_all(True), **kw).pack(side="left")
+        tk.Button(bf, text=_i18n.t("i36.none"), bg=C_SURFACE2, fg=self._FG, command=lambda: self._set_all(False), **kw).pack(side="left", padx=(6, 0))
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=self._FG, command=self.destroy, **kw).pack(side="right")
+        self.write_btn = tk.Button(bf, text=_i18n.t("i36.write"), bg=C_WARN, fg=C_BG, command=self._ok,
+                                   relief="flat", cursor="hand2", font=("Helvetica", 10, "bold"))
+        self.write_btn.pack(side="right", padx=(0, 8))
+        self.bind("<Escape>", lambda e: self.destroy())
+        self._sync()
+        _remember_window(self, "GenresTmdbDialog", resizable=True)
+
+    def _click(self, e):
+        iid = self._tv.identify_row(e.y)
+        if iid:
+            self._toggle(iid)
+
+    def _toggle(self, iid):
+        if iid == "" or iid is None:
+            return
+        i = int(iid)
+        self.ticks[i] = not self.ticks[i]
+        self._tv.set(iid, "tick", "☑" if self.ticks[i] else "☐")
+        self._sync()
+
+    def _set_all(self, value):
+        for i in range(len(self.ticks)):
+            self.ticks[i] = value
+            self._tv.set(str(i), "tick", "☑" if value else "☐")
+        self._sync()
+
+    def _sync(self):
+        n = sum(self.ticks)
+        self.write_btn.configure(text=_i18n.t("i36.write_n", n=n), state="normal" if n else "disabled")
+
+    def _ok(self):
+        if any(self.ticks):
+            self.result = True
+            self.destroy()
 
 
 def _tmdb_candidate_titles(data):
@@ -11627,8 +12543,9 @@ def verify_movie_ids(row, api_key, lang="en-US", fetch=None):
            "when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
 
     src = extract_source_ids_from_files(nfo_path, xml_path)
-    imdb_all = [v for v in (src.get("imdb_all_vals") or []) if v]
-    tmdb_all = [v for v in (src.get("tmdb_all_vals") or []) if v]
+    # v0.20.0 AU22: junk around an ID ('tt0133093/') is the same ID, not a disagreement (struct_fix cleans it)
+    imdb_all = [_id_fixed("imdb", v) or v for v in (src.get("imdb_all_vals") or []) if v]
+    tmdb_all = [_id_fixed("tmdb", v) or v for v in (src.get("tmdb_all_vals") or []) if v]
     imdb_id, tmdb_id = get_movie_ids_robust(nfo_path, xml_path)
     imdb_id = (imdb_id or "").strip() or None
     tmdb_id = (str(tmdb_id) if tmdb_id else "").strip() or None
@@ -11642,6 +12559,11 @@ def verify_movie_ids(row, api_key, lang="en-US", fetch=None):
         res["detail"] = "Different IDs in the NFO/XML tags: " + "; ".join(parts)
         return res
     if not imdb_id and not tmdb_id:
+        _odd = list(src.get("imdb_invalid_vals") or []) + list(src.get("tmdb_invalid_vals") or [])   # v0.20.0 AU3
+        if _odd:                                                  # only values that are not IDs: said so (CO-D8)
+            res["result"] = ID_NOT_FOUND
+            res["detail"] = "Not a valid ID: " + ", ".join(repr(x) for x in _odd)
+            return res
         res["result"] = ID_NONE
         res["detail"] = "No IMDb or TMDB ID in the NFO or XML"
         return res
@@ -11760,8 +12682,8 @@ def verify_movie_ids(row, api_key, lang="en-US", fetch=None):
 
 def format_id_verify_report(rows):
     """Plain-text version of the verification results (for Save)."""
-    L = [f"IMDb / TMDB ID verification — {_n(len(rows), 'movie')}",
-         f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", "=" * 60, ""]
+    L = [_i18n.t("rp.imdb_tmdb_id_verification_66f8", n=_n(len(rows), 'movie')),
+         _i18n.t("rp.generated_8af8", strftime=datetime.datetime.now().strftime('%Y-%m-%d %H:%M')), "=" * 60, ""]
     cnt = collections.Counter((r.get("id_check") or {}).get("result", "?") for r in rows)
     for k in ID_RESULTS:
         if cnt.get(k):
@@ -11788,7 +12710,7 @@ class _SourceDisagreementDialog(_DialogBase):              ### UPDATED v0.16.0 #
         self.bind("<Escape>", lambda e: self.destroy())   ### NEW v0.19.2 B45 — Esc closes (nothing written) ###
         self.result_id = None
         self.cancelled = True
-        self.title(f"Normalize {id_type} ID — Conflict")
+        self.title(_i18n.t("mc.normalize_id_conflict_5986", id_type=id_type))
         self.configure(bg=C_BG)
         self.resizable(True, False)
         self.transient(parent)
@@ -11800,8 +12722,7 @@ class _SourceDisagreementDialog(_DialogBase):              ### UPDATED v0.16.0 #
                  font=("Helvetica", 11, "bold"),
                  bg=C_BG, fg=C_TEXT).pack(padx=20, pady=(14, 2))
         tk.Label(self,
-                 text=f"{id_type} IDs disagree across tags.  "
-                      f"Select the correct ID:",
+                 text=_i18n.t("mc.ids_disagree_across_tags_64ab", id_type=id_type),
                  bg=C_BG, fg=C_SUBTEXT,
                  font=("Helvetica", 9)).pack(padx=20, pady=(0, 8))
 
@@ -11822,7 +12743,7 @@ class _SourceDisagreementDialog(_DialogBase):              ### UPDATED v0.16.0 #
                            font=("Consolas", 10, "bold"),
                            width=14, anchor="w").pack(side="left", padx=(6, 4))
             lbl = tk.Label(row,
-                           text="looking up…",
+                           text=_i18n.t("mc.looking_up_402b"),
                            bg=C_SURFACE, fg=C_DIM,
                            font=("Helvetica", 9, "italic"), anchor="w")
             lbl.pack(side="left", fill="x", expand=True, padx=4)
@@ -11840,7 +12761,7 @@ class _SourceDisagreementDialog(_DialogBase):              ### UPDATED v0.16.0 #
         sep.pack(fill="x", padx=16, pady=(8,0))
 
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(8, 14))
-        tk.Button(bf, text="Open Website(s)",
+        tk.Button(bf, text=_i18n.t("mc.open_website_s_5cc9"),
                   bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 9), padx=8, pady=4,
                   command=_open_sites).pack(side="left", padx=6)
@@ -11848,7 +12769,7 @@ class _SourceDisagreementDialog(_DialogBase):              ### UPDATED v0.16.0 #
                   bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
                   font=("Helvetica", 9, "bold"), padx=12, pady=4,
                   command=self._ok).pack(side="left", padx=6)
-        tk.Button(bf, text="  Skip  ",
+        tk.Button(bf, text=_i18n.t("mc.skip_1908"),
                   bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 9), padx=8, pady=4,
                   command=self.destroy).pack(side="left", padx=6)
@@ -11870,19 +12791,20 @@ class _SourceDisagreementDialog(_DialogBase):              ### UPDATED v0.16.0 #
             if title:
                 text = f"{title}  ({year})" if year else title
             elif err:
-                text = f"lookup failed — TMDB did not answer: {err}"
+                text = _i18n.t("mc.lookup_failed_tmdb_did_839b", err=err)
             elif not SETTINGS.get("tmdb_api_key", "").strip():         # C15
-                text = "not checked — no TMDB API key (Settings → API Keys)"
+                text = _i18n.t("mc.not_checked_no_tmdb_1938")
             elif str(id_type).upper() == "IMDB":
-                text = "not on TMDB (may still be valid on IMDb)"
+                text = _i18n.t("mc.not_on_tmdb_may_6a3b")
             else:
-                text = "TMDB has no movie with this ID"
-            def _update(lbl=self._row_labels.get(v), t=text):
+                text = _i18n.t("mc.tmdb_has_no_movie_2341")
+            _bad = bool(err) and not title                       # v0.20.0 AU23: the lookup failed
+            def _update(lbl=self._row_labels.get(v), t=text, _bad=_bad):
                 if lbl and lbl.winfo_exists():
                     lbl.configure(
                         text=t,
-                        fg=C_TEXT if ("invalid" not in t and "failed" not in t) else C_ERR,
-                        font=("Helvetica", 9, "italic" if ("invalid" in t or "failed" in t) else "normal"))
+                        fg=C_ERR if _bad else C_TEXT,                       # v0.20.0 AU23: not by English words
+                        font=("Helvetica", 9, "italic" if _bad else "normal"))
                     # Resize dialog to fit new content
                     self.update_idletasks()
             ui_post(_update)
@@ -11901,7 +12823,7 @@ class _SourceManualEntryDialog(_DialogBase):               ### NEW v0.16.0 ###
         self.result_id = None
         self.cancelled = True
         self.skip_all  = False                                  ### NEW v0.19.0 ###
-        self.title(f"Enter {id_type} ID")
+        self.title(_i18n.t("mc.enter_id_27d1", id_type=id_type))
         self.configure(bg=C_BG)
         self.resizable(False, False)
         self.transient(parent)
@@ -11911,13 +12833,13 @@ class _SourceManualEntryDialog(_DialogBase):               ### NEW v0.16.0 ###
                  font=("Helvetica", 11, "bold"),
                  bg=C_BG, fg=C_TEXT).pack(**pad)
         if id_type == "IMDB":
-            example = "e.g.  tt0133093  (The Matrix)"
-            hint = "IMDb IDs start with 'tt' followed by digits."
+            example = _i18n.t("uf.e_g_tt_the_8b24")
+            hint = _i18n.t("mc.imdb_ids_start_with_d4c0")
         else:
-            example = "e.g.  603  (The Matrix)"
-            hint = "TMDB IDs are numeric."
+            example = _i18n.t("au.tmdb_example")
+            hint = _i18n.t("mc.tmdb_ids_are_numeric_798d")
         tk.Label(self,
-                 text=f"No {id_type} ID found.\n{hint}\n{example}",
+                 text=_i18n.t("mc.no_id_found_a0da", id_type=id_type, hint=hint, example=example),
                  bg=C_BG, fg=C_SUBTEXT,
                  font=("Helvetica", 10), justify="left").pack(**pad)
 
@@ -11930,11 +12852,11 @@ class _SourceManualEntryDialog(_DialogBase):               ### NEW v0.16.0 ###
         tk.Button(bf, text="  OK  ", bg=C_OK, fg=C_BG,
                   relief="flat", cursor="hand2",
                   command=self._ok).pack(side="left", padx=6)
-        tk.Button(bf, text="  Skip  ", bg=C_SURFACE2, fg=C_TEXT,
+        tk.Button(bf, text=_i18n.t("mc.skip_1908"), bg=C_SURFACE2, fg=C_TEXT,
                   relief="flat", cursor="hand2",
                   command=self.destroy).pack(side="left", padx=6)
         if show_skip_all:                                       ### NEW v0.19.0 ###
-            tk.Button(bf, text="  Skip all remaining  ", bg=C_SURFACE2, fg=C_ERR,
+            tk.Button(bf, text=_i18n.t("mc.skip_all_remaining_868f"), bg=C_SURFACE2, fg=C_ERR,
                       relief="flat", cursor="hand2",
                       command=self._skip_all).pack(side="left", padx=6)
         self.bind("<Return>", lambda e: self._ok())
@@ -11955,7 +12877,7 @@ class _SourceManualEntryDialog(_DialogBase):               ### NEW v0.16.0 ###
         if v:
             clean, why = clean_typed_id(self._id_type, v)           ### NEW v0.19.4 P3 (C8) — checked like Enter ID ###
             if not clean:
-                messagebox.showwarning("Not an ID", why, parent=self)
+                messagebox.showwarning(_i18n.t("mc.not_an_id_b740"), why, parent=self)
                 return
             self.result_id = clean
             self.cancelled = False
@@ -11968,7 +12890,28 @@ class _SourceManualEntryDialog(_DialogBase):               ### NEW v0.16.0 ###
 
 def _files_written_label(nfo_path, xml_path):                   ### NEW v0.19.2 B48 ###
     """'NFO', 'XML' or 'NFO and XML' — the files an ID write really touched."""
-    return " and ".join(n for n, p in (("NFO", nfo_path), ("XML", xml_path)) if p) or "no file"
+    return (_i18n.t("au.and").join(n for n, p in (("NFO", nfo_path), ("XML", xml_path)) if p)   # v0.20.0 AU23
+            or _i18n.t("au.no_file"))
+
+
+def _search_sources_write_quiet(app, row_data, tmdb_id, imdb_id):   ### NEW v0.20.0 RV4 — Tk thread ###
+    """Apply in Search Sources when its window was closed during the IMDb lookup: the same backup and write, the
+    result in the status bar (an error in a message box)."""
+    nfo_path, xml_path = _metadata_targets(row_data)[0], _metadata_targets(row_data)[1]
+    movie = row_data.get("movie_name", row_data.get("subfolder", "?"))
+    if not (nfo_path or xml_path):
+        return
+    with _sc.backup_action("Search Sources"):
+        _bk_ok = _backup_ok(movie, nfo_path, xml_path)
+    if not _bk_ok:
+        messagebox.showerror(_i18n.t("mc.apply_failed_78d2"), _i18n.t("mc.backup_failed_nothing_was_f386", movie=movie), parent=app)
+        return
+    ok, err = _write_both_source_ids(nfo_path, xml_path, imdb_id, tmdb_id)
+    app._schedule_refresh([row_data["subfolder_path"]])
+    if not ok:
+        messagebox.showerror(_i18n.t("mc.apply_failed_78d2"), f"{movie}\n{err}", parent=app)
+    else:
+        flash_status(app, _i18n.t("mc.applied_733d") + f": {movie}")
 
 
 class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 ###
@@ -12000,7 +12943,7 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
         self._data_list  = data_list    # parallel list of row dicts from scan
         self._photo_refs = []           # keep tk PhotoImage refs alive
 
-        self.title("Search Sources — Results")
+        self.title(_i18n.t("mc.search_sources_results_e18d"))
         self.configure(bg=self._C_BG)
         self.geometry("920x680")
         self.minsize(760, 480)
@@ -12008,10 +12951,10 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
 
         # ── Header ────────────────────────────────────────────────────────────
         hf = tk.Frame(self, bg=self._C_BG); hf.pack(fill="x", padx=16, pady=(12,4))
-        tk.Label(hf, text="Search Sources — Results",
+        tk.Label(hf, text=_i18n.t("mc.search_sources_results_e18d"),
                  font=("Helvetica", 13, "bold"),
                  bg=self._C_BG, fg=self._C_TXT).pack(side="left")
-        tk.Label(hf, text=f"{_n(len(results), 'movie')}  ·  click Apply to write IDs",
+        tk.Label(hf, text=_i18n.t("mc.click_apply_to_write_fbc2", n=_n(len(results), 'movie')),
                  font=("Helvetica", 9), bg=self._C_BG, fg=self._C_DIM).pack(
                  side="left", padx=12)
 
@@ -12045,13 +12988,13 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
         if len(self._results) > 1 and self._not_found:                 ### NEW v0.19.2 B30 — All Movies ###
             n = len(self._not_found)
             self._empty_all_btn = tk.Button(
-                bf, text=f"  Write empty ID tags for the {n} movie{'s' if n != 1 else ''} not found  ",
+                bf, text=_i18n.t("mc.write_empty_id_tags_f7d0", movies=_n(n, "movie")),
                 bg=C_PEACH, fg=C_BG, command=lambda: self._write_empty_tags(list(self._not_found)),
                 **self._BTN)
             self._empty_all_btn.pack(side="left", padx=6)
-        tk.Button(bf, text="  Export to TXT  ", bg=self._C_BLU, fg=C_BG,
+        tk.Button(bf, text=_i18n.t("mc.export_to_txt_60e9"), bg=self._C_BLU, fg=C_BG,
                   command=self._export_txt, **self._BTN).pack(side="left", padx=6)
-        tk.Button(bf, text="  Close  ", bg=self._C_GRN, fg=C_BG,
+        tk.Button(bf, text=_i18n.t("mc.close_cbdd"), bg=self._C_GRN, fg=C_BG,
                   command=self.destroy, **self._BTN).pack(side="left", padx=6)
 
         self.update_idletasks()
@@ -12083,12 +13026,12 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
                      font=("Helvetica", 10, "bold"),
                      bg=self._C_HDR, fg=self._C_BLU,
                      anchor="w").pack(side="left", padx=8, pady=5)
-            tk.Button(hrow, text="Enter ID…", bg=C_PEACH, fg=C_BG,          ### NEW v0.19.1 ###
+            tk.Button(hrow, text=_i18n.t("mc.enter_id_f6d7"), bg=C_PEACH, fg=C_BG,          ### NEW v0.19.1 ###
                       command=lambda rd=row_data, n=mn: self._enter_id(rd, n),
                       **self._BTN).pack(side="right", padx=8, pady=3)
             ### NEW v0.19.1 B14 — the IDs the files hold right now ###
             cur = entry.get("current") or {"imdb": existing_imdb, "tmdb": existing_tmdb}
-            cur_txt = f"Current: IMDb {cur.get('imdb') or '—'} · TMDB {cur.get('tmdb') or '—'}"
+            cur_txt = _i18n.t("uf.current_imdb_tmdb_6543", v=cur.get('imdb') or '—', v2=cur.get('tmdb') or '—')
             self._labels.append(cur_txt)
             tk.Label(hrow, text=cur_txt, font=("Consolas", 9), bg=self._C_HDR,
                      fg=self._C_YEL).pack(side="right", padx=8)
@@ -12100,10 +13043,10 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
             matches = entry.get("matches", [])
             if not matches:
                 nf = tk.Frame(self._inner, bg=self._C_ROW); nf.pack(fill="x", padx=2, pady=1)
-                _nr = ("   No other results found on TMDB (title search)" if pinned   ### MODIFIED v0.19.1 B14 ###
-                       else "   No results found on TMDB")
+                _nr = (_i18n.t("uf.no_other_results_found_c3cd") if pinned   ### MODIFIED v0.19.1 B14 ###
+                       else _i18n.t("uf.no_results_found_on_9203"))
                 if entry.get("search_error"):                               ### NEW v0.19.1 B22 ###
-                    _nr = "   TMDB did not answer — " + entry["search_error"].replace("\n", " ")
+                    _nr = _i18n.t("uf.tmdb_did_not_answer_bfe2") + entry["search_error"].replace("\n", " ")
                 self._labels.append(_nr.strip())
                 tk.Label(nf, text=_nr,
                          font=("Helvetica", 9, "italic"),
@@ -12112,7 +13055,7 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
                 ### NEW v0.19.2 B30 — nothing found (and TMDb did answer): placeholders ###
                 if not pinned and not entry.get("search_error") and (row_data.get("nfo_exists") or row_data.get("xml_exists")):
                     self._not_found.append(row_data)
-                    b = tk.Button(nf, text="Write empty ID tags", bg=C_PEACH, fg=C_BG,
+                    b = tk.Button(nf, text=_i18n.t("mc.write_empty_id_tags_52d8"), bg=C_PEACH, fg=C_BG,
                                   command=lambda rd=row_data: self._write_empty_tags([rd]), **self._BTN)
                     b.pack(side="right", padx=8, pady=3)
                     self._empty_btns[mn] = b
@@ -12170,32 +13113,32 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
 
                 # Open IMDB
                 if imdb_id:
-                    tk.Button(btn_frame, text="Open IMDb",
+                    tk.Button(btn_frame, text=_i18n.t("mc.open_imdb_7aa0"),
                               bg=self._C_YEL, fg=C_BG, width=10,
                               command=lambda iid=imdb_id:
                                   open_url_with_browser(
                                       f"https://www.imdb.com/title/{iid}"),
                               **self._BTN).pack(side="left", padx=(0,3))
                 else:
-                    tk.Button(btn_frame, text="Open IMDb",
+                    tk.Button(btn_frame, text=_i18n.t("mc.open_imdb_7aa0"),
                               bg=self._C_SEP, fg=self._C_DIM, width=10,
                               state="disabled", **self._BTN).pack(side="left", padx=(0,3))
 
                 # Open TMDB
                 if tmdb_id:
-                    tk.Button(btn_frame, text="Open TMDB",
+                    tk.Button(btn_frame, text=_i18n.t("mc.open_tmdb_e9ab"),
                               bg="#01b4e4", fg=C_BG, width=10,
                               command=lambda tid=tmdb_id:
                                   open_url_with_browser(
                                       f"https://www.themoviedb.org/movie/{tid}"),
                               **self._BTN).pack(side="left", padx=(0,6))
                 else:
-                    tk.Button(btn_frame, text="Open TMDB",
+                    tk.Button(btn_frame, text=_i18n.t("mc.open_tmdb_e9ab"),
                               bg=self._C_SEP, fg=self._C_DIM, width=10,
                               state="disabled", **self._BTN).pack(side="left", padx=(0,6))
 
                 # Apply
-                tk.Button(btn_frame, text="✓ Apply",
+                tk.Button(btn_frame, text=_i18n.t("mc.apply_73ee"),
                           bg=self._C_GRN, fg=C_BG, width=9,
                           command=lambda rd=row_data, tid=tmdb_id, iid=imdb_id:
                               self._apply(rd, tid, iid),
@@ -12204,7 +13147,7 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
         # Bottom padding + legend                             ### FIX v0.16.0 ###
         tk.Frame(self._inner, bg=self._C_BG, height=6).pack()
         tk.Label(self._inner,
-                 text="IMDb and TMDB IDs in yellow are the ones found in the .nfo/.xml file(s)",
+                 text=_i18n.t("mc.imdb_and_tmdb_ids_b647"),
                  font=("Helvetica", 8, "italic"),
                  bg=self._C_BG, fg=self._C_YEL).pack(pady=(2, 10))
 
@@ -12218,27 +13161,26 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
         btn_frame = tk.Frame(prow, bg=bg); btn_frame.pack(side="right", padx=6, pady=4)
         if cand and cand.get("imdb_only"):
             iid = cand["imdb_id"]
-            txt = f"IMDb {iid} — not on TMDB"
+            txt = _i18n.t("uf.imdb_not_on_tmdb_bd0c", iid=iid)
             if cand.get("title"):
                 txt += f" · {cand['title']} ({cand.get('year') or '?'})"
             fg = self._C_YEL
-            tk.Button(btn_frame, text="Open IMDb", bg=self._C_YEL, fg=C_BG, width=10,
+            tk.Button(btn_frame, text=_i18n.t("mc.open_imdb_7aa0"), bg=self._C_YEL, fg=C_BG, width=10,
                       command=lambda: open_url_with_browser(f"https://www.imdb.com/title/{iid}"),
                       **self._BTN).pack(side="left", padx=(0, 3))
-            b = tk.Button(btn_frame, text="✓ Confirm IMDb", bg=self._C_GRN, fg=C_BG, width=13,
+            b = tk.Button(btn_frame, text=_i18n.t("mc.confirm_imdb_1233"), bg=self._C_GRN, fg=C_BG, width=13,
                           command=lambda: self._confirm_imdb(row_data, iid, cand.get("title"), cand.get("year")),
                           **self._BTN)
             b.pack(side="left"); self._pinned_btns[mn] = ("Confirm IMDb", b)
         elif cand:
-            txt = (f"From your current {pinned['from']} ID:  {cand.get('title')}  ({cand.get('year') or '?'})"
-                   f"   TMDB: {cand.get('tmdb_id') or '—'}   IMDb: {cand.get('imdb_id') or '—'}")
+            txt = (_i18n.t("uf.from_your_current_id_47e9", from_=pinned['from'], get=cand.get('title'), v=cand.get('year') or '?', v2=cand.get('tmdb_id') or '—', v3=cand.get('imdb_id') or '—'))
             fg = self._C_TXT
-            b = tk.Button(btn_frame, text="✓ Apply", bg=self._C_GRN, fg=C_BG, width=9,
+            b = tk.Button(btn_frame, text=_i18n.t("mc.apply_73ee"), bg=self._C_GRN, fg=C_BG, width=9,
                           command=lambda: self._apply(row_data, cand.get("tmdb_id"), cand.get("imdb_id")),
                           **self._BTN)
             b.pack(side="left"); self._pinned_btns[mn] = ("Apply", b)
         else:
-            txt = f"Current {pinned.get('from')} ID: {pinned.get('msg') or 'lookup failed'}"
+            txt = _i18n.t("au.current_id", src=pinned.get('from'), msg=pinned.get('msg') or _i18n.t("au.lookup_failed"))
             fg = self._C_RED
         self._labels.append(txt)
         tk.Label(prow, text=" ★ ", font=("Consolas", 9, "bold"), bg=bg, fg=self._C_YEL,
@@ -12252,10 +13194,8 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
         id_check so Verify IDs / Auto Repair stop proposing a TMDb search."""
         _old_tm = (row_data.get("source_tmdb_val") or "").strip()      ### NEW v0.19.4 P3 (C4) ###
         if _old_tm:
-            messagebox.showwarning("Confirm IMDb only",
-                f"{row_data.get('movie_name') or row_data.get('subfolder', '?')}\n\nThe files still hold TMDB ID {_old_tm}, "
-                "which TMDB does not have. Remove it from the NFO and XML first (Edit NFO), then confirm again — "
-                "otherwise the next Verify IDs reports it again.", parent=self)
+            messagebox.showwarning(_i18n.t("mc.confirm_imdb_only_3ead"),
+                _i18n.t("mc.the_files_still_hold_03ae", v=row_data.get('movie_name') or row_data.get('subfolder', '?'), old_tm=_old_tm), parent=self)
             return
         if not self._apply(row_data, None, imdb_id, close=False, quiet=True):
             return
@@ -12266,11 +13206,10 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
             if r.get("subfolder_path") == row_data.get("subfolder_path"):
                 r["id_check"] = chk
         movie = row_data.get("movie_name", row_data.get("subfolder", "?"))
-        _nfo48 = row_data.get("nfo_path") if row_data.get("nfo_exists") else None
-        _xml48 = row_data.get("xml_path") if row_data.get("xml_exists") else None
-        messagebox.showinfo("Confirmed",
-            f"{movie}\nIMDb: {imdb_id}\nTMDb: — (not on TMDB; empty tags left to fill)\n"
-            f"Written to {_files_written_label(_nfo48, _xml48)}.", parent=self)   ### MODIFIED v0.19.2 B48 ###
+        _nfo48 = _metadata_targets(row_data)[0]   # v0.20.0 F3b
+        _xml48 = _metadata_targets(row_data)[1]   # v0.20.0 F3b
+        messagebox.showinfo(_i18n.t("mc.confirmed_205b"),
+            _i18n.t("mc.imdb_tmdb_not_on_9064", movie=movie, imdb_id=imdb_id, files_written_label=_files_written_label(_nfo48, _xml48)), parent=self)   ### MODIFIED v0.19.2 B48 ###
         self.destroy()
 
     def _write_empty_tags(self, rows):                             ### NEW v0.19.2 B30 ###
@@ -12283,12 +13222,12 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
         if not rows:
             return
         app = self._parent_app
-        prog = _BatchProgressDialog(self, "Writing empty ID tags…", total=len(rows)) \
+        prog = _BatchProgressDialog(self, _i18n.t("uf.writing_empty_id_tags_3852"), total=len(rows)) \
                if len(rows) >= _PROGRESS_MIN else None
 
         def _one(rd, ref):
-            nfo = rd.get("nfo_path") if rd.get("nfo_exists") else None
-            xml = rd.get("xml_path") if rd.get("xml_exists") else None
+            nfo = _metadata_targets(rd)[0]   # v0.20.0 F3b
+            xml = _metadata_targets(rd)[1]   # v0.20.0 F3b
             name = rd.get("movie_name") or rd.get("subfolder", "?")
             if not empty_id_tags_needed(nfo, xml):              ### NEW v0.19.4 B83 — nothing to add: no backup, not counted ###
                 return _EMPTY_TAGS_UNCHANGED
@@ -12322,23 +13261,22 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
                 app._schedule_refresh(done)
 
             def _fin():
-                msg = ((f"Empty ID tags written for {_n(len(done), 'movie')} — fill them in the NFO / XML, "
-                        f"or run Search Sources again later.") if done else "No empty ID tags were written.")   # C20
+                msg = ((_i18n.t("mc.empty_id_tags_written_b614", n=_n(len(done), 'movie'))) if done else _i18n.t("mc.no_empty_id_tags_5cdd"))   # C20
                 if unchanged:                                    ### NEW v0.19.4 B83 ###
-                    msg += f"\n{_n(len(unchanged), 'movie')} already had the tags — not changed."
+                    msg += _i18n.t("mc.already_had_the_tags_5afa", n=_n(len(unchanged), 'movie'))
                 if errors:
-                    msg += "\n\nNot changed:\n" + "\n".join(errors[:8])
+                    msg += _i18n.t("mc.not_changed_2fc6", join="\n".join(errors[:8]))
                 try:
                     for rd in rows:
                         b = self._empty_btns.get(rd.get("movie_name") or rd.get("subfolder"))
                         if b is not None and rd["subfolder_path"] in done:
-                            b.configure(text="✓ Empty tags written", state="disabled")
+                            b.configure(text=_i18n.t("mc.empty_tags_written_ba22"), state="disabled")
                     if self._empty_all_btn is not None and len(rows) > 1:
                         self._empty_all_btn.configure(state="disabled")
                 except tk.TclError:
                     pass
                 (messagebox.showwarning if errors else messagebox.showinfo)(
-                    "Write empty ID tags", msg, parent=self if self.winfo_exists() else app)
+                    _i18n.t("uf.write_empty_id_tags_52d8"), msg, parent=self if self.winfo_exists() else app)
             ui_post(_fin)
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -12354,33 +13292,54 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
         elif dlg.result:
             self._apply(row_data, dlg.result.get("tmdb_id"), dlg.result.get("imdb_id"))
 
-    def _apply(self, row_data, tmdb_id, imdb_id, close=True, quiet=False):   ### MODIFIED v0.19.1 B14 — close/quiet for Confirm IMDb ###
+    def _apply(self, row_data, tmdb_id, imdb_id, close=True, quiet=False, _looked=False):   ### MODIFIED v0.19.1 B14 — close/quiet for Confirm IMDb ###
         """Write both IDs to NFO/XML then re-validate the row silently.
         Returns True when written."""
-        nfo_path = row_data.get("nfo_path") if row_data.get("nfo_exists") else None
-        xml_path = row_data.get("xml_path") if row_data.get("xml_exists") else None
+        nfo_path = _metadata_targets(row_data)[0]   # v0.20.0 F3b
+        xml_path = _metadata_targets(row_data)[1]   # v0.20.0 F3b
         movie    = row_data.get("movie_name", row_data.get("subfolder", "?"))
 
         if not nfo_path and not xml_path:
-            messagebox.showwarning("Apply",
-                f"{movie}\nNo NFO or XML file found — nothing to write.", parent=self)   ### MODIFIED v0.19.2 B48 — parent ###
+            messagebox.showwarning(_i18n.t("mc.apply_9639"),
+                _i18n.t("mc.no_nfo_or_xml_c8bc", movie=movie), parent=self)   ### MODIFIED v0.19.2 B48 — parent ###
             return False
-        if tmdb_id and not imdb_id:                                   ### NEW v0.19.4 (C10) — not asked during the search ###
-            try:
-                imdb_id = _tmdb_external_ids(tmdb_id, SETTINGS.get("tmdb_api_key", "").strip()) or None
-            except Exception:
-                imdb_id = None
+        _lk = self.__dict__.setdefault("_looking", set())          # v0.20.0 RV4: a second click while looking up
+        if tmdb_id and not imdb_id and not _looked and row_data.get("subfolder_path") in _lk:
+            return False
+        if tmdb_id and not imdb_id and not _looked:                   ### NEW v0.19.4 (C10) — not asked during the search ###
+            ### MODIFIED v0.20.0 AU11 (pre-build audit) ### the lookup runs in a worker: on the Tk thread a slow or
+            # down TMDB froze the window for up to a minute (retries); Apply continues when it answers
+            def _look():
+                try:
+                    found = _tmdb_external_ids(tmdb_id, SETTINGS.get("tmdb_api_key", "").strip()) or None
+                except Exception:
+                    found = None
+
+                def _go():
+                    _lk.discard(row_data.get("subfolder_path"))
+                    try:
+                        alive = bool(self.winfo_exists())
+                    except tk.TclError:
+                        alive = False
+                    if alive:
+                        self._apply(row_data, tmdb_id, found, close, quiet, _looked=True)
+                    else:                                         # v0.20.0 RV4: closed meanwhile — still written
+                        _search_sources_write_quiet(self._parent_app, row_data, tmdb_id, found)
+                ui_post(_go)
+            _lk.add(row_data.get("subfolder_path"))
+            threading.Thread(target=_look, daemon=True, name="search-sources-ext-ids").start()
+            return False
 
         with _sc.backup_action("Search Sources"):                   ### NEW v0.19.1 I1 ###
             _bk_ok = _backup_ok(movie, nfo_path, xml_path)          ### MODIFIED v0.19.2 B40 ###
         if not _bk_ok:
-            messagebox.showerror("Apply Failed", f"{movie}\nBackup failed — nothing was changed "
-                                 f"(see logs\\app.log).", parent=self)                    ### MODIFIED v0.19.2 B48 ###
+            messagebox.showerror(_i18n.t("mc.apply_failed_78d2"), _i18n.t("mc.backup_failed_nothing_was_f386", movie=movie), parent=self)                    ### MODIFIED v0.19.2 B48 ###
             return False
 
         ok, err = _write_both_source_ids(nfo_path, xml_path, imdb_id, tmdb_id)
         if not ok:
-            messagebox.showerror("Apply Failed", f"{movie}\n{err}", parent=self)   ### MODIFIED v0.19.2 B48 ###
+            self._parent_app._schedule_refresh([row_data["subfolder_path"]])   # v0.20.0 AU11: one file may have changed
+            messagebox.showerror(_i18n.t("mc.apply_failed_78d2"), f"{movie}\n{err}", parent=self)   ### MODIFIED v0.19.2 B48 ###
             return False
 
         # Re-validate silently
@@ -12390,46 +13349,42 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
             return True
         _old_im = (row_data.get("source_imdb_val") or "").strip()      ### NEW v0.19.4 P3 (C3) ###
         _im_line = (f"IMDb: {imdb_id}" if imdb_id else
-                    (f"IMDb: {_old_im} — NOT changed: TMDB has no IMDb link for this film; check that ID" if _old_im
+                    (_i18n.t("uf.imdb_not_changed_tmdb_bf06", old_im=_old_im) if _old_im
                      else "IMDb: —"))
-        messagebox.showinfo("Applied",
-            f"{movie}\n"
-            f"TMDB: {tmdb_id or '—'}\n"
-            f"{_im_line}\n"
-            f"Written to {_files_written_label(nfo_path, xml_path)}.", parent=self)   ### MODIFIED v0.19.2 B48 ###
+        messagebox.showinfo(_i18n.t("mc.applied_733d"),
+            _i18n.t("mc.tmdb_written_to_2d79", movie=movie, v=tmdb_id or '—', im_line=_im_line, files_written_label=_files_written_label(nfo_path, xml_path)), parent=self)   ### MODIFIED v0.19.2 B48 ###
         if close and len(self._results or []) <= 1:   ### MODIFIED v0.19.4 P7 (C1) — several movies: the window stays ###
             self.destroy()   ### FIX v0.16.0 — close the results dialog after apply ###
         return True
 
     def _export_txt(self):
         p = filedialog.asksaveasfilename(
-            title="Export Search Results",
+            title=_i18n.t("mc.export_search_results_84dd"),
             defaultextension=".txt",
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
             initialfile="search_sources_results.txt")
         if not p: return
         try:
             with open(p, "w", encoding="utf-8") as f:
-                f.write("MediaClinic — Search Sources Results\n")
+                f.write(_i18n.t("uf.mediaclinic_search_sources_results_156d"))
                 f.write("=" * 60 + "\n\n")
                 for entry in self._results:
                     mn  = entry["movie_name"]; yr = entry.get("year", "")
                     f.write(f"{mn} ({yr})\n" if yr and yr != "-" else f"{mn}\n")
                     cur = entry.get("current") or {}                   ### NEW v0.19.1 B14 ###
                     if cur:
-                        f.write(f"  Current: IMDb {cur.get('imdb') or '—'} · TMDB {cur.get('tmdb') or '—'}\n")
+                        f.write(_i18n.t("uf.current_imdb_tmdb_03ab", v=cur.get('imdb') or '—', v2=cur.get('tmdb') or '—'))
                     pc = (entry.get("pinned") or {}).get("cand")
                     if pc and pc.get("imdb_only"):
-                        f.write(f"  [Current]  IMDb {pc['imdb_id']} — not on TMDB"
+                        f.write(_i18n.t("uf.current_imdb_not_on_eca7", imdb_id=pc['imdb_id'])
                                 + (f" · {pc['title']} ({pc.get('year') or '?'})" if pc.get("title") else "") + "\n")
                     elif pc:
-                        f.write(f"  [Current]  TMDB: {pc.get('tmdb_id')}  IMDb: {pc.get('imdb_id') or '—'}  "
-                                f"{pc.get('title')} ({pc.get('year')})\n")
+                        f.write(_i18n.t("uf.current_tmdb_imdb_8a02", get=pc.get('tmdb_id'), v=pc.get('imdb_id') or '—', get2=pc.get('title'), get3=pc.get('year')))
                     matches = entry.get("matches", [])
                     if not matches and entry.get("search_error"):           ### NEW v0.19.1 B22 ###
-                        f.write("  TMDB did not answer — " + entry["search_error"].replace("\n", " ") + "\n")
+                        f.write(_i18n.t("uf.tmdb_did_not_answer_ff68") + entry["search_error"].replace("\n", " ") + "\n")
                     elif not matches:
-                        f.write("  No results found.\n")
+                        f.write(_i18n.t("uf.no_results_found_b625"))
                     else:
                         for i, m in enumerate(matches):
                             tag = "[Best]" if i == 0 else f"[#{i+1}]  "
@@ -12437,9 +13392,9 @@ class _SearchSourcesResultDialog(_DialogBase):             ### REBUILT v0.16.0 #
                                     f"IMDb: {m.get('imdb_id','—')}  "
                                     f"{m.get('title','')} ({m.get('year','')})\n")
                     f.write("\n")
-            saved_offer_open(self, "Export Complete", p)                 ### MODIFIED v0.19.2 B48 — parent; v0.19.4 B109b ###
+            saved_offer_open(self, _i18n.t("au.export_done"), p)                 ### MODIFIED v0.19.2 B48 — parent; v0.19.4 B109b ###
         except Exception as e:
-            messagebox.showerror("Export Failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("mc.export_failed_12d2"), str(e), parent=self)
 
 
 def _friendly_ratio(w, h):                                 ### NEW v0.16.0 ###
@@ -12460,7 +13415,7 @@ def _friendly_ratio(w, h):                                 ### NEW v0.16.0 ###
         (3/2,    "3:2"),    # photo
         (16/10,  "16:10"),  # widescreen monitor
         (16/9,   "16:9"),   # standard widescreen fanart
-        (16/8,   "16:8"),   # alternate wide
+        # v0.20.0: no "16:8" here — 16/8 = 2.0 is 2:1 (below); the ~1.50 fanart option is 3:2 (above)
         (17/9,   "17:9"),
         (21/9,   "21:9"),   # ultrawide
         (2/1,    "2:1"),
@@ -12536,6 +13491,8 @@ _AR_LABELS = {
     "ids_resolve": "Resolve conflicting IMDb/TMDB IDs with TMDB",
     "ids_search":  "Look up IMDb/TMDB IDs on TMDB (exact title + year applies automatically, otherwise ask)",
     "ids_partial": "Copy the IMDb/TMDB ID to the other file",
+    "ids_kodi":    "Add <uniqueid> for the IDs Kodi cannot read (keeps <imdbid> / <tmdbid>)",   ### NEW v0.20.0 KR1.1 ###
+    "xml_tags":    "Add the movie.xml tags the old programs read (<IMDbId>, <TMDbId>, <VoteCount>)",   ### NEW v0.20.0 KR1.4 ###
     "ratings":     "Sync rating and votes online (TMDB/OMDb)",
     "genres":      "Normalize genres and sync them between NFO and XML (custom genres kept)",
     "genres_tmdb": "Fill genres from TMDB (verified TMDB ID required)",
@@ -12578,6 +13535,10 @@ def _auto_repair_plan(row, settings=None, rules=None):
         plan.append(("ids_search", _AR_LABELS["ids_search"]))
     if partial and not conflict:
         plan.append(("ids_partial", _AR_LABELS["ids_partial"]))
+    if on("id_not_kodi") and row.get("nfo_exists") and row.get("nfo_kodi_id_missing") and not conflict:   ### NEW v0.20.0 KR1.1 ###
+        plan.append(("ids_kodi", _AR_LABELS["ids_kodi"]))
+    if on("xml_tags_old_readers") and row.get("xml_exists") and row.get("xml_reader_gaps") and not conflict:   ### NEW v0.20.0 KR1.4 ###
+        plan.append(("xml_tags", _AR_LABELS["xml_tags"]))
     rs, vs = row.get("rating_status"), row.get("votes_status")
     rv = row.get("rating_value")
     thr = rules.get("suspicious_rating_threshold", 1.0)
@@ -12595,7 +13556,7 @@ def _auto_repair_plan(row, settings=None, rules=None):
         plan.append(("genres", _AR_LABELS["genres"]))
     if gs == STATUS_ERROR and on("genre_missing") and (row.get("nfo_exists") or row.get("xml_exists")):
         plan.append(("genres_tmdb", _AR_LABELS["genres_tmdb"]))
-    if row.get("movie_year_raw") is None and on("missing_movie_year") and (row.get("nfo_exists") or row.get("xml_exists")):
+    if year_is_missing(row) and on("missing_movie_year") and (row.get("nfo_exists") or row.get("xml_exists")):   # KR1.2
         plan.append(("year_tmdb", _AR_LABELS["year_tmdb"]))
     if on("missing_movie_title"):
         nt, xt = (row.get("nfo_title") or "").strip(), (row.get("xml_localtitle") or "").strip()
@@ -12623,33 +13584,33 @@ def format_auto_repair_summary(entries, dry_run=False):
     ns = sum(1 for e in entries if e.get("skipped") and not e.get("fixed"))
     nfail = sum(1 for e in entries if e.get("failing"))
     nerr = sum(1 for e in entries if e.get("failed"))                 # P7 (C16)
-    L = [("Auto Repair — DRY RUN (nothing was written)" if dry_run else "Auto Repair — Summary") + f"  —  {_n(n, 'movie')}",
-         f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", "=" * 60, ""]
+    L = [(_i18n.t("uf.auto_repair_dry_run_5b2e") if dry_run else _i18n.t("uf.auto_repair_summary_d5d2")) + f"  —  {_n(n, 'movie')}",
+         _i18n.t("rp.generated_8af8", strftime=datetime.datetime.now().strftime('%Y-%m-%d %H:%M')), "=" * 60, ""]
     if dry_run:
-        L.append(f"  {_n(sum(1 for e in entries if e.get('planned')), 'movie', '5d')} with planned actions")   # v0.19.4 B105
+        L.append(_i18n.t("rp.with_planned_actions_38c8", n=_n(sum(1 for e in entries if e.get('planned')), 'movie', '5d')))   # v0.19.4 B105
     else:
-        L += [f"  {_n(nf, 'movie', '5d')} fixed (at least one action applied)",   # v0.19.4 B105
-              f"  {_n(ns, 'movie', '5d')} skipped only",
-              f"  {_n(nfail, 'movie', '5d')} still with health issues"]
+        L += [_i18n.t("rp.fixed_at_least_one_61b3", n=_n(nf, 'movie', '5d')),   # v0.19.4 B105
+              _i18n.t("rp.skipped_only_0e05", n=_n(ns, 'movie', '5d')),
+              _i18n.t("rp.still_with_health_issues_e1f9", n=_n(nfail, 'movie', '5d'))]
         if nerr:                                                    # P7 (C16): failures are not hidden
-            L.append(f"  {_n(nerr, 'movie', '5d')} with FAILED actions (see ✕ below)")
+            L.append(_i18n.t("rp.with_failed_actions_see_7984", n=_n(nerr, 'movie', '5d')))
     L.append("")
     for e in entries:
         head = f"\U0001f4c1  {e.get('name', '?')}"
         if dry_run:
             L.append(head)
-            for a in e.get("planned") or ["(nothing to repair automatically)"]:
+            for a in e.get("planned") or [_i18n.t("uf.nothing_to_repair_automatically_c79c")]:
                 L.append(f"     \u2022 {a}")
         else:
-            tag = ("FIXED" if e.get("fixed") else ("FAILED" if e.get("failed") else
-                   ("SKIPPED" if e.get("skipped") else "NO ACTION")))     # P7 (C16)
+            tag = (_i18n.t("rp.fixed_c6e6") if e.get("fixed") else (_i18n.t("rp.failed_b9e1") if e.get("failed") else
+                   (_i18n.t("rp.skipped_203e") if e.get("skipped") else _i18n.t("rp.no_action_eb41"))))     # P7 (C16)
             if e.get("failing"):
-                tag += " / STILL FAILING"
+                tag += _i18n.t("rp.still_failing_027b")
             L.append(f"{head}   [{tag}]")
             for a in e.get("fixed", []):   L.append(f"     \u2713 {a}")
-            for a in e.get("skipped", []): L.append(f"     \u2013 skipped: {a}")
-            for a in e.get("failed", []):  L.append(f"     \u2715 failed: {a}")
-            for a in e.get("failing", []): L.append(f"     ! still: {a}")
+            for a in e.get("skipped", []): L.append(_i18n.t("rp.skipped_e44d", a=a))
+            for a in e.get("failed", []):  L.append(_i18n.t("rp.failed_27a9", a=a))
+            for a in e.get("failing", []): L.append(_i18n.t("rp.still_36a5", a=a))
         L.append("")
     return "\n".join(L)
 
@@ -12665,7 +13626,7 @@ class _IdVerifyReportDialog(_DialogBase):                       ### NEW v0.19.0 
         super().__init__(parent)
         self._app  = parent
         self._rows = list(rows)
-        self.title("Verify IMDb/TMDB IDs — Results")
+        self.title(_i18n.t("mc.verify_imdb_tmdb_ids_ef5d"))
         self.configure(bg=C_BG)
         self.geometry("1240x620")
         self.minsize(820, 400)
@@ -12675,7 +13636,7 @@ class _IdVerifyReportDialog(_DialogBase):                       ### NEW v0.19.0 
 
         cnt = collections.Counter((r.get("id_check") or {}).get("result", "?") for r in rows)
         summary = "   ".join(f"{k}: {cnt[k]}" for k in ID_RESULTS if cnt.get(k))
-        tk.Label(self, text=f"{_n(len(rows), 'movie')} checked     {summary}",
+        tk.Label(self, text=_i18n.t("mc.checked_b5c0", n=_n(len(rows), 'movie'), summary=summary),
                  bg=C_BG, fg=C_TEXT, font=("Helvetica", 10, "bold"),
                  anchor="w").pack(fill="x", padx=16, pady=(12, 4))
 
@@ -12683,7 +13644,7 @@ class _IdVerifyReportDialog(_DialogBase):                       ### NEW v0.19.0 
         cols = [c[0] for c in self._COLS]
         self._tree = ttk.Treeview(fr, columns=cols, show="headings", selectmode="browse")
         for cid, label, width in self._COLS:
-            self._tree.heading(cid, text=label, command=lambda c=cid: self._sort_by(c))
+            self._tree.heading(cid, text=_i18n.t("hd.idv." + cid), command=lambda c=cid: self._sort_by(c))   # v0.20.0 UI1e
             self._tree.column(cid, width=width, anchor="w", stretch=(cid == "detail"))
         vsb = ttk.Scrollbar(fr, orient="vertical", command=self._tree.yview)
         hsb = ttk.Scrollbar(fr, orient="horizontal", command=self._tree.xview)
@@ -12698,14 +13659,14 @@ class _IdVerifyReportDialog(_DialogBase):                       ### NEW v0.19.0 
         self._tree.bind("<Double-1>", lambda e: self._fix())
 
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(4, 12))
-        self._fix_btn = tk.Button(bf, text="  Fix…  ", font=("Helvetica", 10, "bold"),
+        self._fix_btn = tk.Button(bf, text=_i18n.t("mc.fix_2aff"), font=("Helvetica", 10, "bold"),
                                   bg=C_PEACH, fg=C_BG, relief="flat", cursor="hand2",
                                   state="disabled", command=self._fix)
         self._fix_btn.pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  💾 Save…  ", font=("Helvetica", 10, "bold"),
+        tk.Button(bf, text=_i18n.t("mc.save_9c48"), font=("Helvetica", 10, "bold"),
                   bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
                   command=self._save).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Close  ", font=("Helvetica", 10, "bold"),
+        tk.Button(bf, text=_i18n.t("mc.close_cbdd"), font=("Helvetica", 10, "bold"),
                   bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   command=self.destroy).pack(side="left")
         self.bind("<Escape>", lambda e: self.destroy())
@@ -12751,7 +13712,7 @@ class _IdVerifyReportDialog(_DialogBase):                       ### NEW v0.19.0 
             self._iid_rows[iid] = r
         for cid, label, _w in self._COLS:
             mark = ("  ▼" if self._sort_rev else "  ▲") if cid == self._sort_col else ""
-            self._tree.heading(cid, text=label + mark)
+            self._tree.heading(cid, text=_i18n.t("hd.idv." + cid) + mark)   # v0.20.0 UI1e
         self._update_fix_state()
 
     def _sort_by(self, col):
@@ -12792,22 +13753,22 @@ class _IdVerifyReportDialog(_DialogBase):                       ### NEW v0.19.0 
 
     def _save(self):
         p = filedialog.asksaveasfilename(
-            parent=self, title="Save verification results", defaultextension=".txt",
+            parent=self, title=_i18n.t("mc.save_verification_results_be00"), defaultextension=".txt",
             filetypes=[("Text report", "*.txt"), ("CSV", "*.csv"), ("All", "*.*")],
             initialfile=f"id_verification_{datetime.datetime.now().strftime('%Y-%m-%d')}.txt")
         if not p:
             return
         try:
             self.save_to(p)
-            messagebox.showinfo("Saved", f"Results saved to:\n{p}", parent=self)
+            messagebox.showinfo(_i18n.t("mc.saved_2483"), _i18n.t("mc.results_saved_to_9932", p=p), parent=self)
         except Exception as e:
-            messagebox.showerror("Save failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("mc.save_failed_e32a"), str(e), parent=self)
 
     def save_to(self, path):
         if path.lower().endswith(".csv"):
             with open(path, "w", newline="", encoding="utf-8-sig") as f:
                 w = csv.writer(f, lineterminator="\r\n")
-                w.writerow([c[1] for c in self._COLS] + ["Folder"])
+                w.writerow([_i18n.t("hd.idv." + c[0]) for c in self._COLS] + [_i18n.t("hd.idv.folder")])   # UI1e (UI-D2)
                 for r in sorted(self._rows, key=self._sort_key, reverse=self._sort_rev):
                     w.writerow(list(self._values(r)) + [r.get("subfolder_path", "")])
         else:
@@ -12828,18 +13789,18 @@ def clean_typed_id(id_type, text):                                ### NEW v0.19.
     "0133093" gets its "tt"; anything else is refused (it used to be written into the files as typed)."""
     t = (text or "").strip()
     if "imdb" in str(id_type).lower():
-        mt = re.search(r"tt\d{7,9}", t)
+        mt = re.search(r"(?<!\d)tt\d{7,9}(?!\d)", t)          # v0.20.0 AU22: a longer number is not cut to fit
         if mt:
             return mt.group(0), ""
         if re.fullmatch(r"\d{7,9}", t):
             return "tt" + t, ""
-        return None, f"'{t}' is not an IMDb ID (tt followed by 7–9 digits, e.g. tt0133093)."
+        return None, _i18n.t("uf.is_not_an_imdb_9690", t=t)
     mt = re.search(r"themoviedb\.org/movie/(\d+)", t)
     if mt:
         return mt.group(1), ""
-    if re.fullmatch(r"\d{1,9}", t):
-        return t, ""
-    return None, f"'{t}' is not a TMDB ID (digits only, e.g. 603)."
+    if re.fullmatch(r"\d{1,9}", t) and int(t) > 0:
+        return str(int(t)), ""                                   # v0.20.0 AU22: "0603" is 603 (it compared unequal)
+    return None, _i18n.t("uf.is_not_a_tmdb_b86c", t=t)
 
 
 def _omdb_title_year(imdb_id, omdb_key, omdb_fetch=None):      ### NEW v0.19.1 B14 ###
@@ -12868,13 +13829,24 @@ def lookup_typed_ids(imdb_id, tmdb_id, api_key, fetch=None, omdb_key=None, omdb_
     imdb_id = (imdb_id or "").strip()
     tmdb_id = (tmdb_id or "").strip()
     if not imdb_id and not tmdb_id:
-        return None, "Type an IMDb ID (tt…) and/or a TMDB ID."
+        return None, _i18n.t("uf.type_an_imdb_id_282f")
+    ### NEW v0.20.0 RD11 — page addresses and "0443649" are cleaned; a wrong IMDb ID next to a good TMDB ID is left out
+    # (the TMDB ID gives the right one) instead of stopping the lookup: the 10,000 BC report, '7840' in the IMDb box ###
+    _ignored = ""
+    _ci, _ = clean_typed_id("imdb", imdb_id) if imdb_id else ("", "")
+    _ct, _ = clean_typed_id("tmdb", tmdb_id) if tmdb_id else ("", "")
+    if tmdb_id and _ct:
+        tmdb_id = _ct
+    if imdb_id and _ci:
+        imdb_id = _ci
+    elif imdb_id and tmdb_id and _ct:
+        _ignored, imdb_id = imdb_id, ""
     if imdb_id and not _IMDB_ID_RE.match(imdb_id):
-        return None, f"'{imdb_id}' is not an IMDb ID (expected tt followed by 7–9 digits)."
+        return None, _i18n.t("uf.is_not_an_imdb_285d", imdb_id=imdb_id)
     if tmdb_id and not tmdb_id.isdigit():
-        return None, f"'{tmdb_id}' is not a TMDB ID (digits only)."
+        return None, _i18n.t("uf.is_not_a_tmdb_7303", tmdb_id=tmdb_id)
     if not api_key:
-        return None, "No TMDB API key configured (Settings → API Keys)."
+        return None, _i18n.t("uf.no_tmdb_api_key_807b")
     try:
         if not tmdb_id:
             fr = _tmdb_find_imdb(imdb_id, api_key, fetch)
@@ -12883,23 +13855,25 @@ def lookup_typed_ids(imdb_id, tmdb_id, api_key, fetch=None, omdb_key=None, omdb_
                 cand = {"tmdb_id": "", "imdb_id": imdb_id, "title": t, "original_title": "",
                         "year": y, "poster_path": "", "exact": False, "overview": "",
                         "imdb_only": True}
-                return cand, "Not on TMDB — IMDb only"
+                return cand, _i18n.t("uf.not_on_tmdb_imdb_67ac")
             tmdb_id = str(fr[0].get("id"))
         data = fetch(f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={api_key}"
                      f"&append_to_response=external_ids")
     except Exception as ex:
         if _is_http_404(ex):
-            return None, f"TMDB {tmdb_id} does not exist."
+            return None, _i18n.t("uf.tmdb_does_not_exist_0d20", tmdb_id=tmdb_id)
         return None, _tmdb_error_message(ex)
     ext_imdb = ((data.get("external_ids") or {}).get("imdb_id") or data.get("imdb_id") or "").strip()
     if imdb_id and ext_imdb and ext_imdb != imdb_id:
-        return None, (f"These IDs point to different films: TMDB {tmdb_id} is "
-                      f"'{data.get('title')}' with IMDb {ext_imdb}, not {imdb_id}.")
+        return None, (_i18n.t("uf.these_ids_point_to_fc9f", tmdb_id=tmdb_id, get=data.get('title'), ext_imdb=ext_imdb, imdb_id=imdb_id))
     cand = {"tmdb_id": str(data.get("id") or tmdb_id), "imdb_id": imdb_id or ext_imdb,
             "title": data.get("title") or "", "original_title": data.get("original_title") or "",
             "year": (data.get("release_date") or "")[:4], "poster_path": data.get("poster_path") or "",
             "exact": False, "overview": (data.get("overview") or "")[:200]}
-    return cand, f"Found: {cand['title']} ({cand['year'] or '?'})"
+    if _ignored:                                                  # v0.20.0 RD11
+        cand["ignored_imdb"] = _ignored
+        return cand, _i18n.t("rd11.imdb_ignored", v=_ignored, imdb=cand["imdb_id"] or "—")
+    return cand, _i18n.t("au.found_film", title=cand['title'], year=cand['year'] or '?')
 
 
 def _date_text(val, near=None):                                  ### NEW v0.19.3 B63 ###
@@ -12928,6 +13902,23 @@ def _date_text(val, near=None):                                  ### NEW v0.19.3
     if not (1900 <= y <= 2100 and 1 <= mo <= 12 and 1 <= d <= 31):
         return None
     return f"{y:04d}-{mo:02d}-{d:02d}"
+
+
+def premiered_year(nfo_path):                                     ### NEW v0.20.0 KR1.2 ###
+    """The year of the NFO's <premiered> ('2001'), or None.  Kodi v20+ shows <premiered> and falls back to <year>."""
+    if not nfo_path:
+        return None
+    try:
+        root = _parse_root(nfo_path)                             # cached: no second read of the file
+        p = _date_text(root.findtext("premiered")) if root is not None else ""
+        return p[:4] if p and re.fullmatch(r"\d{4}", p[:4]) else None
+    except Exception:
+        return None
+
+
+def year_is_missing(row):                                         ### NEW v0.20.0 KR1.2 ###
+    """'Missing movie year': no <year> / <ProductionYear> AND no <premiered> date (the rule and Auto Repair's plan)."""
+    return row.get("movie_year_raw") is None and not row.get("nfo_premiered_year")
 
 
 def year_premiered_diff(nfo_path):                                ### NEW v0.19.5 B126 ###
@@ -13184,13 +14175,13 @@ class _EnterIdDialog(_DialogBase):                              ### NEW v0.19.1 
         self.result = None
         self._cand = None
         self._photo = None
-        self.title("Enter IMDb / TMDB ID")
+        self.title(_i18n.t("mc.enter_imdb_tmdb_id_731e"))
         self.configure(bg=C_BG)
         self.transient(parent); _modal(self)
         self.resizable(False, False)
         tk.Label(self, text=movie_name, bg=C_BG, fg=C_ACCENT,
                  font=("Helvetica", 11, "bold"), wraplength=520).pack(padx=18, pady=(14, 2))
-        tk.Label(self, text="Type the IMDb ID (tt…) and/or the TMDB ID of the right film, then Look up.",
+        tk.Label(self, text=_i18n.t("mc.type_the_imdb_id_7897"),
                  bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(padx=18, pady=(0, 8))
         g = tk.Frame(self, bg=C_BG); g.pack(padx=18)
         self._imdb_var = tk.StringVar(value=imdb or "")
@@ -13200,7 +14191,7 @@ class _EnterIdDialog(_DialogBase):                              ### NEW v0.19.1 
                      width=9, anchor="e").grid(row=r, column=0, padx=(0, 6), pady=3)
             tk.Entry(g, textvariable=var, width=18, font=("Consolas", 11), bg=C_SURFACE, fg=C_TEXT,
                      insertbackground=C_TEXT, relief="flat").grid(row=r, column=1, pady=3)
-        tk.Button(g, text="  Look up  ", bg=C_ACCENT, fg=C_BG, relief="flat", cursor="hand2",
+        tk.Button(g, text=_i18n.t("mc.look_up_884c"), bg=C_ACCENT, fg=C_BG, relief="flat", cursor="hand2",
                   font=("Helvetica", 9, "bold"), command=self.lookup).grid(row=0, column=2, rowspan=2, padx=(10, 0))
         res = tk.Frame(self, bg=C_ROW_ALT); res.pack(fill="x", padx=18, pady=(10, 4))
         self._thumb = tk.Label(res, bg=C_SURFACE, width=10, height=7); self._thumb.pack(side="left", padx=6, pady=6)
@@ -13208,11 +14199,11 @@ class _EnterIdDialog(_DialogBase):                              ### NEW v0.19.1 
                               justify="left", anchor="w", wraplength=380)
         self._info.pack(side="left", fill="x", expand=True, padx=6)
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(8, 14))
-        self._apply_btn = tk.Button(bf, text="  Apply  ", bg=C_OK, fg=C_BG, relief="flat",
+        self._apply_btn = tk.Button(bf, text=_i18n.t("mc.apply_7d6b"), bg=C_OK, fg=C_BG, relief="flat",
                                     cursor="hand2", font=("Helvetica", 10, "bold"), state="disabled",
                                     command=self._apply)
         self._apply_btn.pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self.destroy).pack(side="left")
         self.bind("<Return>", lambda e: self._apply() if self._cand else self.lookup())
         for _v in (self._imdb_var, self._tmdb_var):                  ### NEW v0.19.4 P3 (C7) — a typed change drops the result ###
@@ -13232,7 +14223,7 @@ class _EnterIdDialog(_DialogBase):                              ### NEW v0.19.1 
             self._cand = None
             try:
                 self._apply_btn.configure(state="disabled")
-                self._info.configure(text="Changed — press Look up (or Enter).", fg=C_SUBTEXT)
+                self._info.configure(text=_i18n.t("mc.changed_press_look_up_1b49"), fg=C_SUBTEXT)
             except (AttributeError, tk.TclError):
                 pass
 
@@ -13243,7 +14234,7 @@ class _EnterIdDialog(_DialogBase):                              ### NEW v0.19.1 
         okey = SETTINGS.get("omdb_api_key", "").strip()                  ### NEW v0.19.1 B14 ###
         self._cand = None
         self._apply_btn.configure(state="disabled")
-        self._info.configure(text="Looking up…", fg=C_SUBTEXT)
+        self._info.configure(text=_i18n.t("mc.looking_up_b11c"), fg=C_SUBTEXT)
         def _work():
             cand, msg = lookup_typed_ids(im, tm, key, fetch, omdb_key=okey,
                                          omdb_fetch=getattr(self, "_omdb_fetch", None))
@@ -13257,17 +14248,19 @@ class _EnterIdDialog(_DialogBase):                              ### NEW v0.19.1 
                     return
                 self._cand = cand
                 if cand and cand.get("imdb_only"):                       ### NEW v0.19.1 B14 ###
-                    txt = f"Not on TMDB — IMDb only\nIMDb {cand['imdb_id']}"
+                    txt = _i18n.t("uf.not_on_tmdb_imdb_0126", imdb_id=cand['imdb_id'])
                     if cand["title"]:
                         txt += f"\nOMDb: {cand['title']}  ({cand['year'] or '?'})"
-                    txt += "\nApply writes the IMDb ID and leaves the TMDB tags empty."
+                    txt += _i18n.t("uf.apply_writes_the_imdb_13c4")
                     self._info.configure(text=txt, fg=C_WARN)
                     self._apply_btn.configure(state="normal")
                 elif cand:
                     txt = f"{cand['title']}  ({cand['year'] or '?'})"
                     if cand["original_title"] and cand["original_title"] != cand["title"]:
-                        txt += f"\nOriginal title: {cand['original_title']}"
+                        txt += "\n" + _i18n.t("mc.original_title_08fb", original_title=cand['original_title'])
                     txt += f"\nTMDb {cand['tmdb_id']}    IMDb {cand['imdb_id'] or '—'}"
+                    if cand.get("ignored_imdb"):                         # v0.20.0 RD11
+                        txt += "\n" + msg
                     self._info.configure(text=txt, fg=C_TEXT)
                     self._apply_btn.configure(state="normal")
                     if cand.get("poster_path") and _PIL_AVAILABLE and not sync:
@@ -13321,7 +14314,7 @@ class _IdChooserDialog(_DialogBase):                            ### NEW v0.19.0 
         self.skip_all = False
         self._cands = list(candidates)
         self._photos = []
-        self.title("Choose the TMDB entry")
+        self.title(_i18n.t("mc.choose_the_tmdb_entry_23f9"))
         self.configure(bg=C_BG)
         self.transient(parent); _modal(self)
         self.resizable(True, True)
@@ -13331,7 +14324,7 @@ class _IdChooserDialog(_DialogBase):                            ### NEW v0.19.0 
         tk.Label(self, text=f"{movie_name}" + (f"  ({local_year})" if local_year else ""),
                  bg=C_BG, fg=C_ACCENT, font=("Helvetica", 11, "bold"),
                  wraplength=760).pack(padx=16, pady=(14, 2))
-        tk.Label(self, text="No exact title + year match on TMDB. Select the right film, or skip this movie.",
+        tk.Label(self, text=_i18n.t("mc.no_exact_title_year_29c7"),
                  bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(padx=16, pady=(0, 8))
 
         outer = tk.Frame(self, bg=C_BG); outer.pack(fill="both", expand=True, padx=14)
@@ -13346,18 +14339,23 @@ class _IdChooserDialog(_DialogBase):                            ### NEW v0.19.0 
 
         self._var = tk.IntVar(value=-1)
         self._thumb_labels = {}
+        self._row_frames = {}                                         # v0.20.0 RD11
         for i, c in enumerate(self._cands):
-            row = tk.Frame(inner, bg=C_ROW_ALT); row.pack(fill="x", pady=2, padx=2)
-            tk.Radiobutton(row, variable=self._var, value=i, bg=C_ROW_ALT, selectcolor=C_BG,
-                           activebackground=C_ROW_ALT).pack(side="left", padx=(6, 4))
+            row = tk.Frame(inner, bg=C_ROW_ALT, highlightthickness=2, highlightbackground=C_ROW_ALT,
+                           highlightcolor=C_ROW_ALT, cursor="hand2")   # v0.20.0 RD11: the chosen row gets a border
+            row.pack(fill="x", pady=2, padx=2)
+            self._row_frames[i] = row
+            ### MODIFIED v0.20.0 RD11 — the dot was black on the dark background (no fg): "you can't select the movie" ###
+            tk.Radiobutton(row, variable=self._var, value=i, bg=C_ROW_ALT, fg=C_TEXT, selectcolor=C_SURFACE,
+                           activebackground=C_ROW_ALT, activeforeground=C_TEXT).pack(side="left", padx=(6, 4))
             th = tk.Label(row, text="", bg=C_SURFACE, width=12, height=8)
             th.pack(side="left", padx=(0, 8), pady=4)
             self._thumb_labels[i] = th
             txt = tk.Frame(row, bg=C_ROW_ALT); txt.pack(side="left", fill="x", expand=True)
-            tk.Label(txt, text=f"{c.get('title') or '?'}  ({c.get('year') or '?'})" + ("   ← exact match" if c.get("exact") else ""),
+            tk.Label(txt, text=f"{c.get('title') or '?'}  ({c.get('year') or '?'})" + (_i18n.t("m3.exact") if c.get("exact") else ""),
                      bg=C_ROW_ALT, fg=C_TEXT, font=("Helvetica", 10, "bold"), anchor="w").pack(fill="x")
             if c.get("original_title") and c.get("original_title") != c.get("title"):
-                tk.Label(txt, text=f"Original title: {c['original_title']}", bg=C_ROW_ALT, fg=C_SUBTEXT,
+                tk.Label(txt, text=_i18n.t("mc.original_title_08fb", original_title=c['original_title']), bg=C_ROW_ALT, fg=C_SUBTEXT,
                          font=("Helvetica", 9), anchor="w").pack(fill="x")
             tk.Label(txt, text=f"TMDB {c.get('tmdb_id') or '—'}    IMDb {c.get('imdb_id') or '—'}",
                      bg=C_ROW_ALT, fg=C_DIM, font=("Consolas", 9), anchor="w").pack(fill="x")
@@ -13365,24 +14363,34 @@ class _IdChooserDialog(_DialogBase):                            ### NEW v0.19.0 
                 tk.Label(txt, text=c["overview"], bg=C_ROW_ALT, fg=C_DIM, font=("Helvetica", 8),
                          anchor="w", justify="left", wraplength=520).pack(fill="x")
         row = tk.Frame(inner, bg=C_ROW_ALT); row.pack(fill="x", pady=(6, 2), padx=2)
-        tk.Radiobutton(row, variable=self._var, value=-1, text="None / skip this movie",
+        tk.Radiobutton(row, variable=self._var, value=-1, text=_i18n.t("mc.none_skip_this_movie_81ba"),
                        bg=C_ROW_ALT, fg=C_ERR, selectcolor=C_BG, activebackground=C_ROW_ALT,
                        font=("Helvetica", 10, "bold")).pack(side="left", padx=6, pady=6)
+        ### NEW v0.20.0 RD11 — a click anywhere on a movie's row chooses it; a double-click chooses and applies ###
+        def _bind_all(w, i):
+            if not isinstance(w, tk.Radiobutton):
+                w.bind("<Button-1>", lambda e, i=i: self._choose(i), add="+")
+            w.bind("<Double-Button-1>", lambda e, i=i: self._choose(i, True), add="+")
+            for ch in w.winfo_children():
+                _bind_all(ch, i)
+        for i, row in self._row_frames.items():
+            _bind_all(row, i)
+        self._var.trace_add("write", lambda *_a: self._mark_chosen())
         if preselect is not None and 0 <= preselect < len(self._cands):
             self._var.set(preselect)
 
         self._skip_all_var = tk.BooleanVar(value=False)
         if show_apply_all:
-            tk.Checkbutton(self, text="Apply this choice to all remaining movies (skip every movie without an exact match)",
+            tk.Checkbutton(self, text=_i18n.t("mc.apply_this_choice_to_f461"),
                            variable=self._skip_all_var, bg=C_BG, fg=C_TEXT,
                            activebackground=C_BG, selectcolor=C_SURFACE,
                            font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(8, 0))
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(10, 14))
-        tk.Button(bf, text="  Apply  ", bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.apply_7d6b"), bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"), command=self._apply).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Skip  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.skip_1908"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self._skip).pack(side="left")
-        tk.Button(bf, text="  Enter ID…  ", bg=C_PEACH, fg=C_BG, relief="flat", cursor="hand2",   ### NEW v0.19.1 ###
+        tk.Button(bf, text=_i18n.t("mc.enter_id_b0bc"), bg=C_PEACH, fg=C_BG, relief="flat", cursor="hand2",   ### NEW v0.19.1 ###
                   font=("Helvetica", 10, "bold"), command=self._enter_id).pack(side="left", padx=(8, 0))
         self.bind("<Escape>", lambda e: self._skip())
         self.bind("<Return>", lambda e: self._apply())
@@ -13422,6 +14430,20 @@ class _IdChooserDialog(_DialogBase):                            ### NEW v0.19.0 
                 ui_post(_set)
             except Exception:
                 continue
+
+    def _choose(self, i, apply=False):                            ### NEW v0.20.0 RD11 — a click / double-click on a row ###
+        self._var.set(i)
+        if apply:
+            self._apply()
+
+    def _mark_chosen(self):                                       ### NEW v0.20.0 RD11 ###
+        try:
+            cur = self._var.get()
+            for i, row in self._row_frames.items():
+                col = C_OK if i == cur else C_ROW_ALT
+                row.configure(highlightbackground=col, highlightcolor=col)
+        except tk.TclError:
+            pass
 
     def _apply(self):
         i = self._var.get()
@@ -13501,10 +14523,14 @@ def carry_after_rescan(r, d):                                    ### NEW v0.19.4
 def carry_id_check(row, prior):                                  ### NEW v0.19.4 B90 ###
     """The online ID check of the previous row stays while the movie's IDs
     are the same (it was lost on every scan)."""
-    if (prior and prior.get("id_check") and not row.get("id_check")
-            and (prior.get("source_imdb_val") or None) == (row.get("source_imdb_val") or None)
-            and (prior.get("source_tmdb_val") or None) == (row.get("source_tmdb_val") or None)):
-        row["id_check"] = prior["id_check"]
+    _chk = (prior or {}).get("id_check")
+    _new = ((row.get("source_imdb_val") or None), (row.get("source_tmdb_val") or None))
+    if (_chk and not row.get("id_check")
+            and (((prior.get("source_imdb_val") or None), (prior.get("source_tmdb_val") or None)) == _new
+                 ### NEW v0.20.0 AU11 (pre-build audit) ### or the check was made FOR the IDs now in the files: Auto
+                 # Repair / Search Sources set it right after writing new IDs, and the rescan dropped it
+                 or (isinstance(_chk, dict) and ((_chk.get("imdb_id") or None), (_chk.get("tmdb_id") or None)) == _new))):
+        row["id_check"] = _chk
     carry_collection_data(row, prior)                           ### NEW v0.19.4 B110b ###
     return row
 
@@ -13608,39 +14634,46 @@ def no_collection_set(rows, marked):                             ### NEW v0.19.4
     for r in rows:
         mark_coll_none(r)
     return _sc.save_no_collection(NO_COLL["movies"])
-CHECK_COLL_LABEL = "🗂  Check Collections Online — All Movies…"     ### NEW v0.19.4 B110b ###
+CHECK_COLL_LABEL = _label_const("CHECK_COLL_LABEL", "🗂", "act.check_collections_all")     ### NEW v0.19.4 B110b ###
 
 
 def collection_check_ready(row):                                 ### NEW v0.19.4 B110b ###
     """(True, None) or (False, why): a movie needs a TMDB ID that Verify IDs did not flag."""
     if not (row.get("source_tmdb_val") or "").strip():
-        return False, "no TMDB ID"
+        return False, _i18n.t("uf.no_tmdb_id_325e")
     res = (row.get("id_check") or {}).get("result")
     if res and res not in ID_GOOD and res != ID_NONE:
-        return False, "the TMDB ID was flagged by Verify IDs"
+        return False, _i18n.t("uf.the_tmdb_id_was_8614")
     return True, None
 
 
 SCAN_BUSY_TEXT = "A scan is running. Wait for it to finish or cancel it."   ### NEW v0.19.4 B91 ###
-NO_SCAN_TEXT = "Run a scan first."                                ### NEW v0.19.4 I17 ###
+NO_SCAN_TEXT = _i18n.t("hint.no_scan")                          ### NEW v0.19.4 I17; v0.20.0 UI1c ###
 
 
-def merge_unfinished_rows(rows, prior_rows):                     ### NEW v0.19.4 B84 ###
+def merge_unfinished_rows(rows, prior_rows, keep_unlisted=False):   ### NEW v0.19.4 B84 ###
     """Rows of a Full Scan that was cancelled or crashed (or a row whose last
     phase failed): a row the scan did not finish (scan_mtime None) is replaced
     by the previous row of that folder; a new folder keeps its unfinished row,
-    whose missing scan time makes the next Quick Scan scan it."""
+    whose missing scan time makes the next Quick Scan scan it.
+    ### NEW v0.20.0 AU9 (pre-build audit) ### keep_unlisted=True (a save WHILE the scan runs: closing the app, the
+    throttled saves): the previous rows the scan has not reached yet are kept too — closing during the listing
+    phase saved only the other libraries' rows, and the scanned libraries' cache was lost."""
     prev = {_pkey(r["subfolder_path"]): r for r in prior_rows if r.get("subfolder_path")}
-    out = []
+    out, seen = [], set()
     for r in rows:
+        k = _pkey(r.get("subfolder_path") or "")
+        seen.add(k)
         if r.get("scan_mtime") is None:
-            out.append(prev.get(_pkey(r.get("subfolder_path") or ""), r))
+            out.append(prev.get(k, r))
         else:
             out.append(r)
+    if keep_unlisted:
+        out += [r for k, r in prev.items() if k not in seen]
     return out
 
 
-_CTX_COUNT_RE = re.compile(r"(\s+—\s+\d+(?:\s+of\s+\d+)?(?:\s+[\w-]+)*|\s+\(\d+\))$")   ### NEW v0.19.4 B101 ###
+_CTX_COUNT_RE = re.compile(r"(\s+—\s+\d[\d.,]*(?:\s+(?:of|de)\s+\d[\d.,]*)?(?:\s+[\w-]+)*|\s+\(\d+\))$")   ### NEW v0.19.4 B101; v0.20.0 UI1c PT / ES ###
 
 
 def ctx_action_key(label):                                       ### NEW v0.19.4 B101 ###
@@ -13650,7 +14683,7 @@ def ctx_action_key(label):                                       ### NEW v0.19.4
 
 
 UPDATE_FF_TEXT = "Update with FFprobe"                          ### NEW v0.19.4 B106 — the one wording ###
-UNDO_HINT = f"{menu_path('backup_history')} can put the changed files back."   # v0.19.4 I13
+UNDO_HINT = _i18n.t("hint.undo", path=menu_path("backup_history"))   # v0.19.4 I13; v0.20.0 UI1c (rebuilt by _i18n_refresh)
 HEADER_H = 64                                                    ### NEW v0.19.4 L1 — the app-wide header ###
 LIBRARY_KINDS = ("movies", "series")                             ### NEW v0.19.4 I19 — series preparation (F2, v0.22) ###
 
@@ -13669,7 +14702,7 @@ def library_kind(path):                                          ### NEW v0.19.4
 # scan the app asks once per library; "NFO only" switches the XML checks off
 # for that library alone.  A first step towards F3's library profiles.
 # rating_conflict stays on: an NFO's flat <rating> can differ from its own <ratings> (audit, 2026-11-13)
-NFO_ONLY_RULES_OFF = ("missing_xml", "corrupt_xml", "genre_only_in_xml", "genre_only_in_nfo",
+NFO_ONLY_RULES_OFF = ("missing_xml", "corrupt_xml", "xml_tags_old_readers", "genre_only_in_xml", "genre_only_in_nfo",
                       "votes_conflict", "imdb_id_partial", "tmdb_id_partial", "title_mismatch")   # v0.19.6 TR1c: + title_mismatch (= the Settings sections)
 NFO_ONLY_TITLE = "NFO-only library?"
 NFO_ONLY_ASK_AUTO = True          # the self-test turns the automatic question off (as IGNORED_REPORT_AUTO)
@@ -13680,7 +14713,7 @@ HEALTH_MODE_FOOT = ("Not sure? Click the first one.", f"Change it later: {HEALTH
 
 
 def health_mode(settings=None):                                  ### NEW v0.19.6 TR1b ###
-    """"nfo" (Kodi, Jellyfin, Emby, Plex, Infuse…), "nfo_xml" (+ movie.xml) or "xml" (movie.xml only)."""
+    """"nfo" (Kodi, Jellyfin, Emby, Infuse…; Plex reads no NFO), "nfo_xml" (+ movie.xml) or "xml" (movie.xml only)."""
     return health_mode_of(settings if settings is not None else SETTINGS)
 
 
@@ -13692,36 +14725,166 @@ def library_nfo_only(path, settings=None):
     return v if isinstance(v, bool) else None
 
 
+def library_programs(path, settings=None):                        ### NEW v0.20.0 F3a-2 ###
+    """The programs ticked for this library alone (Libraries… → Programs…), or None: as in Settings."""
+    m = (settings if settings is not None else SETTINGS).get("library_programs") or {}
+    if not m:
+        return None                                              # the usual case: no per-library choice (no path work)
+    v = m.get(_pkey(path)) if isinstance(m, dict) and path else None
+    return (_mp.clean_programs(v) or None) if isinstance(v, (list, tuple)) else None
+
+
+def media_programs(path=None, settings=None):                    ### NEW v0.20.0 F3a-2 ###
+    """The programs that play this library's movies: its own (Libraries… → Programs…), else the ones ticked in
+    Settings → Health Rules, without MediaBrowser / Media Center Master when the library is marked "NFO only"
+    (the user, 2026-11-16: the mark keeps its meaning).  () = nothing ticked: today's behaviour."""
+    s = settings if settings is not None else SETTINGS
+    own = library_programs(path, s) if path else None
+    if own:
+        return own
+    ps = _mp.clean_programs(s.get("media_programs") or ())
+    if path and library_nfo_only(path, s) is True:
+        ps = tuple(p for p in ps if p != "mb_mcm")
+    return ps
+
+
 def xml_in_use(path, settings=None):                              ### NEW v0.19.6 TR1 ###
     """movie.xml is read, checked and written for this library: Settings → NFO / XML → "Use movie.xml" is on and
-    the library is not marked NFO only.  Off: the scan ignores movie.xml (it is not read, not checked, not written)."""
+    the library is not marked NFO only.  Off: the scan ignores movie.xml (it is not read, not checked, not written).
+    ### MODIFIED v0.20.0 F3a-2 ### a library with its own programs follows them (they take over the "NFO only" mark)."""
     s = settings if settings is not None else SETTINGS
+    own = library_programs(path, s) if path else None
+    if own:
+        return _mp.health_mode_for(own) in ("xml", "nfo_xml")
     m = health_mode(s)                                           # v0.19.6 TR1b
     return m == "xml" or (m == "nfo_xml" and library_nfo_only(path, s) is not True)
 
 
 def nfo_in_use(path=None, settings=None):                        ### NEW v0.19.6 TR1b ###
-    """The NFO is read, checked and written: every health mode but "movie.xml only"."""
+    """The NFO is read, checked and written: every health mode but "movie.xml only".
+    ### MODIFIED v0.20.0 F3a-2 ### a library with its own programs follows them."""
+    own = library_programs(path, settings) if path else None
+    if own:
+        return _mp.health_mode_for(own) != "xml"
     return health_mode(settings) != "xml"
+
+
+def profile_write_names(row, settings=None):                     ### NEW v0.20.0 F3a-2 (used by F3c) ###
+    """{"nfo" / "poster" / "fanart": name pattern or None} a fix writes for this row's library; None = keep the
+    folder's own style (nothing ticked, or no single name serves every ticked program)."""
+    return _mp.write_names(media_programs(_lib_root_of(row), settings))
+
+
+def _metadata_targets(row, settings=None):                       ### NEW v0.20.0 F3b (plan Q6) ###
+    """(nfo_path, xml_path) a fix may write for this row: each one only when the file is on disk and in use for
+    the row's library (health mode, the library's "NFO only" mark), else None.  Every NFO / movie.xml writer takes
+    its files from here, so a row scanned in another health mode (its cached xml_exists still True) never gets a
+    file written that the mode does not use.  F3's profiles sit on the same two accessors."""
+    lib = _lib_root_of(row)
+    nfo = row.get("nfo_path") if row.get("nfo_exists") and nfo_in_use(lib, settings) else None
+    xml = row.get("xml_path") if row.get("xml_exists") and xml_in_use(lib, settings) else None
+    return nfo, xml
 
 
 # v0.19.6 TR1b — "movie.xml only" (MediaBrowser, Media Center Master): the NFO rules, the rules that compare the
 # two files, and the collections (they are read from the NFO) are off; rating and votes conflicts inside
 # movie.xml stay (the audit of 2026-11-13)
-XML_ONLY_RULES_OFF = ("missing_nfo", "corrupt_nfo", "nfo_name_not_kodi", "nfo_unescaped_amp", "multiple_nfo_files",
+XML_ONLY_RULES_OFF = ("missing_nfo", "corrupt_nfo", "nfo_name_not_kodi", "id_not_kodi", "nfo_unescaped_amp", "multiple_nfo_files",
+                      "nfo_online_art_links",                                       # v0.20.0 RD9
                       "genre_only_in_xml", "genre_only_in_nfo", "genre_nfo_wrong_tags", "year_premiered_differ",
                       "imdb_id_partial", "tmdb_id_partial", "title_mismatch", "collection_mismatch", "collection_artwork")
 
 
+# ### NEW v0.20.0 F3c ### the rules (and so the fixes) a set of ticked programs does not use (F3.5 item 8):
+# no folder.jpg (Infuse alone), no extra backdrops (Infuse alone), no <set> collections (Infuse, MediaBrowser / MCM),
+# and the Kodi-only NFO checks when neither Kodi nor Plex (the Kodi pack, 9f.11) is ticked.
+PROFILE_RULES_OFF = {
+    "folder": ("missing_folder", "folder_proportion", "poster_folder_identical", "corrupt_folder"),
+    "backdrops": ("insufficient_backdrops", "backdrop_too_small"),
+    "set": ("collection_mismatch", "collection_artwork"),
+    "kodi": ("nfo_name_not_kodi", "id_not_kodi"),
+}
+
+
+# ### NEW v0.20.0 6h ### Plex reads no NFO and no NFO collection (the Plex test of 2026-11-17): with ONLY Plex ticked
+# and the user's answer "off" (plex_nfo_checks, asked once in a pop-up), every check of the NFO's presence or
+# contents and the collection checks are off; artwork, video, image and duplicate checks stay.
+PLEX_NFO_RULES_OFF = XML_ONLY_RULES_OFF + (
+    "missing_imdb_id", "missing_tmdb_id", "corrupt_imdb_id", "corrupt_tmdb_id", "id_format_invalid",
+    "missing_movie_title", "missing_movie_year", "missing_rating", "missing_votes", "rating_warning", "votes_warning",
+    "suspicious_rating", "rating_conflict", "votes_conflict", "genre_missing", "genre_warning", "empty_required_tag",
+    "duplicate_single_tag", "numeric_field_invalid", "nfo_xml_too_large", "year_out_of_range", "folder_name_mismatch")
+
+
+def plex_only(programs):                                          ### NEW v0.20.0 6h ###
+    return _mp.clean_programs(programs) == ("plex",)
+
+
+def profile_rules_off(programs, settings=None):                    ### NEW v0.20.0 F3c ###
+    """The rule keys the ticked *programs* switch off (nothing ticked: none).
+    ### MODIFIED v0.20.0 6h ### only Plex + the answer "off": the NFO and collection checks too."""
+    ps = _mp.clean_programs(programs)
+    if not ps:
+        return ()
+    off = []
+    if plex_only(ps) and (settings if settings is not None else SETTINGS).get("plex_nfo_checks") == "off":
+        off += PLEX_NFO_RULES_OFF
+    for feat in ("folder", "backdrops", "set"):
+        if not _mp.uses(feat, ps):
+            off += PROFILE_RULES_OFF[feat]
+    if "kodi" not in ps:                     ### MODIFIED v0.20.0 KN2 (user 2026-11-17) — Plex reads no NFO: Kodi's own rules
+        off += PROFILE_RULES_OFF["kodi"]     # only when Kodi is ticked (Plex was in the "Kodi pack" before the test) ###
+    return tuple(dict.fromkeys(off))
+
+
 def effective_rules(row, rules, settings=None):                   ### NEW v0.19.6 TR1 ###
     """The health rules for this row: without movie.xml in use, the XML rules are off; without the NFO
-    in use (health mode "movie.xml only"), the NFO rules are off (health and Auto Repair alike)."""
+    in use (health mode "movie.xml only"), the NFO rules are off (health and Auto Repair alike).
+    ### MODIFIED v0.20.0 XB1 ### a file that is on disk but was not read (the row was scanned in another health
+    mode) counts as "not read yet", never as missing: its rules stay off until the folder is read again."""
     rules = rules or {}
-    if not xml_in_use(_lib_root_of(row), settings):
+    if not xml_in_use(_lib_root_of(row), settings) or _not_read_yet(row, "xml"):
         rules = dict(rules, **{k: False for k in NFO_ONLY_RULES_OFF})
-    if not nfo_in_use(_lib_root_of(row), settings):                 # v0.19.6 TR1b
+    if not nfo_in_use(_lib_root_of(row), settings) or _not_read_yet(row, "nfo"):   # v0.19.6 TR1b
         rules = dict(rules, **{k: False for k in XML_ONLY_RULES_OFF})
+    _poff = profile_rules_off(media_programs(_lib_root_of(row), settings), settings)   # v0.20.0 F3c / 6h
+    if _poff:
+        rules = dict(rules, **{k: False for k in _poff})
     return rules
+
+
+def _not_read_yet(row, kind):                                     ### NEW v0.20.0 XB1 ###
+    """True when the scan saw the file (<kind>_on_disk) but did not read it (<kind>_exists False): the health
+    mode or the library's NFO-only answer did not use it then.  Rows of versions before v0.19.6 have no
+    <kind>_on_disk and are not affected."""
+    return bool(row.get(f"{kind}_on_disk")) and not row.get(f"{kind}_exists")
+
+
+REREAD_QUICK_SCAN_AT = 30                                        # NEW v0.20.0 XB1: more folders → a Quick Scan
+
+
+def row_needs_reread(row, settings=None):                         ### NEW v0.20.0 XB1 ###
+    """The folder must be read again: a file the current health mode uses is on disk but was not read."""
+    lib = _lib_root_of(row)
+    return ((_not_read_yet(row, "xml") and xml_in_use(lib, settings))
+            or (_not_read_yet(row, "nfo") and nfo_in_use(lib, settings)))
+
+
+def library_active(path, settings=None):                        ### NEW v0.20.0 5j ###
+    """False when the user unticked this library in Libraries… (not scanned, its rows hidden and kept)."""
+    m = (settings if settings is not None else SETTINGS).get("library_inactive") or {}
+    return not (isinstance(m, dict) and path and m.get(_pkey(path)) is True)
+
+
+def set_library_active(path, value, settings=None):             ### NEW v0.20.0 5j ###
+    s = settings if settings is not None else SETTINGS
+    m = s.get("library_inactive")
+    m = dict(m) if isinstance(m, dict) else {}
+    if value:
+        m.pop(_pkey(path), None)
+    else:
+        m[_pkey(path)] = True
+    s["library_inactive"] = m
 
 
 def set_library_nfo_only(path, value, settings=None):
@@ -13751,11 +14914,9 @@ def nfo_only_candidates(results, libraries, offline=(), settings=None):
 
 def nfo_only_question_text(lib, n):
     """The body of the question (the user's mock-up of 2026-11-13)."""
-    head = (f"None of the {n:,} movies in\n      {lib}\nhas a movie.xml file." if n != 1 else
-            f"The movie in\n      {lib}\nhas no movie.xml file.")
-    return (head + "\n\n"
-            "Kodi, Jellyfin and Emby read the .nfo files. movie.xml is a legacy format: only\n"
-            "Emby's XML plugin reads it, and Media Center Master writes it.")
+    head = (_i18n.t("mc.none_of_the_movies_3582", n=_i18n.num(n), lib=lib) if n != 1 else
+            _i18n.t("mc.the_movie_in_has_4adc", lib=lib))
+    return (head + _i18n.t("uf.kodi_jellyfin_and_emby_f81e"))
 
 
 NFO_ONLY_CHOICES_TEXT = ("Yes: the XML checks are switched off for this library, so a missing movie.xml\n"
@@ -13776,12 +14937,12 @@ def flash_status(widget, text):                                  ### NEW v0.19.4
 
 
 def copied_text(text):                                          ### NEW v0.19.4 B109a ###
-    return f"Copied {_n(max(1, len(str(text).splitlines())), 'line')}"
+    return _i18n.tn("uf.m.copied_lines", max(1, len(str(text).splitlines())))      # v0.20.0 UI1f
 
 
 def saved_offer_open(parent, title, path, what="Saved to"):      ### NEW v0.19.4 B109b ###
     """'Saved to: <path> — Open it now?' (as Export Movie List does)."""
-    if messagebox.askyesno(title, f"{what}:\n{path}\n\nOpen it now?", parent=parent):
+    if messagebox.askyesno(title, _i18n.t("mc.open_it_now_4d51", what=what, path=path), parent=parent):
         os_open(path)
 
 
@@ -13792,7 +14953,7 @@ def all_movies_note(app):                                        ### NEW v0.19.4
         n, m = len(app._results), len(app.tree.get_children())
     except Exception:
         return ""
-    return f"This runs on all {_n(n, 'movie')} in all libraries (the filter shows {m})." if m != n else ""
+    return _i18n.t("uf.this_runs_on_all_09ad", n=_n(n, 'movie'), m=m) if m != n else ""
 
 
 class _AppJobThread(threading.Thread):                           ### NEW v0.19.4 P2 (E15) ###
@@ -13845,8 +15006,7 @@ class _BatchJob:                                                 ### NEW v0.19.3
         if not self.was_cancelled:
             return ""
         n = len(self.items)
-        return (f"\n\nCancelled after {self.processed} of {n}; "
-                f"{n - self.processed} left out (not changed).")
+        return (_i18n.t("uf.cancelled_after_of_left_cf3d", processed=self.processed, n=n, v=n - self.processed))
 
     def backup(self, name, *paths):
         return _batch_backup_ok(name, self.ref, *paths)
@@ -13855,6 +15015,7 @@ class _BatchJob:                                                 ### NEW v0.19.3
         return bool(self.prog and self.prog.cancelled)
 
     def _work(self, step, finish):
+        _ro0 = _sc.read_only_mark()                             ### NEW v0.20.0 RD1 ###
         for i, item in enumerate(self.items):
             if self.cancelled():
                 self.was_cancelled = True                       ### NEW v0.19.4 B83 ###
@@ -13875,7 +15036,25 @@ class _BatchJob:                                                 ### NEW v0.19.3
         if self.prog:
             self.prog.close()
         self.app._schedule_refresh(list(dict.fromkeys(self.changed)), need_ffprobe=False)
-        ui_post(lambda: finish(self))
+        self.read_only = _sc.read_only_since(_ro0)              ### NEW v0.20.0 RD1 ###
+        ui_post(lambda: (finish(self), self.offer_clear_read_only()))
+
+    def offer_clear_read_only(self):                            ### NEW v0.20.0 RD1 ###
+        """After the batch's own message: one question for every read-only file it met (Tk thread)."""
+        ro = list(getattr(self, "read_only", None) or [])
+        if not ro:
+            return None
+        n = len(ro)
+        shown = "\n".join(ro[:8]) + (_i18n.t("m3.and_more", n=n - 8) if n > 8 else "")
+        if not messagebox.askyesno(shown_action(self.label), _i18n.tn("m3.ro_ask", n, shown=shown, label=shown_action(self.label)),
+                                   parent=self.app):
+            return 0
+        ok = sum(1 for p in ro if _sc.clear_read_only(p))
+        bad = n - ok
+        messagebox.showinfo(shown_action(self.label), _i18n.tn("m3.ro_done", n, ok=ok)
+                            + (_i18n.t("m3.ro_bad", bad=bad) if bad else "")
+                            + _i18n.tn("m3.ro_again", n, label=shown_action(self.label)), parent=self.app)
+        return ok
 
     def run(self, step, finish):
         _AppJobThread(self.app, target=lambda: _with_backup_action(self.label, self._work, step, finish)).start()   # P2
@@ -13893,32 +15072,32 @@ class BackupHistoryDialog(_DialogBase):                          ### NEW v0.19.1
         super().__init__(parent)
         self._app = parent
         self._runs = []
-        self.title("Backup History / Undo")
+        self.title(_i18n.t("mc.backup_history_undo_53dc"))
         self.configure(bg=C_BG)
         self.transient(parent)
         self.geometry("880x560"); self.minsize(700, 420)
-        tk.Label(self, text="Each line is one run that changed files (a batch, or one action on one movie).",
+        tk.Label(self, text=_i18n.t("mc.each_line_is_one_302a"),
                  bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(anchor="w", padx=14, pady=(10, 4))
         top = tk.Frame(self, bg=C_BG); top.pack(fill="both", expand=True, padx=12)
         self._tree = ttk.Treeview(top, columns=[c for c, _l, _w in self._COLS], show="headings", height=10)
         for c, l, w in self._COLS:
-            self._tree.heading(c, text=l); self._tree.column(c, width=w, anchor="w")
+            self._tree.heading(c, text=_i18n.t("hd.bh." + c)); self._tree.column(c, width=w, anchor="w")   # v0.20.0 UI1e
         self._tree.pack(fill="both", expand=True)
         self._tree.bind("<<TreeviewSelect>>", lambda e: self._show_files())
-        tk.Label(self, text="Files of the selected run:", bg=C_BG, fg=C_TEXT,
+        tk.Label(self, text=_i18n.t("mc.files_of_the_selected_dcff"), bg=C_BG, fg=C_TEXT,
                  font=("Helvetica", 9, "bold")).pack(anchor="w", padx=14, pady=(8, 2))
         self._files = tk.Text(self, height=8, bg=C_ROW_ALT, fg=C_TEXT, font=("Consolas", 9), wrap="none")
         self._files.pack(fill="both", expand=False, padx=12)
-        self._status = tk.Label(self, text="Loading…", bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9))
+        self._status = tk.Label(self, text=_i18n.t("mc.loading_5f02"), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9))
         self._status.pack(anchor="w", padx=14, pady=(4, 0))
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(6, 12))
-        self._restore_btn = tk.Button(bf, text="  ↶ Restore this run  ", bg=C_PEACH, fg=C_BG,
+        self._restore_btn = tk.Button(bf, text=_i18n.t("mc.restore_this_run_fe79"), bg=C_PEACH, fg=C_BG,
                                       relief="flat", cursor="hand2", font=("Helvetica", 10, "bold"),
                                       state="disabled", command=self._restore)
         self._restore_btn.pack(side="left", padx=4)
-        tk.Button(bf, text="  Open Folder  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.open_folder_93ac"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self._open_folder).pack(side="left", padx=4)
-        tk.Button(bf, text="  Close  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.close_cbdd"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self.destroy).pack(side="left", padx=4)
         self.bind("<Escape>", lambda e: self.destroy())
         _remember_window(self, "BackupHistoryDialog", resizable=True)
@@ -13951,14 +15130,14 @@ class BackupHistoryDialog(_DialogBase):                          ### NEW v0.19.1
         for i, r in enumerate(runs):
             if r.get("removed"):                                        ### NEW v0.19.4 B75 ###
                 vals = (r["created"], r["action"], r.get("movies") or "—", r.get("n_files") or "—",
-                        f"removed by the size cleanup on {r['removed']}")
+                        _i18n.t("uf.removed_by_the_size_946b", removed=r['removed']))
             elif r["legacy"]:
-                vals = (r["created"], "(made before v0.19.1)", "—", r.get("n_files", "—"), "legacy (manual restore only)")
+                vals = (r["created"], _i18n.t("au.bh.legacy"), "—", r.get("n_files", "—"), _i18n.t("uf.legacy_manual_restore_only_e290"))
             else:
-                st = f"{len(r['changed'])} changed since" if r["changed"] else "ready"
+                st = _i18n.t("au.bh.changed", n=len(r['changed'])) if r["changed"] else _i18n.t("au.bh.ready")
                 vals = (r["created"], r["action"], r["movies"], len(r["files"]), st)
             self._tree.insert("", "end", iid=str(i), values=vals)
-        self._status.configure(text=f"{_n(len(runs), 'backup run')} in {_BACKUP_ROOT}")   # v0.19.4 B105
+        self._status.configure(text=_i18n.t("mc.in_a552", n=_n(len(runs), 'backup run'), backup_root=_BACKUP_ROOT))   # v0.19.4 B105
         if runs:
             self._tree.selection_set("0")
 
@@ -13972,17 +15151,15 @@ class BackupHistoryDialog(_DialogBase):                          ### NEW v0.19.1
         if not r:
             self._restore_btn.configure(state="disabled"); return
         if r.get("removed"):                                            ### NEW v0.19.4 B75 ###
-            self._files.insert("end", f"The automatic size cleanup removed this backup on {r['removed']}\n"
-                                      "(Settings → Backup → Maximum backup folder size). Nothing is left to restore.")
+            self._files.insert("end", _i18n.t("uf.the_automatic_size_cleanup_3ad8", removed=r['removed']))
             self._restore_btn.configure(state="disabled"); return
         if r["legacy"]:
-            self._files.insert("end", "This backup was made before v0.19.1 and has no manifest:\n"
-                                      "the files can only be copied back by hand (Open folder).")
+            self._files.insert("end", _i18n.t("uf.this_backup_was_made_c189"))
             self._restore_btn.configure(state="disabled"); return
         for f in r["files"]:
-            mark = "  ⚠ changed since the run" if f["original"] in r["changed"] else ""
+            mark = _i18n.t("uf.changed_since_the_run_be16") if f["original"] in r["changed"] else ""
             self._files.insert("end", f"{f['original']}   ({f['backup']}){mark}\n")
-        self._restore_btn.configure(state="normal")
+        self._restore_btn.configure(state="disabled" if getattr(self, "_restoring", False) else "normal")   # v0.20.0 AU12
 
     def _open_folder(self):
         r = self.selected_run()
@@ -13993,50 +15170,54 @@ class BackupHistoryDialog(_DialogBase):                          ### NEW v0.19.1
         """UI: files changed since the run → which to skip.  Returns a set, or
         None to cancel (tests replace this)."""
         ans = messagebox.askyesnocancel(
-            "Restore — files changed since the run",
-            f"{_n(len(changed), 'file')} {'was' if len(changed) == 1 else 'were'} changed after this run:\n\n"
+            _i18n.t("mc.restore_files_changed_since_ed96"),
+            _i18n.tn("m3.changed_after", len(changed), files=_n(len(changed), "file"))
             + "\n".join(os.path.basename(x) for x in changed[:12])
             + ("\n…" if len(changed) > 12 else "")
-            + "\n\nYes = restore them too (your later changes are backed up first)\n"
-              "No = skip these files\nCancel = do nothing", parent=self)
+            + _i18n.t("m3.cd_restore_choice"), parent=self)
         if ans is None:
             return None
         return set() if ans else set(changed)
 
     def _restore(self, sync=False):
         r = self.selected_run()
-        if not r or r["legacy"] or r.get("removed"):                    ### MODIFIED v0.19.4 B75 ###
-            return
+        if not r or r["legacy"] or r.get("removed") or getattr(self, "_restoring", False):   ### MODIFIED v0.19.4 B75 ###
+            return                                              # v0.20.0 AU12: one restore at a time
         skip = set()
         if r["changed"]:
             skip = self.ask_skip_changed(r["changed"])
             if skip is None:
                 return
         elif not sync and not messagebox.askyesno(
-                "Restore this run", f"Put back {_n(len(r['files']), 'file')} as they were before "
-                f"\"{r['action']}\" ({r['created']})?\n\nThe current files are backed up first.", parent=self):
+                _i18n.t("mc.restore_this_run_e863"), _i18n.t("mc.put_back_as_they_1ccd", n=_n(len(r['files']), 'file'), action=r['action'], created=r['created']), parent=self):
             return
-        self._restore_btn.configure(state="disabled", text="  Restoring…  ")
+        self._restore_btn.configure(state="disabled", text=_i18n.t("mc.restoring_b0d2"))
+        self._restoring = True                                   # v0.20.0 AU12: picking another run re-enabled the button
         def _work():
-            restored, errors, safety = _sc.restore_backup_run(_BACKUP_ROOT, r["folder"], skip, logger=logger)
+            try:
+                restored, errors, safety = _sc.restore_backup_run(_BACKUP_ROOT, r["folder"], skip, logger=logger)
+            except Exception as ex:                              # v0.20.0 AU12: never stuck at "Restoring…"
+                logger.error(f"Restore failed: {ex}")
+                restored, errors, safety = [], [str(ex)], None
             movie_dirs = sorted({os.path.dirname(x) for x in restored})
             self._app._schedule_refresh(movie_dirs, need_ffprobe=False)
             def _ui():
                 self.last_result = (restored, errors, safety)
+                self._restoring = False
                 try:
                     if self.winfo_exists():
-                        self._restore_btn.configure(text="  ↶ Restore this run  ")
+                        self._restore_btn.configure(text=_i18n.t("mc.restore_this_run_fe79"))
                         self.load()
                 except tk.TclError:
                     pass
-                msg = f"{_n(len(restored), 'file')} restored."
+                msg = _i18n.t("mc.restored_b4ac", n=_n(len(restored), 'file'))
                 if skip:
-                    msg += f"\n{_n(len(skip), 'changed file')} skipped."   # v0.19.4 B105
+                    msg += _i18n.t("mc.skipped_c4b6", n=_n(len(skip), 'changed file'))   # v0.19.4 B105
                 if safety:
-                    msg += f"\nThe files as they were before the undo are in:\n{safety}"
+                    msg += _i18n.t("mc.the_files_as_they_e084", safety=safety)
                 if errors:
-                    msg += "\n\nErrors:\n" + "\n".join(errors[:8])
-                messagebox.showinfo("Restore", msg, parent=self._app)
+                    msg += _i18n.t("mc.errors_83c4", join="\n".join(errors[:8]))
+                messagebox.showinfo(_i18n.t("mc.restore_2bd3"), msg, parent=self._app)
             if sync:
                 _ui()
             else:
@@ -14057,16 +15238,16 @@ class _PauseAskDialog(_DialogBase):                              ### NEW v0.19.1
             until = datetime.datetime.fromisoformat(entry["until"]).strftime("%H:%M")
         except Exception:
             until = "?"
-        self.text = (f"{label} is paused until about {until}.\n\n"
-                     f"{entry.get('message') or api_failure_message(service, entry.get('kind'))}")
-        self.title("Online service paused")
+        self.text = (_i18n.t("au.paused_until", label=label, until=until) + "\n\n"
+                     f"{api_failure_message(service, entry.get('kind')) if entry.get('kind') else entry.get('message') or ''}")
+        self.title(_i18n.t("mc.online_service_paused_593b"))
         self.configure(bg=C_BG); self.transient(parent); self.resizable(False, False)
         tk.Label(self, text=self.text, bg=C_BG, fg=C_WARN, font=("Helvetica", 10),
                  justify="left", wraplength=440).pack(padx=18, pady=(16, 10))
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(0, 14))
-        tk.Button(bf, text="  Try anyway  ", bg=C_PEACH, fg=C_BG, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.try_anyway_3bc4"), bg=C_PEACH, fg=C_BG, relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"), command=self._try).pack(side="left", padx=4)
-        tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self.destroy).pack(side="left", padx=4)
         self.bind("<Escape>", lambda e: self.destroy())
         _remember_window(self, "_PauseAskDialog", resizable=False)
@@ -14084,26 +15265,27 @@ class _ServiceFailureDialog(_DialogBase):                        ### NEW v0.19.1
         self.result = "continue"
         label = _SERVICE_LABEL.get(service, service)
         self.text = api_failure_message(service, kind)
-        self.title(f"{label} — not available")
+        self.title(_i18n.t("mc.not_available_409c", label=label))
         self.configure(bg=C_BG); self.transient(parent); self.resizable(False, False)
         _modal(self)                                             ### NEW v0.19.4 B98 — its buttons answer; the grab goes back ###
         tk.Label(self, text=self.text, bg=C_BG, fg=C_WARN, font=("Helvetica", 10),
                  justify="left", wraplength=460).pack(padx=18, pady=(16, 6))
-        tk.Label(self, text="This is asked once for this run.", bg=C_BG, fg=C_DIM,
+        tk.Label(self, text=_i18n.t("mc.this_is_asked_once_269e"), bg=C_BG, fg=C_DIM,
                  font=("Helvetica", 8)).pack(padx=18)
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(10, 14))
         self.buttons = {}
         secs = API_PAUSE_SECONDS.get(kind)
         if secs:
             until = (datetime.datetime.now() + datetime.timedelta(seconds=secs)).strftime("%H:%M")
-            self.buttons["pause"] = tk.Button(bf, text=f"  Pause this run (until about {until})  ",
+            self.buttons["pause"] = tk.Button(bf, text=_i18n.t("mc.pause_this_run_until_135e", until=until),
                                               bg=C_PEACH, fg=C_BG, relief="flat", cursor="hand2",
                                               font=("Helvetica", 9, "bold"), command=lambda: self._go("pause"))
-        cont = f"  Continue with {other_label}  " if other_label else f"  Continue without {label}  "
+        cont = "  " + (_i18n.t("uf.m.continue_with", other=other_label) if other_label   # v0.20.0 UI1f
+                       else _i18n.t("uf.m.continue_without", service=label)) + "  "
         self.buttons["continue"] = tk.Button(bf, text=cont, bg=C_OK, fg=C_BG, relief="flat",
                                              cursor="hand2", font=("Helvetica", 9, "bold"),
                                              command=lambda: self._go("continue"))
-        self.buttons["cancel"] = tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat",
+        self.buttons["cancel"] = tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT, relief="flat",
                                            cursor="hand2", font=("Helvetica", 9), command=lambda: self._go("cancel"))
         for b in self.buttons.values():
             b.pack(side="left", padx=4)
@@ -14124,14 +15306,13 @@ class _HardsubDialog(_DialogBase):                              ### NEW v0.19.1 
         self.result = None
         self._on_done = on_done
         n = len(movie_names)
-        self.title("Hard-coded subtitles")
+        self.title(_i18n.t("mc.hard_coded_subtitles_034f"))
         self.configure(bg=C_BG)
         self.transient(parent); self.resizable(False, False)
         head = movie_names[0] if n == 1 else f"{_n(n, 'movie')}"
         tk.Label(self, text=head, bg=C_BG, fg=C_ACCENT, font=("Helvetica", 11, "bold"),
                  wraplength=460).pack(padx=18, pady=(14, 2))
-        tk.Label(self, text="Tick the subtitle language(s) burned into the picture.\n"
-                            "They cannot be detected automatically, so you mark them here.",
+        tk.Label(self, text=_i18n.t("mc.tick_the_subtitle_language_fe64"),
                  bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9), justify="center").pack(padx=18, pady=(0, 8))
         cur = {c.upper() for c in current}
         known = [c for c, _lang_name in SUBTITLE_LANGUAGES]   # v0.19.4 B105: _n is the plurals helper
@@ -14143,7 +15324,7 @@ class _HardsubDialog(_DialogBase):                              ### NEW v0.19.1 
                            selectcolor=C_SURFACE, activebackground=C_BG, activeforeground=C_TEXT,
                            font=("Helvetica", 9), anchor="w", width=20).grid(row=i // 3, column=i % 3, sticky="w")
         of = tk.Frame(self, bg=C_BG); of.pack(padx=18, pady=(8, 0), fill="x")
-        tk.Label(of, text="Other… (ISO 639-2, e.g. CAT, HEB):", bg=C_BG, fg=C_TEXT,
+        tk.Label(of, text=_i18n.t("mc.other_iso_e_g_e3e7"), bg=C_BG, fg=C_TEXT,
                  font=("Helvetica", 9)).pack(side="left")
         self._other_var = tk.StringVar(value=", ".join(sorted(c for c in cur if c not in known)))
         tk.Entry(of, textvariable=self._other_var, width=18, font=("Consolas", 10), bg=C_SURFACE, fg=C_TEXT,
@@ -14151,15 +15332,15 @@ class _HardsubDialog(_DialogBase):                              ### NEW v0.19.1 
         self._msg = tk.Label(self, text="", bg=C_BG, fg=C_ERR, font=("Helvetica", 9))
         self._msg.pack(padx=18, pady=(4, 0))
         if n > 1:
-            tk.Label(self, text="Each selected movie gets exactly the ticked languages.",
+            tk.Label(self, text=_i18n.t("mc.each_selected_movie_gets_4e89"),
                      bg=C_BG, fg=C_WARN, font=("Helvetica", 9, "italic")).pack(padx=18)
-        tk.Label(self, text="Written as <tag>Hardsub POR</tag> (NFO) and <Tags><Tag>Hardsub POR</Tag></Tags> (XML).",
+        tk.Label(self, text=_i18n.t("mc.hs.written"),                       # v0.20.0 UI1e
                  bg=C_BG, fg=C_DIM, font=("Helvetica", 8)).pack(padx=18, pady=(4, 0))
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(10, 14))
-        for txt, bg, fg, cmd in (("  Apply  ", C_OK, C_BG, self._apply),
-                                 ("  None  ", C_PEACH, C_BG, self._none),
-                                 ("  Cancel  ", C_SURFACE2, C_TEXT, self.destroy)):
-            tk.Button(bf, text=txt, bg=bg, fg=fg, relief="flat", cursor="hand2",
+        for txt, bg, fg, cmd in ((_i18n.t("mc.hs.apply"), C_OK, C_BG, self._apply),       # v0.20.0 UI1e
+                                 (_i18n.t("mc.hs.none"), C_PEACH, C_BG, self._none),
+                                 (_i18n.t("mc.hs.cancel"), C_SURFACE2, C_TEXT, self.destroy)):
+            tk.Button(bf, text="  " + txt + "  ", bg=bg, fg=fg, relief="flat", cursor="hand2",
                       font=("Helvetica", 10, "bold"), command=cmd).pack(side="left", padx=4)
         self.bind("<Escape>", lambda e: self.destroy())
         self.update_idletasks()
@@ -14178,7 +15359,7 @@ class _HardsubDialog(_DialogBase):                              ### NEW v0.19.1 
             if not tok:
                 continue
             if not re.fullmatch(r"[A-Za-z]{3}", tok):
-                self._msg.configure(text=f"'{tok}' is not a 3-letter ISO 639-2 code.")
+                self._msg.configure(text=_i18n.t("mc.is_not_a_letter_449b", tok=tok))
                 return None
             codes.add(tok.upper())
         return sorted(codes)
@@ -14204,27 +15385,25 @@ def backdrop_count_message(local_n, online_n, source="TMDB", n=None):   ### NEW 
     how many will be downloaded: the n with the highest resolution."""
     if n is not None:
         n = max(0, min(int(n), online_n))
-        best = "the best one" if n == 1 else f"the {n} with the highest resolution"
-        head = f"You have {_n(local_n, 'backdrop')}. {source} offers {online_n}.\n"
+        best = _i18n.t("rp.the_best_one_874d") if n == 1 else _i18n.t("rp.the_with_the_highest_2183", n=n)
+        head = _i18n.t("mc.you_have_offers_523c", n=_n(local_n, 'backdrop'), source=source, online_n=online_n)
         if n < local_n:
-            return head + f"You will get {n} — {best} ({local_n - n} fewer).", "Replace anyway", True
+            return _i18n.t("rp.you_will_get_fewer_fc0f", head=head, n=n, best=best, v=local_n - n), _i18n.t("rp.replace_anyway_b193"), True
         gain = n - local_n
-        return (head + f"You will get {n} — {best}" + (f" ({gain} more)." if gain else " (the same number)."),
-                "Replace", False)
+        return (head + _i18n.t("uf.you_will_get_88b8", n=n, best=best) + (_i18n.t("au.gain", n=gain) if gain else _i18n.t("uf.the_same_number_da6b")),
+                _i18n.t("rp.replace_0ebe"), False)
     if online_n < local_n:
-        return (f"You have {_n(local_n, 'backdrop')}. {source} offers {online_n}.\n"
-                f"Replacing would leave you with {online_n} ({local_n - online_n} fewer).",
-                "Replace anyway", True)
+        return (_i18n.t("rp.you_have_offers_replacing_13ba", n=_n(local_n, 'backdrop'), source=source, online_n=online_n, online_n2=online_n, v=local_n - online_n),
+                _i18n.t("rp.replace_anyway_b193"), True)
     gain = online_n - local_n
-    extra = f" ({gain} more)" if gain else " (the same number)"
-    return (f"You have {_n(local_n, 'backdrop')}. {source} offers {online_n}.\n"
-            f"Replacing gives you {online_n}{extra}.", "Replace", False)
+    extra = _i18n.t("rp.more_7c5d", gain=gain) if gain else _i18n.t("rp.the_same_number_77ca")
+    return (_i18n.t("rp.you_have_offers_replacing_4645", n=_n(local_n, 'backdrop'), source=source, online_n=online_n, online_n2=online_n, extra=extra), _i18n.t("rp.replace_0ebe"), False)
 
 
 ### NEW v0.19.3 I6 — preview texts (pure) ###
 def sources_preview_text(rows):
     """Normalize Sources — All: what happens to each movie's IMDb / TMDB IDs."""
-    L = [f"Normalize Sources — {_n(len(rows), 'movie')}", "=" * 60, ""]
+    L = [_i18n.t("rp.normalize_sources_27f0", n=_n(len(rows), 'movie')), "=" * 60, ""]
     for r in rows:
         L.append(f"\U0001f4c1  {r.get('movie_name') or r.get('subfolder', '?')}")
         for k, lbl in (("imdb", "IMDb"), ("tmdb", "TMDB")):
@@ -14233,25 +15412,25 @@ def sources_preview_text(rows):
             if st == STATUS_OK:
                 continue
             if st == STATUS_MISSING or not vals:
-                L.append(f"     {lbl}: no ID — you will be asked to type one (or skip)")
+                L.append(_i18n.t("rp.no_id_you_will_c16f", lbl=lbl))
             elif len(set(vals)) == 1:
-                L.append(f"     {lbl}: {vals[0]} → copied to the tags / file that miss it")
+                L.append(_i18n.t("rp.copied_to_the_tags_29e5", lbl=lbl, v=vals[0]))
             else:
-                L.append(f"     {lbl}: the IDs differ ({' / '.join(dict.fromkeys(vals))}) — you will be asked which one is right")
+                L.append(_i18n.t("rp.the_ids_differ_you_1265", lbl=lbl, join=' / '.join(dict.fromkeys(vals))))
         L.append("")
     return "\n".join(L)
 
 
 def copy_poster_preview_text(rows):
     """Copy poster → folder: every folder.jpg that will be overwritten (or created)."""
-    L = [f"Copy poster.jpg → folder.jpg — {_n(len(rows), 'movie')}", "Every folder.jpg is backed up first.", "=" * 60, ""]
+    L = [_i18n.t("rp.copy_poster_jpg_folder_340d", n=_n(len(rows), 'movie')), _i18n.t("rp.every_folder_jpg_is_8a9e"), "=" * 60, ""]
     for r in rows:
         name = r.get("movie_name") or r.get("subfolder", "?")
         new = f"{os.path.basename(r.get('poster_path') or 'poster.jpg')} ({r.get('poster_size', '—')})"
         if r.get("folder_exists"):
             L.append(f"  {name}:  folder.jpg ({r.get('folder_size', '—')}) ← {new}")
         else:
-            L.append(f"  {name}:  no folder.jpg → created from {new}")
+            L.append(_i18n.t("rp.no_folder_jpg_created_87c6", name=name, new=new))
     return "\n".join(L)
 
 
@@ -14271,8 +15450,8 @@ def genres_preview_text(rows):
         else:
             same += 1
     n_none = sum(1 for r in rows if not r.get("genres"))
-    L = [f"Normalize Genres — {_n(len(rows), 'movie')}", "=" * 60, "",
-         f"{_n(len(changes), 'movie')} will be changed (NFO and XML get the same, normalized genres):", ""]
+    L = [_i18n.t("rp.normalize_genres_41b5", n=_n(len(rows), 'movie')), "=" * 60, "",
+         _i18n.t("rp.will_be_changed_nfo_29e6", n=_n(len(changes), 'movie')), ""]
     L += changes or ["  (none)"]
     L += ["", f"{_n(same, 'movie')} {'is' if same == 1 else 'are'} already normalized."]
     if n_none:
@@ -14282,9 +15461,9 @@ def genres_preview_text(rows):
 
 def ratings_preview_text(pending):
     """Sync Ratings — All: [(row, name, nfo, xml, (rating, votes, source)), …] current → new."""
-    L = [f"Sync Ratings — {_n(len(pending), 'movie')} will be written", "=" * 60, ""]
+    L = [_i18n.t("rp.sync_ratings_will_be_077b", n=_n(len(pending), 'movie')), "=" * 60, ""]
     for d, name, _nfo_, _x, ch in pending:                    # v0.19.4 B105: _n is the plurals helper
-        L.append(f"  {name}:  {d.get('rating_str', '-')} / {d.get('votes_int') or '-'} votes  →  {ch[0]} / {ch[1]} votes  ({ch[2]})")
+        L.append(_i18n.t("rp.votes_votes_7b03", name=name, get=d.get('rating_str', '-'), v=d.get('votes_int') or '-', v2=ch[0], v3=ch[1], v4=ch[2]))
     return "\n".join(L)
 
 
@@ -14325,7 +15504,7 @@ class SortPresetDialog(_DialogBase):                             ### NEW v0.19.3
         super().__init__(app)
         # (never self._name: tkinter keeps the widget name there)
         self._app, self._mode = app, mode
-        self.title("Save sort preset" if mode == "save" else "My sort presets")
+        self.title(_i18n.t("mc.save_sort_preset_0b11") if mode == "save" else _i18n.t("mc.my_sort_presets_91fb"))
         self.configure(bg=self._BG)
         self.transient(app)
         self.resizable(False, False)
@@ -14334,26 +15513,26 @@ class SortPresetDialog(_DialogBase):                             ### NEW v0.19.3
         self._msg = tk.Label(self, text="", bg=self._BG, fg=C_ERR, font=("Helvetica", 9))
         self._name_var = tk.StringVar()
         if mode == "save":
-            tk.Label(self, text="Name", **lab).pack(anchor="w", padx=16, pady=(14, 2))
+            tk.Label(self, text=_i18n.t("mc.name_49ee"), **lab).pack(anchor="w", padx=16, pady=(14, 2))
             e = tk.Entry(self, textvariable=self._name_var, width=40, bg=C_SURFACE, fg=self._FG,
                          insertbackground=self._FG, relief="flat", font=("Helvetica", 10))
             e.pack(anchor="w", padx=16)
             e.focus_set()
             e.bind("<Return>", lambda ev: self._save())
-            tk.Label(self, text="This preset sorts by:", bg=self._BG, fg=C_SUBTEXT,
+            tk.Label(self, text=_i18n.t("mc.this_preset_sorts_by_1c96"), bg=self._BG, fg=C_SUBTEXT,
                      font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(10, 2))
             levels = "\n".join(f"{i}. {sort_labels()[l['key']]} — {_se.dir_label(l['key'], l['dir'])}"
                                 for i, l in enumerate(app._sort_spec, 1))
             tk.Label(self, text=levels, justify="left", bg=C_SURFACE, fg=self._FG, font=("Helvetica", 10),
                      padx=10, pady=6).pack(anchor="w", fill="x", padx=16)
             n = len(app._all_presets()) + 1
-            tk.Label(self, text=f"Shortcut: Ctrl+{n}" if n <= 9 else "No shortcut (Ctrl+1…9 are taken)",
+            tk.Label(self, text=_i18n.t("mc.shortcut_ctrl_7bd1", n=n) if n <= 9 else _i18n.t("mc.no_shortcut_ctrl_are_be80"),
                      bg=self._BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(6, 0))
             self._msg.pack(anchor="w", padx=16)
             bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=16, pady=(8, 14))
-            tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
+            tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
                       command=self.destroy).pack(side="right")
-            tk.Button(bf, text="  Save  ", bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
+            tk.Button(bf, text=_i18n.t("mc.save_c436"), bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
                       font=("Helvetica", 10, "bold"), command=self._save).pack(side="right", padx=(0, 8))
         else:
             self._lb = tk.Listbox(self, width=44, height=8, bg=C_SURFACE, fg=self._FG, relief="flat",
@@ -14363,12 +15542,12 @@ class SortPresetDialog(_DialogBase):                             ### NEW v0.19.3
             ef = tk.Frame(self, bg=self._BG); ef.pack(fill="x", padx=16)
             tk.Entry(ef, textvariable=self._name_var, width=30, bg=C_SURFACE, fg=self._FG, insertbackground=self._FG,
                      relief="flat", font=("Helvetica", 10)).pack(side="left")
-            tk.Button(ef, text=" Rename ", bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
+            tk.Button(ef, text=_i18n.t("mc.rename_6764"), bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
                       command=self._rename).pack(side="left", padx=(6, 0))
-            tk.Button(ef, text=" Delete ", bg=C_ERR, fg=C_BG, relief="flat", cursor="hand2",
+            tk.Button(ef, text=_i18n.t("mc.delete_0251"), bg=C_ERR, fg=C_BG, relief="flat", cursor="hand2",
                       command=self._delete).pack(side="left", padx=(6, 0))
             self._msg.pack(anchor="w", padx=16)
-            tk.Button(self, text="  Close  ", bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
+            tk.Button(self, text=_i18n.t("mc.close_cbdd"), bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
                       command=self.destroy).pack(pady=(6, 14))
             self._fill()
         _remember_window(self, f"SortPresetDialog:{mode}", resizable=False)
@@ -14402,7 +15581,7 @@ class SortPresetDialog(_DialogBase):                             ### NEW v0.19.3
     def _rename(self):
         old = self._selected()
         if not old:
-            return self._msg.configure(text="Choose a preset first.")
+            return self._msg.configure(text=_i18n.t("mc.choose_a_preset_first_4d7b"))
         presets = self._presets()
         why = _se.valid_preset_name(self._name_var.get(), presets, old=old)
         if why:
@@ -14417,64 +15596,68 @@ class SortPresetDialog(_DialogBase):                             ### NEW v0.19.3
     def _delete(self):
         old = self._selected()
         if not old:
-            return self._msg.configure(text="Choose a preset first.")
+            return self._msg.configure(text=_i18n.t("mc.choose_a_preset_first_4d7b"))
         self._store([p for p in self._presets() if p["name"] != old])
         self._msg.configure(text="")
         self._fill()
 
 
-NOT_DUP_LABEL = "✔  Not a duplicate…"                            ### NEW v0.19.3 B64 ###
-NOT_DUP_EACH_LABEL = "✔  Not duplicates of each other"
-NOT_DUP_MANAGE_LABEL = "👯  Manage 'Not a duplicate' marks…"
+NOT_DUP_LABEL = _label_const("NOT_DUP_LABEL", "✔", "act.not_dup")                            ### NEW v0.19.3 B64 ###
+NOT_DUP_EACH_LABEL = _label_const("NOT_DUP_EACH_LABEL", "✔", "act.not_dup_each")
+NOT_DUP_MANAGE_LABEL = _label_const("NOT_DUP_MANAGE_LABEL", "👯", "act.not_dup_manage")
 
 ### NEW v0.19.4 I13 — the registry's entries (labels as of B108) ###
-register_action("export_list", "📤  Export Movie List…  (Ctrl+Shift+E)", lambda app: app._export_list_dialog(),
+register_action("export_list", ("📤", "act.export_list", "Ctrl+Shift+E"), lambda app: app._export_list_dialog(),
                 keys=("<Control-Shift-E>", "<Control-Shift-e>"), needs_results=True)
-register_action("choose_columns", "🧱  Choose Columns…", lambda app: ColumnChooserDialog(app))
-register_action("ignored_folders", IGNORED_MENU_LABEL, lambda app: app._show_ignored())
-register_action("statistics", "📊  Library Statistics", lambda app: app._show_statistics(), needs_results=True)
-register_action("duplicates", "👯  Duplicate Movies Report", lambda app: app._show_duplicates(), needs_results=True)
-register_action("not_dup_manage", NOT_DUP_MANAGE_LABEL, lambda app: NotDuplicateManageDialog(app))
-register_action("recompute_health", "♻  Recompute Health Status (no rescan)", lambda app: app._recompute_health(), needs_results=True)
-register_action("save_results", "💾  Save Scan Results…", lambda app: app._save_scan_results(), needs_results=True)
-register_action("open_results", "📂  Open Scan Results…", lambda app: app._open_scan_results(), needs_results=True)
-register_action("sync_ratings_all", "⭐  Sync Ratings Online — All Movies…", lambda app: app._sync_ratings_all(), needs_results=True)
-register_action("normalize_sources_all", "🔗  Normalize Sources — All Movies…", lambda app: app._normalize_sources_all(), needs_results=True)
-register_action("search_sources_all", "🔎  Search Sources — All Movies…", lambda app: app._search_sources_all(), needs_results=True)
-register_action("verify_ids_all", "✅  Verify IMDb/TMDB IDs — All Movies…", lambda app: app._verify_ids_all(), needs_results=True)
-register_action("check_collections_all", CHECK_COLL_LABEL, lambda app: app._check_collections_all(), needs_results=True)   ### NEW v0.19.4 B110b ###
-register_action("fix_collections_all", FIX_COLL_ALL_LABEL, lambda app: app._fix_collections_all(), needs_results=True)   ### NEW v0.19.4 B110e ###
-register_action("create_collection_folders_all", CREATE_COLL_ALL_LABEL, lambda app: app._create_collection_folders_all(), needs_results=True)   ### NEW v0.19.4 B110g ###
-register_action("auto_repair_all", "🛠  Auto Repair — All Movies…", lambda app: app._auto_repair_all(), needs_results=True)
-register_action("normalize_genres_all", "🎬  Normalize Genres — All Movies…", lambda app: app._normalize_genres_all(), needs_results=True)
-register_action("improvements_all", "🔍  Run Improvements Check — All Movies…", lambda app: app._run_improvements_all(), needs_results=True)
-register_action("health_report_all", "🏥  Health Status Report — All Movies", lambda app: app._show_health_report_all(), needs_results=True)
-register_action("refresh_icons", "🔁  Refresh Icons — All Movies", lambda app: app._refresh_icons(),
+register_action("choose_columns", ("🧱", "act.choose_columns"), lambda app: ColumnChooserDialog(app))
+register_action("ignored_folders", _spec("IGNORED_MENU_LABEL"), lambda app: app._show_ignored())
+register_action("statistics", ("📊", "act.statistics"), lambda app: app._show_statistics(), needs_results=True)
+register_action("duplicates", ("👯", "act.duplicates"), lambda app: app._show_duplicates(), needs_results=True)
+register_action("not_dup_manage", _spec("NOT_DUP_MANAGE_LABEL"), lambda app: NotDuplicateManageDialog(app))
+register_action("recompute_health", ("♻", "act.recompute_health"), lambda app: app._recompute_health(), needs_results=True)
+register_action("save_results", ("💾", "act.save_results"), lambda app: app._save_scan_results(), needs_results=True)
+register_action("open_results", ("📂", "act.open_results"), lambda app: app._open_scan_results(), needs_results=True)
+register_action("sync_ratings_all", ("⭐", "act.sync_ratings_all"), lambda app: app._sync_ratings_all(), needs_results=True)
+register_action("normalize_sources_all", ("🔗", "act.normalize_sources_all"), lambda app: app._normalize_sources_all(), needs_results=True)
+register_action("search_sources_all", ("🔎", "act.search_sources_all"), lambda app: app._search_sources_all(), needs_results=True)
+register_action("verify_ids_all", ("✅", "act.verify_ids_all"), lambda app: app._verify_ids_all(), needs_results=True)
+register_action("check_collections_all", _spec("CHECK_COLL_LABEL"), lambda app: app._check_collections_all(), needs_results=True)   ### NEW v0.19.4 B110b ###
+register_action("fix_collections_all", _spec("FIX_COLL_ALL_LABEL"), lambda app: app._fix_collections_all(), needs_results=True)   ### NEW v0.19.4 B110e ###
+register_action("create_collection_folders_all", _spec("CREATE_COLL_ALL_LABEL"), lambda app: app._create_collection_folders_all(), needs_results=True)   ### NEW v0.19.4 B110g ###
+register_action("auto_repair_all", ("🛠", "act.auto_repair_all"), lambda app: app._auto_repair_all(), needs_results=True)
+register_action("normalize_genres_all", ("🎬", "act.normalize_genres_all"), lambda app: app._normalize_genres_all(), needs_results=True)
+register_action("genres_tmdb_all", _spec("GENRES_TMDB_ALL_LABEL"), lambda app: app._genres_tmdb_all(), needs_results=True)   ### NEW v0.20.0 I36 ###
+register_action("improvements_all", ("🔍", "act.improvements_all"), lambda app: app._run_improvements_all(), needs_results=True)
+register_action("health_report_all", ("🏥", "act.health_report_all"), lambda app: app._show_health_report_all(), needs_results=True)
+register_action("refresh_icons", ("🔁", "act.refresh_icons"), lambda app: app._refresh_icons(),
                 keys=("<Control-i>", "<Control-I>"), needs_results=True)
-register_action("copy_poster_all", "🖼  Copy poster.jpg → folder.jpg — All Movies with Differences…",
+register_action("copy_poster_all", ("🖼", "act.copy_poster_all"),
                 lambda app: app._copy_poster_to_folder(list(app._results)), needs_results=True)
-register_action("image_fix_all", IMAGE_FIX_ALL_LABEL, lambda app: app._fix_images_all(), needs_results=True)
-register_action("nfo_rename_all", NFO_RENAME_ALL_LABEL, lambda app: app._nfo_rename_all(), needs_results=True)
-register_action("extrafanart_all", EXTRAFANART_MENU_LABEL, lambda app: app._delete_extrafanart_all(), needs_results=True)
-register_action("check_updates", CHECK_UPDATES_LABEL, lambda app: app._check_updates_now(), path="Help", part=None)
-register_action("about", _help.ABOUT_LABEL, lambda app: open_help(app, tab=len(_help.HELP_TABS)), path="Help", part=None)
-register_action("open_logs", OPEN_LOGS_LABEL, lambda app: open_logs_folder(), path="Help", part=None)
+register_action("image_fix_all", _spec("IMAGE_FIX_ALL_LABEL"), lambda app: app._fix_images_all(), needs_results=True)
+register_action("nfo_rename_all", _spec("NFO_RENAME_ALL_LABEL"), lambda app: app._nfo_rename_all(), needs_results=True)
+register_action("media_rename_all", _spec("MEDIA_RENAME_ALL_LABEL"), lambda app: app._media_rename_all(), needs_results=True)   ### NEW v0.20.0 F3c2 ###
+register_action("xml2nfo_all", _spec("XML2NFO_ALL_LABEL"), lambda app: app._xml2nfo_all(), needs_results=True)   ### NEW v0.20.0 F3d ###
+register_action("extrafanart_all", _spec("EXTRAFANART_MENU_LABEL"), lambda app: app._delete_extrafanart_all(), needs_results=True)
+register_action("art_links_all", _spec("ART_LINKS_ALL_LABEL"), lambda app: app._art_links_all(), needs_results=True)   ### NEW v0.20.0 RD9 ###
+register_action("check_updates", _spec("CHECK_UPDATES_LABEL"), lambda app: app._check_updates_now(), path="Help", part=None)
+register_action("about", ("ℹ️", "act.about"), lambda app: open_help(app, tab=len(_help.HELP_TABS)), path="Help", part=None)
+register_action("open_logs", _spec("OPEN_LOGS_LABEL"), lambda app: open_logs_folder(), path="Help", part=None)
 # shortcut-only actions (no menu entry of their own in this window)
-register_action("scan", "Full Scan", lambda app: app._scan(), keys=("<F5>",), path=None)
-register_action("clear_all", "🧹  Clear All…  (Ctrl+L)", lambda app: app._clear_all(), keys=("<Control-l>", "<Control-L>"),
+register_action("scan", ("", "act.scan"), lambda app: app._scan(), keys=("<F5>",), path=None)
+register_action("clear_all", ("🧹", "act.clear_all", "Ctrl+L"), lambda app: app._clear_all(), keys=("<Control-l>", "<Control-L>"),
                 path=None)                                       # in the Movies toolbar's "⋯" (L2)
-register_action("open_editor", "Open the NFO in the editor", lambda app: app._open_editor_shortcut(),
+register_action("open_editor", ("", "act.open_editor"), lambda app: app._open_editor_shortcut(),
                 keys=("<Control-e>", "<Control-E>"), path=None)
-register_action("settings", "Settings", lambda app: SettingsDialog(app, tab=0), keys=("<Control-s>", "<Control-S>"), path=None,
+register_action("settings", ("", "act.settings"), lambda app: SettingsDialog(app, tab=0), keys=("<Control-s>", "<Control-S>"), path=None,
                 part=None)
-register_action("open_folder", "Open Folder", lambda app: app._open_folder_shortcut(), keys=("<Control-o>", "<Control-O>"), path=None)
-register_action("update_no_ff", "Update (no FFprobe)", lambda app: app._reval_selected_no_ffmpeg(),
+register_action("open_folder", ("", "act.open_folder"), lambda app: app._open_folder_shortcut(), keys=("<Control-o>", "<Control-O>"), path=None)
+register_action("update_no_ff", ("", "act.update_no_ff"), lambda app: app._reval_selected_no_ffmpeg(),
                 keys=("<Control-r>", "<Control-R>"), needs_results=True, path=None)
-register_action("update_ff", "Update (with FFprobe)", lambda app: app._reval_selected_ffmpeg(),
+register_action("update_ff", ("", "act.update_ff"), lambda app: app._reval_selected_ffmpeg(),
                 keys=("<Control-Shift-r>", "<Control-Shift-R>"), needs_results=True, path=None)
-register_action("help", "Help", lambda app: open_help(app), keys=("<Control-h>", "<Control-H>"), path=None, part=None)
-register_action("filter_focus", "Filter", lambda app: app._filter_entry.focus_set(), keys=("<Control-f>", "<Control-F>"), path=None)
-register_action("toggle_panel", "Hide / show the selected-movie panel", lambda app: app._toggle_movie_panel(),
+register_action("help", ("", "act.help"), lambda app: open_help(app), keys=("<Control-h>", "<Control-H>"), path=None, part=None)
+register_action("filter_focus", ("", "act.filter_focus"), lambda app: app._filter_entry.focus_set(), keys=("<Control-f>", "<Control-F>"), path=None)
+register_action("toggle_panel", ("", "act.toggle_panel"), lambda app: app._toggle_movie_panel(),
                 keys=("<Control-b>", "<Control-B>"), path=None)   ### NEW v0.19.4 L3 ###
 
 MORE_MENU = ["clear_all", "-", "save_results", "open_results"]   ### NEW v0.19.4 L2 — the Movies toolbar's "⋯" ###
@@ -14482,8 +15665,8 @@ TOOLS_MENU = ["export_list", "choose_columns", "ignored_folders", "-",
               "statistics", "duplicates", "not_dup_manage", "recompute_health", "-",
               "save_results", "backup_history", "open_results", "-",
               "sync_ratings_all", "normalize_sources_all", "search_sources_all", "verify_ids_all", "check_collections_all", "fix_collections_all", "create_collection_folders_all", "auto_repair_all",
-              "normalize_genres_all", "improvements_all", "health_report_all", "refresh_icons", "-",
-              "copy_poster_all", "image_fix_all", "nfo_rename_all", "extrafanart_all"]
+              "normalize_genres_all", "genres_tmdb_all", "improvements_all", "health_report_all", "refresh_icons", "-",
+              "copy_poster_all", "image_fix_all", "nfo_rename_all", "media_rename_all", "xml2nfo_all", "art_links_all", "extrafanart_all"]
 HELP_MENU_TAIL = ["check_updates", "about", "-", "open_logs"]
 
 
@@ -14496,13 +15679,13 @@ class NotDuplicateDialog(_DialogBase):                           ### NEW v0.19.3
         super().__init__(app)
         self._app, self._row, self._mode = app, row, mode
         name = row.get("movie_name") or row.get("subfolder", "")
-        self.title(("Not a duplicate — " if mode == "mark" else "Undo 'not a duplicate' — ") + name)
+        self.title(_i18n.t("m3.not_dup_title" if mode == "mark" else "m3.undo_not_dup_title", name=name))
         self.configure(bg=self._BG)
         self.transient(app)
         self.resizable(True, False)
         self.bind("<Escape>", lambda e: self.destroy())
-        head = (f"Which of these are NOT duplicates of “{name}”?" if mode == "mark"
-                else f"Untick the movies that may be duplicates of “{name}” again:")
+        head = (_i18n.t("mc.which_of_these_are_c21b", name=name) if mode == "mark"
+                else _i18n.t("mc.untick_the_movies_that_785a", name=name))
         tk.Label(self, text=head, bg=self._BG, fg=C_ACCENT, font=("Helvetica", 11, "bold"),
                  wraplength=620, justify="left").pack(anchor="w", padx=16, pady=(14, 6))
         self._vars = []
@@ -14515,16 +15698,16 @@ class NotDuplicateDialog(_DialogBase):                           ### NEW v0.19.3
                 txt = (f"{x.get('movie_name') or x['subfolder']}  [{x.get('movie_year', '-')}]  {x.get('video_quality', '—')}  "
                        f"{x.get('video_size', '—')}\n      {x.get('subfolder_path', '')}   ({info.split(':')[0]})")
             else:
-                other = (x.get("movie_name") or x["subfolder"]) if x else "(folder not found)"
+                other = (x.get("movie_name") or x["subfolder"]) if x else _i18n.t("uf.folder_not_found_826b")
                 txt = f"{other}   ({info.get('why', '')}, marked {info.get('at', '')})"
             tk.Checkbutton(box, text=txt, variable=v, anchor="w", justify="left", bg=self._BG, fg=self._FG,
                            selectcolor=C_SURFACE, activebackground=self._BG, activeforeground=self._FG,
                            font=("Helvetica", 10)).pack(anchor="w", fill="x", pady=1)
             self._vars.append((v, x, info))
         bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=16, pady=(12, 14))
-        tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
                   command=self.destroy).pack(side="right")
-        tk.Button(bf, text="  Mark as not duplicates  " if mode == "mark" else "  Undo the unticked  ",
+        tk.Button(bf, text=_i18n.t("mc.mark_as_not_duplicates_6400") if mode == "mark" else _i18n.t("mc.undo_the_unticked_5ef1"),
                   bg=C_OK, fg=C_BG, relief="flat", cursor="hand2", font=("Helvetica", 10, "bold"),
                   command=self._ok).pack(side="right", padx=(0, 8))
         _remember_window(self, f"NotDuplicateDialog:{mode}", resizable=True)
@@ -14544,15 +15727,16 @@ class NotDuplicateManageDialog(_DialogBase):                     ### NEW v0.19.3
     def __init__(self, app):
         super().__init__(app)
         self._app = app
-        self.title("Not a duplicate — your marks")
+        self.title(_i18n.t("mc.not_a_duplicate_your_e71f"))
         self.configure(bg=self._BG)
         self.transient(app)
         self.resizable(True, True)
         self.bind("<Escape>", lambda e: self.destroy())
-        tk.Label(self, text="Pairs you marked as not duplicates", bg=self._BG, fg=C_ACCENT,
+        tk.Label(self, text=_i18n.t("mc.pairs_you_marked_as_9bf6"), bg=self._BG, fg=C_ACCENT,
                  font=("Helvetica", 11, "bold")).pack(anchor="w", padx=16, pady=(14, 6))
         fr = tk.Frame(self, bg=self._BG); fr.pack(fill="both", expand=True, padx=16)
-        cols = (("a", "Movie", 220), ("b", "Not a duplicate of", 220), ("why", "Matched by", 140), ("at", "Marked", 120))
+        cols = (("a", _i18n.t("au.nd.movie"), 220), ("b", _i18n.t("uf.not_a_duplicate_of_133f"), 220),
+                ("why", _i18n.t("au.nd.why"), 140), ("at", _i18n.t("au.nd.at"), 120))   # v0.20.0 AU10: translated
         self._tv = ttk.Treeview(fr, columns=[c for c, _l, _w in cols], show="headings", height=10, selectmode="extended")
         for c, l, w in cols:
             self._tv.heading(c, text=l); self._tv.column(c, width=w, anchor="w")
@@ -14560,26 +15744,31 @@ class NotDuplicateManageDialog(_DialogBase):                     ### NEW v0.19.3
         sb = ttk.Scrollbar(fr, orient="vertical", command=self._tv.yview); sb.pack(side="right", fill="y")
         self._tv.configure(yscrollcommand=sb.set)
         bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=16, pady=(10, 14))
-        tk.Button(bf, text="  Close  ", bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.close_cbdd"), bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
                   command=self.destroy).pack(side="right")
-        tk.Button(bf, text="  Remove all not found  ", bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.remove_all_not_found_8a6d"), bg=C_SURFACE2, fg=self._FG, relief="flat", cursor="hand2",
                   command=self._remove_missing).pack(side="right", padx=(0, 8))
-        tk.Button(bf, text="  Remove  ", bg=C_ERR, fg=C_BG, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.remove_db37"), bg=C_ERR, fg=C_BG, relief="flat", cursor="hand2",
                   command=self._remove).pack(side="right", padx=(0, 8))
         self._fill()
         _remember_window(self, "NotDuplicateManageDialog", resizable=True)
 
     def _fill(self):
         self._tv.delete(*self._tv.get_children())
-        names = {_pkey(r.get("subfolder_path", "")): r.get("movie_name") or r.get("subfolder") for r in self._app._results}
+        names = {_pkey(r.get("subfolder_path", "")): r.get("movie_name") or r.get("subfolder")
+                 for r in self._known_rows()}
         self._pairs = list(not_dup_pairs())
         for i, p in enumerate(self._pairs):
-            self._tv.insert("", "end", iid=str(i), values=(names.get(p["a"]) or f"(folder not found) {p['a']}",
-                                                           names.get(p["b"]) or f"(folder not found) {p['b']}",
+            self._tv.insert("", "end", iid=str(i), values=(names.get(p["a"]) or _i18n.t("uf.folder_not_found_956f", a=p['a']),
+                                                           names.get(p["b"]) or _i18n.t("uf.folder_not_found_663e", b=p['b']),
                                                            p.get("why", ""), p.get("at", "")))
 
+    def _known_rows(self):                                        ### NEW v0.20.0 AU10 (pre-build audit) ###
+        """Shown rows AND the set-aside rows of switched-off libraries: their pairs are not "not found"."""
+        return list(self._app._results) + list(getattr(self._app, "_inactive_rows", []) or [])
+
     def _missing(self, p):
-        names = {_pkey(r.get("subfolder_path", "")) for r in self._app._results}
+        names = {_pkey(r.get("subfolder_path", "")) for r in self._known_rows()}
         return p["a"] not in names or p["b"] not in names
 
     def _remove(self):
@@ -14589,8 +15778,13 @@ class NotDuplicateManageDialog(_DialogBase):                     ### NEW v0.19.3
             self._fill()
 
     def _remove_missing(self):
+        ### MODIFIED v0.20.0 AU10 ### never without results (after Clear All every pair looked "not found"), and asked
+        # first: the marks cannot be brought back
+        if not self._known_rows():
+            messagebox.showinfo(self.title(), _i18n.t("au.nd.scan_first"), parent=self)
+            return
         gone = [p for p in self._pairs if self._missing(p)]
-        if gone:
+        if gone and messagebox.askyesno(self.title(), _i18n.t("au.nd.ask", n=len(gone)), parent=self):
             self._app._unmark_not_dup(gone)
             self._fill()
 
@@ -14601,13 +15795,13 @@ TITLE_SYNC_ACTION = "Make titles the same"                        ### NEW v0.19.
 def title_sync_batch_text(plan):                                 ### NEW v0.19.3 B60 ###
     """Preview text for several movies: [(row, (value, target, why)), …]."""
     n_ok = sum(1 for _r, (v, _t, _w) in plan if v is not None)
-    L = [f"{TITLE_SYNC_ACTION} — {_n(len(plan), 'movie')}, {n_ok} will be changed", "=" * 60, ""]
+    L = [_i18n.t("rp.will_be_changed_1d60", shown_action=shown_action(TITLE_SYNC_ACTION), n=_n(len(plan), 'movie'), n_ok=n_ok), "=" * 60, ""]
     for r, (v, t, why) in plan:
         L.append(f"\U0001f4c1  {r.get('movie_name') or r.get('subfolder', '?')}")
-        L.append(f'     NFO <title>       "{r.get("nfo_title") or ""}"')
-        L.append(f'     XML <LocalTitle>  "{r.get("xml_localtitle") or ""}"')
+        L.append(_i18n.t("rp.nfo_title_6b84", v=r.get("nfo_title") or ""))
+        L.append(_i18n.t("rp.xml_localtitle_f3df", v=r.get("xml_localtitle") or ""))
         if v is None:
-            L.append(f"     – skipped: {why}")
+            L.append(_i18n.t("rp.skipped_c021", why=why))
         else:
             L.append(f'     → {"XML <LocalTitle>" if t == "xml" else "NFO <title>"} becomes "{v}"  ({why})')
         L.append("")
@@ -14623,16 +15817,15 @@ class TitleSyncDialog(_DialogBase):                              ### NEW v0.19.3
         super().__init__(app)
         self._app, self._row = app, row
         self.applied = False
-        self.title(f"🔤  {TITLE_SYNC_ACTION} — {row.get('movie_name') or row.get('subfolder', '')}")
+        self.title(f"🔤  {shown_action(TITLE_SYNC_ACTION)} — {row.get('movie_name') or row.get('subfolder', '')}")
         self.configure(bg=self._BG)
         self.transient(app)
         self.resizable(True, False)
         self.bind("<Escape>", lambda e: self.destroy())
         lab = dict(bg=self._BG, fg=self._FG, font=("Helvetica", 10))
-        tk.Label(self, text="Which local title is right?", font=("Helvetica", 12, "bold"),
+        tk.Label(self, text=_i18n.t("mc.which_local_title_is_e72c"), font=("Helvetica", 12, "bold"),
                  bg=self._BG, fg=C_ACCENT).pack(anchor="w", padx=16, pady=(14, 2))
-        tk.Label(self, text="The chosen title is written into NFO <title> and XML <LocalTitle>. "
-                            "The original title is never changed. A backup is made first.",
+        tk.Label(self, text=_i18n.t("mc.the_chosen_title_is_b1dc"),
                  wraplength=560, justify="left", bg=self._BG, fg=self._DIM,
                  font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(0, 8))
         self._choices = {}
@@ -14643,28 +15836,28 @@ class TitleSyncDialog(_DialogBase):                              ### NEW v0.19.3
         self._add_choice("nfo", f'NFO <title>:  "{nt}"', nt)
         self._add_choice("xml", f'XML <LocalTitle>:  "{xt}"', xt)
         if ot and _norm_title_cmp(ot) not in (_norm_title_cmp(nt), _norm_title_cmp(xt)):
-            self._add_choice("orig", f'Original title:  "{ot}"', ot)
+            self._add_choice("orig", _i18n.t("mc.original_title_08fb", original_title=f'"{ot}"'), ot)
         self._tmdb_lbl = tk.Label(self, text="", bg=self._BG, fg=self._DIM, font=("Helvetica", 9))
         self._tmdb_lbl.pack(anchor="w", padx=16)
         of = tk.Frame(self, bg=self._BG); of.pack(fill="x", padx=16, pady=(6, 0))
-        tk.Radiobutton(of, text="Other:", value="other", variable=self._var, selectcolor=C_SURFACE,
+        tk.Radiobutton(of, text=_i18n.t("mc.other_fc18"), value="other", variable=self._var, selectcolor=C_SURFACE,
                        activebackground=self._BG, activeforeground=self._FG, **lab).pack(side="left")
         self._other = tk.Entry(of, bg=C_SURFACE, fg=self._FG, insertbackground=self._FG, relief="flat",
                                font=("Helvetica", 10), width=50)
         self._other.pack(side="left", fill="x", expand=True, padx=(6, 0))
         self._other.bind("<KeyRelease>", lambda e: self._var.set("other"))
         if ot:
-            tk.Label(self, text=f'(original title, kept as it is: "{ot}")', bg=self._BG, fg=C_DIM,
+            tk.Label(self, text=_i18n.t("mc.original_title_kept_as_3397", ot=ot), bg=self._BG, fg=C_DIM,
                      font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(6, 0))
         v, t, why = title_sync_choice(row, "nfo")
         self._var.set("nfo" if t in ("xml", None) else "xml")
-        self._why = tk.Label(self, text=f"Suggested: {why}" if v else "", bg=self._BG, fg=C_WARN,
+        self._why = tk.Label(self, text=_i18n.t("mc.suggested_3004", why=why) if v else "", bg=self._BG, fg=C_WARN,
                              font=("Helvetica", 9), wraplength=560, justify="left")
         self._why.pack(anchor="w", padx=16, pady=(6, 0))
         bf = tk.Frame(self, bg=self._BG); bf.pack(fill="x", padx=16, pady=(12, 14))
-        tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10), bg=C_SURFACE2, fg=self._FG, relief="flat",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), font=("Helvetica", 10), bg=C_SURFACE2, fg=self._FG, relief="flat",
                   cursor="hand2", command=self.destroy).pack(side="right")
-        self._apply_btn = tk.Button(bf, text="  ✔ Apply  ", font=("Helvetica", 10, "bold"), bg=C_OK,
+        self._apply_btn = tk.Button(bf, text=_i18n.t("mc.apply_b4f1"), font=("Helvetica", 10, "bold"), bg=C_OK,
                                     fg=C_BG, relief="flat", cursor="hand2", command=self._apply)
         self._apply_btn.pack(side="right", padx=(0, 8))
         self._load_tmdb()
@@ -14684,7 +15877,7 @@ class TitleSyncDialog(_DialogBase):                              ### NEW v0.19.3
         if not key or not tid.isdigit():
             return
         lang = _tmdb_lang_for(SETTINGS.get("lang_ok_code", "PT"))
-        self._tmdb_lbl.configure(text="Asking TMDB for the title in your language…")
+        self._tmdb_lbl.configure(text=_i18n.t("mc.asking_tmdb_for_the_c9d0"))
 
         def work():
             try:
@@ -14702,13 +15895,13 @@ class TitleSyncDialog(_DialogBase):                              ### NEW v0.19.3
         if not self.winfo_exists():
             return
         if not title:
-            self._tmdb_lbl.configure(text="TMDB gave no title.")
+            self._tmdb_lbl.configure(text=_i18n.t("mc.tmdb_gave_no_title_b972"))
             return
         self._tmdb_lbl.configure(text="")
         if all(_norm_title_cmp(title) != _norm_title_cmp(v) for v in self._choices.values()):
             self._add_choice("tmdb", f'TMDB ({lang}):  "{title}"', title)
         else:
-            self._tmdb_lbl.configure(text=f"TMDB ({lang}) agrees with one of the titles above.")
+            self._tmdb_lbl.configure(text=_i18n.t("mc.tmdb_agrees_with_one_72ac", lang=lang))
 
     def chosen(self):
         k = self._var.get()
@@ -14717,7 +15910,7 @@ class TitleSyncDialog(_DialogBase):                              ### NEW v0.19.3
     def _apply(self):
         value = self.chosen()
         if not value:
-            return messagebox.showwarning(TITLE_SYNC_ACTION, "Choose or type a title first.", parent=self)
+            return messagebox.showwarning(shown_action(TITLE_SYNC_ACTION), _i18n.t("mc.choose_or_type_a_a2d0"), parent=self)
         row, app = self._row, self._app
         targets = [t for t, cur in (("nfo", row.get("nfo_title")), ("xml", row.get("xml_localtitle")))
                    if _norm_title_cmp(cur) != _norm_title_cmp(value) or (cur or "").strip() != value]
@@ -14725,14 +15918,14 @@ class TitleSyncDialog(_DialogBase):                              ### NEW v0.19.3
         files = [row.get(f"{t}_path") for t in targets if row.get(f"{t}_exists")]
         with _sc.backup_action(TITLE_SYNC_ACTION):
             if not _backup_ok(name, *files):
-                return messagebox.showerror(TITLE_SYNC_ACTION, BACKUP_FAILED_TEXT, parent=self)
+                return messagebox.showerror(shown_action(TITLE_SYNC_ACTION), BACKUP_FAILED_TEXT, parent=self)
             ok, err = _write_local_title(row, value, targets)
         if not ok:
-            return messagebox.showerror(TITLE_SYNC_ACTION, f"Not changed: {err}", parent=self)
+            return messagebox.showerror(shown_action(TITLE_SYNC_ACTION), _i18n.t("mc.not_changed_a687", err=err), parent=self)
         self.applied = True
         app._schedule_refresh([row["subfolder_path"]], need_ffprobe=False)
         try:
-            app.stats_var.set(f'🔤  {name}: local title set to "{value}" (NFO and XML)')
+            app.stats_var.set(_i18n.t("mc.ts.done", name=name, value=value))         # v0.20.0 UI1e
         except Exception:
             pass
         self.destroy()
@@ -14766,14 +15959,14 @@ class _BackdropCountDialog(_DialogBase):                        ### NEW v0.19.1 
         self._n_var = tk.StringVar(value=str(backdrop_count_default(local_n, online_n)))   ### NEW v0.19.3 B61 ###
         text, btn, warn = backdrop_count_message(local_n, online_n, source, self._n())
         self.message = text; self.button_label = btn
-        self.title("Replace All Backdrops")
+        self.title(_i18n.t("mc.replace_all_backdrops_f4cd"))
         self.configure(bg=C_BG)
         self.transient(parent); self.resizable(False, False)
         tk.Label(self, text=movie, bg=C_BG, fg=C_ACCENT, font=("Helvetica", 11, "bold"),
                  wraplength=440).pack(padx=18, pady=(14, 4))
         if sources:
             sf = tk.Frame(self, bg=C_BG); sf.pack(padx=18, pady=(0, 6))
-            tk.Label(sf, text="Source:", bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left")
+            tk.Label(sf, text=_i18n.t("mc.source_77c8"), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left")
             for s in avail:
                 tk.Radiobutton(sf, text=f"{IMAGE_SOURCE_LABEL[s]} ({self._count(s)})", value=s,
                                variable=self.choice, command=self._recount, bg=C_BG, fg=C_TEXT,
@@ -14781,12 +15974,12 @@ class _BackdropCountDialog(_DialogBase):                        ### NEW v0.19.1 
                                font=("Helvetica", 9)).pack(side="left", padx=(6, 0))
         ### NEW v0.19.3 B61 — how many to download ###
         nf = tk.Frame(self, bg=C_BG); nf.pack(padx=18, pady=(0, 6))
-        tk.Label(nf, text="Backdrops to download:", bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left")
+        tk.Label(nf, text=_i18n.t("mc.backdrops_to_download_6ee4"), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left")
         self._spin = tk.Spinbox(nf, from_=1, to=max(1, online_n), textvariable=self._n_var, width=4,
                                 font=("Helvetica", 10), bg=C_SURFACE, fg=C_TEXT, buttonbackground=C_SURFACE2,
                                 relief="flat", insertbackground=C_TEXT, command=self._recount)
         self._spin.pack(side="left", padx=(6, 4))
-        self._of_lbl = tk.Label(nf, text=f"of {online_n}  (highest resolution first)", bg=C_BG, fg=C_SUBTEXT,
+        self._of_lbl = tk.Label(nf, text=_i18n.t("mc.of_highest_resolution_first_2244", online_n=online_n), bg=C_BG, fg=C_SUBTEXT,
                                 font=("Helvetica", 9))
         self._of_lbl.pack(side="left")
         self._n_var.trace_add("write", lambda *_: self._recount())
@@ -14796,13 +15989,13 @@ class _BackdropCountDialog(_DialogBase):                        ### NEW v0.19.1 
         self._fan_lbl = tk.Label(self, text="", bg=C_BG, fg=C_DIM, font=("Helvetica", 8),
                                  wraplength=440, justify="left")
         self._fan_lbl.pack(padx=18)
-        tk.Label(self, text="Your current backdrops are backed up before they are deleted.",
+        tk.Label(self, text=_i18n.t("mc.your_current_backdrops_are_0d1d"),
                  bg=C_BG, fg=C_DIM, font=("Helvetica", 8)).pack(padx=18)
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(10, 14))
         self._ok_btn = tk.Button(bf, text=f"  {btn}  ", bg=C_ERR if warn else C_OK, fg=C_BG,
                                  relief="flat", cursor="hand2", font=("Helvetica", 10, "bold"), command=self._ok)
         self._ok_btn.pack(side="left", padx=4)
-        tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self.destroy).pack(side="left", padx=4)
         self.bind("<Escape>", lambda e: self.destroy())
         self._recount()                                          ### v0.19.3 B61 ###
@@ -14839,19 +16032,18 @@ class _BackdropCountDialog(_DialogBase):                        ### NEW v0.19.1 
         if y != self._online_n:                                  # the source changed: clamp N
             self._online_n = y
             self._spin.configure(to=max(1, y))
-            self._of_lbl.configure(text=f"of {y}  (highest resolution first)")
+            self._of_lbl.configure(text=_i18n.t("mc.of_highest_resolution_first_210b", y=y))
             try:
                 if int(str(self._n_var.get()).strip()) > y:
                     self._n_var.set(str(y)); return               # the trace calls _recount again
             except (ValueError, tk.TclError):
                 pass
-        self._fan_lbl.configure(text="fanart.tv gives no image sizes: its images are taken by size class, "
-                                     "then by likes." if fan else "")
+        self._fan_lbl.configure(text=_i18n.t("mc.fanart_tv_gives_no_b417") if fan else "")
         n = self._n()
         if n is None:
-            self.message = f"Type a number from 1 to {y}."; self.button_label = "Replace"
+            self.message = _i18n.t("uf.type_a_number_from_dd81", y=y); self.button_label = "Replace"
             self._msg_lbl.configure(text=self.message, fg=C_ERR)
-            self._ok_btn.configure(state="disabled", text="  Replace  ", bg=C_SURFACE2)
+            self._ok_btn.configure(state="disabled", text=_i18n.t("mc.replace_311b"), bg=C_SURFACE2)
             return
         text, btn, warn = backdrop_count_message(self._local_n, y, label, n)
         self.message = text; self.button_label = btn
@@ -14872,41 +16064,37 @@ class _AutoRepairOptionsDialog(_DialogBase):                    ### NEW v0.19.0 
     def __init__(self, parent, n_movies, offer_dry_run=False, has_rating_keys=True):
         super().__init__(parent)
         self.result = None
-        self.title("Auto Repair")
+        self.title(_i18n.t("mc.auto_repair_917e"))
         self.configure(bg=C_BG)
         self.resizable(False, False)
         self.transient(parent); _modal(self)
         self.protocol("WM_DELETE_WINDOW", self.destroy)
-        tk.Label(self, text=f"Auto Repair — {_n(n_movies, 'movie')}", bg=C_BG, fg=C_ACCENT,
+        tk.Label(self, text=_i18n.t("mc.auto_repair_0074", n=_n(n_movies, 'movie')), bg=C_BG, fg=C_ACCENT,
                  font=("Helvetica", 11, "bold")).pack(padx=20, pady=(14, 4))
-        tk.Label(self, text="Applies every safe automatic fix: IDs (exact title + year, otherwise a chooser), ratings,\n"
-                            "genres, year, local titles (copy / make the same), XML language, '&' escaping, duplicate\n"
-                            "or malformed ID tags, the TMDB collection (NFO and movie.xml; its folder follows) and the\n"
-                            "NFO file name Kodi reads (it may be RENAMED). Images are never touched.\n"
-                            "NFO/XML files are backed up before the first write (Backup History / Undo).",   # P7 (C14)
+        tk.Label(self, text=_i18n.t("mc.applies_every_safe_automatic_31a7"),   # P7 (C14)
                  bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9), justify="left").pack(padx=20, pady=(0, 10))
         self._rating = tk.StringVar(value="votes")
-        f = tk.LabelFrame(self, text=" Rating source ", bg=C_BG, fg=C_TEXT, font=("Helvetica", 9, "bold"))
+        f = tk.LabelFrame(self, text=_i18n.t("mc.rating_source_c715"), bg=C_BG, fg=C_TEXT, font=("Helvetica", 9, "bold"))
         f.pack(fill="x", padx=20, pady=(0, 8))
-        for val, text in (("votes", "Use the source with more votes (recommended)"),
-                          ("tmdb", "Prefer TMDB"), ("omdb", "Prefer OMDb/IMDb"),
-                          ("skip", "Do not sync ratings in this run")):
+        for val, text in (("votes", _i18n.t("uf.use_the_source_with_6da6")),
+                          ("tmdb", "Prefer TMDB"), ("omdb", _i18n.t("uf.prefer_omdb_imdb_4a4e")),
+                          ("skip", _i18n.t("uf.do_not_sync_ratings_ef19"))):
             tk.Radiobutton(f, text=text, variable=self._rating, value=val, bg=C_BG, fg=C_TEXT,
                            selectcolor=C_SURFACE, activebackground=C_BG, font=("Helvetica", 9),
                            state="normal" if (has_rating_keys or val == "skip") else "disabled").pack(anchor="w", padx=10, pady=1)
         if not has_rating_keys:
             self._rating.set("skip")
-        tk.Label(f, text="Movies with no valid rating online are skipped.", bg=C_BG, fg=C_DIM,
+        tk.Label(f, text=_i18n.t("mc.movies_with_no_valid_2198"), bg=C_BG, fg=C_DIM,
                  font=("Helvetica", 8)).pack(anchor="w", padx=10, pady=(0, 6))
         self._dry = tk.BooleanVar(value=offer_dry_run)
         if offer_dry_run:
-            tk.Checkbutton(self, text="Preview first (dry run — show the planned actions, write nothing)",
+            tk.Checkbutton(self, text=_i18n.t("mc.preview_first_dry_run_c2e3"),
                            variable=self._dry, bg=C_BG, fg=C_TEXT, activebackground=C_BG,
                            selectcolor=C_SURFACE, font=("Helvetica", 9)).pack(anchor="w", padx=20, pady=(0, 8))
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(4, 14))
-        tk.Button(bf, text="  Start  ", bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.start_4df6"), bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"), command=self._ok).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self.destroy).pack(side="left")
         self.bind("<Escape>", lambda e: self.destroy())
         self.update_idletasks()
@@ -14977,7 +16165,7 @@ class _BatchProgressDialog(_DialogBase):                       ### NEW v0.17.0 #
         self._draw_bar(0)
 
         # Percentage + ETA
-        self._pct_var = tk.StringVar(value="Processing…  0%")
+        self._pct_var = tk.StringVar(value=_i18n.t("au.processing0"))
         tk.Label(self, textvariable=self._pct_var,
                  bg=self._BG, fg=self._TXT,
                  font=("Helvetica", 10, "bold")).pack()
@@ -14988,7 +16176,7 @@ class _BatchProgressDialog(_DialogBase):                       ### NEW v0.17.0 #
                  font=("Helvetica", 9)).pack(pady=(2, 8))
 
         # Cancel button
-        tk.Button(self, text="  Cancel ALL  ",
+        tk.Button(self, text=_i18n.t("mc.cancel_all_2c07"),
                   bg=self._RED, fg=self._BG,
                   relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"),
@@ -15024,7 +16212,7 @@ class _BatchProgressDialog(_DialogBase):                       ### NEW v0.17.0 #
     def _on_cancel(self):
         self.cancelled = True
         try:
-            self._pct_var.set("Cancelling…")
+            self._pct_var.set(_i18n.t("mc.st.cancelling"))
             self._eta_var.set("")
         except Exception:
             pass
@@ -15047,14 +16235,14 @@ class _BatchProgressDialog(_DialogBase):                       ### NEW v0.17.0 #
         avg_item = sum(t for _, t in self._times) / len(self._times)
         remaining = max(0, self._total - processed)
         eta_secs  = avg_item * remaining
-        eta_str   = (f"Estimated time remaining: {self._fmt_eta(eta_secs)}"
+        eta_str   = (_i18n.t("uf.estimated_time_remaining_2aec", fmt_eta=self._fmt_eta(eta_secs))
                      if processed < self._total else "")
 
         def _ui(p=pct, e=eta_str, pr=processed, tot=self._total):
-            if self._closed: return
+            if self._closed or self.cancelled: return               # v0.20.0 AU23: "Cancelling…" stays
             try:
                 self._draw_bar(p)
-                self._pct_var.set(f"Processing…  {p}%  ({pr}/{tot})")
+                self._pct_var.set(_i18n.t("mc.st.processing", p=p, pr=pr, tot=tot))
                 self._eta_var.set(e)
             except Exception:
                 pass
@@ -15094,14 +16282,14 @@ class _DoneWhenIdle:                                             ### NEW v0.19.1
             self._close_pending = True
             self._frames_cancel = True                            ### NEW v0.19.5 I21 — FFmpeg stops now, not when the download ends ###
             try:
-                self._done_btn.configure(text="  Finishing…  ", state="disabled")
+                self._done_btn.configure(text=_i18n.t("mc.finishing_21b4"), state="disabled")
             except Exception:
                 pass
             return
         self.destroy()
 
     def _make_done_button(self, parent, **kw):
-        self._done_btn = tk.Button(parent, text="  Done  ", command=self._done, **kw)
+        self._done_btn = tk.Button(parent, text=_i18n.t("mc.done_2fd8"), command=self._done, **kw)
         self.protocol("WM_DELETE_WINDOW", self._done)
         self.bind("<Escape>", lambda e: self._done())
         return self._done_btn
@@ -15119,14 +16307,14 @@ def _initial_source(online, frames_ok):                          ### NEW v0.19.1
 
 def _image_list_title(source, mode):                            ### NEW v0.19.1 I10 ###
     if source == "frames":                                       ### v0.19.1 B11 ###
-        return "Frames from the movie  (10 %–90 % of the running time)"
-    what = "Posters" if mode == "poster" else "Backdrops" if mode == "backdrops" else "Images"
+        return _i18n.t("uf.frames_from_the_movie_c241")
+    what = _i18n.t("au.img.posters" if mode == "poster" else "au.img.backdrops" if mode == "backdrops" else "au.img.images")
     if source == "fanarttv":
-        order = "your library language first" if mode == "poster" else "most liked first"
+        order = _i18n.t("uf.your_library_language_first_c7f4") if mode == "poster" else _i18n.t("uf.most_liked_first_6d6b")
         return f"fanart.tv {what}  ({order})"
     if source == "both":
-        return f"TMDB + fanart.tv {what}  (by resolution, then votes / likes)"
-    return f"TMDB {what}  (sorted by resolution, highest first)"
+        return _i18n.t("uf.tmdb_fanart_tv_by_fa3b", what=what)
+    return _i18n.t("uf.tmdb_sorted_by_resolution_7aff", what=what)
 
 
 def _image_source_bar(dlg, source, tmdb_ok, on_change, with_thumbs=False, frames=False, online=None):   ### NEW v0.19.1 I10 ###
@@ -15134,7 +16322,7 @@ def _image_source_bar(dlg, source, tmdb_ok, on_change, with_thumbs=False, frames
     the image list.  on_change(source, thumbs) runs on the UI thread."""
     fk = bool(fanarttv_key())
     bar = tk.Frame(dlg, bg=C_BG); bar.pack(pady=(4, 0))
-    tk.Label(bar, text="Source:", bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left")
+    tk.Label(bar, text=_i18n.t("mc.source_77c8"), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left")
     if online is None:
         online = [s for s in (("tmdb",) if tmdb_ok else ()) + (("fanarttv",) if fk else ())] or ["tmdb"]
     codes = list(online) + (["both"] if len(online) == 2 else [])            ### v0.19.1 B25 ###
@@ -15148,18 +16336,18 @@ def _image_source_bar(dlg, source, tmdb_ok, on_change, with_thumbs=False, frames
         on_change(src, bool(thumbs.get()))
     cb.bind("<<ComboboxSelected>>", _fire)
     if with_thumbs and fk:
-        tk.Checkbutton(bar, text="include landscape thumbs (fanart.tv, 1000×562)", variable=thumbs,
+        tk.Checkbutton(bar, text=_i18n.t("mc.include_landscape_thumbs_fanart_9a3f"), variable=thumbs,
                        command=_fire, bg=C_BG, fg=C_SUBTEXT, selectcolor=C_SURFACE,
                        activebackground=C_BG, font=("Helvetica", 8)).pack(side="left", padx=(10, 0))
     if not fk:
-        tk.Label(bar, text="  (fanart.tv: add a key in Settings → API Keys)", bg=C_BG,
+        tk.Label(bar, text=_i18n.t("mc.fanart_tv_add_a_19d6"), bg=C_BG,
                  fg=C_DIM, font=("Helvetica", 8)).pack(side="left")
     if frames:                                                   ### NEW v0.19.1 B11 ###
         def _frames():
             var.set(IMAGE_SOURCE_LABEL["frames"])
-            dlg._frames_btn.configure(text="🎞  More frames")
+            dlg._frames_btn.configure(text=_i18n.t("mc.more_frames_5dfe"))
             on_change("frames", bool(thumbs.get()))
-        dlg._frames_btn = tk.Button(bar, text=("🎞  More frames" if source == "frames" else "🎞  Frames from movie"), command=_frames,
+        dlg._frames_btn = tk.Button(bar, text=(_i18n.t("mc.more_frames_5dfe") if source == "frames" else _i18n.t("mc.frames_from_movie_76ca")), command=_frames,
                                     bg=C_SURFACE2, fg=C_WARN, relief="flat", cursor="hand2",
                                     font=("Helvetica", 9, "bold"), padx=8, pady=2)
         dlg._frames_btn.pack(side="left", padx=(12, 0))
@@ -15230,7 +16418,7 @@ class _FramesMixin:                                              ### NEW v0.19.1
         row = tk.Frame(parent, bg=bg); row.pack(pady=(0, 20))
         self._ff_label = tk.Label(row, text="", bg=bg, fg=C_ACCENT, font=("Consolas", 9))
         self._ff_label.pack(side="left")
-        self._ff_stop_btn = tk.Button(row, text="  Stop  ", command=self._frames_request_stop,
+        self._ff_stop_btn = tk.Button(row, text=_i18n.t("mc.stop_8d43"), command=self._frames_request_stop,
                                       bg=C_ERR, fg=C_BG, relief="flat", cursor="hand2",
                                       font=("Helvetica", 9, "bold"), padx=6, pady=1)
         self._ff_stop_btn.pack(side="left", padx=(10, 0))
@@ -15239,7 +16427,7 @@ class _FramesMixin:                                              ### NEW v0.19.1
     def _frames_request_stop(self):                              ### NEW v0.19.2 B28 ###
         self._frames_stop = True
         try:
-            self._ff_stop_btn.configure(text="  Stopping…  ", state="disabled")
+            self._ff_stop_btn.configure(text=_i18n.t("mc.stopping_6816"), state="disabled")
         except (tk.TclError, AttributeError):
             pass
 
@@ -15286,7 +16474,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
 
         is_poster = (image_mode == "poster")
         self._page_size = self._POSTER_PAGE if is_poster else self._FANART_PAGE
-        title_str = "Fetch Poster / Folder" if is_poster else "Fetch Fanart"
+        title_str = _i18n.t("uf.fetch_poster_folder_7691") if is_poster else _i18n.t("mc.fetch_fanart_fe5e")
 
         self.title(f"{title_str} — {row_data.get('movie_name', '')}")
         self.configure(bg=C_BG)
@@ -15295,11 +16483,10 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
 
         # ── Header ────────────────────────────────────────────────────────────
         tk.Label(self,
-                 text=f"{title_str}  ·  "
-                      f"{row_data.get('movie_name', '')}  ·  TMDB ID: {tmdb_id or '—'}",
+                 text=_i18n.t("mc.tmdb_id_c70b", title_str=title_str, get=row_data.get('movie_name', ''), v=tmdb_id or '—'),
                  font=("Helvetica", 10, "bold"),
                  bg=C_BG, fg=C_TEXT).pack(pady=(10, 2))
-        self._status_lbl = tk.Label(self, text="Loading images…",
+        self._status_lbl = tk.Label(self, text=_i18n.t("mc.loading_images_f28b"),
                                      font=("Helvetica", 8),
                                      bg=C_BG, fg=C_DIM)
         self._status_lbl.pack()
@@ -15317,7 +16504,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
         lf = tk.Frame(body, bg=C_SURFACE, width=240)
         lf.pack(side="left", fill="y", padx=(0, 10))
         lf.pack_propagate(False)
-        tk.Label(lf, text="Current Local Image",
+        tk.Label(lf, text=_i18n.t("mc.current_local_image_458c"),
                  font=("Helvetica", 9, "bold"),
                  bg=C_SURFACE, fg=C_ACCENT).pack(pady=(10, 4))
         self._local_img_lbl  = tk.Label(lf, bg=C_SURFACE)
@@ -15355,8 +16542,8 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
         # Mouse wheel anywhere in the window, also over the thumbnails  ### MODIFIED v0.19.2 B29 — was <Enter>/<Leave> + bind_all ###
         bind_wheel(self, [self._canvas], main=self._canvas)
         self._loading_lbl = tk.Label(self._grid_frame,
-                                      text=("Extracting frames from the movie…" if self._source == "frames"
-                                            else f"Fetching from {IMAGE_SOURCE_LABEL[self._source]}…"),
+                                      text=(_i18n.t("mc.extracting_frames_from_the_b4cb") if self._source == "frames"
+                                            else _i18n.t("mc.fetching_from_1973", v=IMAGE_SOURCE_LABEL[self._source])),
                                       bg=C_BG, fg=C_DIM,
                                       font=("Helvetica", 10, "italic"))
         self._loading_lbl.pack(pady=30)
@@ -15365,7 +16552,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
 
         # ── Footer: pagination + cancel ───────────────────────────────────────
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(4, 12))
-        self._back_btn = tk.Button(bf, text="◀  Back",
+        self._back_btn = tk.Button(bf, text=_i18n.t("mc.back_2580"),
                                     bg=C_SURFACE2, fg=C_TEXT,
                                     relief="flat", cursor="hand2",
                                     font=("Helvetica", 9, "bold"),
@@ -15373,7 +16560,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                                     state="disabled",
                                     command=self._page_back)
         self._back_btn.pack(side="left", padx=6)
-        self._more_btn = tk.Button(bf, text="Show More  ▶",
+        self._more_btn = tk.Button(bf, text=_i18n.t("mc.show_more_1a13"),
                                     bg=C_SURFACE2, fg=C_TEXT,
                                     relief="flat", cursor="hand2",
                                     font=("Helvetica", 9, "bold"),
@@ -15418,7 +16605,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
 
         if not exists or not path or not os.path.isfile(path):
             ui_post(lambda: self._local_info_lbl.configure(
-                text=f"{fname}\n\n[Not found]"))
+                text=_i18n.t("mc.not_found_3a94", fname=fname)))
             return
         try:
             sz    = os.path.getsize(path)
@@ -15436,7 +16623,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
             ui_post(_show)
         except Exception as ex:
             ui_post(lambda: self._local_info_lbl.configure(
-                text=f"{fname}\n\n[Preview error]"))
+                text=_i18n.t("mc.preview_error_7114", fname=fname)))
 
     # ── Online image list (async) ─────────────────────────────────────────────
     def _load_tmdb_images(self):
@@ -15455,11 +16642,11 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
             logger.warning(f"FetchImageDialog: {err_msg}")
             ui_post(lambda m=err_msg: (
                 self._loading_lbl.configure(text=m, fg=C_ERR),
-                self._status_lbl.configure(text="Load failed")))
+                self._status_lbl.configure(text=_i18n.t("mc.load_failed_1da2"))))
             return
         note = ("  ·  " + "; ".join(e.splitlines()[0] for e in errs)) if errs else ""
         ui_post(lambda: self._status_lbl.configure(
-            text=f"{_n(len(self._images), 'image')} found — downloading thumbnails…{note}"))
+            text=_i18n.t("mc.found_downloading_thumbnails_d652", n=_n(len(self._images), 'image'), note=note)))
         self._render_page()
 
     def _on_source_change(self, source, thumbs):                ### NEW v0.19.1 I10 ###
@@ -15473,13 +16660,13 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
         self._photo_refs.clear()
         self._list_title.configure(text=_image_list_title(source, self._mode))
         self._loading_lbl = tk.Label(self._grid_frame,
-                                     text=("Extracting frames from the movie…" if source == "frames"
-                                           else f"Fetching from {IMAGE_SOURCE_LABEL[source]}…"),
+                                     text=(_i18n.t("mc.extracting_frames_from_the_b4cb") if source == "frames"
+                                           else _i18n.t("mc.fetching_from_1973", v=IMAGE_SOURCE_LABEL[source])),
                                      bg=C_BG, fg=C_DIM, font=("Helvetica", 10, "italic"))
         self._loading_lbl.pack(pady=30)
         if source == "frames":                                             ### NEW v0.19.2 B28 ###
             self._frames_progress_ui(self._grid_frame)
-        self._status_lbl.configure(text="Loading images…")
+        self._status_lbl.configure(text=_i18n.t("mc.loading_images_f28b"))
         self._back_btn.configure(state="disabled"); self._more_btn.configure(state="disabled")
         threading.Thread(target=self._load_tmdb_images, daemon=True).start()
 
@@ -15540,12 +16727,12 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
 
             if not ph:
                 tk.Label(self._grid_frame,
-                         text=f"No poster images found on {IMAGE_SOURCE_LABEL[self._source]}.",
+                         text=_i18n.t("mc.no_poster_images_found_d998", v=IMAGE_SOURCE_LABEL[self._source]),
                          bg=C_BG, fg=C_ERR,
                          font=("Helvetica", 10)
                          ).grid(row=0, column=0, columnspan=4,
                                 padx=20, pady=20)
-                self._status_lbl.configure(text="No images")
+                self._status_lbl.configure(text=_i18n.t("mc.no_images_77b6"))
                 return
 
             count = 0
@@ -15568,14 +16755,14 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                                  bg=C_ROW_ALT).pack(padx=4, pady=(6,2))
                         count += 1
                     except Exception:
-                        tk.Label(cell, text="[Preview\nunavailable]",
+                        tk.Label(cell, text=_i18n.t("mc.preview_unavailable_79ca"),
                                  bg=C_ROW_ALT, fg=C_DIM,
                                  width=14, height=8,
                                  font=("Helvetica",8)).pack(padx=4, pady=(6,2))
                 else:
                     tk.Label(cell,
-                             text="[No PIL]" if not _PIL_AVAILABLE
-                                  else "[Failed]",
+                             text=_i18n.t("mc.no_pil_27d8") if not _PIL_AVAILABLE
+                                  else _i18n.t("mc.failed_5cf7"),
                              bg=C_ROW_ALT, fg=C_DIM,
                              width=14, height=8,
                              font=("Helvetica",8)).pack(padx=4, pady=(6,2))
@@ -15584,7 +16771,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                          text=f"#{rank}  [{badge}]\n{detail}",           ### MODIFIED v0.19.1 I10 ###
                          bg=C_ROW_ALT, fg=C_SUBTEXT,
                          font=("Consolas", 7)).pack()
-                tk.Button(cell, text="✓ Use This",
+                tk.Button(cell, text=_i18n.t("mc.use_this_af60"),
                           bg=C_OK, fg=C_BG,
                           relief="flat", cursor="hand2",
                           font=("Helvetica", 8, "bold"),
@@ -15593,9 +16780,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                           ).pack(pady=(3,8))
 
             self._status_lbl.configure(
-                text=f"Page {self._page+1}  ·  "
-                     f"showing #{start+1}–{total} of {len(self._images)}  "
-                     f"·  {count} previews")
+                text=_i18n.t("mc.page_showing_of_previews_1a53", v=self._page+1, v2=start+1, total=total, n=len(self._images), count=count))
             self._update_nav_buttons()
             self._canvas.yview_moveto(0)
 
@@ -15618,10 +16803,10 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
 
             if not ph:
                 tk.Label(self._grid_frame,
-                         text=f"No backdrop images found on {IMAGE_SOURCE_LABEL[self._source]}.",
+                         text=_i18n.t("mc.no_backdrop_images_found_4c2a", v=IMAGE_SOURCE_LABEL[self._source]),
                          bg=C_BG, fg=C_ERR,
                          font=("Helvetica", 10)).pack(padx=20, pady=20)
-                self._status_lbl.configure(text="No images")
+                self._status_lbl.configure(text=_i18n.t("mc.no_images_77b6"))
                 return
 
             count = 0
@@ -15647,12 +16832,12 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                         count += 1
                     except Exception:
                         thumb_lbl.configure(
-                            text="[Preview\nunavailable]",
+                            text=_i18n.t("mc.preview_unavailable_79ca"),
                             fg=C_DIM, font=("Helvetica",8),
                             width=22, height=7)
                 else:
                     thumb_lbl.configure(
-                        text="[No PIL]" if not _PIL_AVAILABLE else "[Failed]",
+                        text=_i18n.t("mc.no_pil_27d8") if not _PIL_AVAILABLE else _i18n.t("mc.failed_5cf7"),
                         fg=C_DIM, font=("Helvetica",8),
                         width=22, height=7)
 
@@ -15663,7 +16848,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                          bg=row_bg, fg=C_TEXT,
                          font=("Consolas", 9), anchor="w"
                          ).pack(fill="x", padx=4, pady=(6,2))
-                tk.Button(info_f, text="✓ Use This Fanart",
+                tk.Button(info_f, text=_i18n.t("mc.use_this_fanart_7d81"),
                           bg=C_OK, fg=C_BG,
                           relief="flat", cursor="hand2",
                           font=("Helvetica", 9, "bold"),
@@ -15672,9 +16857,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                           ).pack(anchor="w", padx=4, pady=4)
 
             self._status_lbl.configure(
-                text=f"Page {self._page+1}  ·  "
-                     f"showing #{start+1}–{total} of {len(self._images)}  "
-                     f"·  {count} previews")
+                text=_i18n.t("mc.page_showing_of_previews_1a53", v=self._page+1, v2=start+1, total=total, n=len(self._images), count=count))
             self._update_nav_buttons()
             self._canvas.yview_moveto(0)
 
@@ -15688,7 +16871,7 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
         if getattr(self, "_dl_busy", 0):                           # C21: a download is running
             return
         _label = "Fetch Poster/Folder" if self._mode == "poster" else "Fetch Fanart"   ### I1 ###
-        self._status_lbl.configure(text="Downloading full resolution…")
+        self._status_lbl.configure(text=_i18n.t("mc.downloading_full_resolution_552a"))
         self.update_idletasks()
 
         def _worker():
@@ -15704,9 +16887,8 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                 _bk_ok = _batch_backup_ok(movie, _ref, *existing)   ### MODIFIED v0.19.4 P3 — the run's folder ###
                 if not _bk_ok:
                     ui_post(lambda: (
-                        messagebox.showerror("Download Failed", "Backup failed — nothing was changed "
-                                             "(see logs\\app.log).", parent=self),
-                        self._status_lbl.configure(text="Backup failed"),
+                        messagebox.showerror(_i18n.t("mc.download_failed_dc1d"), _i18n.t("mc.backup_failed_nothing_was_135f"), parent=self),
+                        self._status_lbl.configure(text=_i18n.t("mc.backup_failed_d7f3")),
                         self._dl_end()))
                     return
             # Download to first target, then copy to additional targets
@@ -15714,8 +16896,8 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
             ok, err = _save_image_from(image_url, primary)              ### v0.19.1 B11 — frame or URL ###
             if not ok:
                 ui_post(lambda m=err: (
-                    messagebox.showerror("Download Failed", m, parent=self),
-                    self._status_lbl.configure(text="Download failed"),
+                    messagebox.showerror(_i18n.t("mc.download_failed_dc1d"), m, parent=self),
+                    self._status_lbl.configure(text=_i18n.t("mc.download_failed_0b21")),
                     self._dl_end()))                                   ### v0.19.1 B18 ###
                 return
             # Copy to remaining targets (poster → folder.jpg)
@@ -15741,12 +16923,12 @@ class _FetchImageDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):       ### REB
                     logger.warning(f"_apply_image: could not remove {old}: {re_}")
             self.applied = True
             logger.info(f"Fetched image for '{movie}': {image_url}")
-            _msg = "Saved:\n" + "\n".join(os.path.basename(t) for t in saved)       ### MODIFIED v0.19.2 B47 ###
+            _msg = _i18n.t("au.saved_list") + "\n" + "\n".join(os.path.basename(t) for t in saved)       ### MODIFIED v0.19.2 B47 ###
             if failed:
-                _msg += "\n\n" + "\n".join(f"{os.path.basename(t)} could not be written: {e}" for t, e in failed)
+                _msg += "\n\n" + "\n".join(_i18n.t("au.not_written", f=os.path.basename(t), e=e) for t, e in failed)
             _box = messagebox.showwarning if failed else messagebox.showinfo
             ui_post(lambda: (
-                _box("Fetch Complete", _msg, parent=self),
+                _box(_i18n.t("au.fetch_done"), _msg, parent=self),
                 self._dl_end(),                                        ### v0.19.1 B18 ###
                 self.destroy()))
 
@@ -15819,7 +17001,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         self._dismissed   = set()   # filenames closed by user — never shown again
 
         movie_name = row_data.get("movie_name", row_data.get("subfolder", "?"))
-        self.title(f"Fetch Backdrops — {movie_name}")
+        self.title(_i18n.t("mc.fetch_backdrops_8729", movie_name=movie_name))
         self.configure(bg=self._BG)
         self.transient(parent)
         self.resizable(True, True)
@@ -15828,10 +17010,10 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
 
         # ── Header ────────────────────────────────────────────────────────────
         tk.Label(self,
-                 text=f"Fetch Backdrops  ·  {movie_name}  ·  TMDB ID: {tmdb_id or '—'}",
+                 text=_i18n.t("mc.fetch_backdrops_tmdb_id_64b3", movie_name=movie_name, v=tmdb_id or '—'),
                  font=("Helvetica", 10, "bold"), bg=self._BG, fg=self._TXT
                  ).pack(pady=(10, 2))
-        self._status_lbl = tk.Label(self, text="Loading…",
+        self._status_lbl = tk.Label(self, text=_i18n.t("mc.loading_5f02"),
                                     font=("Helvetica", 8), bg=self._BG, fg=self._DIM)
         self._status_lbl.pack()
         self._frames_init()                                                ### v0.19.1 B11 ###
@@ -15848,11 +17030,11 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         left_outer.pack(side="left", fill="y", padx=(0, 10))
         left_outer.pack_propagate(False)
 
-        tk.Label(left_outer, text="Local Backdrops",
+        tk.Label(left_outer, text=_i18n.t("mc.local_backdrops_a58a"),
                  font=("Helvetica", 9, "bold"), bg=self._PANEL, fg=self._BLU
                  ).pack(pady=(8, 2))
         tk.Label(left_outer,
-                 text="Select an online image on the right,\nthen click Replace to overwrite a local file.",
+                 text=_i18n.t("mc.select_an_online_image_686c"),
                  bg=self._PANEL, fg=self._DIM,
                  font=("Helvetica", 8), wraplength=280, justify="center"
                  ).pack(padx=6, pady=(0, 6))
@@ -15880,7 +17062,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
 
         # Footer label inside left panel
         tk.Label(left_outer,
-                 text="(No local backdrops → download creates a new file)",
+                 text=_i18n.t("mc.no_local_backdrops_download_b18d"),
                  bg=self._PANEL, fg=self._DIM,
                  font=("Helvetica", 7), wraplength=280, justify="center"
                  ).pack(padx=6, pady=(2, 6))
@@ -15908,19 +17090,19 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
             lambda e: self._canvas.itemconfig(self._grid_win, width=e.width))
         bind_wheel(self, [self._canvas], main=self._canvas)        ### MODIFIED v0.19.2 B29 — was <Enter>/<Leave> + bind_all ###
 
-        tk.Label(rf, text="Click a backdrop to select it.",
+        tk.Label(rf, text=_i18n.t("mc.click_a_backdrop_to_351e"),
                  bg=self._BG, fg=self._DIM, font=("Helvetica", 8)
                  ).pack(anchor="w", padx=4, pady=(4, 0))
 
         # Right pagination
         rnav = tk.Frame(rf, bg=self._BG); rnav.pack(pady=(4, 0))
-        self._r_back = tk.Button(rnav, text="◀ Back",
+        self._r_back = tk.Button(rnav, text=_i18n.t("mc.back_5991"),
                                  bg=C_SURFACE2, fg=self._TXT, relief="flat",
                                  cursor="hand2", font=("Helvetica", 8),
                                  padx=6, pady=3, state="disabled",
                                  command=self._tmdb_back)
         self._r_back.pack(side="left", padx=3)
-        self._r_more = tk.Button(rnav, text="Show More ▶",
+        self._r_more = tk.Button(rnav, text=_i18n.t("mc.show_more_e71c"),
                                  bg=C_SURFACE2, fg=self._TXT, relief="flat",
                                  cursor="hand2", font=("Helvetica", 8),
                                  padx=6, pady=3, state="disabled",
@@ -15932,7 +17114,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         sep.pack(fill="x", padx=12, pady=(4, 0))
         bf = tk.Frame(self, bg=self._BG); bf.pack(pady=(8, 12))
         # "Download as New" button — always available once a TMDB image is selected
-        self._new_btn = tk.Button(bf, text="  Download as New File  ",
+        self._new_btn = tk.Button(bf, text=_i18n.t("mc.download_as_new_file_20b3"),
                                   bg=self._BLU, fg=C_BG, relief="flat",
                                   cursor="hand2", font=("Helvetica", 10, "bold"),
                                   padx=10, pady=5, state="disabled",
@@ -15950,7 +17132,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         self.geometry(f"+{px}+{py}")
 
         if self._source == "frames":                                       ### NEW v0.19.2 B28 ###
-            tk.Label(self._grid_frame, text="Extracting frames from the movie…", bg=self._BG, fg=self._DIM,
+            tk.Label(self._grid_frame, text=_i18n.t("mc.extracting_frames_from_the_b4cb"), bg=self._BG, fg=self._DIM,
                      font=("Helvetica", 10, "italic")).pack(pady=30)
             self._frames_progress_ui(self._grid_frame, bg=self._BG)
         threading.Thread(target=self._load_local, daemon=True).start()
@@ -15996,7 +17178,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
 
         if not self._local:
             tk.Label(self._local_frame,
-                     text="No local backdrops found.\nA new file will be created\nwhen you download.",
+                     text=_i18n.t("mc.no_local_backdrops_found_9ae5"),
                      bg=self._PANEL, fg=self._DIM,
                      font=("Helvetica", 9), justify="center").pack(pady=20, padx=10)
         else:
@@ -16014,11 +17196,11 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
                         self._photo_local.append(photo)
                         thumb_lbl.configure(image=photo)
                     except Exception:
-                        thumb_lbl.configure(text="[Preview\nunavailable]",
+                        thumb_lbl.configure(text=_i18n.t("mc.preview_unavailable_79ca"),
                                             fg=self._DIM, font=("Helvetica", 7))
                 else:
                     thumb_lbl.configure(
-                        text="[No PIL]" if not _PIL_AVAILABLE else "[Missing]",
+                        text=_i18n.t("mc.no_pil_27d8") if not _PIL_AVAILABLE else _i18n.t("mc.missing_d1d1"),
                         fg=self._DIM, font=("Helvetica", 7))
 
                 # Filename + pixel dimensions below thumbnail
@@ -16034,7 +17216,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
                 btn_row.pack(fill="x", padx=8, pady=(0, 6))
                 # Replace button — greyed out until TMDB selection
                 btn = tk.Button(btn_row,
-                                text="Replace",
+                                text=_i18n.t("mc.replace_0ebe"),
                                 bg=C_SURFACE2, fg=self._DIM,
                                 relief="flat", cursor="arrow",
                                 font=("Helvetica", 8, "bold"),
@@ -16045,7 +17227,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
                 self._replace_btns[fname] = btn
                 # Close button — always active, removes this card from the panel
                 tk.Button(btn_row,
-                          text="Close",
+                          text=_i18n.t("mc.close_d3d2"),
                           bg=C_SURFACE2, fg=self._TXT,
                           relief="flat", cursor="hand2",
                           font=("Helvetica", 8),
@@ -16086,7 +17268,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
             return
         note = ("  ·  " + "; ".join(e.splitlines()[0] for e in errs)) if errs else ""
         ui_post(lambda: self._status_lbl.configure(
-            text=f"{_n(len(self._images), IMAGE_SOURCE_LABEL[self._source] + ' backdrop')} found.{note}",
+            text=_i18n.tn("m3.src_backdrops", len(self._images), src=IMAGE_SOURCE_LABEL[self._source], note=note),
             fg=self._DIM))
         ui_post(lambda g=gen: self._render_tmdb() if g == self._gen else None)   ### MODIFIED v0.19.2 B28 — not for an older source ###
 
@@ -16101,12 +17283,12 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         for w in self._grid_frame.winfo_children():
             w.destroy()
         self._photo_tmdb.clear()
-        tk.Label(self._grid_frame, text=("Extracting frames from the movie…" if source == "frames"
-                                         else f"Fetching from {IMAGE_SOURCE_LABEL[source]}…"),
+        tk.Label(self._grid_frame, text=(_i18n.t("mc.extracting_frames_from_the_b4cb") if source == "frames"
+                                         else _i18n.t("mc.fetching_from_1973", v=IMAGE_SOURCE_LABEL[source])),
                  bg=self._BG, fg=self._DIM, font=("Helvetica", 10, "italic")).pack(pady=30)
         if source == "frames":                                             ### NEW v0.19.2 B28 ###
             self._frames_progress_ui(self._grid_frame, bg=self._BG)
-        self._status_lbl.configure(text="Loading…", fg=self._DIM)
+        self._status_lbl.configure(text=_i18n.t("mc.loading_5f02"), fg=self._DIM)
         self._render_local()                       # Replace buttons back to disabled
         threading.Thread(target=self._load_tmdb, daemon=True).start()
 
@@ -16127,7 +17309,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         page  = self._images[start: start + self._PAGE_SIZE]
 
         if not page:
-            tk.Label(self._grid_frame, text=f"No {IMAGE_SOURCE_LABEL[self._source]} backdrops found.",
+            tk.Label(self._grid_frame, text=_i18n.t("mc.no_backdrops_found_d049", v=IMAGE_SOURCE_LABEL[self._source]),
                      bg=self._BG, fg=self._RED,
                      font=("Helvetica", 10)).pack(padx=20, pady=20)
             return
@@ -16204,7 +17386,7 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         for k in ("thumb", "info", "text"):
             w[k].configure(bg=bg)
         if sel and w["sel"] is None:
-            w["sel"] = tk.Label(w["info"], text="✓  Selected — use Replace buttons on the left",
+            w["sel"] = tk.Label(w["info"], text=_i18n.t("mc.selected_use_replace_buttons_f1f9"),
                                 bg=bg, fg=self._GRN, font=("Helvetica", 8, "bold"), anchor="w")
             w["sel"].pack(fill="x", padx=4)
         elif not sel and w["sel"] is not None:
@@ -16242,23 +17424,29 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
         """Download selected TMDB image to target_path using resilient downloader.
         ### v0.19.4 B100 ### *backup_of* = (movie, path): backed up in the
         worker first (it ran on the Tk thread)."""  ### UPDATED v0.18.0 ###
+        if getattr(self, "_dl_busy", 0) > 0:                      ### NEW v0.20.0 AU12 — one download at a time (as the
+            return                                                # poster dialog): a second click picked the SAME new name ###
         url = self._get_selected_image_url()
         if not url:
-            on_done(False, "No online image selected.")
+            on_done(False, _i18n.t("uf.no_online_image_selected_6a3e"))
             return
-        self._status_lbl.configure(text="Downloading…")
+        self._status_lbl.configure(text=_i18n.t("mc.downloading_5d85"))
         self.update_idletasks()
 
         movie_nm = self._row.get("movie_name") or self._row.get("subfolder") or "backdrop"
 
         def _worker():
-            with _sc.backup_action("Fetch Backdrops"):            ### MODIFIED v0.19.4 P3 (C17) — labelled run ###
-                return _worker_run()
+            try:
+                with _sc.backup_action("Fetch Backdrops"):        ### MODIFIED v0.19.4 P3 (C17) — labelled run ###
+                    return _worker_run()
+            except Exception as ex:                              # v0.20.0 AU12: never stuck at "Finishing…"
+                logger.error(f"Fetch Backdrops download: {ex}")
+                ui_post(lambda m=str(ex): (on_done(False, m), self._dl_end()))
 
         def _worker_run():
             _ref, existed = [None], os.path.isfile(target_path)
             if backup_of and not _batch_backup_ok(backup_of[0], _ref, backup_of[1]):   ### MODIFIED v0.19.4 B100 — in the worker ###
-                ui_post(lambda: (on_done(False, "Backup failed — nothing was changed (see logs\\app.log)."),
+                ui_post(lambda: (on_done(False, _i18n.t("uf.backup_failed_nothing_was_135f")),
                                        self._dl_end()))
                 return
             ok, err = _save_image_from(url, target_path)                  ### v0.19.1 B11 — frame or URL ###
@@ -16275,28 +17463,28 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
     def _replace_local(self, fname, fpath):
         """Replace a specific local file with the selected TMDB backdrop."""
         if self._sel_idx is None:
-            messagebox.showwarning("No Selection",
-                "Please click an online backdrop on the right first.")
+            messagebox.showwarning(_i18n.t("mc.no_selection_3b33"),
+                _i18n.t("mc.please_click_an_online_ce4a"))
             return
         sp    = self._row.get("subfolder_path", "")
         movie = self._row.get("movie_name", self._row.get("subfolder", "?"))
 
         def _done(ok, msg):
             if ok:
-                self._status_lbl.configure(text=f"Replaced: {fname}")
-                messagebox.showinfo("Done", f"Replaced:\n{fname}")
+                self._status_lbl.configure(text=_i18n.t("mc.replaced_c991", fname=fname))
+                messagebox.showinfo(_i18n.t("mc.done_f929"), _i18n.t("mc.replaced_5902", fname=fname))
                 self._load_local_and_refresh()
             else:
-                self._status_lbl.configure(text="Download failed.")
-                messagebox.showerror("Download Failed", msg)
+                self._status_lbl.configure(text=_i18n.t("mc.download_failed_85b5"))
+                messagebox.showerror(_i18n.t("mc.download_failed_dc1d"), msg)
 
         self._download_to(fpath, _done, backup_of=(movie, fpath))     ### MODIFIED v0.19.4 B100 — backup in the worker ###
 
     def _download_new(self):
         """Download selected TMDB backdrop as a new backdropN.jpg file."""
         if self._sel_idx is None:
-            messagebox.showwarning("No Selection",
-                "Please click an online backdrop on the right first.")
+            messagebox.showwarning(_i18n.t("mc.no_selection_3b33"),
+                _i18n.t("mc.please_click_an_online_ce4a"))
             return
         sp    = self._row.get("subfolder_path", "")
         fpath = new_backdrop_paths(sp, 1)[0]                     ### MODIFIED v0.19.1 B23 — folder's naming style ###
@@ -16304,12 +17492,12 @@ class _FetchBackdropDialog(_FramesMixin, _DoneWhenIdle, _DialogBase):        ###
 
         def _done(ok, msg):
             if ok:
-                self._status_lbl.configure(text=f"Saved: {fname}")
-                messagebox.showinfo("Done", f"Saved as:\n{fname}")
+                self._status_lbl.configure(text=_i18n.t("mc.saved_6ed4", fname=fname))
+                messagebox.showinfo(_i18n.t("mc.done_f929"), _i18n.t("mc.saved_as_8359", fname=fname))
                 self._load_local_and_refresh()
             else:
-                self._status_lbl.configure(text="Download failed.")
-                messagebox.showerror("Download Failed", msg)
+                self._status_lbl.configure(text=_i18n.t("mc.download_failed_85b5"))
+                messagebox.showerror(_i18n.t("mc.download_failed_dc1d"), msg)
 
         self._download_to(fpath, _done)
 
@@ -16365,7 +17553,7 @@ class ExportListDialog(_DialogBase):
         self._all_rows  = list(all_rows)
         self._view_rows = list(view_rows)
         self._folder    = folder_name
-        self.title("Export Movie List")
+        self.title(_i18n.t("mc.export_movie_list_c9d3"))
         self.configure(bg=self._BG)
         self.transient(parent); _modal(self)
         self.resizable(False, False)
@@ -16382,22 +17570,21 @@ class ExportListDialog(_DialogBase):
             fmt = "csv_comma"
         scope   = prefs.get("scope", "all")
 
-        tk.Label(self, text="Export Movie List", font=("Helvetica", 13, "bold"),
+        tk.Label(self, text=_i18n.t("mc.export_movie_list_c9d3"), font=("Helvetica", 13, "bold"),
                  bg=self._BG, fg=self._BLU).pack(anchor="w", padx=18, pady=(14, 2))
-        tk.Label(self, text="Movie names containing commas or quotes are quoted "
-                            "automatically — CSV files never break.",
+        tk.Label(self, text=_i18n.t("mc.movie_names_containing_commas_c33a"),
                  font=("Helvetica", 9), bg=self._BG, fg=self._DIM).pack(anchor="w", padx=18, pady=(0, 8))
 
         body = tk.Frame(self, bg=self._BG); body.pack(fill="both", expand=True, padx=14)
 
         # ── Columns ───────────────────────────────────────────────────────────
-        cf = tk.LabelFrame(body, text=" Columns ", bg=self._BG, fg=self._BLU,
+        cf = tk.LabelFrame(body, text=_i18n.t("mc.columns_661c"), bg=self._BG, fg=self._BLU,
                            font=("Helvetica", 10, "bold"), bd=1, relief="groove")
         cf.grid(row=0, column=0, sticky="nsew", padx=(0, 8), pady=4)
         self._preset_var = tk.StringVar(value=preset)
         pr = tk.Frame(cf, bg=self._BG); pr.pack(anchor="w", padx=8, pady=(6, 4))
         for name in list(_export.PRESETS) + ["Custom"]:
-            tk.Radiobutton(pr, text=name, variable=self._preset_var, value=name,
+            tk.Radiobutton(pr, text=_export.preset_label(name), variable=self._preset_var, value=name,   # v0.20.0 UI1d
                            command=self._apply_preset,
                            font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
                            selectcolor=self._PANEL, activebackground=self._BG,
@@ -16411,7 +17598,8 @@ class ExportListDialog(_DialogBase):
             tk.Checkbutton(grid, text=label, variable=v, command=self._on_field_toggle,
                            font=("Helvetica", 9), bg=self._BG, fg=self._TXT,
                            selectcolor=self._PANEL, activebackground=self._BG,
-                           activeforeground=self._TXT, anchor="w", width=16
+                           activeforeground=self._TXT, anchor="w",
+                           width=max(16, max(len(l) for _k, l, _f in _export.EXPORT_FIELDS) + 1)   # v0.20.0 UI1e
                            ).grid(row=i % per_col, column=i // per_col, sticky="w", padx=2)
         if preset != "Custom":
             self._apply_preset()
@@ -16419,22 +17607,22 @@ class ExportListDialog(_DialogBase):
         # ── Rows + Format ─────────────────────────────────────────────────────
         right = tk.Frame(body, bg=self._BG); right.grid(row=0, column=1, sticky="nsew", pady=4)
 
-        rf = tk.LabelFrame(right, text=" Rows ", bg=self._BG, fg=self._BLU,
+        rf = tk.LabelFrame(right, text=_i18n.t("mc.rows_4c4b"), bg=self._BG, fg=self._BLU,
                            font=("Helvetica", 10, "bold"), bd=1, relief="groove")
         rf.pack(fill="x", pady=(0, 8))
         self._scope_var = tk.StringVar(value=scope if scope in ("all", "view") else "all")
-        tk.Radiobutton(rf, text=f"All movies  ({len(self._all_rows)})",
+        tk.Radiobutton(rf, text=_i18n.t("mc.all_movies_a41e", n=len(self._all_rows)),
                        variable=self._scope_var, value="all",
                        font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
                        selectcolor=self._PANEL, activebackground=self._BG,
                        activeforeground=self._TXT).pack(anchor="w", padx=8, pady=(6, 2))
-        tk.Radiobutton(rf, text=f"Current view — filtered and sorted  ({len(self._view_rows)})",
+        tk.Radiobutton(rf, text=_i18n.t("mc.current_view_filtered_and_a2c9", n=len(self._view_rows)),
                        variable=self._scope_var, value="view",
                        font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
                        selectcolor=self._PANEL, activebackground=self._BG,
                        activeforeground=self._TXT).pack(anchor="w", padx=8, pady=(0, 6))
 
-        ff = tk.LabelFrame(right, text=" Format ", bg=self._BG, fg=self._BLU,
+        ff = tk.LabelFrame(right, text=_i18n.t("mc.format_3428"), bg=self._BG, fg=self._BLU,
                            font=("Helvetica", 10, "bold"), bd=1, relief="groove")
         ff.pack(fill="x")
         self._fmt_var = tk.StringVar(value=fmt)
@@ -16443,20 +17631,28 @@ class ExportListDialog(_DialogBase):
             state = "normal"
             text  = label
             if fid == "xlsx" and not xlsx_ok:
-                state = "disabled"; text = label + "   (needs the openpyxl package)"
+                state = "disabled"; text = _i18n.t("mc.needs_the_openpyxl_package_1be8", label=label)
             tk.Radiobutton(ff, text=text, variable=self._fmt_var, value=fid, state=state,
                            font=("Helvetica", 10), bg=self._BG, fg=self._TXT,
                            selectcolor=self._PANEL, activebackground=self._BG,
                            activeforeground=self._TXT, disabledforeground=self._DIM
                            ).pack(anchor="w", padx=8, pady=1)
+        self._posters_var = tk.BooleanVar(value=bool(prefs.get("posters", False)))   ### NEW v0.20.0 I38 ###
+        self._posters_cb = tk.Checkbutton(ff, text=_i18n.t("i38.posters"), variable=self._posters_var,
+                                          font=("Helvetica", 9), bg=self._BG, fg=self._TXT, selectcolor=self._PANEL,
+                                          activebackground=self._BG, activeforeground=self._TXT,
+                                          disabledforeground=self._DIM, anchor="w")
+        self._posters_cb.pack(anchor="w", padx=(28, 8), pady=(0, 2))
+        self._fmt_var.trace_add("write", lambda *_a: self._sync_posters())
+        self._sync_posters()
         tk.Frame(ff, bg=self._BG, height=4).pack()
 
         # ── Buttons ───────────────────────────────────────────────────────────
         bf = tk.Frame(self, bg=self._BG); bf.pack(pady=(10, 14))
-        tk.Button(bf, text="  Export…  ", font=("Helvetica", 10, "bold"),
+        tk.Button(bf, text=_i18n.t("mc.export_be58"), font=("Helvetica", 10, "bold"),
                   bg=C_OK, fg=self._BG, relief="flat", cursor="hand2",
                   command=self._do_export).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10, "bold"),
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), font=("Helvetica", 10, "bold"),
                   bg=C_SURFACE2, fg=self._TXT, relief="flat", cursor="hand2",
                   command=self.destroy).pack(side="left")
         self.bind("<Escape>", lambda e: self.destroy())
@@ -16472,6 +17668,14 @@ class ExportListDialog(_DialogBase):
 
     # ── helpers ───────────────────────────────────────────────────────────────
         _remember_window(self, "ExportListDialog", resizable=False)   ### NEW v0.19.0 — window memory ###
+
+    def _sync_posters(self):                                      ### NEW v0.20.0 I38 ###
+        """Poster thumbnails: only for the HTML page, and only with Pillow."""
+        ok = self._fmt_var.get() == "html" and _export.pil_available()
+        try:
+            self._posters_cb.configure(state="normal" if ok else "disabled")
+        except tk.TclError:
+            pass
 
     def _apply_preset(self):
         name = self._preset_var.get()
@@ -16496,37 +17700,71 @@ class ExportListDialog(_DialogBase):
     def _do_export(self):
         fields = self.selected_fields()
         if not fields:
-            messagebox.showwarning("Export Movie List", "Select at least one column.", parent=self)
+            messagebox.showwarning(_i18n.t("mc.export_movie_list_c9d3"), _i18n.t("mc.select_at_least_one_03f8"), parent=self)
             return
         fmt   = self._fmt_var.get()
         rows  = self._view_rows if self._scope_var.get() == "view" else self._all_rows
         if not rows:
-            messagebox.showinfo("Export Movie List", "There are no movies to export.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.export_movie_list_c9d3"), _i18n.t("mc.there_are_no_movies_fe5e"), parent=self)
             return
         ext   = _export.default_extension(fmt)
         types = {".csv": [("CSV files", "*.csv"), ("All files", "*.*")],
                  ".txt": [("Text files", "*.txt"), ("All files", "*.*")],
-                 ".xlsx": [("Excel workbook", "*.xlsx"), ("All files", "*.*")]}[ext]
+                 ".xlsx": [("Excel workbook", "*.xlsx"), ("All files", "*.*")],
+                 ".html": [("HTML page", "*.html"), ("All files", "*.*")]}[ext]   # v0.20.0 I38
         path = filedialog.asksaveasfilename(
-            parent=self, title="Export Movie List", defaultextension=ext,
+            parent=self, title=_i18n.t("mc.export_movie_list_c9d3"), defaultextension=ext,
             filetypes=types, initialfile=_export.suggested_filename(fmt, self._folder))
         if not path:
             return
+        posters = fmt == "html" and bool(self._posters_var.get()) and _export.pil_available()   ### NEW v0.20.0 I38 ###
         SETTINGS["export_prefs"] = {"preset": self._preset_var.get(), "fields": fields,
-                                    "format": fmt, "scope": self._scope_var.get()}
+                                    "format": fmt, "scope": self._scope_var.get(), "posters": bool(self._posters_var.get())}
         _save_settings(SETTINGS)
+        _when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        if posters:                                              # the posters are read in a worker (a NAS can be slow)
+            return self._export_in_worker(rows, fields, fmt, path, _when)
         try:
-            n = _export.export_rows(rows, fields, fmt, path)
+            n = _export.export_rows(rows, fields, fmt, path, when=_when, app_version=APP_VERSION)
         except Exception as e:
             logger.error(f"Export Movie List failed: {e}")
-            messagebox.showerror("Export failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("mc.export_failed_efb7"), str(e), parent=self)
             return
         logger.info(f"Export Movie List: {n} movies, {len(fields)} columns, {fmt} → {path}")
         self.destroy()
-        if messagebox.askyesno("Export complete",
-                               f"Saved {_n(n, 'movie')} to:\n{path}\n\nOpen the file now?",
+        if messagebox.askyesno(_i18n.t("mc.export_complete_d87b"),
+                               _i18n.t("mc.saved_to_open_the_7f16", n=_n(n, 'movie'), path=path),
                                parent=self._app):
             os_open(path)
+
+    def _export_in_worker(self, rows, fields, fmt, path, when):   ### NEW v0.20.0 I38 ###
+        app = self._app
+        self.destroy()
+        prog = _BatchProgressDialog(app, _i18n.t("i38.progress"), total=len(rows))
+        app._export_prog = prog
+
+        def _work():
+            try:
+                n = _export.export_rows(rows, fields, fmt, path, posters=True, progress=prog.advance,
+                                        cancelled=lambda: prog.cancelled, when=when, app_version=APP_VERSION)
+                err = None
+            except Exception as e:
+                n, err = 0, e
+            prog.close()
+            ui_post(lambda: _done(n, err))
+
+        def _done(n, err):
+            if err is not None:
+                if not prog.cancelled:
+                    logger.error(f"Export Movie List failed: {err}")
+                    messagebox.showerror(_i18n.t("mc.export_failed_efb7"), str(err), parent=app)
+                return
+            logger.info(f"Export Movie List: {n} movies, {len(fields)} columns, {fmt} + posters → {path}")
+            if messagebox.askyesno(_i18n.t("mc.export_complete_d87b"),
+                                   _i18n.t("mc.saved_to_open_the_7f16", n=_n(n, 'movie'), path=path), parent=app):
+                os_open(path)
+        _AppJobThread(app, target=_work).start()
+        return prog
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -16559,13 +17797,13 @@ class ColumnChooserDialog(_DialogBase):
     def __init__(self, parent):
         super().__init__(parent)
         self._app = parent
-        self.title("Choose Columns")
+        self.title(_i18n.t("mc.choose_columns_7944"))
         self.configure(bg=C_BG)
         self.transient(parent); _modal(self)
         self.resizable(False, False)
         hidden = set(SETTINGS.get("hidden_columns") or [])
         iso = SETTINGS.get("lang_ok_code", "PT")
-        tk.Label(self, text="Columns shown in the table", font=("Helvetica", 12, "bold"),
+        tk.Label(self, text=_i18n.t("mc.columns_shown_in_the_1483"), font=("Helvetica", 12, "bold"),
                  bg=C_BG, fg=C_ACCENT).pack(anchor="w", padx=18, pady=(14, 6))
         grid = tk.Frame(self, bg=C_BG); grid.pack(padx=18)
         self._vars = {}
@@ -16582,12 +17820,12 @@ class ColumnChooserDialog(_DialogBase):
                 v.set(True); cb.configure(state="disabled")
             cb.grid(row=i % per_col, column=i // per_col, sticky="w", padx=4, pady=1)
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(12, 14))
-        tk.Button(bf, text="  Show all  ", font=("Helvetica", 10), bg=C_SURFACE2, fg=C_TEXT,
+        tk.Button(bf, text=_i18n.t("mc.show_all_480d"), font=("Helvetica", 10), bg=C_SURFACE2, fg=C_TEXT,
                   relief="flat", cursor="hand2",
                   command=lambda: [v.set(True) for v in self._vars.values()]).pack(side="left", padx=(0, 8))
         tk.Button(bf, text="  OK  ", font=("Helvetica", 10, "bold"), bg=C_OK, fg=C_BG,
                   relief="flat", cursor="hand2", command=self._ok).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Cancel  ", font=("Helvetica", 10, "bold"), bg=C_SURFACE2, fg=C_TEXT,
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), font=("Helvetica", 10, "bold"), bg=C_SURFACE2, fg=C_TEXT,
                   relief="flat", cursor="hand2", command=self.destroy).pack(side="left")
         self.bind("<Escape>", lambda e: self.destroy())
         self.bind("<Return>", lambda e: self._ok())
@@ -16610,15 +17848,18 @@ class ColumnChooserDialog(_DialogBase):
 
 class _PreviewRunDialog(TextReportDialog):                      ### NEW v0.19.0 ###
     """TextReportDialog with an extra 'Run' button (Auto Repair dry-run preview)."""
-    def __init__(self, parent, title, text, file_stem="auto_repair_preview", run_label="  ▶ Run Auto Repair  "):
-        if "All Movies" in title:                                ### NEW v0.19.4 B109d ###
+    def __init__(self, parent, title, text, file_stem="auto_repair_preview", run_label=None):   # v0.20.0 UI1f
+        _allw = {c.get("mc.normalize_sources_all_movies_5eda", "").split("—")[-1].strip().lower()
+                 for c in _i18n.CATALOGS.values()} - {""}           # "all movies" in every language
+        if any(w in title.lower() for w in _allw):                ### NEW v0.19.4 B109d;
+            # v0.20.0 AU12: the translated titles too (the note that the run covers every movie was missing in PT / ES) ###
             _note = all_movies_note(parent)
             if _note:
                 text = _note + "\n\n" + text
         super().__init__(parent, title, text, file_stem)
         self.run = False
         ### MODIFIED v0.19.4 L4 — in the frame's button row (since ReportWindow the last Frame child is the body) ###
-        self.run_button = self.add_button(run_label.strip(), self._run, kind="warn")
+        self.run_button = self.add_button((run_label or _i18n.t("uf.m.run_auto_repair")).strip(), self._run, kind="warn")
 
     def _run(self):
         self.run = True
@@ -16626,7 +17867,8 @@ class _PreviewRunDialog(TextReportDialog):                      ### NEW v0.19.0 
 
 
 
-_ALL_LIBS = "All libraries"                                     ### NEW v0.19.0 ###
+_ALL_LIBS = _i18n.t("lib.all")                                 ### NEW v0.19.0; v0.20.0 UI1c in the interface language ###
+LIB_FILTER_SEP = "   — "                                         ### NEW v0.20.0 UI1c — starts the folder box's filter note ###
 
 
 ### NEW v0.19.2 B55 — the window always shows every library ###
@@ -16648,20 +17890,21 @@ def library_overview(libs, flt, results, offline=()):            ### NEW v0.19.2
     off = {_pkey(x) for x in offline}
     fk = _pkey(flt) if flt else None
     total = sum(n(l) for l in libs)
+    # ### v0.20.0 UI1c ### the words in the interface language; "   — " still starts the filter note (_fit_folder_text)
     if not libs:
-        box = "No folder selected"
+        box = _i18n.t("lib.none")
     elif len(libs) == 1:
         box = libs[0]
     else:
-        box = (f"Libraries ({len(libs)}):  "
-               + "   ·   ".join(("▶ " if fk and _pkey(l) == fk else "") + l for l in libs))
+        box = _i18n.t("lib.box_many", n=len(libs),
+                      list="   ·   ".join(("▶ " if fk and _pkey(l) == fk else "") + l for l in libs))
         if fk:
-            box += f"   — showing 1 of {len(libs)} (filter)"
-    tip = "\n".join(f"{l}  —  {_n(n(l), 'movie')}" + ("  (offline, last scan kept)" if _pkey(l) in off else "")
-                    for l in libs)
+            box += LIB_FILTER_SEP + _i18n.t("lib.box_filter", n=len(libs))
+    tip = "\n".join(_i18n.t("lib.tip_line", lib=l, movies=_n(n(l), "movie"))
+                    + ("  " + _i18n.t("lib.offline_kept") if _pkey(l) in off else "") for l in libs)
     if len(libs) > 1:
-        tip += "\n\nClick to open the Libraries… dialog."
-    choices = [(f"{_ALL_LIBS} ({total})", "")] + [(f"{l} ({n(l)})", l) for l in libs]
+        tip += "\n\n" + _i18n.t("lib.tip_click")
+    choices = [(f"{_ALL_LIBS} ({_i18n.num(total)})", "")] + [(f"{l} ({_i18n.num(n(l))})", l) for l in libs]
     per_lib = "  ·  ".join(f"{os.path.basename(os.path.normpath(l)) or l} {n(l)}" for l in libs) if len(libs) > 1 else ""
     hidden = (len(libs) - 1) if (fk and len(libs) > 1) else 0
     return {"box": box, "tooltip": tip, "choices": choices, "per_lib": per_lib, "hidden": hidden,
@@ -16669,55 +17912,314 @@ def library_overview(libs, flt, results, offline=()):            ### NEW v0.19.2
 
 
 def library_scan_summary(label, libs, results, offline=()):     ### NEW v0.19.2 B55 ###
-    """'Full Scan: 2 libraries — Z:\\A 515 · Z:\\B 312' (offline ones marked)."""
+    """'Full Scan: 2 libraries — Z:\\A 515 · Z:\\B 312' (offline ones marked).
+    ### v0.20.0 UI1c ### *label* is the scan's English name (a code, also in app.log); shown in the interface language."""
+    shown = _i18n.t("scan.kind." + label) if _i18n.has("scan.kind." + str(label)) else label
     if len(libs) <= 1:
-        return f"{label} complete"
+        return _i18n.t("scan.complete", label=shown)
     ov = library_overview(libs, "", results, offline)
     off = {_pkey(x) for x in offline}
-    parts = [f"{l} {ov['counts'][l]}" + (" (offline, last scan kept)" if _pkey(l) in off else "") for l in libs]
-    return f"{label}: {len(libs)} libraries — " + " · ".join(parts)
+    parts = [f"{l} {_i18n.num(ov['counts'][l])}" + (" " + _i18n.t("lib.offline_kept") if _pkey(l) in off else "") for l in libs]
+    return _i18n.t("scan.summary_many", label=shown, libs=_i18n.tn("n.library", len(libs)), list=" · ".join(parts))
 
 
-class HealthModeDialog(DialogFrame):                             ### NEW v0.19.6 TR1b — asked once at the start ###
-    """"Which program plays your movies?" — three big buttons, one click answers (the user's mock-up B, 2026-11-13).
-    Every user, new or old, answers once.  Closing it answers nothing: the next start asks again, nothing changes."""
-    def __init__(self, parent, on_answer):
-        super().__init__(parent, title=HEALTH_MODE_TITLE, heading=HEALTH_MODE_QUESTION, resizable=False)
-        self._on_answer, self._done = on_answer, False
-        self.mode_buttons = {}
-        for i, (mid, title, sub) in enumerate(HEALTH_MODES):
-            first = i == 0
-            b = tk.Button(self.body, text=("★ " if first else "   ") + title + "\n   " + sub, justify="left", anchor="w",
-                          font=("Helvetica", 11, "bold") if first else ("Helvetica", 11),
-                          bg=C_OK if first else C_SURFACE, fg=C_BG if first else C_TEXT,
-                          activebackground=C_HOVER, activeforeground=C_TEXT, relief="flat", cursor="hand2",
-                          padx=20, pady=14, command=lambda m=mid: self._answer(m))   # v0.19.6 TR1b: more room (the user)
-            b.pack(fill="x", padx=28, pady=(14 if first else 0, 14))
-            self.mode_buttons[mid] = b
-        if self.heading is not None:
-            self.heading.pack_configure(padx=28, pady=(22, 4))
-        kw = dict(bg=self.BG, justify="left", anchor="w", font=("Helvetica", 9), fg=C_SUBTEXT)
-        for n, line in enumerate(HEALTH_MODE_FOOT):
-            tk.Label(self.body, text=line, **kw).pack(fill="x", padx=28, pady=(6 if n == 0 else 2, 0))
-        tk.Frame(self.body, bg=self.BG, height=px(14)).pack()
-        self.main_button = self.mode_buttons["nfo"]            # Enter = the recommended one
+def first_start_kind(settings):                                    ### NEW v0.20.0 6g (I34 + F3e) ###
+    """Which first-start window to show: "full" for a new user (no settings.json before: language, movies folder,
+    programs, strictness, FFprobe on one page — the user's choice of 2026-11-16), "programs" for an existing user
+    who never answered "Which programs play your movies?" (seen once, with Not now), else None."""
+    s = settings or {}
+    if s.get("first_start_pending"):
+        return "full"
+    if not s.get("programs_asked") and not s.get("media_programs"):
+        return "programs"
+    return None
+
+
+class FirstStartDialog(DialogFrame):                               ### NEW v0.20.0 6g (I34 + F3e) — one page ###
+    """The first-start window.  *full*: language, movies folder, the programs, strictness and FFprobe on one page
+    with Start; else only the programs, with Not now and Save.  Nothing is stored before Start / Save / Not now
+    (closing the window answers nothing: it comes back at the next start) — except the language, which is stored
+    when picked because it is used from the next start (Restart now).  *on_done(kind, answers)*: kind "save"
+    (answers: programs, preset, folder, ffmpeg_dir) or "not_now"."""
+    _PRESETS = ("tight", "medium", "easy")
+
+    def __init__(self, parent, full, on_done):
+        super().__init__(parent, title=_i18n.t("fs.title"),
+                         heading=_i18n.t("fs.heading" if full else "fs.heading_programs"), resizable=False)
+        self._full, self._on_done, self._done, self._app = bool(full), on_done, False, parent
+        self.folder, self.ffmpeg_dir = None, None
+        g = tk.Frame(self.body, bg=self.BG)
+        g.pack(fill="x", padx=20, pady=(6, 4))
+        g.columnconfigure(1, weight=1)
+        lab = dict(bg=self.BG, fg=C_SUBTEXT, font=("Helvetica", 10, "bold"), anchor="nw", justify="left")
+        txt = dict(bg=self.BG, fg=C_TEXT, font=("Helvetica", 10), anchor="w", justify="left")
+        small = dict(bg=self.BG, fg=C_SUBTEXT, font=("Helvetica", 9), anchor="w", justify="left")
+        btn = dict(font=("Helvetica", 9), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+                   activebackground=C_HOVER, activeforeground=C_TEXT)
+        wrap = px(560)
+        row = 0
+
+        def _label(key):
+            tk.Label(g, text=_i18n.t(key), **lab).grid(row=row, column=0, sticky="nw", padx=(0, 14), pady=(8, 0))
+
+        if self._full:
+            # language — from Windows, changeable here (9f.6a Q1); used from the next start
+            _label("fs.language")
+            lf = tk.Frame(g, bg=self.BG)
+            lf.grid(row=row, column=1, sticky="w", pady=(6, 0))
+            wc = getattr(parent, "_windows_ui_code", None) or "en"
+            opts = [("", _i18n.t("ui.lang.same_as_windows", name=_i18n.LANGUAGE_NAMES.get(wc, "English")))] + \
+                   [(c, _i18n.LANGUAGE_NAMES[c]) for c in _i18n.LANGUAGES]
+            stored = SETTINGS.get("ui_language")
+            self._lang_codes = [c for c, _l in opts]
+            self.lang_var = tk.StringVar(value=dict(opts)[stored if isinstance(stored, str) and stored in _i18n.CATALOGS else ""])
+            self.lang_combo = ttk.Combobox(lf, textvariable=self.lang_var, values=[l for _c, l in opts],
+                                           state="readonly", width=28, font=("Helvetica", 10))
+            self.lang_combo.pack(side="left")
+            self.lang_combo.bind("<<ComboboxSelected>>", lambda e: self._lang_picked())
+            self.restart_btn = tk.Button(lf, text=f"  {_i18n.t('ui.lang.restart_now')}  ", command=self._restart, **btn)
+            self.lang_note = tk.Label(g, text=_i18n.t("fs.lang_note"), wraplength=wrap, **small)
+            row += 1
+            self.lang_note.grid(row=row, column=1, sticky="w")
+            row += 1
+            # the movies folder (a library; more later in Libraries…)
+            _label("fs.folder")
+            ff = tk.Frame(g, bg=self.BG)
+            ff.grid(row=row, column=1, sticky="we", pady=(6, 0))
+            tk.Button(ff, text=f"  {_i18n.t('fs.browse')}  ", command=self._browse, **btn).pack(side="left")
+            self.folder_lbl = tk.Label(ff, text=_i18n.t("fs.folder_none"), wraplength=px(440), **small)
+            self.folder_lbl.pack(side="left", padx=(10, 0))
+            row += 1
+        # the programs (more than one can be ticked; nothing ticked = today's behaviour)
+        _label("fs.programs")
+        pf = tk.Frame(g, bg=self.BG)
+        pf.grid(row=row, column=1, sticky="w", pady=(6, 0))
+        self.program_vars = {}
+        for i, p in enumerate(_mp.PROGRAMS):
+            v = tk.BooleanVar(value=p in (SETTINGS.get("media_programs") or []))
+            cb = tk.Checkbutton(pf, text=_mp.PROGRAM_LABEL[p], variable=v, command=self._programs_changed,
+                                bg=self.BG, fg=C_TEXT, selectcolor=C_SURFACE, activebackground=self.BG,
+                                activeforeground=C_TEXT, font=("Helvetica", 10), anchor="w")
+            r_, c_ = (0, i) if i < 4 else (1, i - 4)
+            cb.grid(row=r_, column=c_, columnspan=(3 if p == "mb_mcm" else 1), sticky="w", padx=(0, 12))
+            self.program_vars[p] = v
+        row += 1
+        self.programs_info = tk.Label(g, text="", wraplength=wrap, bg=self.BG, fg=C_OK, font=("Helvetica", 9),
+                                      anchor="w", justify="left")
+        self.programs_info.grid(row=row, column=1, sticky="w", pady=(4, 0))
+        row += 1
+        tk.Label(g, text=_i18n.t("fs.programs_hint", path=HEALTH_MODE_PATH), wraplength=wrap, **small).grid(
+            row=row, column=1, sticky="w", pady=(2, 0))
+        row += 1
+        if self._full:
+            # strictness (HP1 presets, Tight first and preselected for a new user)
+            _label("fs.strict")
+            sf = tk.Frame(g, bg=self.BG)
+            sf.grid(row=row, column=1, sticky="w", pady=(6, 0))
+            cur = SETTINGS.get("health_preset")
+            # own rules (Custom): offered first and preselected, so Start never replaces them unasked (row 5e)
+            shown = (("custom",) if cur not in self._PRESETS else ()) + self._PRESETS
+            self.preset_var = tk.StringVar(value=cur if cur in self._PRESETS else "custom")
+            for p in shown:
+                tk.Radiobutton(sf, text=_i18n.t("fs.keep_rules" if p == "custom" else f"hp.{p}"), value=p, variable=self.preset_var,
+                               command=self._preset_changed, bg=self.BG, fg=C_TEXT, selectcolor=C_SURFACE,
+                               activebackground=self.BG, activeforeground=C_TEXT,
+                               font=("Helvetica", 10)).pack(side="left", padx=(0, 12))
+            row += 1
+            self.preset_desc = tk.Label(g, text="", wraplength=wrap, **small)
+            self.preset_desc.grid(row=row, column=1, sticky="w")
+            row += 1
+            # FFprobe (optional: nothing bundled, nothing forced — I34)
+            _label("fs.ffprobe")
+            fpf = tk.Frame(g, bg=self.BG)
+            fpf.grid(row=row, column=1, sticky="w", pady=(6, 0))
+            self.ff_lbl = tk.Label(fpf, text=_i18n.t("fs.ff_checking"), **txt)
+            self.ff_lbl.pack(side="left")
+            self.ff_choose = tk.Button(fpf, text=f"  {_i18n.t('fs.choose')}  ", command=self._choose_ff, **btn)
+            self.ff_download = tk.Button(fpf, text=f"  {_i18n.t('fs.download')}  ",
+                                         command=lambda: open_url_with_browser("https://ffmpeg.org/download.html"), **btn)
+            row += 1
+            tk.Label(g, text=_i18n.t("fs.ff_note"), wraplength=wrap, **small).grid(row=row, column=1, sticky="w")
+            row += 1
+            self._preset_changed()
+            self._ff_poll()
+            self.add_button(_i18n.t("fs.start"), self._finish, kind="ok", main=True)
+        else:
+            self.add_button(_i18n.t("fs.not_now"), self._not_now)
+            self.add_button(_i18n.t("fs.save"), self._finish, kind="ok", main=True)
+        self._programs_changed()
         self.protocol("WM_DELETE_WINDOW", self._later)
         self.update_idletasks()
         try:
-            self.minsize(max(self.winfo_reqwidth(), px(560)), 0)
             x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
             y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
             self.geometry(f"+{max(0, x)}+{max(0, y)}")
         except Exception:
             pass
-        self.mode_buttons["nfo"].focus_set()
+        self.main_button.focus_set()
 
-    def _answer(self, mode):
+    # ── the parts ──
+    def ticked(self):
+        return _mp.clean_programs(p for p, v in self.program_vars.items() if v.get())
+
+    def _programs_changed(self):
+        ps = self.ticked()
+        mode = _mp.health_mode_for(ps) or health_mode()
+        try:
+            self.programs_info.configure(text=_sd_programs_info_text(ps, mode))
+        except tk.TclError:
+            pass
+
+    def _preset_changed(self):
+        p = self.preset_var.get()
+        self.preset_desc.configure(text=_i18n.t("fs.keep_rules_d" if p == "custom" else f"hp.{p}.d"))
+
+    def _lang_picked(self):
+        """Stored at once (used from the next start); Restart now shows the window again in that language."""
+        labels = list(self.lang_combo.cget("values"))
+        try:
+            code = self._lang_codes[labels.index(self.lang_var.get())]
+        except ValueError:
+            return None
+        if code:
+            SETTINGS["ui_language"] = code
+        else:
+            SETTINGS.pop("ui_language", None)
+        _save_settings(SETTINGS)
+        if not self.restart_btn.winfo_ismapped():
+            self.restart_btn.pack(side="left", padx=(10, 0))
+        return code
+
+    def _restart(self):
+        fn = getattr(self._app, "_restart_now", None)
+        if callable(fn):
+            self._later()
+            return fn()
+        return False
+
+    def _browse(self):
+        p = filedialog.askdirectory(title=_i18n.t("mc.add_a_library_root_ec74"), parent=self)
+        if p:
+            self.folder = _norm_lib(p)
+            self.folder_lbl.configure(text=self.folder, fg=C_TEXT)
+
+    def _ff_show(self, found_dir):
+        self.ff_choose.pack_forget(); self.ff_download.pack_forget()
+        if found_dir:
+            self.ff_lbl.configure(text=_i18n.t("fs.ff_found", path=found_dir), fg=C_OK)
+        else:
+            self.ff_lbl.configure(text=_i18n.t("fs.ff_missing"), fg=C_PEACH)
+            self.ff_choose.pack(side="left", padx=(10, 0))
+            self.ff_download.pack(side="left", padx=(6, 0))
+
+    def _ff_poll(self):
+        """The app's own FFmpeg test (a worker thread at the start): shown when it is there."""
+        if self._done:
+            return
+        st = getattr(self._app, "_ffmpeg_status", None)
+        if st is None:
+            self._ff_after = self.after(400, self._ff_poll)
+            return
+        self._ff_show(os.path.dirname(FFPROBE_PATH) if (st[1] and FFPROBE_PATH) else None)
+
+    def _choose_ff(self):
+        d = filedialog.askdirectory(title=_i18n.t("fs.choose_t"), parent=self)
+        if not d:
+            return
+        self.ff_lbl.configure(text=_i18n.t("fs.ff_checking"), fg=C_TEXT)
+
+        def work():                                                # "-version" runs: off the Tk thread
+            ok = None
+            for c in (d, os.path.join(d, "bin")):
+                if _sc.ff_works(os.path.join(c, _sc._ff_exe("ffprobe"))) and _sc.ff_works(os.path.join(c, _sc._ff_exe("ffmpeg"))):
+                    ok = os.path.normpath(c)
+                    break
+            ui_post(lambda: self._ff_chosen(ok))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _ff_chosen(self, folder):
+        if self._done:
+            return
+        try:
+            if folder:
+                self.ffmpeg_dir = folder
+                self._ff_show(folder)
+            else:
+                self._ff_show(None)
+                self.ff_lbl.configure(text=_i18n.t("fs.ff_not_there"))
+        except tk.TclError:
+            pass
+
+    # ── the answers ──
+    def answers(self):
+        return {"programs": self.ticked(),
+                "preset": self.preset_var.get() if self._full else None,
+                "folder": self.folder, "ffmpeg_dir": self.ffmpeg_dir}
+
+    def _close(self):
+        self._done = True
+        try:
+            self.tk.call("after", "cancel", getattr(self, "_ff_after", ""))
+        except tk.TclError:
+            pass
+        self.destroy()
+
+    def _finish(self):
+        if self._done:
+            return
+        a = self.answers()
+        self._close()
+        self._on_done("save", a)
+
+    def _not_now(self):
+        if self._done:
+            return
+        self._close()
+        self._on_done("not_now", {})
+
+    def _later(self):
+        if not self._done:
+            self._close()
+
+
+def plex_only_somewhere(settings=None):                           ### NEW v0.20.0 6h ###
+    """True when Settings ticks only Plex, or a library has only Plex as its own programs."""
+    s = settings if settings is not None else SETTINGS
+    if plex_only(s.get("media_programs") or ()):
+        return True
+    return any(plex_only(v or ()) for v in (s.get("library_programs") or {}).values())
+
+
+PLEX_NFO_ASK_AUTO = True           # the Plex pop-up after a tick change / at the start; off in the self-test
+
+
+class PlexNfoDialog(DialogFrame):                                  ### NEW v0.20.0 6h — the user's choice, 2026-11-17 ###
+    """"Plex reads no NFO" — switch the NFO and collection checks off, or keep them.  Closing it answers nothing."""
+    def __init__(self, parent, on_answer):
+        super().__init__(parent, title=_i18n.t("px.title"), heading=_i18n.t("px.title"), resizable=False)
+        self._on_answer, self._done = on_answer, False
+        kw = dict(bg=self.BG, justify="left", anchor="w", wraplength=px(520))
+        tk.Label(self.body, text=_i18n.t("px.text"), fg=C_TEXT, font=("Helvetica", 10), **kw).pack(fill="x", padx=16, pady=(6, 8))
+        tk.Label(self.body, text=_i18n.t("px.later", path=HEALTH_MODE_PATH), fg=C_SUBTEXT, font=("Helvetica", 9),
+                 **kw).pack(fill="x", padx=16, pady=(0, 6))
+        self.keep_btn = self.add_button(_i18n.t("px.keep"), lambda: self._answer("on"))
+        self.off_btn = self.add_button(_i18n.t("px.off"), lambda: self._answer("off"), kind="ok", main=True)
+        self.protocol("WM_DELETE_WINDOW", self._later)
+        self.update_idletasks()
+        try:
+            x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
+            y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_height()) // 2
+            self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        except Exception:
+            pass
+        self.off_btn.focus_set()
+
+    def _answer(self, value):
         if self._done:
             return
         self._done = True
         self.destroy()
-        self._on_answer(mode)
+        self._on_answer(value)
 
     def _later(self):
         self._done = True
@@ -16732,14 +18234,14 @@ class NfoOnlyDialog(DialogFrame):                                ### NEW v0.19.6
         kw = dict(bg=self.BG, justify="left", anchor="w")
         tk.Label(self.body, text=nfo_only_question_text(lib, n), fg=C_TEXT, font=("Helvetica", 10),
                  **kw).pack(fill="x", padx=16, pady=(6, 10))
-        tk.Label(self.body, text="Does this library use NFO files only?", fg=C_ACCENT,
+        tk.Label(self.body, text=_i18n.t("mc.does_this_library_use_2ab7"), fg=C_ACCENT,
                  font=("Helvetica", 11, "bold"), **kw).pack(fill="x", padx=16)
         tk.Label(self.body, text=NFO_ONLY_CHOICES_TEXT, fg=C_TEXT, font=("Helvetica", 10),
                  **kw).pack(fill="x", padx=16, pady=(6, 10))
         tk.Label(self.body, text=NFO_ONLY_LATER_TEXT, fg=C_SUBTEXT, font=("Helvetica", 9),
                  **kw).pack(fill="x", padx=16, pady=(0, 6))
-        self.no_btn = self.add_button("No, keep the XML checks", lambda: self._answer(False))
-        self.yes_btn = self.add_button("Yes, NFO only", lambda: self._answer(True), kind="ok", main=True)
+        self.no_btn = self.add_button(_i18n.t("mc.no_keep_the_xml_2ae5"), lambda: self._answer(False))
+        self.yes_btn = self.add_button(_i18n.t("mc.yes_nfo_only_eb6b"), lambda: self._answer(True), kind="ok", main=True)
         self.protocol("WM_DELETE_WINDOW", self._later)
         self.update_idletasks()
         try:
@@ -16762,22 +18264,61 @@ class NfoOnlyDialog(DialogFrame):                                ### NEW v0.19.6
         self.destroy()
 
 
-class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 ###
-    """Add, remove and reorder the library (root) folders."""
-    def __init__(self, parent):
+COLL_FOLDER_ASK_AUTO = True        # the self-test calls the prompt itself   ### NEW v0.20.0 CF1 ###
+
+
+class _CollFolderPrompt(_DialogBase):                             ### NEW v0.20.0 CF1 ###
+    """'Collection folder needed': Choose folder… / Create <suggested> / Not now (the user's mock-up, 2026-11-15)."""
+    def __init__(self, parent, suggested):
         super().__init__(parent)
-        self._app = parent
-        self.title("Library Folders")
+        self.result = None
+        self.suggested = suggested
+        self.title(_i18n.t("cf.prompt_t"))
         self.configure(bg=C_BG)
         self.transient(parent); _modal(self)
+        tk.Label(self, text=_i18n.t("cf.prompt"), bg=C_BG, fg=C_TEXT, font=("Helvetica", 10), justify="left",
+                 wraplength=520).pack(anchor="w", padx=18, pady=(16, 10))
+        bf = tk.Frame(self, bg=C_BG); bf.pack(padx=18, pady=(0, 16))
+        bkw = dict(font=("Helvetica", 10, "bold"), relief="flat", cursor="hand2")
+        self.choose_btn = tk.Button(bf, text=_i18n.t("cf.p_choose"), bg=C_ACCENT, fg=C_BG, command=self._choose, **bkw)
+        self.choose_btn.pack(side="left", padx=(0, 6))
+        self.create_btn = tk.Button(bf, text=_i18n.t("cf.p_create", path=suggested), bg=C_OK, fg=C_BG, command=self._create, **bkw)
+        if suggested:
+            self.create_btn.pack(side="left", padx=6)
+        self.later_btn = tk.Button(bf, text=_i18n.t("cf.p_later"), bg=C_SURFACE2, fg=C_TEXT, command=self.destroy, **bkw)
+        self.later_btn.pack(side="left", padx=(6, 0))
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def _choose(self):
+        p = filedialog.askdirectory(parent=self, title=_i18n.t("set.collection_folder_583e"))
+        if p:
+            self.result = os.path.normpath(p)
+            self.destroy()
+
+    def _create(self):
+        try:
+            os.makedirs(self.suggested, exist_ok=True)
+            logger.info(f"Collection folder created: {self.suggested}")
+        except OSError as ex:
+            messagebox.showerror(_i18n.t("set.collection_folder_583e"), _i18n.t("cf.create_fail", err=ex), parent=self)
+            return
+        self.result = os.path.normpath(self.suggested)
+        self.destroy()
+
+
+class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 ###
+    """Add, remove and reorder the library (root) folders."""
+    def __init__(self, parent, owner=None):                     # owner: v0.20.0 CF1 (opened from Settings)
+        super().__init__(owner or parent)
+        self._app = parent
+        self.title(_i18n.t("mc.library_folders_731f"))
+        self.configure(bg=C_BG)
+        self.transient(owner or parent); _modal(self)
         self.resizable(True, True)
-        self.minsize(560, 300)
-        tk.Label(self, text="Root folders scanned by MediaClinic",                          # v0.19.6 TR5: the rest below
+        self.minsize(560, 420)
+        tk.Label(self, text=_i18n.t("mc.root_folders_scanned_by_ee8b"),                          # v0.19.6 TR5: the rest below
                  bg=C_BG, fg=C_ACCENT, font=("Helvetica", 11, "bold")).pack(anchor="w", padx=16, pady=(14, 2))
-        tk.Label(self, text="One folder = one movie; a folder that holds only folders is searched (5 levels deep).\n"   # v0.19.6 TR5
-                            "All libraries are shown in one table. Use the Library filter next to Browse… to\n"
-                            "show or scan one library only. An unreachable library keeps its last scan.\n"
-                            "NFO only: the movie.xml checks are off for that library.",                            # v0.19.6 TR1
+        tk.Label(self, text=_i18n.t("mc.one_folder_one_movie_bae7"),                            # v0.19.6 TR1
                  bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9), justify="left").pack(anchor="w", padx=16, pady=(0, 8))
         body = tk.Frame(self, bg=C_BG); body.pack(fill="both", expand=True, padx=16)
         self._lb = tk.Listbox(body, bg=C_SURFACE, fg=C_TEXT, selectbackground=C_HOVER,
@@ -16785,22 +18326,44 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
         self._lb.pack(side="left", fill="both", expand=True)
         side = tk.Frame(body, bg=C_BG); side.pack(side="left", fill="y", padx=(8, 0))
         bkw = dict(font=("Helvetica", 9, "bold"), relief="flat", cursor="hand2", width=10)
-        tk.Button(side, text="Add…",   bg=C_ACCENT, fg=C_BG, command=self._add, **bkw).pack(pady=(0, 4))
-        tk.Button(side, text="Remove", bg=C_ERR, fg=C_BG, command=self._remove, **bkw).pack(pady=4)
-        tk.Button(side, text="Up",     bg=C_SURFACE2, fg=C_TEXT, command=lambda: self._move(-1), **bkw).pack(pady=4)
-        tk.Button(side, text="Down",   bg=C_SURFACE2, fg=C_TEXT, command=lambda: self._move(1), **bkw).pack(pady=4)
-        self.nfo_btn = tk.Button(side, text="NFO only", bg=C_SURFACE2, fg=C_TEXT, command=self._toggle_nfo_only, **bkw)   ### NEW v0.19.6 TR1 ###
+        tk.Button(side, text=_i18n.t("mc.add_d2f2"),   bg=C_ACCENT, fg=C_BG, command=self._add, **bkw).pack(pady=(0, 4))
+        tk.Button(side, text=_i18n.t("mc.remove_1063"), bg=C_ERR, fg=C_BG, command=self._remove, **bkw).pack(pady=4)
+        tk.Button(side, text=_i18n.t("mc.up_258f"),     bg=C_SURFACE2, fg=C_TEXT, command=lambda: self._move(-1), **bkw).pack(pady=4)
+        tk.Button(side, text=_i18n.t("mc.down_08a3"),   bg=C_SURFACE2, fg=C_TEXT, command=lambda: self._move(1), **bkw).pack(pady=4)
+        self.nfo_btn = tk.Button(side, text=_i18n.t("mc.nfo_only_f776"), bg=C_SURFACE2, fg=C_TEXT, command=self._toggle_nfo_only, **bkw)   ### NEW v0.19.6 TR1 ###
         self.nfo_btn.pack(pady=(12, 4))
-        self._items = [_norm_lib(x) for x in parent._libraries()]   ### MODIFIED v0.19.1 ###
+        self.act_btn = tk.Button(side, text=_i18n.t("lib5j.btn"), bg=C_SURFACE2, fg=C_TEXT, command=self._toggle_active,   ### NEW v0.20.0 5j ###
+                                 **dict(bkw, width=max(10, len(_i18n.t("lib5j.btn")) + 1)))   # PT / ES labels are longer
+        self.act_btn.pack(pady=4)
+        self.prog_btn = tk.Button(side, text=_i18n.t("f3.lib_btn"), bg=C_SURFACE2, fg=C_TEXT, command=self._programs,   ### NEW v0.20.0 F3a-2 ###
+                                  **dict(bkw, width=max(10, len(_i18n.t("f3.lib_btn")) + 1)))
+        self.prog_btn.pack(pady=4)
+        self._items = [_norm_lib(x) for x in parent._all_libraries()]   ### MODIFIED v0.19.1; v0.20.0 5j: every library ###
         self._nfo = {_pkey(x): library_nfo_only(x) for x in self._items}   ### NEW v0.19.6 TR1 — True / False / None ###
+        self._act = {_pkey(x): library_active(x) for x in self._items}     ### NEW v0.20.0 5j ###
+        self._progs = {_pkey(x): library_programs(x) for x in self._items}  ### NEW v0.20.0 F3a-2 — None = as in Settings ###
         self._redraw()
+        ### NEW v0.20.0 CF1 — the collection folder (Kodi's Movie set information folder): one, here ###
+        tk.Label(self, text=_i18n.t("cf.head"), bg=C_BG, fg=C_ACCENT, font=("Helvetica", 11, "bold")
+                 ).pack(anchor="w", padx=16, pady=(14, 2))
+        cfr = tk.Frame(self, bg=C_BG); cfr.pack(fill="x", padx=16)
+        self._coll = SETTINGS.get("collection_folder") or ""
+        self._coll_lbl = tk.Label(cfr, text="", bg=C_SURFACE, fg=C_TEXT, font=("Consolas", 10), anchor="w", padx=6)
+        self._coll_lbl.pack(side="left", fill="x", expand=True, ipady=3)
+        ckw = dict(font=("Helvetica", 9, "bold"), relief="flat", cursor="hand2")
+        tk.Button(cfr, text=_i18n.t("cf.choose"), bg=C_ACCENT, fg=C_BG, command=self._coll_choose, **ckw).pack(side="left", padx=(8, 0))
+        tk.Button(cfr, text=_i18n.t("cf.create"), bg=C_SURFACE2, fg=C_TEXT, command=self._coll_create, **ckw).pack(side="left", padx=(4, 0))
+        tk.Button(cfr, text=_i18n.t("cf.clear"), bg=C_SURFACE2, fg=C_TEXT, command=lambda: self._coll_set(""), **ckw).pack(side="left", padx=(4, 0))
+        tk.Label(self, text=_i18n.t("cf.note"), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9), justify="left",
+                 wraplength=620).pack(anchor="w", padx=16, pady=(2, 0))
+        self._coll_set(self._coll)
         bf = tk.Frame(self, bg=C_BG); bf.pack(pady=(10, 14))
         tk.Button(bf, text="  OK  ", bg=C_OK, fg=C_BG, relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"), command=self._ok).pack(side="left", padx=(0, 8))
-        tk.Button(bf, text="  Cancel  ", bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                   font=("Helvetica", 10), command=self.destroy).pack(side="left")
         self.bind("<Escape>", lambda e: self.destroy())
-        self.geometry("680x360")
+        self.geometry("720x500")
         self.update_idletasks()
         try:
             x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_width()) // 2
@@ -16810,21 +18373,51 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
             pass
         _remember_window(self, "_LibrariesDialog", resizable=True)
 
+    def _coll_set(self, path):                                  ### NEW v0.20.0 CF1 ###
+        self._coll = os.path.normpath(path) if path else ""
+        self._coll_lbl.configure(text=self._coll or _i18n.t("cf.none"), fg=C_TEXT if self._coll else C_WARN)
+
+    def _coll_choose(self):
+        p = filedialog.askdirectory(parent=self, title=_i18n.t("set.collection_folder_583e"))
+        if p:
+            self._coll_set(p)
+
+    def _coll_create(self):
+        p = suggest_collection_folder(self._items) or ""
+        if not p:
+            return self._coll_choose()
+        if not os.path.isdir(p):
+            if not messagebox.askyesno(_i18n.t("set.collection_folder_583e"), _i18n.t("cf.create_q", path=p), parent=self):
+                return
+            try:
+                os.makedirs(p, exist_ok=True)
+                logger.info(f"Collection folder created: {p}")
+            except OSError as ex:
+                messagebox.showerror(_i18n.t("set.collection_folder_583e"), _i18n.t("cf.create_fail", err=ex), parent=self)
+                return
+        self._coll_set(p)
+
     def _redraw(self):
         self._lb.delete(0, "end")
         for x in self._items:
-            off = " (offline)" if _pkey(x) in getattr(self._app, "_offline_roots", set()) else ""
+            off = (" " + _i18n.t("au.lib.offline")) if _pkey(x) in getattr(self._app, "_offline_roots", set()) else ""
             nfo = "    NFO only" if self._nfo.get(_pkey(x)) is True else ""   ### NEW v0.19.6 TR1 ###
-            self._lb.insert("end", x + off + nfo)
+            act = "    " + _i18n.t("lib5j.off") if self._act.get(_pkey(x)) is False else ""   ### NEW v0.20.0 5j ###
+            _pp = self._progs.get(_pkey(x))                                                # v0.20.0 F3a-2
+            prg = ("    " + _i18n.t("f3.lib_own", programs=", ".join(_mp.PROGRAM_LABEL[p] for p in _pp))) if _pp else ""
+            self._lb.insert("end", x + off + nfo + prg + act)
+            if self._act.get(_pkey(x)) is False:
+                self._lb.itemconfigure("end", fg=C_DIM)
 
     def add_path(self, p):
         if p and _pkey(p) not in {_pkey(x) for x in self._items}:
             self._items.append(_norm_lib(p))
             self._nfo.setdefault(_pkey(p), library_nfo_only(p))   # v0.19.6 TR1
+            self._act[_pkey(p)] = True                            # v0.20.0 5j: a new library is active
             self._redraw()
 
     def _add(self):
-        p = filedialog.askdirectory(parent=self, title="Add a library (root folder)")
+        p = filedialog.askdirectory(parent=self, title=_i18n.t("mc.add_a_library_root_ec74"))
         if p:
             self.add_path(p)
 
@@ -16843,6 +18436,45 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
             self._items[i], self._items[j] = self._items[j], self._items[i]
             self._redraw(); self._lb.selection_set(j)
 
+    def _toggle_active(self):                                     ### NEW v0.20.0 5j ###
+        sel = self._lb.curselection()
+        if not sel:
+            return
+        k = _pkey(self._items[sel[0]])
+        self._act[k] = self._act.get(k) is False
+        self._redraw(); self._lb.selection_set(sel[0])
+
+    def _programs(self):                                          ### NEW v0.20.0 F3a-2 (the user, 2026-11-16) ###
+        """Libraries… → Programs…: "As in Settings" or this library's own programs (they take over its NFO only mark)."""
+        sel = self._lb.curselection()
+        if not sel:
+            return
+        k = _pkey(self._items[sel[0]])
+        cur = self._progs.get(k)
+        dlg = tk.Toplevel(self); dlg.title(_i18n.t("f3.lib_title")); dlg.configure(bg=C_BG); dlg.transient(self)
+        tk.Label(dlg, text=self._items[sel[0]], bg=C_BG, fg=C_ACCENT, font=("Helvetica", 10, "bold")).pack(anchor="w", padx=14, pady=(12, 6))
+        own = tk.BooleanVar(value=bool(cur))
+        rkw = dict(bg=C_BG, fg=C_TEXT, selectcolor=C_SURFACE, activebackground=C_BG, activeforeground=C_TEXT, font=("Helvetica", 10))
+        tk.Radiobutton(dlg, text=_i18n.t("f3.lib_as_settings"), variable=own, value=False, **rkw).pack(anchor="w", padx=14)
+        tk.Radiobutton(dlg, text=_i18n.t("f3.lib_own_choice"), variable=own, value=True, **rkw).pack(anchor="w", padx=14)
+        box = tk.Frame(dlg, bg=C_BG); box.pack(anchor="w", padx=34, pady=(2, 6))
+        pv = {p: tk.BooleanVar(value=p in (cur or ())) for p in _mp.PROGRAMS}
+        for i, p in enumerate(_mp.PROGRAMS):
+            tk.Checkbutton(box, text=_mp.PROGRAM_LABEL[p], variable=pv[p], command=lambda: own.set(True), **rkw
+                           ).grid(row=i // 3, column=i % 3, sticky="w", padx=(0, 14))
+        dlg._own, dlg._pv = own, pv                              # the self-test sets them
+        def _done():
+            ps = _mp.clean_programs(p for p, v in pv.items() if v.get())
+            self._progs[k] = ps if (own.get() and ps) else None
+            dlg.destroy(); self._redraw(); self._lb.selection_set(sel[0])
+        dlg._done = _done
+        bf = tk.Frame(dlg, bg=C_BG); bf.pack(fill="x", padx=14, pady=(4, 12))
+        tk.Button(bf, text="  OK  ", bg=C_OK, fg=C_BG, relief="flat", cursor="hand2", command=_done).pack(side="right")
+        tk.Button(bf, text=_i18n.t("mc.cancel_2fee"), bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
+                  command=dlg.destroy).pack(side="right", padx=6)
+        self._prog_dlg = dlg
+        return dlg
+
     def _toggle_nfo_only(self):                                 ### NEW v0.19.6 TR1 ###
         sel = self._lb.curselection()
         if not sel:
@@ -16852,12 +18484,37 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
         self._redraw(); self._lb.selection_set(sel[0])
 
     def _ok(self):
+        _act = [x for x in self._items if self._act.get(_pkey(x), True) != library_active(x)]   ### NEW v0.20.0 5j ###
+        if _act and getattr(self._app, "_scanning", False):     ### MODIFIED v0.20.0 AU10 — checked FIRST: the NFO-only and
+            messagebox.showinfo(_i18n.t("mc.library_folders_731f"), SCAN_BUSY_TEXT, parent=self)   # programs changes were
+            return                                              # already in SETTINGS when OK was refused (Cancel kept them)
         changed = [x for x in self._items if self._nfo.get(_pkey(x)) is not None
                    and self._nfo.get(_pkey(x)) != library_nfo_only(x)]   ### NEW v0.19.6 TR1 ###
         for x in changed:
             set_library_nfo_only(x, self._nfo[_pkey(x)])
             logger.info(f"Library {x}: NFO only = {self._nfo[_pkey(x)]} (Library Folders)")
+        _pch = [x for x in self._items if (self._progs.get(_pkey(x)) or None) != library_programs(x)]   ### NEW v0.20.0 F3a-2 ###
+        if _pch:
+            _lp = dict(SETTINGS.get("library_programs") or {})
+            for x in _pch:
+                ps = self._progs.get(_pkey(x))
+                if ps:
+                    _lp[_pkey(x)] = list(ps)
+                else:
+                    _lp.pop(_pkey(x), None)
+                logger.info(f"Library {x}: programs = {list(ps) if ps else 'as in Settings'} (Library Folders)")
+            SETTINGS["library_programs"] = _lp
+            changed = changed + [x for x in _pch if x not in changed]   # saved and the health recomputed below
+        for x in _act:
+            set_library_active(x, self._act[_pkey(x)])
+            logger.info(f"Library {x}: active = {self._act[_pkey(x)]} (Library Folders)")
         res = self._app._set_libraries(self._items)
+        _back = [x for x in _act if self._act[_pkey(x)]]
+        if _act:
+            _save_settings(SETTINGS)
+            self._app._apply_library_active()
+        if (self._coll or "") != (SETTINGS.get("collection_folder") or ""):   ### NEW v0.20.0 CF1 ###
+            self._app._set_collection_folder(self._coll)
         if changed:
             _save_settings(SETTINGS)
             if self._app._results:
@@ -16866,6 +18523,10 @@ class _LibrariesDialog(_DialogBase):                            ### NEW v0.19.0 
         self.destroy()
         if res and (res[0] or res[1]):                          ### NEW v0.19.1 — offer a scan ###
             self._app._offer_library_scan(added=bool(res[0]))
+        elif _back:                                             # v0.20.0 5j: ticked again → the rows are back; a Quick Scan updates them
+            self._app._offer_library_scan(added=True)
+        if _pch and PLEX_NFO_ASK_AUTO:                          # v0.20.0 6h — a library's own programs: only Plex
+            self._app.after(300, self._app._maybe_ask_plex_nfo)
 
 
 
@@ -16880,6 +18541,8 @@ _FIX_ISSUE_ORDER = ("poster", "fanart", "backdrops", "images", "copy", "nfo_err"
                     "dup",                                      # v0.19.3 B64
                     "video",                                    # v0.19.3 B71
                     "nfo_name",                                 # v0.19.3 B73
+                    "art_links",                                # v0.20.0 RD9
+                    "media_rename",                             # v0.20.0 F3c2
                     "ids_search", "ids_norm", "ids_verify", "ratings", "audio", "subs", "auto")
 _FIX_ISSUE_LABELS = {
     "poster": "Poster / folder image missing → Fetch Poster/Folder…",
@@ -16898,6 +18561,8 @@ _FIX_ISSUE_LABELS = {
     "dup": "Possible duplicate → Not a duplicate…",                       ### NEW v0.19.3 B64 ###
     "video": "Video quality below minimum → needs a better copy of the video",   ### NEW v0.19.3 B71 ###
     "nfo_name": "NFO named after the folder → Rename NFO for Kodi…",             ### NEW v0.19.3 B73 ###
+    "art_links": "Online artwork links in the NFO → Remove online artwork links…",   ### NEW v0.20.0 RD9 ###
+    "media_rename": "A file a ticked program does not read → Rename Files for My Programs…",   ### NEW v0.20.0 F3c2 ###
     "ids_search": "IMDb / TMDB ID missing → Search Sources…",
     "ids_norm": "IDs in one file only / conflicting → Normalize Sources",
     "ids_verify": "IDs not verified / wrong movie → Verify IMDb/TMDB IDs",
@@ -16908,12 +18573,36 @@ _FIX_ISSUE_LABELS = {
 }
 
 
+### NEW v0.20.0 UI1a — the fix of a health reason by the code of its rule (one meaning per rule; "" = no fix).
+# Rules that give reasons with different fixes (images, IDs, collections, file content …) are not listed: their
+# reasons still go through the text checks below until UI1c gives each reason its own code.
+_FIX_KEY_BY_CODE = {
+    "title_mismatch": "title", "duplicate_movie": "dup", "video_quality_minimum": "video", "nfo_name_not_kodi": "nfo_name",
+    "id_not_kodi": "auto",                                       # v0.20.0 KR1.1: Auto Repair adds <uniqueid>
+    "xml_tags_old_readers": "auto",                              # v0.20.0 KR1.4: Auto Repair adds the tags
+    "missing_logo_disc": "",                                     # v0.20.0 RD8: no fix (fetching is F1, v0.21.0)
+    "profile_names_unread": "media_rename",                      # v0.20.0 F3c / F3c2: the renamer
+    "nfo_online_art_links": "art_links",                         # v0.20.0 RD9
+    "missing_fanart": "fanart", "no_audio_tracks": "", "insufficient_backdrops": "backdrops", "backdrop_too_small": "backdrops",
+    "poster_folder_identical": "copy",
+    "rating_conflict": "ratings", "votes_conflict": "ratings", "missing_rating": "ratings", "rating_warning": "ratings",
+    "suspicious_rating": "ratings", "missing_votes": "ratings", "votes_warning": "ratings",
+}
+
+
 def _fix_issue_keys(row, settings=None):
     """Pure: the issue keys of one row, from its health reasons and errors."""
     keys = set()
     for r in (row.get("health_reasons") or []):
+        _k = _FIX_KEY_BY_CODE.get(reason_code(r), None)          ### NEW v0.20.0 UI1a — the rule's code first ###
+        if _k is not None:
+            if _k:
+                keys.add(_k)
+            continue
         lo = r.lower()
-        if r.startswith("Collection folder:"):              ### NEW v0.19.4 fix 15 ###
+        if "only in movie.xml tags the old programs ignore" in r or "only in <imdbid> / <tmdbid> — Kodi reads <uniqueid>" in r:
+            keys.add("auto")                                    # v0.20.0 KR1.1 / KR1.4: first ("votes", "ID" are in the text)
+        elif r.startswith("Collection folder:"):              ### NEW v0.19.4 fix 15 ###
             keys.add("collection_old")
         elif r.startswith("Collection artwork:"):             ### NEW v0.19.4 B110g ###
             keys.add("collection_art")
@@ -17019,7 +18708,7 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
     PAGE = {"poster": 12, "fanart": 9}                               # 3 rows each (the user, 2026-11-03)
 
     def __init__(self, app, key, name, cdir, rows, tmdb_id, api_key, lang):
-        super().__init__(app, title=f"Collection Artwork — {name}", heading=f"🖼  Collection Artwork — {name}",
+        super().__init__(app, title=_i18n.t("mc.collection_artwork_6011", name=name), heading=f"🖼  Collection Artwork — {name}",
                          geometry=f"{px(940)}x{px(820)}")
         self.app, self._key, self._name, self._dir, self._rows = app, key, name, cdir, list(rows)
         self._tmdb, self._api, self._lang = tmdb_id, api_key, lang or "en"
@@ -17029,19 +18718,19 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
         self.loaded = None                                         # (source, n posters, n fanart) — self-test
         self.saved = None                                          # (done, errors) — self-test
         top = tk.Frame(self.body, bg=C_BG); top.pack(fill="x", padx=16, pady=(2, 4))
-        tk.Label(top, text=f"Folder: {cdir}", bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9), anchor="w").pack(fill="x")
+        tk.Label(top, text=_i18n.t("mc.folder_2f67", cdir=cdir), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9), anchor="w").pack(fill="x")
         src = tk.Frame(self.body, bg=C_BG); src.pack(fill="x", padx=16, pady=(0, 4))
         self._src = tk.StringVar(value="tmdb" if (api_key and tmdb_id) else "movies")
-        for val, txt in (("tmdb", "TMDB collection"), ("movies", "The movies of this collection")):
+        for val, txt in (("tmdb", _i18n.t("au.coll.tmdb")), ("movies", _i18n.t("uf.the_movies_of_this_2baa"))):
             tk.Radiobutton(src, text=txt, value=val, variable=self._src, command=self._load, bg=C_BG, fg=C_TEXT,
                            selectcolor=C_SURFACE, activebackground=C_BG, activeforeground=C_TEXT,
                            font=("Helvetica", 9)).pack(side="left", padx=(0, 12))
-        tk.Label(src, text="Search TMDB:", bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left", padx=(12, 4))
+        tk.Label(src, text=_i18n.t("mc.search_tmdb_61bf"), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9)).pack(side="left", padx=(12, 4))
         self._q = tk.StringVar(value=self._search_text(name))
         ent = tk.Entry(src, textvariable=self._q, width=24, bg=C_SURFACE, fg=C_TEXT, insertbackground=C_TEXT, relief="flat")
         ent.pack(side="left")
         ent.bind("<Return>", lambda e: (self._search(), "break")[1])
-        self._search_btn = tk.Button(src, text=" Search ", command=self._search, bg=C_SURFACE2, fg=C_TEXT, relief="flat",
+        self._search_btn = tk.Button(src, text=_i18n.t("mc.search_9498"), command=self._search, bg=C_SURFACE2, fg=C_TEXT, relief="flat",
                                      cursor="hand2", font=("Helvetica", 9), state="normal" if api_key else "disabled")
         self._search_btn.pack(side="left", padx=(4, 0))
         self._found_var = tk.StringVar(value="")
@@ -17062,19 +18751,25 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
         bind_wheel(self, [self._canvas], main=self._canvas)
         self._pick_lbl = tk.Label(self.buttons, text="", bg=C_BG, fg=C_TEXT, font=("Helvetica", 9), anchor="w")
         self._pick_lbl.pack(side="left")
-        self.add_button("Cancel", self.destroy)
+        self.add_button(_i18n.t("mc.cancel_ea47"), self.destroy)
         self._tmdb_btn = self.add_button("🌐 TMDB", lambda: open_url_with_browser(collection_tmdb_url(self._tmdb, self._name)))
-        self._save_btn = self.add_button("Save to Folder", self._save, kind="ok", main=True)
+        self._save_btn = self.add_button(_i18n.t("mc.save_to_folder_9bda"), self._save, kind="ok", main=True)
         self._update_pick()
         if not api_key:
-            self._status.configure(text="No TMDB API key (Settings): the images of your movies are shown.")
+            self._status.configure(text=_i18n.t("mc.no_tmdb_api_key_12f4"))
         elif not tmdb_id:
-            self._status.configure(text="No TMDB collection is known for this name: search TMDB above, or use your movies' images.")
+            self._status.configure(text=_i18n.t("mc.no_tmdb_collection_is_456c"))
         _remember_window(self, "CollectionArtDialog", resizable=True)   ### NEW v0.19.4 fix 16 — keeps the user's size ###
         self._load()
 
     def destroy(self):                                             ### NEW v0.19.4 fix 16 — no preview work after closing ###
         self._gen += 1
+        for _aid in (getattr(self, "_poll_aid", None), getattr(self, "_psearch_aid", None)):   # v0.20.0 AU10: the polls
+            if _aid:                                               # re-armed themselves: closing left a timer whose
+                try:                                               # command was gone (Tk background error)
+                    self.tk.call("after", "cancel", _aid)
+                except tk.TclError:
+                    pass
         pool = getattr(self, "_pool", None)
         if pool is not None:
             try:
@@ -17148,7 +18843,7 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
             self._src.set("movies"); source = "movies"
         self._choice = {"poster": None, "fanart": None}
         self._update_pick()
-        self._status.configure(text="Loading the images…" if source == "movies" else "Asking TMDB for the collection images…")
+        self._status.configure(text=_i18n.t("mc.loading_the_images_21a4") if source == "movies" else _i18n.t("mc.asking_tmdb_for_the_c4d7"))
         for w in self._grid.winfo_children():
             w.destroy()
         self.loaded = None
@@ -17189,7 +18884,7 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
                 self._show(*msg[2:])
             elif msg[0] == "thumb":
                 self._set_thumb(*msg[2:])
-        self.after(100, lambda: self._poll(gen))
+        self._poll_aid = self.after(100, lambda: self._poll(gen))
 
     def _show(self, source, ents, err):
         """Two sections (posters, fanart), each a page of cells with ‹ Previous · Page x of y · Next ›."""
@@ -17201,14 +18896,14 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
         self._photos.clear()
         for w in self._grid.winfo_children():
             w.destroy()
-        for t, title in (("poster", "POSTER"), ("fanart", "FANART")):
+        for t, title in (("poster", _i18n.t("au.coll.poster")), ("fanart", _i18n.t("au.coll.fanart"))):
             head = tk.Frame(self._grid, bg=C_BG); head.pack(fill="x", pady=(8, 2))
             tk.Label(head, text=f"{title}  ({len(ents[t])})", bg=C_BG, fg=C_ACCENT, font=("Helvetica", 9, "bold"),
                      anchor="w").pack(side="left")
             nav = dict(bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2", font=("Helvetica", 9))
-            nxt = tk.Button(head, text=" Next › ", command=lambda tt=t: self._next(tt, 1), **nav)
+            nxt = tk.Button(head, text=_i18n.t("mc.next_3cbe"), command=lambda tt=t: self._next(tt, 1), **nav)
             lbl = tk.Label(head, text="", bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9))
-            prv = tk.Button(head, text=" ‹ Previous ", command=lambda tt=t: self._next(tt, -1), **nav)
+            prv = tk.Button(head, text=_i18n.t("mc.previous_27ef"), command=lambda tt=t: self._next(tt, -1), **nav)
             nxt.pack(side="right"); lbl.pack(side="right", padx=8); prv.pack(side="right")
             cells = tk.Frame(self._grid, bg=C_BG); cells.pack(fill="x")
             blank = tk.PhotoImage(width=self.TH[t][0], height=self.TH[t][1])   # the cell keeps its size while loading
@@ -17216,11 +18911,11 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
             self._sec[t] = {"cells": cells, "lbl": lbl, "prev": prv, "next": nxt, "blank": blank}
             self._render(t)
         n_p, n_f = len(ents["poster"]), len(ents["fanart"])
-        self._what = f"TMDB collection {self._tmdb}" if source == "tmdb" else "the movies of this collection"
+        self._what = _i18n.t("au.coll.tmdb_n", n=self._tmdb) if source == "tmdb" else _i18n.t("uf.the_movies_of_this_be55")
         if err:
-            self._status.configure(text=f"Could not load: {err}")
+            self._status.configure(text=_i18n.t("mc.could_not_load_f7ab", err=err))
         elif not (n_p or n_f):
-            self._status.configure(text=f"No images on {self._what}.")
+            self._status.configure(text=_i18n.t("mc.no_images_on_c559", what=self._what))
         self.loaded = (source, n_p, n_f)
         self._status_now(err)
 
@@ -17234,11 +18929,11 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
             w.destroy()
         self._cells[t], self._cell_img[t] = [], {}
         p, n_pages = self._page[t], self._pages(t)
-        sec["lbl"].configure(text=f"Page {p + 1} of {n_pages}" if ents else "")
+        sec["lbl"].configure(text=_i18n.t("mc.page_of_ba3d", v=p + 1, n_pages=n_pages) if ents else "")
         sec["prev"].configure(state="normal" if p > 0 else "disabled")
         sec["next"].configure(state="normal" if p + 1 < n_pages else "disabled")
         if not ents:
-            tk.Label(sec["cells"], text="none found", bg=C_BG, fg=C_DIM, font=("Helvetica", 9)).grid(row=0, column=0, sticky="w")
+            tk.Label(sec["cells"], text=_i18n.t("mc.none_found_3f5e"), bg=C_BG, fg=C_DIM, font=("Helvetica", 9)).grid(row=0, column=0, sticky="w")
             return
         first = p * self.PAGE[t]
         for k, e in enumerate(ents[first:first + self.PAGE[t]]):
@@ -17252,7 +18947,7 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
             if ph:
                 lb = tk.Label(cell, image=ph, bg=C_ROW_ALT)
             else:
-                lb = tk.Label(cell, image=sec["blank"], text="no preview" if ph is False else "loading…", compound="center",
+                lb = tk.Label(cell, image=sec["blank"], text=_i18n.t("mc.no_preview_c639") if ph is False else _i18n.t("mc.loading_d8e0"), compound="center",
                               bg=C_ROW_ALT, fg=C_DIM, font=("Helvetica", 8))
             lb.pack(padx=3, pady=(3, 1))
             cap = (e.get("movie") or "")[:30] if e.get("local") else image_entry_text(e)[1][:38]
@@ -17299,7 +18994,7 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
                 self._thumb_ph[(t, gi)] = False
             lb = self._cell_img.get(t, {}).get(gi)
             if lb is not None:
-                lb.configure(image=ph, text="") if ph else lb.configure(text="no preview")
+                lb.configure(image=ph, text="") if ph else lb.configure(text=_i18n.t("mc.no_preview_c639"))
         except (KeyError, AttributeError, tk.TclError):
             pass
         self._status_now()
@@ -17309,12 +19004,11 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
         if err or not self.loaded or not (self.loaded[1] or self.loaded[2]):
             return
         n_p, n_f = self.loaded[1], self.loaded[2]
-        head = f"{_n(n_p, 'poster')}, {_n(n_f, 'fanart image')} from {self._what}"
+        head = _i18n.t("mc.from_b612", n=_n(n_p, 'poster'), n2=_n(n_f, 'fanart image'), what=self._what)
         on_page = [k for k in self._pending if k[1] in self._cell_img.get(k[0], {})]   # P2 (D14): this page only
         if on_page:
             shown = sum(len(self._cell_img[t]) for t in ("poster", "fanart"))
-            self._status.configure(text=f"{head} — loading the previews ({shown - len(on_page)} of {shown} on these "
-                                        "pages)… You can already click one of each.")
+            self._status.configure(text=_i18n.t("mc.loading_the_previews_of_4033", head=head, v=shown - len(on_page), shown=shown))
             self.previews_done = False
         else:
             self._previews_finished()
@@ -17322,9 +19016,7 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
     def _previews_finished(self):
         self.previews_done = True
         if self.loaded and (self.loaded[1] or self.loaded[2]) and getattr(self, "_what", None):
-            self._status.configure(text=f"{_n(self.loaded[1], 'poster')}, {_n(self.loaded[2], 'fanart image')} from "
-                                        f"{self._what}. Click one poster and one fanart (Next › shows more), then "
-                                        "Save to Folder.")
+            self._status.configure(text=_i18n.t("mc.from_click_one_poster_2610", n=_n(self.loaded[1], 'poster'), n2=_n(self.loaded[2], 'fanart image'), what=self._what))
 
     def _pick(self, t, e, cell):
         same = self._choice[t] is e
@@ -17338,8 +19030,8 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
             e = self._choice[t]
             if not e:
                 return "—"
-            return f"{e.get('movie')}'s" if e.get("local") else "TMDB"
-        self._pick_lbl.configure(text=f"Poster: {txt('poster')}    Fanart: {txt('fanart')}")
+            return _i18n.t("m3.from_movie", movie=e.get("movie")) if e.get("local") else "TMDB"
+        self._pick_lbl.configure(text=_i18n.t("m3.pick", poster=txt("poster"), fanart=txt("fanart")))
         self._save_btn.configure(state="normal" if (self._choice["poster"] or self._choice["fanart"]) else "disabled")
 
     # ── TMDB search by name ──
@@ -17347,7 +19039,7 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
         q = self._q.get().strip()
         if not (q and self._api):
             return
-        self._status.configure(text=f"Searching TMDB for “{q}”…")
+        self._status.configure(text=_i18n.t("mc.searching_tmdb_for_4c89", q=q))
         self._sgen = gen = getattr(self, "_sgen", 0) + 1          ### MODIFIED v0.19.4 P2 (D6) — its own counter ###
 
         def work():
@@ -17373,18 +19065,18 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
             self._found = found
             self._found_cb.configure(values=[f"{n}  (TMDB {i})" for i, n in found])
             if err:
-                self._status.configure(text=f"TMDB search failed: {err}")
+                self._status.configure(text=_i18n.t("mc.tmdb_search_failed_b8ba", err=err))
             elif not found:
-                self._status.configure(text="TMDB has no collection with that name: use your movies' images, or another search.")
+                self._status.configure(text=_i18n.t("mc.tmdb_has_no_collection_fb92"))
             else:
-                self._status.configure(text=f"{_n(len(found), 'TMDB collection')} found: choose one in the list.")
+                self._status.configure(text=_i18n.t("mc.found_choose_one_in_d32a", n=_n(len(found), 'TMDB collection')))
                 if len(found) == 1:
                     self._found_cb.current(0)
                     self._use_found()
         elif tries < 1800:                                         # P7 (D15): 90 s
-            self.after(50, lambda: self._poll_search(gen, tries + 1))
+            self._psearch_aid = self.after(50, lambda: self._poll_search(gen, tries + 1))
         else:
-            self._status.configure(text="TMDB did not answer — try Search again.")
+            self._status.configure(text=_i18n.t("mc.tmdb_did_not_answer_0e00"))
 
     def _use_found(self):
         i = self._found_cb.current()
@@ -17404,11 +19096,10 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
         except OSError:
             have = []
         repl = sorted(f for t, _e in chosen for f in have if _cr.art_types([f]).get(t))
-        if repl and not messagebox.askyesno("Collection Artwork", "Replace " + ", ".join(repl) + "?\n\n"
-                                            "The old file is backed up first: Backup History can undo it.", parent=self):
+        if repl and not messagebox.askyesno(_i18n.t("mc.collection_artwork_aacb"), _i18n.t("mc.replace_the_old_file_e50c", join=", ".join(repl)), parent=self):
             return
         self._save_btn.configure(state="disabled")
-        self._status.configure(text="Saving…")
+        self._status.configure(text=_i18n.t("mc.saving_eedf"))
         app = self.app
 
         def _step(job, _it):
@@ -17439,9 +19130,9 @@ class _CollectionArtDialog(DialogFrame):                          ### NEW v0.19.
 
         def _finish(job):
             self.saved = (job.done, list(job.errors))
-            msg = ("Saved into " + cdir) if job.done else "Nothing was saved."
+            msg = (_i18n.t("mc.saved_into_e833", cdir=cdir)) if job.done else _i18n.t("mc.nothing_was_saved_3ed5")
             if job.errors:
-                msg += "\n\nNot done:\n" + "\n".join(job.errors[:8])
+                msg += _i18n.t("mc.not_done_8624", join="\n".join(job.errors[:8]))
             msg += ("\n\n" + UNDO_HINT) if job.done else ""
 
             def _after():
@@ -17476,11 +19167,11 @@ class _MoviePanel(tk.Frame):
         self._title = tk.Label(top, text="", font=("Helvetica", 12, "bold"), bg=_PANEL_BG, fg=C_TEXT,
                                justify="left", anchor="w", wraplength=px(PANEL_W) - px(70))
         self._title.pack(side="left", fill="x", expand=True)
-        self._hide_btn = tk.Label(top, text="Hide ›", font=("Helvetica", 9), bg=C_SURFACE, fg=C_SUBTEXT,
+        self._hide_btn = tk.Label(top, text=_i18n.t("panel.hide"), font=("Helvetica", 9), bg=C_SURFACE, fg=C_SUBTEXT,
                                   padx=6, pady=2, cursor="hand2")
         self._hide_btn.pack(side="right")
         self._hide_btn.bind("<Button-1>", lambda e: app._toggle_movie_panel())
-        _add_btn_tooltip(self._hide_btn, "Hide this panel (Ctrl+B)")
+        _add_btn_tooltip(self._hide_btn, _i18n.t("panel.hide.tip"))
         # the body scrolls: a long issue list must not push FILES / ACTIONS out of sight
         wrap = tk.Frame(self, bg=_PANEL_BG); wrap.pack(fill="both", expand=True)
         self._canvas = tk.Canvas(wrap, bg=_PANEL_BG, highlightthickness=0, bd=0)
@@ -17544,28 +19235,30 @@ class _MoviePanel(tk.Frame):
         self._gen += 1
         self._clear()
         app = self.app
+        T = _i18n.t                                               # v0.20.0 UI1c
         if not rows:
-            self._title.configure(text="No movie selected")
-            self._line("Select a movie in the table to see it here.", fg=C_DIM)
+            self._title.configure(text=T("panel.none"))
+            self._line(T("panel.none_hint"), fg=C_DIM)
             return
         if len(rows) > 1:
-            self._title.configure(text=f"{_n(len(rows), 'movie')} selected")
-            self._section("ACTIONS FOR ALL OF THEM")
+            self._title.configure(text=T("panel.n_selected", movies=_n(len(rows), "movie", ",")))
+            self._section(T("panel.actions_all"))
             acts = tk.Frame(self._body, bg=_PANEL_BG); acts.pack(fill="x")
-            for txt, fn in (("Fetch Poster/Folder…", lambda: app._fetch_poster_folder(list(rows))),
-                            ("Search Sources", lambda: app._search_sources_for(list(rows))),
-                            ("Update (no FFprobe)", lambda: app._reval_multi_no_ffmpeg(list(iids), list(rows)))):
+            for txt, fn in ((T("act.fetch_poster_folder"), lambda: app._fetch_poster_folder(list(rows))),
+                            (T("act.search_sources"), lambda: app._search_sources_for(list(rows))),
+                            (T("act.update_no_ff"), lambda: app._reval_multi_no_ffmpeg(list(iids), list(rows)))):
                 self._button(acts, txt, fn).pack(fill="x", pady=1)
             self._all_actions_button(rows, iids)
             iss = ctx_fix_issues(rows, SETTINGS)
             if iss:
-                self._section(f"FIXES ({_n(len(iss), 'kind')})")
+                self._section(T("panel.fixes_n", kinds=_n(len(iss), "kind")))
                 for key, lbl, irows in iss[:8]:
-                    self._issue_row(key, f"{lbl} — {_n(len(irows), 'movie')}", irows)
+                    self._issue_row(key, f"{lbl} — {_n(len(irows), 'movie', ',')}", irows)
             return
         d = rows[0]
         yr = d.get("movie_year")
-        self._title.configure(text=(d.get("movie_name") or d.get("subfolder", "?")) + (f"  ({yr})" if yr and yr != "-" else ""))
+        self._title.configure(text=(d.get("movie_name") or d.get("subfolder", "?")) + (f"  ({yr})" if yr and yr != "-" else "")
+                              + stack_parts_label(d))            # v0.20.0 RD10b
         card = tk.Frame(self._body, bg=_PANEL_BG); card.pack(fill="x")
         self._blank = tk.PhotoImage(width=self.POSTER[0], height=self.POSTER[1])   # pixels, not characters
         self._poster = tk.Label(card, bg=_PANEL_CARD, image=self._blank, text="", compound="center",
@@ -17573,14 +19266,15 @@ class _MoviePanel(tk.Frame):
         self._poster.pack(side="left", padx=(0, 10))
         info = tk.Frame(card, bg=_PANEL_BG); info.pack(side="left", fill="both", expand=True)
         st = d.get("health_status", "warning")
-        badge = {"ok": ("✓ All OK", C_OK), "warning": ("⚠ Warnings", C_WARN), "error": ("✕ Errors", C_ERR)}.get(
-            st, ("?", C_SUBTEXT))
+        badge = {"ok": (T("panel.badge.ok"), C_OK), "warning": (T("panel.badge.warning"), C_WARN),
+                 "error": (T("panel.badge.error"), C_ERR)}.get(st, ("?", C_SUBTEXT))
         tk.Label(info, text=badge[0], font=("Helvetica", 9, "bold"), bg=badge[1], fg=C_BG, padx=6, pady=1
                  ).pack(anchor="w", pady=(0, 6))
-        for lab, val in (("Genres", d.get("genre_display") or "—"),
-                         ("Rating", f"{d.get('rating_str', '-')}  ({d.get('votes_int') or 0:,} votes)"),
-                         ("Video", f"{d.get('video_quality', '—')}  {d.get('video_ext', '')}".strip()),
-                         ("Library", os.path.basename(os.path.normpath(_lib_root_of(d) or "")) or "—")):
+        for lab, val in ((T("panel.genres"), d.get("genre_display") or "—"),
+                         (T("panel.rating"), T("panel.rating_val", rating=d.get("rating_str", "-"),
+                                               votes=_i18n.num(d.get("votes_int") or 0))),
+                         (T("panel.video"), f"{d.get('video_quality', '—')}  {d.get('video_ext', '')}".strip()),
+                         (T("panel.library"), os.path.basename(os.path.normpath(_lib_root_of(d) or "")) or "—")):
             tk.Label(info, text=lab, font=("Helvetica", 8), bg=_PANEL_BG, fg=C_DIM, anchor="w").pack(fill="x")
             tk.Label(info, text=val, font=("Helvetica", 9), bg=_PANEL_BG, fg=C_TEXT, anchor="w", justify="left",
                      wraplength=px(PANEL_W - self.POSTER[0] - 40)).pack(fill="x", pady=(0, 3))
@@ -17588,33 +19282,33 @@ class _MoviePanel(tk.Frame):
         iss = ctx_fix_issues([d], SETTINGS)
         reasons = list(d.get("health_reasons") or [])
         if reasons:
-            self._section(f"ISSUES ({len(reasons)})")
+            self._section(T("panel.issues_n", n=len(reasons)))
             for r in reasons[:10]:
-                self._line("• " + r, fg=C_WARN if st != "error" else C_ERR)
+                self._line("• " + reason_text(r), fg=C_WARN if st != "error" else C_ERR)   # v0.20.0 UI1c
             if len(reasons) > 10:
-                self._line(f"… and {len(reasons) - 10} more (Health report)", fg=C_DIM)
+                self._line(T("panel.more", n=len(reasons) - 10), fg=C_DIM)
         if iss:
-            self._section("FIXES")
+            self._section(T("panel.fixes"))
             for key, lbl, irows in iss[:8]:
                 self._issue_row(key, lbl, irows)
-        self._section("FILES")
+        self._section(T("panel.files"))
         _xu = xml_in_use(_lib_root_of(d))                          # v0.19.6 TR1: no red "XML missing" when it is not used
         _nu = nfo_in_use(_lib_root_of(d))                          # v0.19.6 TR1b: no red "NFO missing" in "movie.xml only"
         for lab, ok, name in ((("NFO", d.get("nfo_exists"), d.get("nfo_path")),) if _nu or d.get("nfo_exists") else ()) + ((("XML", d.get("xml_exists"), d.get("xml_path")),) if _xu or d.get("xml_exists") else ()) + (
-                              ("Poster", d.get("poster_exists"), d.get("poster_path")),
-                              ("Folder", d.get("folder_exists"), d.get("folder_path")),
-                              ("Fanart", d.get("fanart_exists"), d.get("fanart_path")),
-                              ("Video", bool(d.get("video_path")), d.get("video_path"))):
-            self._line(f"{'✓' if ok else '✕'}  {lab}: {os.path.basename(name or '') if ok else 'missing'}",
+                              (T("panel.file.poster"), d.get("poster_exists"), d.get("poster_path")),
+                              (T("panel.file.folder"), d.get("folder_exists"), d.get("folder_path")),
+                              (T("panel.file.fanart"), d.get("fanart_exists"), d.get("fanart_path")),
+                              (T("panel.file.video"), bool(d.get("video_path")), d.get("video_path"))):
+            self._line(f"{'✓' if ok else '✕'}  {lab}: {os.path.basename(name or '') if ok else T('panel.missing')}",
                        fg=C_OK if ok else C_ERR)
-        self._section("ACTIONS")
+        self._section(T("panel.actions"))
         acts = tk.Frame(self._body, bg=_PANEL_BG); acts.pack(fill="x")
         iid = iids[0] if iids else None
-        grid = (("📂 Open Folder", lambda: os_open(d["subfolder_path"])),
-                ("📝 Edit NFO", (lambda: open_in_editor(d["nfo_path"])) if d.get("nfo_exists") else None),
-                ("🖼 Fetch Poster/Folder…", lambda: app._fetch_poster_folder([d])),   # P7 (D20): the menu's words
-                ("🔎 Search Sources", lambda: app._search_sources_for([d])),
-                ("🔄 Update (no FFprobe)", (lambda: app._reval_no_ffmpeg(iid, d)) if iid else None))
+        grid = (("📂 " + T("act.open_folder"), lambda: os_open(d["subfolder_path"])),
+                ("📝 " + T("panel.edit_nfo"), (lambda: open_in_editor(d["nfo_path"])) if d.get("nfo_exists") else None),
+                ("🖼 " + T("act.fetch_poster_folder"), lambda: app._fetch_poster_folder([d])),   # P7 (D20): the menu's words
+                ("🔎 " + T("act.search_sources"), lambda: app._search_sources_for([d])),
+                ("🔄 " + T("act.update_no_ff"), (lambda: app._reval_no_ffmpeg(iid, d)) if iid else None))
         for i, (txt, fn) in enumerate(grid):
             b = self._button(acts, txt, fn or (lambda: None))
             if fn is None:
@@ -17628,6 +19322,7 @@ class _MoviePanel(tk.Frame):
         self._gen += 1
         self._clear()
         app = self.app
+        T = _i18n.t                                               # v0.20.0 UI1c
         self._title.configure(text=f"{name}  ({len(rows)})")
         cid = collection_tmdb_id(rows)
         fst = COLL_FOLDERS.get(key)
@@ -17642,25 +19337,26 @@ class _MoviePanel(tk.Frame):
         self._poster.pack(side="left", padx=(0, 10))
         info = tk.Frame(card, bg=_PANEL_BG); info.pack(side="left", fill="both", expand=True)
         st = _cr.worst_health(rows)
-        badge = {"ok": ("✓ All OK", C_OK), "warning": ("⚠ Warnings", C_WARN), "error": ("✕ Errors", C_ERR)}.get(st, ("?", C_SUBTEXT))
+        badge = {"ok": (T("panel.badge.ok"), C_OK), "warning": (T("panel.badge.warning"), C_WARN),
+                 "error": (T("panel.badge.error"), C_ERR)}.get(st, ("?", C_SUBTEXT))
         tk.Label(info, text=badge[0], font=("Helvetica", 9, "bold"), bg=badge[1], fg=C_BG, padx=6, pady=1
                  ).pack(anchor="w", pady=(0, 6))
-        for lab, val in (("TMDB ID", str(cid) if cid else "— (your own collection or not checked)"),
-                         ("Years", _cr.year_span(rows) or "—"),
-                         ("Folder", (cdir or "missing") if fst else "not checked (Settings → NFO / XML → Collections)"),
-                         ("Artwork", ", ".join(sorted(art)) if art else "none")):
+        for lab, val in ((T("panel.coll.tmdb_id"), str(cid) if cid else T("panel.coll.own")),
+                         (T("panel.coll.years"), _cr.year_span(rows) or "—"),
+                         (T("panel.coll.folder"), (cdir or T("panel.missing")) if fst else T("panel.coll.not_checked")),
+                         (T("panel.coll.artwork"), ", ".join(sorted(art)) if art else T("panel.coll.none"))):
             tk.Label(info, text=lab, font=("Helvetica", 8), bg=_PANEL_BG, fg=C_DIM, anchor="w").pack(fill="x")
             tk.Label(info, text=val, font=("Helvetica", 9), bg=_PANEL_BG, fg=C_TEXT, anchor="w", justify="left",
                      wraplength=px(PANEL_W - self.POSTER[0] - 40)).pack(fill="x", pady=(0, 3))
         if pp:
             self._load_poster({"poster_exists": True, "poster_path": pp})
         else:
-            self._poster.configure(text="no poster" if fst else "folder\nnot checked")
+            self._poster.configure(text=T("panel.poster.none") if fst else T("panel.poster.folder_not_checked"))
         ov_text = collection_overview(rows, cid)                  ### MODIFIED v0.19.4 fix 12 — the files' overview first ###
         if ov_text:
-            self._section("OVERVIEW")
+            self._section(T("panel.overview"))
             self._line(ov_text)
-        self._section(f"MOVIES ({len(rows)})")
+        self._section(T("panel.movies_n", n=len(rows)))
         for r in rows:
             g = {"ok": "✓", "warning": "⚠", "error": "✕"}.get(r.get("health_status"), "?")
             yr = r.get("movie_year")
@@ -17668,31 +19364,31 @@ class _MoviePanel(tk.Frame):
                        fg={"ok": C_OK, "warning": C_WARN, "error": C_ERR}.get(r.get("health_status"), C_TEXT))
         iss = [x for x in ctx_fix_issues(rows, SETTINGS) if x[0].startswith("collection")]
         if iss:
-            self._section("FIXES")
+            self._section(T("panel.fixes"))
             for k, lbl, irows in iss:
-                self._issue_row(k, f"{lbl} — {_n(len(irows), 'movie')}", irows)
-        self._section("ACTIONS")
+                self._issue_row(k, f"{lbl} — {_n(len(irows), 'movie', ',')}", irows)
+        self._section(T("panel.actions"))
         acts = tk.Frame(self._body, bg=_PANEL_BG); acts.pack(fill="x")
-        self.coll_buttons = {}                                     # read by the self-test
-        for i, (txt, fn) in enumerate((("🖼 Artwork…", lambda: app._collection_art_for(key, name, rows)),
-                                       ("🗂 Fix Collection…", lambda: app._fix_collections_for(rows)),
-                                       ("🖼 Open Poster", (lambda: os_open(pp)) if pp else None),
-                                       ("🖼 Open Fanart", (lambda: os_open(fp)) if fp else None),
-                                       ("📂 Open Folder", (lambda: os_open(cdir)) if cdir else None),
-                                       ("🌐 TMDB", lambda: open_url_with_browser(collection_tmdb_url(cid, name))),
-                                       ("🗂 Rename / Join…", lambda: app._set_collection_for(rows)))):
+        self.coll_buttons = {}                                     # read by the self-test (keys = the shown texts)
+        _art_b, _tmdb_b = "🖼 " + T("panel.coll.artwork_btn"), "🌐 TMDB"
+        for i, (txt, fn) in enumerate(((_art_b, lambda: app._collection_art_for(key, name, rows)),
+                                       ("🗂 " + T("act.fix_collection"), lambda: app._fix_collections_for(rows)),
+                                       ("🖼 " + T("panel.coll.open_poster"), (lambda: os_open(pp)) if pp else None),
+                                       ("🖼 " + T("panel.coll.open_fanart"), (lambda: os_open(fp)) if fp else None),
+                                       ("📂 " + T("act.open_folder"), (lambda: os_open(cdir)) if cdir else None),
+                                       (_tmdb_b, lambda: open_url_with_browser(collection_tmdb_url(cid, name))),
+                                       ("🗂 " + T("panel.coll.rename_join"), lambda: app._set_collection_for(rows)))):
             b = self._button(acts, txt, fn or (lambda: None), primary=(i == 0))
             if fn is None:
                 b.configure(state="disabled")
             b.grid(row=i // 2, column=i % 2, sticky="ew", padx=(0, 4), pady=1)
             self.coll_buttons[txt] = b
-        _ab = self._button(self._body, "All actions ▾", None, primary=True)   ### NEW v0.19.4 P7 (D20) — the row's menu ###
+        _ab = self._button(self._body, T("panel.all_actions"), None, primary=True)   ### NEW v0.19.4 P7 (D20) — the row's menu ###
         _ab.configure(command=lambda w=_ab: app._coll_menu_at(w))
         _ab.pack(fill="x", pady=(8, 0))
-        self.coll_buttons["All actions ▾"] = _ab
-        _add_btn_tooltip(self.coll_buttons["🖼 Artwork…"], "Choose the collection's poster and fanart (TMDB or your movies' images)")
-        _add_btn_tooltip(self.coll_buttons["🌐 TMDB"], "The collection's page on TMDB (its movies)" if cid
-                         else "No TMDB collection known: searches TMDB for the name")
+        self.coll_buttons[T("panel.all_actions")] = _ab
+        _add_btn_tooltip(self.coll_buttons[_art_b], T("panel.coll.artwork.tip"))
+        _add_btn_tooltip(self.coll_buttons[_tmdb_b], T("panel.coll.tmdb.tip") if cid else T("panel.coll.tmdb_search.tip"))
         acts.columnconfigure(0, weight=1); acts.columnconfigure(1, weight=1)
         self._bind_wheel(self._body)
         self._canvas.yview_moveto(0)
@@ -17700,7 +19396,7 @@ class _MoviePanel(tk.Frame):
     def _issue_row(self, key, label, rows):
         f = tk.Frame(self._body, bg=_PANEL_BG); f.pack(fill="x", pady=1)
         fn, reason = self.app._ctx_fix_action(key, rows)
-        b = self._button(f, "Fix", (lambda: fn(rows[0], list(rows), None)) if fn else (lambda: None), primary=bool(fn))
+        b = self._button(f, _i18n.t("panel.fix"), (lambda: fn(rows[0], list(rows), None)) if fn else (lambda: None), primary=bool(fn))
         b.pack(side="right")
         if not fn:
             b.configure(state="disabled")
@@ -17709,7 +19405,7 @@ class _MoviePanel(tk.Frame):
                  wraplength=px(PANEL_W) - px(80)).pack(side="left", fill="x", expand=True)
 
     def _all_actions_button(self, rows, iids):
-        b = self._button(self._body, "All actions ▾", None, primary=True)
+        b = self._button(self._body, _i18n.t("panel.all_actions"), None, primary=True)
         b.configure(command=lambda w=b: self._post_all(w, rows, iids))
         b.pack(fill="x", pady=(8, 0))
 
@@ -17727,11 +19423,11 @@ class _MoviePanel(tk.Frame):
     def _load_poster(self, d):
         path = d.get("poster_path") if d.get("poster_exists") else (d.get("folder_path") if d.get("folder_exists") else None)
         if not path or not _PIL_AVAILABLE:
-            self._poster.configure(text="no poster")
+            self._poster.configure(text=_i18n.t("panel.poster.none"))
             return
         gen = self._gen
         try:
-            self._poster.configure(text="loading…")                # D21
+            self._poster.configure(text=_i18n.t("panel.poster.loading"))   # D21
         except tk.TclError:
             pass
 
@@ -17760,7 +19456,7 @@ class _MoviePanel(tk.Frame):
             self.after(50, lambda: self._poll_poster(gen, tries + 1))
         else:
             try:
-                self._poster.configure(text="poster\nnot loaded")    # D21: the share did not answer in time
+                self._poster.configure(text=_i18n.t("panel.poster.not_loaded"))   # D21: the share did not answer in time
             except tk.TclError:
                 pass
 
@@ -17769,7 +19465,7 @@ class _MoviePanel(tk.Frame):
             return
         try:
             if im is None:
-                self._poster.configure(text="poster\nnot readable")
+                self._poster.configure(text=_i18n.t("panel.poster.not_readable"))
                 return
             self._ph = _PILImageTk.PhotoImage(im)
             self._poster.configure(image=self._ph, text="", width=im.width, height=im.height)   # no "loading…" on the poster
@@ -17816,6 +19512,7 @@ class App(tk.Tk):
         self._rf_running = False     # a refresh worker is running
         self._rf_runs    = 0         # completed refresh batches (self-test)
         self._offline_roots = set()  # v0.19.0 — library roots found unreachable (path keys)
+        self._inactive_rows = []     # v0.20.0 5j — rows of inactive libraries: kept (and saved), not shown, not scanned
         self._build_ui()
         # ### NEW v0.19.2 B51 ### the main window and every Toplevel get the dark
         # title bar and the small icon when first shown (the frame exists then)
@@ -17833,11 +19530,16 @@ class App(tk.Tk):
             self.after(600, self._tell_migrations)
         if _sc.SETTINGS_MIGRATION_STATUS:                      ### NEW v0.19.2 B55 — status bar, once ###
             self.after(700, self._show_migration_status)
-        if HEALTH_MODE_ASK_AUTO and not SETTINGS.get("health_mode_asked"):   ### NEW v0.19.6 TR1b — every user, once ###
-            self.after(900, self._ask_health_mode)
+        if HEALTH_MODE_ASK_AUTO and first_start_kind(SETTINGS):   ### MODIFIED v0.20.0 6g — the first-start window ###
+            self.after(900, self._ask_first_start)
+        elif PLEX_NFO_ASK_AUTO:                                 ### NEW v0.20.0 6h ###
+            self.after(1000, self._maybe_ask_plex_nfo)
         ### NEW v0.19.1 B22 — API pauses saved in settings.json survive a restart ###
         api_pauses_load()
-        _PAUSE_LISTENERS.append(lambda: self._safe_after(0, self._refresh_pause_indicator))
+        ### MODIFIED v0.20.0 AU10 (pre-build audit) ### the listener runs on worker threads (a pause starts inside an HTTP
+        # call): it posts to the Tk thread instead of calling winfo_exists / after there (CLAUDE.md rule 4)
+        self._pause_cb = lambda: ui_post(self._safe_after, 0, self._refresh_pause_indicator)
+        _PAUSE_LISTENERS.append(self._pause_cb)
         self.after(300, self._refresh_pause_indicator)
         threading.Thread(target=self._async_test_ffmpeg, daemon=True).start()  ### FIX v0.16.0 ###
         self._start_ui_watchdog()                              ### NEW v0.19.3 B62 ###
@@ -17885,14 +19587,13 @@ class App(tk.Tk):
         # the part switch: Movies (count) | Series (from v0.22)
         _sw = tk.Frame(self._header, bg=C_SURFACE); _sw.pack(side="left", padx=(28, 0))
         self._part_btns = {}
-        for _key, _text in (("movies", "🎬  Movies"), ("series", "📺  Series  (from v0.22)")):
+        for _key, _text in (("movies", "🎬  " + _i18n.t("hdr.movies")), ("series", "📺  " + _i18n.t("hdr.series"))):   # v0.20.0 UI1c
             _b = tk.Label(_sw, text=_text, font=("Helvetica", 10, "bold"), padx=14, pady=6, cursor="hand2",
                           bg=C_SURFACE, fg=C_SUBTEXT)
             _b.pack(side="left")
             _b.bind("<Button-1>", lambda e, k=_key: self._show_part(k))
             self._part_btns[_key] = _b
-        _add_btn_tooltip(self._part_btns["series"], "TV series support comes in v0.22.\n"
-                                                    f"Series folders are listed in {menu_path('ignored_folders')}")
+        _add_btn_tooltip(self._part_btns["series"], _i18n.t("hdr.series.tip", path=menu_path("ignored_folders")))
         # the app-wide buttons, boxed, on the right
         self._hdr_btns = tk.Frame(self._header, bg=MENU_ROW_BG)
         self._hdr_btns.pack(side="right", padx=(0, 12))
@@ -17907,12 +19608,12 @@ class App(tk.Tk):
             _add_btn_tooltip(b, tip)
             return b
         self._hdr_backup_btn = _hbtn(ACTIONS["backup_history"]["label"], lambda: self.run_action("backup_history"),
-                                     "Every run that changed files, with Undo")
+                                     _i18n.t("hdr.backup.tip"))
         settings_menu = tk.Menu(menubar, tearoff=0, bg=C_SURFACE, fg=C_TEXT,
                                 activebackground=C_HOVER, activeforeground=C_TEXT)
-        self._add_menu_button("Settings", settings_menu, parent=self._hdr_btns)   ### MODIFIED v0.19.4 L1 ###
+        self._add_menu_button(_i18n.t("menu.settings"), settings_menu, parent=self._hdr_btns, key="settings")   ### MODIFIED v0.19.4 L1; v0.20.0 UI1c key ###
         self.bind("<F10>", lambda e: self._post_menu("settings"))
-        settings_menu.add_command(label="⚙️  All Settings…",
+        settings_menu.add_command(label="⚙️  " + _i18n.t("menu.settings.all"),
                                   command=lambda: SettingsDialog(self, tab=0))
         settings_menu.add_separator()
         # Entries are built from SettingsDialog._TAB_REGISTRY so the tab index
@@ -17920,7 +19621,7 @@ class App(tk.Tk):
         _tab_index = {lbl: idx for idx, lbl, _m in SettingsDialog._TAB_REGISTRY}
         for _icon, _label, _tab_name in _SETTINGS_MENU_ITEMS:
             _idx = _tab_index.get(_tab_name, 0)
-            settings_menu.add_command(label=f"{_icon}  {_label}",
+            settings_menu.add_command(label=f"{_icon}  {_i18n.t(_SETTINGS_TAB_KEYS[_tab_name]) if _tab_name in _SETTINGS_TAB_KEYS else _label}",
                                       command=lambda i=_idx: SettingsDialog(self, tab=i))
 
         tools_menu = tk.Menu(menubar, tearoff=0, bg=C_SURFACE, fg=C_TEXT,  ### NEW v0.15.0 — redesigned ###
@@ -17931,15 +19632,15 @@ class App(tk.Tk):
         ### NEW v0.11.0 — Help menu last; F1 opens help globally ###
         help_menu = tk.Menu(menubar, tearoff=0, bg=C_SURFACE, fg=C_TEXT,
                             activebackground=C_HOVER, activeforeground=C_TEXT)
-        self._add_menu_button("Help", help_menu, parent=self._hdr_btns)   ### MODIFIED v0.19.4 L1 ###
+        self._add_menu_button(_i18n.t("menu.help"), help_menu, parent=self._hdr_btns, key="help")   ### MODIFIED v0.19.4 L1; v0.20.0 UI1c key ###
         # v0.19.1 — one entry per Help tab, same order as the Help window  ### MODIFIED v0.19.1 ###
-        for _i, (_lbl, _t) in enumerate(_help.HELP_TABS):
+        for _i, (_lbl, _t) in enumerate(_help.tabs()):              # v0.20.0 UI1e: in the interface language
             help_menu.add_command(label=_lbl + ("   (F1)" if _i == 0 else ""),
                                   command=lambda i=_i: open_help(self, tab=i))   # v0.19.2 B43
         help_menu.add_separator()
         self._fill_menu(help_menu, HELP_MENU_TAIL)                     ### MODIFIED v0.19.4 I13 — from the registry ###
         self._help_menu = help_menu
-        self._hdr_about_btn = _hbtn("ℹ  About", lambda: self.run_action("about"), "About MediaClinic")
+        self._hdr_about_btn = _hbtn("ℹ  " + _i18n.t("hdr.about"), lambda: self.run_action("about"), _i18n.t("hdr.about.tip"))
 
         # ── the app-wide status bar (bottom) with the FFmpeg / FFprobe chip (L1: from the Movies header) ──
         self._status_bar = tk.Frame(self, bg=C_ROW_ALT)
@@ -17962,8 +19663,7 @@ class App(tk.Tk):
         self._fp_state.pack(side="left")
         for _w in (self._fp_lbl, self._fp_switch, self._fp_state):
             _w.bind("<Button-1>", lambda e: self._toggle_ffprobe_switch())
-            _add_btn_tooltip(_w, "FFprobe in scans\nOn: scans read video resolution, audio tracks and embedded "
-                                 "subtitles (slower).\nOff: faster scans without that data. Click to switch.")
+            _add_btn_tooltip(_w, _i18n.t("fp.tip"))
         self._use_ffprobe.trace_add("write", lambda *_a: self._draw_ffprobe_switch())
         self._draw_ffprobe_switch()
 
@@ -17979,8 +19679,8 @@ class App(tk.Tk):
 
         # ── Picker row ────────────────────────────────────────────────────────
         picker = tk.Frame(_mt, bg=C_BG); picker.pack(fill="x", padx=20, pady=(0,0))   # v0.19.3 B70
-        self.folder_var = tk.StringVar(value="No folder selected")
-        self._folder_lbl = tk.Label(picker, text="No folder selected",   ### MODIFIED v0.19.2 B55 — every library, tooltip, click ###
+        self.folder_var = tk.StringVar(value=_i18n.t("lib.none"))
+        self._folder_lbl = tk.Label(picker, text=_i18n.t("lib.none"),   ### MODIFIED v0.19.2 B55 — every library, tooltip, click ###
                  font=("Helvetica",10), bg=C_SURFACE, fg=C_SUBTEXT,
                  anchor="w", padx=10, pady=6, relief="flat", cursor="hand2", width=20)
         self._folder_lbl.pack(side="left", fill="x", expand=True, ipady=2)
@@ -17993,38 +19693,32 @@ class App(tk.Tk):
         btn_kw = dict(font=("Helvetica",10,"bold"), relief="flat", cursor="hand2")
         _sec_kw = dict(font=("Helvetica",10), relief="flat", cursor="hand2", bg=HDR_BTN_BG, fg=C_TEXT,
                        activebackground=MENU_ROW_ACTIVE, activeforeground=C_TEXT)   ### NEW v0.19.4 L2 — one primary button ###
-        _lib_btn = tk.Button(picker, text="  Libraries…  ",                                ### NEW v0.19.0; L2 order ###
+        _lib_btn = tk.Button(picker, text=f"  {_i18n.t('btn.libraries')}  ",                                ### NEW v0.19.0; L2 order ###
                              command=lambda: _LibrariesDialog(self), **_sec_kw)
         _lib_btn.pack(side="left", padx=(8,0))
-        tk.Button(picker, text="  Browse…  ",
+        tk.Button(picker, text=f"  {_i18n.t('btn.browse')}  ",
                   command=self._browse, **_sec_kw).pack(side="left", padx=(6,0))
-        _add_btn_tooltip(_lib_btn, "Library folders (root folders)\nAdd, remove or reorder the root folders scanned by MediaClinic.")
+        _add_btn_tooltip(_lib_btn, _i18n.t("btn.libraries.tip"))
         self._lib_filter_var = tk.StringVar(value=_ALL_LIBS)
         self._lib_combo = ttk.Combobox(picker, textvariable=self._lib_filter_var, state="readonly",
                                        width=26, font=("Helvetica", 9))
         self._lib_combo.pack(side="left", padx=(6,0))
         self._lib_combo.bind("<<ComboboxSelected>>", self._on_library_filter)
-        _add_btn_tooltip(self._lib_combo, "Which library the table shows and Full / Quick Scan cover.")
-        self.scan_btn = tk.Button(picker, text="  Full Scan  ", bg=C_OK, fg=C_BG,   # the one primary button (L2)
+        _add_btn_tooltip(self._lib_combo, _i18n.t("lib.combo.tip"))
+        self.scan_btn = tk.Button(picker, text=f"  {_i18n.t('btn.full_scan')}  ", bg=C_OK, fg=C_BG,   # the one primary button (L2)
                                   command=self._scan, **btn_kw)
         self.scan_btn.pack(side="left", padx=(6,0))
-        _add_btn_tooltip(self.scan_btn,                                    ### NEW v0.17.0 ###
-            "Full Scan (Rebuild Library)\n"
-            "Performs a complete rebuild of the library.\n"
-            "Re-reads all folders, metadata, images, and warnings.")
-        self.update_btn = tk.Button(picker, text="  Quick Scan  ",
+        _add_btn_tooltip(self.scan_btn, _i18n.t("btn.full_scan.tip"))     ### NEW v0.17.0; v0.20.0 UI1c ###
+        self.update_btn = tk.Button(picker, text=f"  {_i18n.t('btn.quick_scan')}  ",
                                     command=self._update_scan, **_sec_kw)                 ### MODIFIED v0.19.4 L2 ###
         self.update_btn.pack(side="left", padx=(6,0))
-        _add_btn_tooltip(self.update_btn,                                  ### NEW v0.17.0 ###
-            "Quick Scan (Update Library)\n"
-            "Updates only movies that were added, removed, or modified.\n"
-            "Much faster than a Full Scan.")
-        self.cancel_btn = tk.Button(picker, text="  Cancel  ", bg=C_ERR, fg=C_BG,
+        _add_btn_tooltip(self.update_btn, _i18n.t("btn.quick_scan.tip"))  ### NEW v0.17.0; v0.20.0 UI1c ###
+        self.cancel_btn = tk.Button(picker, text=f"  {_i18n.t('btn.cancel')}  ", bg=C_ERR, fg=C_BG,
                                     command=self._cancel, **btn_kw)
         ### MODIFIED v0.19.4 L2 — Tools ▾ moves here (the Movies part); Clear All goes into "⋯" ###
         tk.Frame(picker, bg=C_SURFACE2, width=1, height=22).pack(side="left", padx=(10, 4))
-        self._add_menu_button("Tools", tools_menu, parent=picker)
-        export_btn = tk.Button(picker, text="  Export…  ",
+        self._add_menu_button(_i18n.t("menu.tools"), tools_menu, parent=picker, key="tools")   # v0.20.0 UI1c key
+        export_btn = tk.Button(picker, text=f"  {_i18n.t('btn.export')}  ",
                   command=self._export_list_dialog, **_sec_kw)             ### MODIFIED v0.18.3; L2 ###
         export_btn.pack(side="left", padx=(6,0))
         self._more_menu = tk.Menu(self, tearoff=0, bg=C_SURFACE, fg=C_TEXT,
@@ -18033,11 +19727,9 @@ class App(tk.Tk):
         self._more_btn = tk.Button(picker, text=" ••• ", command=self._post_more_menu,
                                    **dict(_sec_kw, font=("Helvetica", 12, "bold")))
         self._more_btn.pack(side="left", padx=(6,0))
-        _add_btn_tooltip(self._more_btn, "More: Clear All…, Save Scan Results…, Open Scan Results…")
-        _add_btn_tooltip(export_btn,
-            "Export Movie List (Ctrl+Shift+E)\n"
-            "CSV (comma or semicolon), tab-separated, plain text or Excel.\n"
-            "Choose columns and whether to export all movies or the current view.")
+        _add_btn_tooltip(self._more_btn, _i18n.t("btn.more.tip", a=_i18n.t("act.clear_all"), b=_i18n.t("act.save_results"),
+                                                 c=_i18n.t("act.open_results")))
+        _add_btn_tooltip(export_btn, _i18n.t("btn.export.tip"))
 
         # FFprobe tickbox — ### MOVED v0.19.3 B70 ### to the header chip (switch)
 
@@ -18055,27 +19747,26 @@ class App(tk.Tk):
         self._sort_spec = sort_spec_from_settings(SETTINGS)
         self.sort_var = tk.StringVar(value=_se.describe(self._sort_spec, sort_labels()))   # the summary line
         self._sort_levels_fr = tk.Frame(sr, bg=C_BG); self._sort_levels_fr.pack(side="left")
-        self._presets_btn = tk.Button(self._sort_btns, text=" ★ Presets ▾ ", font=("Helvetica",9,"bold"),
+        self._presets_btn = tk.Button(self._sort_btns, text=f" {_i18n.t('sort.presets')} ", font=("Helvetica",9,"bold"),
                                       bg=C_ACCENT, fg=C_BG, relief="flat", cursor="hand2",
                                       command=self._post_presets_menu)
         self._presets_btn.pack(side="left", padx=(6,0))
-        self._autosize_btn = tk.Button(self._sort_btns, text=" ↔ Auto-size Columns ", font=("Helvetica",9,"bold"),   # v0.19.4 fix 2c: ⟺ is a box in the Tk font
+        self._autosize_btn = tk.Button(self._sort_btns, text=f" {_i18n.t('sort.autosize')} ", font=("Helvetica",9,"bold"),   # v0.19.4 fix 2c: ⟺ is a box in the Tk font
                                        bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                                        command=self._auto_size_all)
         self._autosize_btn.pack(side="left", padx=(6,0))
-        _add_btn_tooltip(self._autosize_btn, "Fit every column to its text (double-click a heading: one column)")
-        self._defwidth_btn = tk.Button(self._sort_btns, text=" ↺ Default Widths ", font=("Helvetica",9,"bold"),   ### NEW v0.19.4 fix 2c ###
+        _add_btn_tooltip(self._autosize_btn, _i18n.t("sort.autosize.tip"))
+        self._defwidth_btn = tk.Button(self._sort_btns, text=f" {_i18n.t('sort.defwidth')} ", font=("Helvetica",9,"bold"),   ### NEW v0.19.4 fix 2c ###
                                        bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                                        command=self._default_col_widths)
         self._defwidth_btn.pack(side="left", padx=(6,0))
-        _add_btn_tooltip(self._defwidth_btn, "Every column back to its original width")
+        _add_btn_tooltip(self._defwidth_btn, _i18n.t("sort.defwidth.tip"))
         self._group_var = tk.BooleanVar(value=bool(SETTINGS.get("group_by_collection", False)))   ### NEW v0.19.4 B110h ###
-        self._group_cb = tk.Checkbutton(self._sort_btns, text="Group by collection", variable=self._group_var,
+        self._group_cb = tk.Checkbutton(self._sort_btns, text=_i18n.t("sort.group"), variable=self._group_var,
                                         command=self._toggle_grouping, font=("Helvetica", 9), bg=C_BG, fg=C_TEXT,
                                         selectcolor=C_SURFACE, activebackground=C_BG, activeforeground=C_TEXT)
         self._group_cb.pack(side="left", padx=(10, 0), before=self._presets_btn)
-        _add_btn_tooltip(self._group_cb, "Show the movies of a collection under one row (view only; movies without "
-                                         "a collection stay single). Settings → NFO / XML → Collections.")
+        _add_btn_tooltip(self._group_cb, _i18n.t("sort.group.tip"))
         self._render_sort_row()
         tk.Label(_sb_left, textvariable=self.sort_var, font=("Helvetica", 9), bg=C_BG, fg=C_SUBTEXT,
                  anchor="w").pack(fill="x", pady=(2, 0))
@@ -18091,12 +19782,12 @@ class App(tk.Tk):
         self._filter_row = fr_flt
         # Legend — ### MOVED v0.19.3 B70 ### from its own row to the right end of the filter row
         self._legend = lg = tk.Frame(fr_flt, bg=C_BG); lg.pack(side="right")
-        for c, lbl in [(C_OK,"All OK"),(C_WARN,"Missing"),(C_ERR,"Errors")]:
+        for c, lbl in [(C_OK, _i18n.t("legend.ok")), (C_WARN, _i18n.t("legend.missing")), (C_ERR, _i18n.t("legend.errors"))]:
             tk.Label(lg, text="■", font=("Helvetica",12), bg=C_BG, fg=c
                      ).pack(side="left", padx=(10,0))
             tk.Label(lg, text=lbl, font=("Helvetica",9), bg=C_BG, fg=C_SUBTEXT
                      ).pack(side="left", padx=(2,0))
-        tk.Label(fr_flt, text="Filter:", font=("Helvetica", 10),
+        tk.Label(fr_flt, text=_i18n.t("filter.label"), font=("Helvetica", 10),
                  bg=C_BG, fg=C_SUBTEXT).pack(side="left")
         self._filter_var = tk.StringVar()
         self._filter_entry = tk.Entry(
@@ -18108,7 +19799,7 @@ class App(tk.Tk):
                   bg=C_SURFACE, fg=C_DIM, relief="flat", cursor="hand2",
                   command=self._clear_filter).pack(side="left", padx=(4, 0))
         self._problems_only_var = tk.BooleanVar(value=False)               ### NEW v0.18.4 ###
-        tk.Checkbutton(fr_flt, text="Problems only", variable=self._problems_only_var,
+        tk.Checkbutton(fr_flt, text=_i18n.t("filter.problems_only"), variable=self._problems_only_var,
                        command=lambda: self._set_health_filter(
                            "problems" if self._problems_only_var.get() else None),
                        font=("Helvetica", 9), bg=C_BG, fg=C_SUBTEXT,
@@ -18130,7 +19821,7 @@ class App(tk.Tk):
         ### NEW v0.10.0 — Richer status bar ###
         self.stats_var = tk.StringVar(value="")
         sb_frame = self._status_bar                                    ### MODIFIED v0.19.4 L1 — app-wide, at the bottom ###
-        self._sb_movies  = tk.Label(sb_frame, text="  Movies: 0", font=("Helvetica",9,"bold"),
+        self._sb_movies  = tk.Label(sb_frame, text="  " + _i18n.t("sb.movies", n=0), font=("Helvetica",9,"bold"),
                                     bg=C_ROW_ALT, fg=C_OK, anchor="w")
         self._sb_movies.pack(side="left", padx=(8,0))
         self._sb_libhidden = tk.Label(sb_frame, text="", font=("Helvetica",9,"underline"),   ### NEW v0.19.2 B55 ###
@@ -18147,10 +19838,10 @@ class App(tk.Tk):
         self._sb_update.pack(side="left", padx=(6,0))
         self._sb_update.bind("<Button-1>", lambda e: self._update_link_clicked())
         self._update_rel = None
-        self._sb_warn    = tk.Label(sb_frame, text="  Warnings: 0", font=("Helvetica",9),
+        self._sb_warn    = tk.Label(sb_frame, text="  " + _i18n.t("sb.warnings", n=0), font=("Helvetica",9),
                                     bg=C_ROW_ALT, fg=C_WARN, anchor="w")
         self._sb_warn.pack(side="left", padx=(12,0))
-        self._sb_errors  = tk.Label(sb_frame, text="  Errors: 0", font=("Helvetica",9),
+        self._sb_errors  = tk.Label(sb_frame, text="  " + _i18n.t("sb.errors", n=0), font=("Helvetica",9),
                                     bg=C_ROW_ALT, fg=C_ERR, anchor="w")
         self._sb_errors.pack(side="left", padx=(12,0))
         self._sb_sel     = tk.Label(sb_frame, text="", font=("Helvetica",9,"bold"),       ### NEW v0.19.1 B21 ###
@@ -18175,9 +19866,9 @@ class App(tk.Tk):
             _lbl.configure(cursor="hand2")
             _lbl.bind("<Button-1>", lambda e, k=_kind: self._set_health_filter(
                 None if (k is None or self._health_filter == k) else k))
-        _add_btn_tooltip(self._sb_errors, "Click to show only movies with errors (click again to clear)")
-        _add_btn_tooltip(self._sb_warn,   "Click to show only movies with warnings (click again to clear)")
-        _add_btn_tooltip(self._sb_movies, "Click to show all movies again")
+        _add_btn_tooltip(self._sb_errors, _i18n.t("sb.errors.tip"))
+        _add_btn_tooltip(self._sb_warn,   _i18n.t("sb.warnings.tip"))
+        _add_btn_tooltip(self._sb_movies, _i18n.t("sb.movies.tip"))
         # Legacy stats label (hidden but kept for internal use)
         tk.Label(_mt, textvariable=self.stats_var,
                  font=("Helvetica",8), bg=C_BG, fg=C_SURFACE2
@@ -18194,7 +19885,7 @@ class App(tk.Tk):
         self._panel_strip = tk.Label(self._table_pane, text="‹", font=("Helvetica", 11, "bold"), bg=C_SURFACE,
                                      fg=C_SUBTEXT, cursor="hand2", width=2)
         self._panel_strip.bind("<Button-1>", lambda e: self._toggle_movie_panel())
-        _add_btn_tooltip(self._panel_strip, "Show the selected-movie panel (Ctrl+B)")
+        _add_btn_tooltip(self._panel_strip, _i18n.t("panel.show.tip"))
         self._panel_after = None
         if SETTINGS.get("movie_panel_shown", True):
             self._table_pane.add(self._movie_panel, width=px(self._panel_width()), minsize=px(220), stretch="never")
@@ -18216,7 +19907,7 @@ class App(tk.Tk):
 
         # ── Build Treeview from COLUMN_MODEL (Phase B — single source of truth) ──
         iso = SETTINGS.get("lang_ok_code", "PT")
-        _lang_ok_label = f"{iso} OK?"
+        _lang_ok_label = lang_ok_heading(iso)                            # v0.20.0 UI1c
         cols = tuple(c["id"] for c in COLUMN_MODEL)
         self.tree = ttk.Treeview(tf, columns=cols, show="headings",
                                  selectmode="extended")
@@ -18369,9 +20060,9 @@ class App(tk.Tk):
         labels = [lab[k] for k in keys]
         btn = dict(font=("Helvetica", 9, "bold"), relief="flat", cursor="hand2")
         for i, lvl in enumerate(self._sort_spec):
-            tk.Label(fr, text="Sort by" if i == 0 else "then by", font=("Helvetica", 10), bg=C_BG,
+            tk.Label(fr, text=_i18n.t("sort.by") if i == 0 else _i18n.t("sort.then_by"), font=("Helvetica", 10), bg=C_BG,
                      fg=C_SUBTEXT).pack(side="left", padx=(0 if i == 0 else 10, 4))
-            cb = ttk.Combobox(fr, values=labels, state="readonly", width=20, font=("Helvetica", 10))
+            cb = ttk.Combobox(fr, values=labels, state="readonly", width=_sort_combo_width(labels), font=("Helvetica", 10))   # v0.20.0 UI1c
             cb.set(lab[lvl["key"]])
             cb.pack(side="left")
             cb.bind("<<ComboboxSelected>>", lambda e, i=i, c=cb: self._sort_set_key(i, keys[labels.index(c.get())]))
@@ -18381,21 +20072,28 @@ class App(tk.Tk):
                 tk.Button(fr, text=" ✕ ", bg=C_BG, fg=C_SUBTEXT, command=lambda i=i: self._sort_remove(i),
                           **btn).pack(side="left", padx=(2, 0))
         if len(self._sort_spec) < _se.MAX_LEVELS:
-            tk.Button(fr, text=" + then by ", bg=C_BG, fg=C_ACCENT, command=self._sort_add,
+            tk.Button(fr, text=f" {_i18n.t('sort.add_then')} ", bg=C_BG, fg=C_ACCENT, command=self._sort_add,
                       **btn).pack(side="left", padx=(10, 0))
         ### NEW v0.19.3 B72 — "Update View" back (v0.19.2 "Update Sort"), after the last level ###
-        self._update_view_btn = tk.Button(fr, text=" ↺ Update View ", bg=C_SURFACE2, fg=C_TEXT,
+        self._update_view_btn = tk.Button(fr, text=f" {_i18n.t('sort.update_view')} ", bg=C_SURFACE2, fg=C_TEXT,
                                           command=self._refresh_table, **btn)
         self._update_view_btn.pack(side="left", padx=(10, 0))
-        _add_btn_tooltip(self._update_view_btn,
-                         "Update View\nSorts and filters the list again, so movies you just fixed move to "
-                         "their place.\nFiles changed outside MediaClinic: use Update or Quick Scan.")
+        _add_btn_tooltip(self._update_view_btn, _i18n.t("sort.update_view.tip"))
 
     def _sort_set_key(self, i, key):                              ### NEW v0.19.3 B63 ###
         spec = [dict(l) for l in self._sort_spec]
-        spec = [l for j, l in enumerate(spec) if j == i or l["key"] != key]   # a column used elsewhere moves here
-        i = min(i, len(spec) - 1)
-        spec[i] = {"key": key, "dir": _se.default_dir(key)}
+        ### MODIFIED v0.20.0 AU10 (pre-build audit) ### a level removed BEFORE i shifts i: A, B, C with B set to A gave
+        # [B, A] (C lost, B kept) instead of [A, C]
+        if not 0 <= i < len(spec):
+            return
+        new, ni = [], 0
+        for j, l in enumerate(spec):
+            if j == i:
+                ni = len(new); new.append(l)                     # the level being set
+            elif l["key"] != key:
+                new.append(l)                                    # a level using *key* elsewhere moves here
+        spec = new
+        spec[ni] = {"key": key, "dir": _se.default_dir(key)}
         self._apply_sort(spec)
 
     def _sort_toggle(self, i):                                    ### NEW v0.19.3 B63 ###
@@ -18419,11 +20117,13 @@ class App(tk.Tk):
         return list(_se.BUILTIN_PRESETS) + user
 
     def _apply_preset_index(self, n):                             ### NEW v0.19.3 B63 ###
+        if getattr(self, "_part", None) not in (None, "movies"):   # v0.20.0 AU17: the Movies part only (as Ctrl+A, I14)
+            return
         presets = self._all_presets()
         if 0 <= n < len(presets):
             self._apply_sort(presets[n]["levels"])
             try:
-                self.stats_var.set(f"★  Sort preset: {presets[n]['name']}")
+                self.stats_var.set(_i18n.t("sort.preset_status", name=presets[n]["name"]))
             except Exception:
                 pass
         return "break"
@@ -18433,18 +20133,19 @@ class App(tk.Tk):
                     activeforeground=C_TEXT)
         presets = self._all_presets()
         n_b = len(_se.BUILTIN_PRESETS)
-        m.add_command(label="BUILT IN", state="disabled")
+        m.add_command(label=_i18n.t("sort.menu.builtin"), state="disabled")
         for i, p in enumerate(presets):
             if i == n_b:
                 m.add_separator()
-                m.add_command(label="MY PRESETS", state="disabled")
-            m.add_command(label=f"{p['name']}   —   {_se.describe(p['levels'], sort_labels())[10:]}",
+                m.add_command(label=_i18n.t("sort.menu.mine"), state="disabled")
+            m.add_command(label=f"{p['name']}   —   {_se.describe(p['levels'], sort_labels(), prefix=False)}",
                           accelerator=f"Ctrl+{i + 1}" if i < 9 else "", command=lambda i=i: self._apply_preset_index(i))
         m.add_separator()
-        m.add_command(label="Save current sort as preset…", command=lambda: SortPresetDialog(self, "save"))
-        m.add_command(label="Rename / delete my presets…", command=lambda: SortPresetDialog(self, "manage"),
+        m.add_command(label=_i18n.t("sort.menu.save"), command=lambda: SortPresetDialog(self, "save"))
+        m.add_command(label=_i18n.t("sort.menu.manage"), command=lambda: SortPresetDialog(self, "manage"),
                       state="normal" if len(presets) > n_b else "disabled")
-        m.add_command(label="Back to Movie Name (A → Z)", command=self._apply_default_sort)
+        m.add_command(label=_i18n.t("sort.menu.back", level=f"{_se.LABEL['movie_name']} ({_se.dir_label('movie_name', 'asc')})"),
+                      command=self._apply_default_sort)
         self._presets_menu = m
         return m
 
@@ -18462,31 +20163,46 @@ class App(tk.Tk):
         marks = _se.heading_marks(self._sort_spec)
         iso = SETTINGS.get("lang_ok_code", "PT")
         for col in COLUMN_MODEL:
-            base = f"{iso} OK?" if col["label"] == "LANG_OK_LABEL" else col["label"]
+            base = lang_ok_heading(iso) if col["label"] == "LANG_OK_LABEL" else col["label"]   # v0.20.0 UI1c
             mk = marks.get(col["id"])
             try:
                 self.tree.heading(col["id"], text=f"{base}  {mk}" if mk else base)
             except tk.TclError:
                 pass
 
-    def _auto_size_col(self, col_id):
-        font_obj = tk_font.Font(font=("Helvetica",10))
-        hdr  = self.tree.heading(col_id)["text"]
-        maxw = font_obj.measure(hdr) + 24
+    AUTO_SIZE_MEASURE_MAX = 40   ### NEW v0.20.0 RD2 — the longest texts measured per column ###
+
+    def _auto_size_fit(self, col_ids):                            ### NEW v0.20.0 RD2 ###
+        """Auto-size *col_ids* in one pass over the visible rows.  v0.19.6 measured every cell of every column on
+        the Tk thread (a new Font per column, one Tcl measure per cell): on 1,706 movies "Auto Size Columns" froze the
+        window (Reddit tester, 2026-11-14).  Now each row is read once, each column keeps its distinct first lines,
+        and only the AUTO_SIZE_MEASURE_MAX longest (by characters) are measured: the same widths on a small table,
+        a time that no longer grows with the number of measured cells."""
+        font_obj = getattr(self, "_auto_size_font", None)
+        if font_obj is None:
+            font_obj = self._auto_size_font = tk_font.Font(root=self, font=("Helvetica", 10))
         cols = list(self.tree["columns"])
+        want = [(c, cols.index(c)) for c in col_ids if c in cols]
+        texts = {c: set() for c, _i in want}
         for iid in self._visible_iids():                         ### v0.19.4 B110h ###
             vals = self.tree.item(iid, "values")
-            try:
-                idx  = cols.index(col_id)
-                cell = str(vals[idx]).split("\n")[0] if idx < len(vals) else ""
-                w    = font_obj.measure(cell) + 24
-                if w > maxw: maxw = w
-            except (ValueError, IndexError): pass
-        self.tree.column(col_id, width=min(maxw, 800))
+            for c, idx in want:
+                if idx < len(vals):
+                    texts[c].add(str(vals[idx]).split("\n")[0])
+        for c, _i in want:
+            maxw = font_obj.measure(self.tree.heading(c)["text"]) + 24
+            longest = sorted(texts[c], key=len, reverse=True)[:self.AUTO_SIZE_MEASURE_MAX]
+            for cell in longest:
+                w = font_obj.measure(cell) + 24
+                if w > maxw:
+                    maxw = w
+            self.tree.column(c, width=min(maxw, 800))
+
+    def _auto_size_col(self, col_id):
+        self._auto_size_fit([col_id])
 
     def _auto_size_all(self):
-        for col_id in self.tree["columns"]:
-            self._auto_size_col(col_id)
+        self._auto_size_fit(list(self.tree["columns"]))         # MODIFIED v0.20.0 RD2 — one pass, not one per column
 
     def _fit_heading(self, col_id, w):                          ### NEW v0.19.6 TR8 ###
         """*w*, or wider when the heading would be cut off. The model widths fit Windows' heading
@@ -18588,7 +20304,7 @@ class App(tk.Tk):
         """Status bar: "N selected" when more than one row is selected."""
         try:
             n = len(self._selected_movie_iids())                 ### v0.19.4 B110h — a collection row = its movies ###
-            self._sb_sel.configure(text=f"  {n} selected" if n > 1 else "")
+            self._sb_sel.configure(text="  " + _i18n.t("sb.selected", n=_i18n.num(n)) if n > 1 else "")
         except tk.TclError:
             pass
 
@@ -18621,6 +20337,8 @@ class App(tk.Tk):
         - Use event.keysym as primary char source (works even when event.char is empty).
         - Per-character index dict for cycling (spec-compliant state management).
         """
+        if getattr(self, "_part", None) not in (None, "movies"):   # v0.20.0 AU17: the Movies part only (as Ctrl+A, I14)
+            return
         # ── Guard 1: skip if fired from a text-input widget ───────────────────
         # This preserves normal typing in search boxes, spinboxes, etc.
         try:
@@ -18722,6 +20440,7 @@ class App(tk.Tk):
         if not sel: return "break"
 
         # Initialise anchor on first Shift press — anchor stays at the clicked row
+        self._sel_check(children, sel)                           # v0.20.0 AU10
         if self._sel_anchor is None:
             self._sel_anchor = self._safe_index(children, sel[0])   # D7
         if self._sel_active_idx is None:
@@ -18735,6 +20454,7 @@ class App(tk.Tk):
         lo = min(anchor, new_active)
         hi = max(anchor, new_active)
         self.tree.selection_set(children[lo:hi + 1])
+        self._sel_last = (tuple(children[lo:hi + 1]), tuple(children))   # v0.20.0 AU10
         self.tree.see(children[new_active])
         return "break"
 
@@ -18745,6 +20465,7 @@ class App(tk.Tk):
         sel = [i for i in self._sel_iids() if i in self._item_map]
         if not sel: return "break"
 
+        self._sel_check(children, sel)                           # v0.20.0 AU10
         if self._sel_anchor is None:
             self._sel_anchor = self._safe_index(children, sel[0])   # D7
         if self._sel_active_idx is None:
@@ -18757,6 +20478,7 @@ class App(tk.Tk):
         lo = min(anchor, new_active)
         hi = max(anchor, new_active)
         self.tree.selection_set(children[lo:hi + 1])
+        self._sel_last = (tuple(children[lo:hi + 1]), tuple(children))   # v0.20.0 AU10
         self.tree.see(children[new_active])
         return "break"
 
@@ -18776,6 +20498,7 @@ class App(tk.Tk):
         sel = [i for i in self._sel_iids() if i in self._item_map]
         if not sel:
             self.tree.selection_set(children[0]); return "break"
+        self._sel_check(children, sel)                           # v0.20.0 AU10
         if self._sel_anchor is None:
             self._sel_anchor = self._safe_index(children, sel[0])   # D7
         if self._sel_active_idx is None:
@@ -18790,8 +20513,17 @@ class App(tk.Tk):
         self._sel_active_idx = new_active
         lo, hi = min(self._sel_anchor, new_active), max(self._sel_anchor, new_active)
         self.tree.selection_set(children[lo:hi + 1])
+        self._sel_last = (tuple(children[lo:hi + 1]), tuple(children))   # v0.20.0 AU10
         self.tree.see(children[new_active])
         return "break"
+
+    def _sel_check(self, children, sel):                         ### NEW v0.20.0 AU10 (pre-build audit) ###
+        """The Shift anchor is a list position: it is only valid while the selection and the row order are the ones
+        the last Shift key left.  A letter jump, plain Up / Down or a re-sort / filter used to leave it stale, and the
+        next Shift+Down selected rows the user never picked (and a right-click action then ran on them)."""
+        if getattr(self, "_sel_last", None) != (tuple(sel), tuple(children)):
+            self._sel_anchor = None
+            self._sel_active_idx = None
 
     def _reset_sel_anchor(self, event=None):                   ### NEW v0.16.1 ###
         """Reset anchor on plain single click so next Shift starts fresh."""
@@ -18901,7 +20633,7 @@ class App(tk.Tk):
             def _show(e):
                 self._ff_tip = tw = tk.Toplevel(parent); tw.wm_overrideredirect(True)
                 tw.wm_geometry(f"+{e.x_root+10}+{e.y_root+15}"); tw.configure(bg=C_SURFACE2)
-                tk.Label(tw, text=f"Path: {ff_dir}\nClick to open Settings",
+                tk.Label(tw, text=_i18n.t("ff.tip", path=ff_dir),
                          bg=C_SURFACE2, fg=C_TEXT, font=("Consolas",9), padx=8, pady=4).pack()
             def _hide(e):
                 if self._ff_tip: self._ff_tip.destroy(); self._ff_tip = None
@@ -18916,12 +20648,12 @@ class App(tk.Tk):
                 status_text = "ffprobe ✗"; fg = C_PEACH
             tk.Label(parent, text=status_text, font=("Helvetica",9,"bold"),
                      bg=_bg, fg=fg).pack(side="left", padx=(0,4))
-            tk.Button(parent, text="Set path", font=("Helvetica",8),
+            tk.Button(parent, text=_i18n.t("ff.set_path"), font=("Helvetica",8),
                       bg=C_SURFACE2, fg=C_TEXT, relief="flat", cursor="hand2",
                       command=lambda: SettingsDialog(self)).pack(side="left", padx=(0,4))
-            tk.Button(parent, text="Download", font=("Helvetica",8),
+            tk.Button(parent, text=_i18n.t("ff.download"), font=("Helvetica",8),
                       bg=C_SURFACE2, fg=C_ACCENT, relief="flat", cursor="hand2",
-                      command=lambda: webbrowser.open("https://ffmpeg.org/download.html")
+                      command=lambda: open_url_with_browser("https://ffmpeg.org/download.html")
                       ).pack(side="left", padx=(0,4))
 
     def _on_ffprobe_toggle(self):
@@ -18944,7 +20676,7 @@ class App(tk.Tk):
             c.create_rectangle(9, 1, 25, 17, fill=fill, outline=fill)
             x = 18 if on else 2
             c.create_oval(x, 2, x + 14, 16, fill=C_BG, outline=C_BG)
-            self._fp_state.configure(text="On" if on else "Off", fg=C_OK if on else C_SUBTEXT)
+            self._fp_state.configure(text=_i18n.t("fp.on") if on else _i18n.t("fp.off"), fg=C_OK if on else C_SUBTEXT)
         except (tk.TclError, AttributeError):
             pass
 
@@ -19007,7 +20739,7 @@ class App(tk.Tk):
     def _update_link(self, rel):
         self._update_rel = rel
         try:
-            self._sb_update.configure(text=f"⬆ Update available: v{rel['version']}" if rel else "")
+            self._sb_update.configure(text=_i18n.t("mc.update_available_v_2dfe", version=rel['version']) if rel else "")
         except (tk.TclError, AttributeError):
             pass
 
@@ -19019,7 +20751,13 @@ class App(tk.Tk):
         """Download → checksum → unpack next to the running folder (worker,
         progress, Cancel), then offer to start the new version."""
         base = base_dir or os.path.dirname(os.path.dirname(os.path.abspath(sys.executable)))
-        prog = _BatchProgressDialog(self, f"Downloading MediaClinic {rel.get('version')}…", total=100)
+        ### NEW v0.20.0 AU22 (audit point 4) ### already downloaded and unpacked (a finished install is renamed from
+        # ".new" only when complete): offer to start it — "Download and install" again used to fail with "already exists"
+        _done = os.path.join(base, f"MediaClinic {rel.get('version')}")
+        if rel.get("version") and os.path.isfile(os.path.join(_done, "MediaClinic.exe")):
+            self._update_installed(rel, _done, None)
+            return None
+        prog = _BatchProgressDialog(self, _i18n.t("au.prog.download", v=rel.get('version')), total=100)
 
         def work():
             try:
@@ -19041,26 +20779,30 @@ class App(tk.Tk):
         self._update_result = (target, err)
         if err:
             if err != "cancelled":
-                messagebox.showerror("Update", f"MediaClinic {rel.get('version')} was not installed:\n{err}", parent=self)
+                messagebox.showerror(_i18n.t("mc.update_0693"), _i18n.t("mc.mediaclinic_was_not_installed_fe94", get=rel.get('version'), err=err), parent=self)
             return
         exe = os.path.join(target, "MediaClinic.exe")
-        if messagebox.askyesno("Update", f"MediaClinic {rel.get('version')} is ready in\n{target}\n\n"
-                               "Start it now? This window will close.", parent=self):
+        if messagebox.askyesno(_i18n.t("mc.update_0693"), _i18n.t("mc.mediaclinic_is_ready_in_a90b", get=rel.get('version'), target=target), parent=self):
             self._start_new_version(exe)
-        elif messagebox.askyesno("Update", f"The new version is in\n{target}\n\nOpen the folder?", parent=self):
+        elif messagebox.askyesno(_i18n.t("mc.update_0693"), _i18n.t("mc.the_new_version_is_12d9", target=target), parent=self):
             os_open(target)
 
     def _start_new_version(self, exe):                         ### NEW v0.19.2 B56 ###
         """Close this window normally (results, widths, settings saved), give
         up the single-instance lock, start the new exe."""
         if not os.path.isfile(exe):
-            messagebox.showerror("Update", f"{exe} was not found.", parent=self)
+            messagebox.showerror(_i18n.t("mc.update_0693"), _i18n.t("mc.was_not_found_ceba", exe=exe), parent=self)
+            return False
+        if self._busy_what():                                    ### NEW v0.20.0 AU10 (pre-build audit) ###
+            # refused before the lock is released: the close could be declined ("a scan is still running") and two
+            # MediaClinic windows then ran without the lock, both writing settings.json and last_results.json
+            messagebox.showinfo(APP_NAME, _i18n.t("ui.lang.restart_busy", what=self._busy_what()), parent=self)
             return False
         ### MODIFIED v0.19.6 TR7 follow-up — started from a worker thread: the antivirus checks a new exe on its
         ### first start, and CreateProcess then blocked the window for about 50 s (build 3 of v0.19.5) ###
         release_single_instance(globals().get("_si_handle"))
         try:
-            self._sb_action.configure(text="  Starting the new version… (the antivirus may check it first)")
+            self._sb_action.configure(text=_i18n.t("mc.starting_the_new_version_f5cf"))
         except (AttributeError, tk.TclError):
             pass
         logger.info(f"Starting the new version: {exe}")
@@ -19080,17 +20822,20 @@ class App(tk.Tk):
         logger.warning(f"Could not start {exe}: {e}")
         globals()["_si_handle"] = acquire_single_instance()[0]
         try:
-            self._sb_action.configure(text="  The new version could not be started")
+            self._sb_action.configure(text=_i18n.t("mc.the_new_version_could_bfae"))
         except (AttributeError, tk.TclError):
             pass
-        messagebox.showerror("Update", f"Could not start {exe}:\n{e}", parent=self)
+        messagebox.showerror(_i18n.t("mc.update_0693"), _i18n.t("mc.could_not_start_f3b5", exe=exe, e=e), parent=self)
 
-    def _add_menu_button(self, label, menu, parent=None):      ### NEW v0.19.2 B52; parent v0.19.4 L1 ###
+    def _add_menu_button(self, label, menu, parent=None, key=None):   ### NEW v0.19.2 B52; parent v0.19.4 L1 ###
         """One menu button (header: Settings ▾ / Help ▾; Movies toolbar: Tools ▾);
-        Alt+<first letter> posts the menu."""
-        key = label.lower()
+        Alt+<first letter> posts the menu.
+        ### MODIFIED v0.20.0 UI1c ### *key* ("settings" / "tools" / "help") keeps Alt+S / Alt+T / Alt+H in every
+        language; the key's letter is underlined only where the label has it ("Ferramentas" has no T)."""
+        key = key or label.lower()
         _bg = HDR_BTN_BG if parent is not None else MENU_ROW_BG
-        b = tk.Label(parent if parent is not None else self._menu_row, text=f"{label} ▾", underline=0, bg=_bg,
+        _ul = label.lower().find(key[0])
+        b = tk.Label(parent if parent is not None else self._menu_row, text=f"{label} ▾", underline=_ul, bg=_bg,
                      fg=C_TEXT, font=("Segoe UI", 10), padx=10, pady=5 if parent is not None else 3, cursor="hand2")
         b.pack(side="left", padx=(6, 0) if parent is not None else 0)
         b.bind("<Button-1>", lambda e, k=key: self._post_menu(k))
@@ -19161,7 +20906,9 @@ class App(tk.Tk):
           appears stuck and the UI stays responsive.
         """
         iso = SETTINGS.get("lang_ok_code", "PT")
-        self.tree.heading("lang_ok", text=f"{iso} OK?")
+        self.tree.heading("lang_ok", text=lang_ok_heading(iso))          # v0.20.0 UI1c
+        if PLEX_NFO_ASK_AUTO:                                   # v0.20.0 6h — only Plex just ticked
+            self.after(300, self._maybe_ask_plex_nfo)
         self._apply_title_bars()                               ### NEW v0.19.2 B51 ###
         if hasattr(self, "_group_var") and bool(self._group_var.get()) != bool(SETTINGS.get("group_by_collection")):   ### NEW v0.19.4 B110h ###
             self._group_var.set(bool(SETTINGS.get("group_by_collection")))
@@ -19262,6 +21009,31 @@ class App(tk.Tk):
         finalize_results(self._results)                        ### MODIFIED v0.18.4 — duplicates + health ###
         self._refresh_table()                                  ### MODIFIED v0.19.4 P1 — the collection rows too ###
         self._update_stats()
+        self._reread_stale()                                   ### NEW v0.20.0 XB1 ###
+
+    def _reread_stale(self):                                   ### NEW v0.20.0 XB1 ###
+        """Read again, in the background, the folders whose movie.xml / NFO the current health mode uses but the
+        last scan did not read (it ran in another mode).  Nothing to do while a scan runs: it reads them."""
+        if self._scanning or not self._results:
+            return 0
+        paths = [r["subfolder_path"] for r in self._results if r.get("subfolder_path") and row_needs_reread(r)]
+        if len(paths) > REREAD_QUICK_SCAN_AT:                  # many folders (a NAS library): a Quick Scan reads them
+            logger.info(f"Health mode: {len(paths)} folder(s) to read again (movie.xml / NFO not read by the last scan) "
+                        "— Quick Scan")
+            self.after(0, self._update_scan)                   # parallel, with its progress; row_needs_reread → re-read
+            return len(paths)
+        if paths:
+            logger.info(f"Health mode: reading {len(paths)} folder(s) again (movie.xml / NFO not read by the last scan)")
+            self._rf_stale_keys = getattr(self, "_rf_stale_keys", set()) | {_pkey(p) for p in paths}
+            _was = getattr(self, "_rf_noted", False)
+            self._rf_noted = True                              # a re-read changes no file: nothing to note for Undo
+            self._rf_in_stale = True
+            try:
+                self._schedule_refresh(paths, need_ffprobe=False)
+            finally:
+                self._rf_noted = _was
+                self._rf_in_stale = False
+        return len(paths)
 
     # ── Column header tooltips — derived from COLUMN_MODEL (Phase B) ──────────
     # Tips are no longer a class-level dict literal. They are derived from
@@ -19325,42 +21097,41 @@ class App(tk.Tk):
         name = d.get("movie_name", d["subfolder"])
         folder = d["subfolder_path"]
         root = d.get("library_root") or os.path.dirname(folder)          ### NEW v0.19.0 ###
-        off = "  (offline — showing the last scan)" if self._root_offline(d) else ""
+        off = _i18n.t("rp.offline_showing_the_last_f901") if self._root_offline(d) else ""
         if d.get("read_error"):                                 ### NEW v0.19.4 B88 ###
-            off += f"\n[NOT READ] {READ_ERROR_NOTE} ({d['read_error']})"
-        _da = (f"\nDate added: {d['date_added']} (from {DATE_ADDED_SRC.get(d.get('date_added_src'), '?')})"
+            off += _i18n.t("rp.not_read_6e48", read_error_note=READ_ERROR_NOTE, read_error=d['read_error'])
+        _da = (_i18n.t("rp.date_added_from_907a", date_added=d['date_added'], get=DATE_ADDED_SRC.get(d.get('date_added_src'), '?'))
                if d.get("date_added") else "")              ### NEW v0.19.3 B63 ###
-        return (f"Movie: {name}\nFolder: {os.path.basename(folder)}\nLibrary: {root}{off}{_da}\nDouble-click to open folder"
-                + health_tooltip_lines(d))                  ### MODIFIED v0.19.3 B60 — the reasons, never cut ###
+        return (_i18n.t("rp.movie_folder_library_double_a106", name=name, folder=os.path.basename(folder), root=root, off=off, da=_da, health_tooltip_lines=health_tooltip_lines(d)))                  ### MODIFIED v0.19.3 B60 — the reasons, never cut ###
         return None
 
     def _tip_library(self, d, iid, ci):   ### NEW v0.19.0 ###   ### v0.19.3 I7 — from _tooltip ###
         root = d.get("library_root") or os.path.dirname(d["subfolder_path"])
-        return (f"Library: {root}" + ("\n[OFFLINE] not reachable — rows are from the last scan" if self._root_offline(d) else "")
-                + (f"\n[NOT READ] this movie folder {READ_ERROR_NOTE}" if d.get("read_error") else "")   ### NEW v0.19.4 B88 ###
-                + "\nDouble-click to open the library folder")
+        return (_i18n.t("au.tip.library", root=root) + (_i18n.t("uf.offline_not_reachable_rows_a509") if self._root_offline(d) else "")
+                + (_i18n.t("uf.not_read_this_movie_f07f", read_error_note=READ_ERROR_NOTE) if d.get("read_error") else "")   ### NEW v0.19.4 B88 ###
+                + _i18n.t("uf.double_click_to_open_71b6"))
         return None
 
     def _tip_collection(self, d, iid, ci):                         ### NEW v0.19.4 B110a ###
         c = d.get("coll_nfo") or {}
         if not c:
-            return "No collection in the NFO (<set>)"
-        lines = [f"Collection: {c.get('name')}"]
+            return _i18n.t("rp.no_collection_in_the_47a3")
+        lines = [_i18n.t("rp.collection_14ed", get=c.get('name'))]
         if c.get("tmdbcolid"):
-            lines.append(f"TMDB collection ID in the NFO: {c['tmdbcolid']}")
+            lines.append(_i18n.t("rp.tmdb_collection_id_in_2c35", tmdbcolid=c['tmdbcolid']))
         tm = d.get("coll_tmdb")
         if not tm:
-            lines.append("Collection not checked online — Tools → Check Collections Online")
+            lines.append(_i18n.t("rp.collection_not_checked_online_033e"))
         elif tm.get("id"):
-            lines.append(f"TMDB: '{tm.get('name')}' (ID {tm['id']})")
+            lines.append(_i18n.t("rp.tmdb_id_b617", get=tm.get('name'), id=tm['id']))
         else:
-            lines.append("Your own collection (not on TMDB)")
+            lines.append(_i18n.t("rp.your_own_collection_not_fb30"))
         if (c.get("count") or 1) > 1:
-            lines.append(f"The NFO has {c['count']} <set> elements: Kodi reads the first one")
+            lines.append(_i18n.t("rp.the_nfo_has_set_b881", count=c['count']))
         return "\n".join(lines)
 
     def _tip_year(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
-        return f"Year: {d.get('movie_year', '-')}\nSource: NFO <year> or XML <ProductionYear>"
+        return _i18n.t("rp.year_source_nfo_year_49fc", get=d.get('movie_year', '-'))
         return None
 
     ### NEW v0.12.0 — Rating tooltip ### UPDATED v0.15.0 — votes + source ###
@@ -19371,9 +21142,9 @@ class App(tk.Tk):
         vsrc  = d.get("rating_votes_src", "")
         rsrc  = d.get("rating_src", "")
         if st == STATUS_MISSING:
-            return "Rating: not found\nSources checked: NFO <rating>, XML <IMDBrating>, XML <Rating>"
+            return _i18n.t("rp.rating_not_found_sources_dee7")
         if st == STATUS_ERROR:
-            return "Rating: parsing error — tag exists but value is non-numeric or malformed"
+            return _i18n.t("rp.rating_parsing_error_tag_8b86")
         # Build source description                          ### NEW v0.15.0 ###
         _rtag_map = {"nfo_rating": "<rating>", "xml_IMDBrating": "<IMDBrating>", "xml_Rating": "<Rating>"}
         _vtag_map = {"nfo_votes": "<votes>", "xml_Votes": "<Votes>", "xml_VoteCount": "<VoteCount>"}
@@ -19382,17 +21153,17 @@ class App(tk.Tk):
         _rtag  = _rtag_map.get(rsrc, rsrc)
         _vtag  = _vtag_map.get(vsrc, "")
         if not vsrc:
-            src_str = f"{_rfile} ({_rtag}), no vote information found"
+            src_str = _i18n.t("rp.no_vote_information_found_3548", rfile=_rfile, rtag=_rtag)
         elif _rfile == _vfile:
             if rsrc.startswith("nfo") and vsrc.startswith("nfo"):
                 src_str = f"NFO ({_rtag}, {_vtag})"
             else:
                 src_str = f"XML ({_rtag}, {_vtag})"
         else:
-            src_str = f"{_rfile} ({_rtag}) and {_vfile} ({_vtag})"
-        lines = [f"Rating: {rs}", f"Votes: {votes}", f"Source: {src_str}"]
+            src_str = _i18n.t("rp.and_0200", rfile=_rfile, rtag=_rtag, vfile=_vfile, vtag=_vtag)
+        lines = [_i18n.t("rp.rating_d090", rs=rs), _i18n.t("rp.votes_aa07", votes=votes), _i18n.t("rp.source_5525", src_str=src_str)]
         if st == STATUS_WARN:
-            lines.append("(conflict — multiple sources differ)")
+            lines.append(_i18n.t("rp.conflict_multiple_sources_differ_e17f"))
         return "\n".join(lines)
         return None
 
@@ -19404,12 +21175,12 @@ class App(tk.Tk):
         _vtag_map = {"nfo_votes": "NFO <votes>", "xml_Votes": "XML <Votes>",
                      "xml_VoteCount": "XML <VoteCount>"}
         if vs == STATUS_MISSING:
-            return "Votes: not found\nSources checked: NFO <votes>, XML <Votes>, XML <VoteCount>"
+            return _i18n.t("rp.votes_not_found_sources_1efa")
         if vs == STATUS_ERROR:
-            return "Votes: parse error — tag exists but value is non-numeric or malformed"
-        lines = [f"Votes: {vi:,}", f"Source: {_vtag_map.get(src, src)}"]
+            return _i18n.t("rp.votes_parse_error_tag_be7e")
+        lines = [_i18n.t("rp.votes_0ed6", vi=_i18n.num(vi)), _i18n.t("rp.source_d7c2", get=_vtag_map.get(src, src))]
         if vs == STATUS_WARN:
-            lines.append("(conflict — NFO <votes> and XML <Votes> differ)")
+            lines.append(_i18n.t("rp.conflict_nfo_votes_and_ffe5"))
         return "\n".join(lines)
         return None
 
@@ -19427,23 +21198,23 @@ class App(tk.Tk):
         for _lb, _st, _v, _all, _emp in (("IMDB", imdb_st, imdb_v, imdb_all, d.get("source_imdb_empty")),
                                          ("TMDB", tmdb_st, tmdb_v, tmdb_all, d.get("source_tmdb_empty"))):
             if _st == STATUS_ERROR and not _v:
-                lines.append(f"{_lb}: ✕ parse error")
+                lines.append(_i18n.t("rp.parse_error_c6cf", lb=_lb))
             elif _v:
                 lines.append(f"{_lb}: {_v}")
                 if len(_all) > 1:
-                    lines.append(f"  (conflict: {', '.join(_all)})")
+                    lines.append(_i18n.t("rp.conflict_4852", join=', '.join(_all)))
                 elif _st == STATUS_ERROR:
-                    lines.append("  (some tags are empty)")
+                    lines.append(_i18n.t("rp.some_tags_are_empty_48a9"))
             elif _emp:
-                lines.append(f"{_lb}: — (empty tags ready to fill)")
+                lines.append(_i18n.t("rp.empty_tags_ready_to_f409", lb=_lb))
             else:
-                lines.append(f"{_lb}: Not Available")
+                lines.append(_i18n.t("rp.not_available_3784", lb=_lb))
         _chk = d.get("id_check") or {}                           ### NEW v0.19.0 ###
         if _chk.get("result"):
-            lines.append(f"Verified {_chk.get('when', '')}: {_chk['result']}")
+            lines.append(_i18n.t("rp.verified_3647", get=_chk.get('when', ''), result=_chk['result']))
             if _chk.get("detail"):
                 lines.append(f"  {_chk['detail']}")
-        lines.append("Double-click to open on IMDb or TMDB website")
+        lines.append(_i18n.t("rp.double_click_to_open_c651"))
         return "\n".join(lines)
         return None
 
@@ -19452,25 +21223,24 @@ class App(tk.Tk):
         if not d["poster_exists"]:
             _ep = d['poster_path'].replace("/", "\\")  ### NEW v0.15.0 ###
             if d.get("folder_exists"):                         ### NEW v0.19.2 F5 ###
-                return ("No poster file — folder.jpg is used as the poster by Kodi,\n"
-                        "Jellyfin, Emby and Plex\n" + _art_missing_tip(d, "poster", _ep))
+                return (_i18n.t("uf.no_poster_file_folder_3722") + _art_missing_tip(d, "poster", _ep))
             return _art_missing_tip(d, "poster", _ep)          ### MODIFIED v0.19.1 B23 ###
-        lines = [_art_found_line(d, "poster"), f"Size: {d['poster_size']}"]
-        if d.get("poster_dim"): lines.append(f"Dimensions: {d['poster_dim']}")
-        w, h = get_image_wh(d["poster_path"])
+        lines = [_art_found_line(d, "poster"), _i18n.t("rp.size_ae97", poster_size=d['poster_size'])]
+        if d.get("poster_dim"): lines.append(_i18n.t("rp.dimensions_418d", poster_dim=d['poster_dim']))
+        w, h = _parse_dim_str(d.get("poster_dim")) if d.get("poster_dim") else (None, None)   # v0.20.0 AU16: no disk read on hover (offline share froze)
         if w and h:
             ratio = w / h
             accept_34 = SETTINGS.get("poster_accept_34", False)
             if accept_34:
-                ok_str = "OK" if (0.60 <= ratio <= 0.72 or 0.70 <= ratio <= 0.80) else "! Not 2:3 or 3:4"
-                lines.append("Proportions: 2:3 or 3:4")
+                ok_str = "OK" if (0.60 <= ratio <= 0.72 or 0.70 <= ratio <= 0.80) else _i18n.t("rp.not_or_937c")
+                lines.append(_i18n.t("rp.proportions_or_c205"))
             else:
-                ok_str = "OK" if 0.60 <= ratio <= 0.72 else "! Not 2:3 portrait"
-                lines.append("Proportions: 2:3 portrait")
-            lines.append(f"Ratio: {ratio:.2f}  {ok_str}")
+                ok_str = "OK" if 0.60 <= ratio <= 0.72 else _i18n.t("rp.not_portrait_6056")
+                lines.append(_i18n.t("rp.proportions_portrait_454f"))
+            lines.append(_i18n.t("rp.ratio_6099", ratio=format(ratio, '.2f'), ok_str=ok_str))
         ql = d.get("poster_quality", "—")
-        if ql != "—": lines.append(f"Quality: {ql}  (minimum: {_min_quality_level('poster')})")  ### MODIFIED v0.19.0 ###
-        if d.get("poster_format"): lines.append(f"Format: {d['poster_format']}")            ### NEW v0.19.0 ###
+        if ql != "—": lines.append(_i18n.t("au.tip.quality", q=ql, m=_min_quality_level('poster')))  ### MODIFIED v0.19.0 ###
+        if d.get("poster_format"): lines.append(_i18n.t("rp.format_56d0", poster_format=d['poster_format']))            ### NEW v0.19.0 ###
         if d.get("poster_desc"): lines.append(f"[!] {d['poster_desc']}")
         return "\n".join(lines)
         return None
@@ -19480,22 +21250,22 @@ class App(tk.Tk):
         if not d["folder_exists"]:
             _ep = d['folder_path'].replace("/", "\\")  ### NEW v0.15.0 ###
             return _art_missing_tip(d, "folder", _ep)          ### MODIFIED v0.19.1 B23 ###
-        lines = [_art_found_line(d, "folder"), f"Size: {d['folder_size']}"]
-        if d.get("folder_dim"): lines.append(f"Dimensions: {d['folder_dim']}")
-        w, h = get_image_wh(d["folder_path"])
+        lines = [_art_found_line(d, "folder"), _i18n.t("rp.size_bebb", folder_size=d['folder_size'])]
+        if d.get("folder_dim"): lines.append(_i18n.t("rp.dimensions_3d62", folder_dim=d['folder_dim']))
+        w, h = _parse_dim_str(d.get("folder_dim")) if d.get("folder_dim") else (None, None)   # v0.20.0 AU16: no disk read on hover (offline share froze)
         if w and h:
             ratio = w / h
             accept_34 = SETTINGS.get("poster_accept_34", False)
             if accept_34:
-                ok_str = "OK" if (0.60 <= ratio <= 0.72 or 0.70 <= ratio <= 0.80) else "! Not 2:3 or 3:4"
-                lines.append("Proportions: 2:3 or 3:4")
+                ok_str = "OK" if (0.60 <= ratio <= 0.72 or 0.70 <= ratio <= 0.80) else _i18n.t("rp.not_or_937c")
+                lines.append(_i18n.t("rp.proportions_or_c205"))
             else:
-                ok_str = "OK" if 0.60 <= ratio <= 0.72 else "! Not 2:3 portrait"
-                lines.append("Proportions: 2:3 portrait")
-            lines.append(f"Ratio: {ratio:.2f}  {ok_str}")
+                ok_str = "OK" if 0.60 <= ratio <= 0.72 else _i18n.t("rp.not_portrait_6056")
+                lines.append(_i18n.t("rp.proportions_portrait_454f"))
+            lines.append(_i18n.t("rp.ratio_6099", ratio=format(ratio, '.2f'), ok_str=ok_str))
         ql = d.get("folder_quality", "—")
-        if ql != "—": lines.append(f"Quality: {ql}  (minimum: {_min_quality_level('folder')})")  ### MODIFIED v0.19.0 ###
-        if d.get("folder_format"): lines.append(f"Format: {d['folder_format']}")            ### NEW v0.19.0 ###
+        if ql != "—": lines.append(_i18n.t("au.tip.quality", q=ql, m=_min_quality_level('folder')))  ### MODIFIED v0.19.0 ###
+        if d.get("folder_format"): lines.append(_i18n.t("rp.format_dd72", folder_format=d['folder_format']))            ### NEW v0.19.0 ###
         if d.get("folder_desc"): lines.append(f"[!] {d['folder_desc']}")
         return "\n".join(lines)
         return None
@@ -19506,23 +21276,23 @@ class App(tk.Tk):
         if not d["fanart_exists"]:
             _ep = d['fanart_path'].replace("/", "\\")  ### NEW v0.15.0 ###
             return _art_missing_tip(d, "fanart", _ep)          ### MODIFIED v0.19.1 B23 ###
-        lines = [_art_found_line(d, "fanart"), f"Size: {d['fanart_size']}"]
-        if d.get("fanart_dim"): lines.append(f"Dimensions: {d['fanart_dim']}")
-        w, h = get_image_wh(d["fanart_path"])
+        lines = [_art_found_line(d, "fanart"), _i18n.t("rp.size_1053", fanart_size=d['fanart_size'])]
+        if d.get("fanart_dim"): lines.append(_i18n.t("rp.dimensions_9425", fanart_dim=d['fanart_dim']))
+        w, h = _parse_dim_str(d.get("fanart_dim")) if d.get("fanart_dim") else (None, None)   # v0.20.0 AU16: no disk read on hover (offline share froze)
         if w and h:
             ratio = w / h
             if accept_168:
                 ok_ratio = (1.70 <= ratio <= 1.85) or (1.45 <= ratio <= 1.55)
-                prop_str = "16:9 (≈1.78) or 16:8 (≈1.50)"
+                prop_str = _i18n.t("rp.or_275b")
             else:
                 ok_ratio = (1.70 <= ratio <= 1.85)
                 prop_str = "16:9 (≈1.78)"
-            ok = "OK" if ok_ratio else f"! Not {prop_str}"
-            lines.append(f"Proportions: {prop_str}")
-            lines.append(f"Ratio: {ratio:.2f}  {ok}")
+            ok = "OK" if ok_ratio else _i18n.t("rp.not_7a58", prop_str=prop_str)
+            lines.append(_i18n.t("rp.proportions_ddbe", prop_str=prop_str))
+            lines.append(_i18n.t("rp.ratio_5bdb", ratio=format(ratio, '.2f'), ok=ok))
         ql = d.get("fanart_quality", "—")
-        if ql != "—": lines.append(f"Quality: {ql}  (minimum: {_min_quality_level('fanart')})")  ### MODIFIED v0.19.0 ###
-        if d.get("fanart_format"): lines.append(f"Format: {d['fanart_format']}")            ### NEW v0.19.0 ###
+        if ql != "—": lines.append(_i18n.t("au.tip.quality", q=ql, m=_min_quality_level('fanart')))  ### MODIFIED v0.19.0 ###
+        if d.get("fanart_format"): lines.append(_i18n.t("rp.format_15d3", fanart_format=d['fanart_format']))            ### NEW v0.19.0 ###
         if d.get("fanart_desc"): lines.append(f"[!] {d['fanart_desc']}")
         return "\n".join(lines)
         return None
@@ -19531,39 +21301,39 @@ class App(tk.Tk):
     def _tip_backdrops(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         bc = d["backdrop_count"]
         if bc == 0:
-            return "Backdrops: none found\nRight-click - Extract Backdrop(s) to generate"
+            return _i18n.t("rp.backdrops_none_found_right_138a")
         avg_kb = round(d.get("backdrop_avg_bytes", 0) / 1024)  ### NEW v0.15.0 ###
-        return f"Backdrops: {bc} image files\nAverage Size: {avg_kb}kb"  ### NEW v0.15.0 ###
+        return _i18n.t("rp.backdrops_image_files_average_3275", bc=bc, avg_kb=avg_kb)  ### NEW v0.15.0 ###
         return None
 
     # NFO unified (v0.10.4)
     def _tip_nfo(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         if not d["nfo_exists"] and not nfo_in_use(_lib_root_of(d)):   ### NEW v0.19.6 TR1b ###
-            return f".nfo file\nNot used in this health mode (movie.xml only)\n({HEALTH_MODE_PATH})"
+            return _i18n.t("rp.nfo_file_not_used_ae2b", health_mode_path=HEALTH_MODE_PATH)
         if not d["nfo_exists"]:
-            return f".nfo file\n[MISSING]\nExpected: {os.path.basename(d['nfo_path'])}\nDouble-click for details"
-        lines = [f"{os.path.basename(d['nfo_path'])}", f"Size: {d['nfo_size']}"]
+            return _i18n.t("rp.nfo_file_missing_expected_2883", nfo_path=os.path.basename(d['nfo_path']))
+        lines = [f"{os.path.basename(d['nfo_path'])}", _i18n.t("rp.size_1a64", nfo_size=d['nfo_size'])]
         if d["nfo_errors"]:
-            lines.append(f"[!] {_n(len(d['nfo_errors']), 'parse error')} found")   # v0.19.4 B105
+            lines.append(_i18n.t("rp.found_8537", n=_n(len(d['nfo_errors']), 'parse error')))   # v0.19.4 B105
             errs = d["nfo_errors"][:5]                                ### MODIFIED v0.19.1 B12 — first 5 + n more ###
             for e in errs:
-                lines.append(f"  Line {e['line']}: {e['message']}")
+                lines.append(_i18n.t("rp.line_679f", line=e['line'], message=e['message']))
             if len(d["nfo_errors"]) > 5:
-                lines.append(f"  ... {len(d['nfo_errors'])-5} more")
-            lines.append("Double-click to open the file in the editor")
-            lines.append("Right-click → [!] NFO errors for the full list")
+                lines.append(_i18n.t("rp.more_e005", v=len(d['nfo_errors'])-5))
+            lines.append(_i18n.t("rp.double_click_to_open_5bbd"))
+            lines.append(_i18n.t("rp.right_click_nfo_errors_6893"))
         else:
-            lines.append("XML valid")
-            lines.append("Double-click to open in editor")
+            lines.append(_i18n.t("rp.xml_valid_a412"))
+            lines.append(_i18n.t("rp.double_click_to_open_330b"))
         for e in (d.get("nfo_infos") or [])[:3]:                       ### NEW v0.19.1 B12 — info notes ###
-            lines.append(f"  (i) Line {e['line']}: {e['message']}")
+            lines.append(_i18n.t("rp.i_line_d23e", line=e['line'], message=e['message']))
         for _k, _m in (d.get("struct_issues") or []):                  ### NEW v0.19.3 I8 ###
             if _m.startswith("NFO:"):
                 lines.append(f"[!] {_m[5:]}")
         _others = (d.get("nfo_all") or [])[1:]                         ### NEW v0.19.2 F5 ###
         if _others:
-            lines.append("[!] Also in the folder (not used): " + ", ".join(_others)
-                         + ("  — contents differ" if d.get("nfo_all_differ") else "  — same contents"))
+            lines.append(_i18n.t("uf.also_in_the_folder_2bf5") + ", ".join(_others)
+                         + (_i18n.t("au.tip.differ") if d.get("nfo_all_differ") else _i18n.t("au.tip.same")))
         return "\n".join(lines)
         return None
 
@@ -19571,33 +21341,32 @@ class App(tk.Tk):
     def _tip_language(self, d, iid, ci):                          ### NEW v0.19.6 TR1 ###
         v, src = d.get("language") or "—", d.get("language_src") or ""
         if v == "—" or not src:
-            return ("Language: none found\nmovie.xml's <Language>; without movie.xml the NFO's <language>,\n"
-                    "else the first audio track's language")
-        return f"Language: {v}\nFrom {src}" + ("\nDouble-click to open the file" if "NFO" in src or "movie.xml" in src else "")
+            return (_i18n.t("rp.language_none_found_movie_d022"))
+        return _i18n.t("au.tip.language", v=v, src=src) + (_i18n.t("uf.double_click_to_open_74e6") if "NFO" in src or "movie.xml" in src else "")
 
     def _tip_xml(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         _xn = "".join(f"\n(i) {n}" for n in (d.get("xml_notes") or []))   ### NEW v0.19.2 F5 — mymovies.xml ###
         if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)):   ### NEW v0.19.6 TR1 ###
             if health_mode() == "nfo":
-                return f"movie.xml\nNot used in this health mode\n({HEALTH_MODE_PATH})" + _xn
-            return "movie.xml\nNot used: this library uses NFO files only\n(Library Folders → NFO only)" + _xn
+                return _i18n.t("rp.movie_xml_not_used_bf3a", health_mode_path=HEALTH_MODE_PATH, xn=_xn)
+            return _i18n.t("rp.movie_xml_not_used_1315", xn=_xn)
         if not d["xml_exists"]:
-            return "movie.xml\n[MISSING]\nDouble-click for details" + _xn
-        lines = ["movie.xml", f"Size: {d['xml_size']}"]
+            return _i18n.t("rp.movie_xml_missing_double_c170", xn=_xn)
+        lines = ["movie.xml", _i18n.t("rp.size_f068", xml_size=d['xml_size'])]
         if d["xml_errors"]:
-            lines.append(f"[!] {_n(len(d['xml_errors']), 'parse error')} found")   # v0.19.4 B105
+            lines.append(_i18n.t("rp.found_8537", n=_n(len(d['xml_errors']), 'parse error')))   # v0.19.4 B105
             errs = d["xml_errors"][:5]                                ### MODIFIED v0.19.1 B12 — first 5 + n more ###
             for e in errs:
-                lines.append(f"  Line {e['line']}: {e['message']}")
+                lines.append(_i18n.t("rp.line_679f", line=e['line'], message=e['message']))
             if len(d["xml_errors"]) > 5:
-                lines.append(f"  ... {len(d['xml_errors'])-5} more")
-            lines.append("Double-click to open the file in the editor")
-            lines.append("Right-click → [!] XML errors for the full list")
+                lines.append(_i18n.t("rp.more_e005", v=len(d['xml_errors'])-5))
+            lines.append(_i18n.t("rp.double_click_to_open_5bbd"))
+            lines.append(_i18n.t("rp.right_click_xml_errors_0200"))
         else:
-            lines.append("XML valid")
-            lines.append("Double-click to open in editor")
+            lines.append(_i18n.t("rp.xml_valid_a412"))
+            lines.append(_i18n.t("rp.double_click_to_open_330b"))
         for e in (d.get("xml_infos") or [])[:3]:                       ### NEW v0.19.1 B12 — info notes ###
-            lines.append(f"  (i) Line {e['line']}: {e['message']}")
+            lines.append(_i18n.t("rp.i_line_d23e", line=e['line'], message=e['message']))
         for _k, _m in (d.get("struct_issues") or []):                  ### NEW v0.19.3 I8 ###
             if _m.startswith("XML:"):
                 lines.append(f"[!] {_m[5:]}")
@@ -19607,66 +21376,65 @@ class App(tk.Tk):
     # Video / Quality / Size
     def _tip_vid_ext(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         if not d.get("video_path"):
-            return "No video file found in this folder"
+            return _i18n.t("rp.no_video_file_found_5c01")
         vfiles = d.get("video_files", [])
-        lines = [f"Video: {d['video_ext']}  ({d['video_size']})"]
+        lines = [_i18n.t("rp.video_6415", video_ext=d['video_ext'], video_size=d['video_size'])]
         _kinds = d.get("video_kinds") or {}                           ### NEW v0.19.2 F5 ###
         if _kinds and d.get("video_count", 0) <= 1:
-            lines.append(f"  {os.path.basename(d['video_path'])}  (main video)")
+            lines.append(_i18n.t("rp.main_video_15b8", video_path=os.path.basename(d['video_path'])))
             if d.get("video_group") == "stack":
-                lines.append("  Multi-part movie (stack): the servers play the parts in order")
+                lines.append(_i18n.t("rp.multi_part_movie_stack_b5dd"))
             elif d.get("video_group") == "versions":
-                lines.append("  Versions of the same movie: the largest is the main one")
+                lines.append(_i18n.t("rp.versions_of_the_same_b018"))
             lines.append("  " + video_kinds_text(_kinds) + ":")
             for vf, k in list(_kinds.items())[:6]:
                 lines.append(f"    {vf}  ({_nc.VIDEO_KIND_LABEL.get(k, k)})")
             if d.get("video_group") == "stack":
-                lines.append(f"  FFprobe data: part 1 of {1 + sum(1 for k in _kinds.values() if k == 'part')}")
+                lines.append(_i18n.t("rp.ffprobe_data_part_of_0f8b", v=1 + sum(1 for k in _kinds.values() if k == 'part')))
         elif len(vfiles) > 1:
-            lines.append(f"[!] {len(vfiles)} video files found (expected 1):")
+            lines.append(_i18n.t("rp.video_files_found_expected_02a7", n=len(vfiles)))
             for vf in vfiles[:4]: lines.append(f"  {vf}")
         else:
             lines.append(f"  {os.path.basename(d['video_path'])}")
         if d.get("extra_dirs"):                                       ### NEW v0.19.2 F5 ###
-            lines.append("  Extras folders (not scanned): " + ", ".join(d["extra_dirs"]))
+            lines.append(_i18n.t("rp.extras_folders_not_scanned_3575", join=", ".join(d["extra_dirs"])))
         return "\n".join(lines)
         return None
 
     def _tip_vid_size(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         if not d.get("video_path"): return None
-        return f"Video file size: {d['video_size']}\n{os.path.basename(d['video_path'])}"
+        return _i18n.t("rp.video_file_size_3124", video_size=d['video_size'], video_path=os.path.basename(d['video_path']))
         return None
 
     def _tip_quality(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         if d.get("video_width") and d.get("video_height"):
-            return (f"Resolution: {d['video_width']}×{d['video_height']} px\n"
-                    f"Quality class: {d.get('video_quality','—')}")
-        return "Quality: FFprobe not run or no video"
+            return (_i18n.t("rp.resolution_px_quality_class_0730", video_width=d['video_width'], video_height=d['video_height'], get=d.get('video_quality','—')))
+        return _i18n.t("rp.quality_ffprobe_not_run_68ae")
         return None
 
     # Audio tracks                                         ### FIX v0.15.0 ###
     def _tip_audio(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         tracks = d.get("audio_tracks", [])
         if not tracks:
-            return "Audio Tracks: 0\nNo audio track data — run scan with FFprobe enabled"
-        lines = [f"Audio Tracks: {len(tracks)}"]
+            return _i18n.t("rp.audio_tracks_no_audio_b39a")
+        lines = [_i18n.t("rp.audio_tracks_d120", n=len(tracks))]
         for idx, t in enumerate(
                 sorted(tracks, key=lambda x: x.get("language", "")), 1):
             lang = t.get("language") or "Unknown"
             codec = t.get("codec") or "Unknown"
             channels = t.get("channels") or "Unknown"
             br = t.get("bitrate")
-            bitrate_str = f"{br} kbps" if br is not None else "Unknown"
+            bitrate_str = _i18n.t("rp.kbps_cafa", br=br) if br is not None else _i18n.t("rp.unknown_8818")
             if idx > 1:
                 lines.append("")
-            lines.append(f"Track {idx}:")
+            lines.append(_i18n.t("rp.track_f949", idx=idx))
             if t.get("language_src"):                                   ### NEW v0.19.1 B16 ###
-                lines.append(f"  Language: {lang} — from {t['language_src']} (FFprobe: undefined)")
+                lines.append(_i18n.t("rp.language_from_ffprobe_undefined_34ff", lang=lang, language_src=t['language_src']))
             else:
-                lines.append(f"  Language: {lang}")
-            lines.append(f"  Codec: {codec}")
-            lines.append(f"  Channels: {channels}")
-            lines.append(f"  Bitrate: {bitrate_str}")
+                lines.append(_i18n.t("rp.language_f3dc", lang=lang))
+            lines.append(_i18n.t("rp.codec_8030", codec=codec))
+            lines.append(_i18n.t("rp.channels_56be", channels=channels))
+            lines.append(_i18n.t("rp.bitrate_7a39", bitrate_str=bitrate_str))
         return "\n".join(lines)
         return None
 
@@ -19676,30 +21444,29 @@ class App(tk.Tk):
         iso = SETTINGS.get("lang_ok_code", "PT")
         lang_name = next((n for c, n in WORLD_LANGUAGES if c == iso), iso)
         if v == "Y":
-            return f"[Y] {lang_name} audio or subtitle found"
+            return _i18n.t("rp.y_audio_or_subtitle_4fe6", lang_name=lang_name)
         if v == "N":
-            return (f"[N] No {lang_name} audio or subtitle found\n"
-                    f"Checked: FFprobe audio, embedded subs, external subs, XML tags, NFO tags")
-        return "— No video file — cannot determine language"
+            return (_i18n.t("rp.n_no_audio_or_e09a", lang_name=lang_name))
+        return _i18n.t("rp.no_video_file_cannot_c525")
         return None
 
     # Subtitles
     def _tip_subs(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         lines = []
         if d.get("subs_internal"):
-            lines.append(f"Embedded ({_n(len(d['subs_internal']), 'track')}):")
+            lines.append(_i18n.t("rp.embedded_0f9e", n=_n(len(d['subs_internal']), 'track')))
             for s in d["subs_internal"][:5]:
                 tl = f' "{s["title"]}"' if s.get("title") else ""
                 lines.append(f"  {s['lang']}{tl}")
         if d.get("subs_external"):
-            lines.append(f"External ({_n(len(d['subs_external']), 'file')}):")
+            lines.append(_i18n.t("rp.external_11f8", n=_n(len(d['subs_external']), 'file')))
             for s in d["subs_external"][:5]:
                 lines.append(f"  {s['lang']} → {s['file']}")
         if d.get("subs_hard"):                                    ### NEW v0.19.1 B15 ###
-            lines.append(f"Hard-coded: {', '.join(d['subs_hard'])} — burned into the picture (marked by you)")
+            lines.append(_i18n.t("rp.hard_coded_burned_into_e9ab", join=', '.join(d['subs_hard'])))
         if not lines:
-            lines.append("No subtitles found")
-        lines.append("Right-click → Hard-coded subtitles… marks burned-in subtitles")   ### NEW v0.19.1 B15 ###
+            lines.append(_i18n.t("rp.no_subtitles_found_a668"))
+        lines.append(_i18n.t("rp.right_click_hard_coded_d09b"))   ### NEW v0.19.1 B15 ###
         return "\n".join(lines)
         return None
 
@@ -19707,7 +21474,7 @@ class App(tk.Tk):
     def _tip_genre(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         genres = d.get("genres", [])
         if not genres:
-            return "No genres in the NFO <genre> tags or the XML <Genres>\nRight-click → Normalize Genres"
+            return _i18n.t("rp.no_genres_in_the_8b80")
         valid = _get_valid_genres()
         _src = {"nfo": "NFO <genre>", "nfo_tags": "NFO <Genres>/<Genre> (not read by Kodi)",
                 "xml": "XML <Genres> (the NFO has none)"}.get(d.get("genre_source", ""), "")   ### NEW v0.19.1 ###
@@ -19718,9 +21485,9 @@ class App(tk.Tk):
             in_valid = (g in valid or g.title() in valid or
                         n in valid or n.lower() in {v.lower() for v in valid})
             if canonical and canonical != g:
-                lines.append(f"  {g}  → needs normalizing")
+                lines.append(_i18n.t("rp.needs_normalizing_8479", g=g))
             elif not in_valid:
-                lines.append(f"  {g}  (custom — not in Settings list)")
+                lines.append(_i18n.t("rp.custom_not_in_settings_0a54", g=g))
             else:
                 lines.append(f"  {g}  OK")
         return "\n".join(lines)
@@ -19757,29 +21524,29 @@ class App(tk.Tk):
 
         def _open_image_poster(app, d):
             if d["poster_exists"]: os_open(d["poster_path"])
-            else: messagebox.showinfo("Missing", "poster.jpg not found.")
+            else: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.poster_jpg_not_found_76d2"))
 
         def _open_image_folder(app, d):
             if d["folder_exists"]: os_open(d["folder_path"])
-            else: messagebox.showinfo("Missing", "folder.jpg not found.")
+            else: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.folder_jpg_not_found_b8a2"))
 
         def _open_image_fanart(app, d):
             if d["fanart_exists"]: os_open(d["fanart_path"])
-            else: messagebox.showinfo("Missing", "fanart.jpg not found.")
+            else: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.fanart_jpg_not_found_d793"))
 
         def _open_backdrop(app, d):
             if d["backdrop_count"] > 0: os_open(d["backdrop_paths"][0])
-            else: messagebox.showinfo("Missing", "No backdrops.")
+            else: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.no_backdrops_5a73"))
 
         def _open_nfo(app, d):
             if not d["nfo_exists"]:
-                messagebox.showinfo("Missing", f"Expected: {os.path.basename(d['nfo_path'])}", parent=self)
+                messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.expected_0e4e", nfo_path=os.path.basename(d['nfo_path'])), parent=app)
             else:
                 open_in_editor(d["nfo_path"])
 
         def _open_nfo_or_errors(app, d):
             if not d["nfo_exists"]:
-                messagebox.showinfo("Missing", f"Expected: {os.path.basename(d['nfo_path'])}", parent=self)
+                messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.expected_0e4e", nfo_path=os.path.basename(d['nfo_path'])), parent=app)
             elif d["nfo_errors"]:
                 ErrorDialog(app, f"NFO Errors - {d.get('movie_name', d['subfolder'])}",
                             d["nfo_path"], d["nfo_errors"])
@@ -19790,18 +21557,18 @@ class App(tk.Tk):
         def _open_nfo_unified(app, d):                           ### MODIFIED v0.19.1 — always open the file ###
             if not d["nfo_exists"] and not nfo_in_use(_lib_root_of(d)): return      # v0.19.6 TR1b: not used
             if not d["nfo_exists"]:
-                messagebox.showinfo("Missing", f"Expected: {os.path.basename(d['nfo_path'])}", parent=self)
+                messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.expected_0e4e", nfo_path=os.path.basename(d['nfo_path'])), parent=app)
             else:
                 open_in_editor(d["nfo_path"])     # errors: hover, or right-click → [!] NFO errors
 
         def _open_xml(app, d):
             if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)): return      # v0.19.6 TR1: not used
-            if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
+            if not d["xml_exists"]: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.movie_xml_not_found_6ce5"))
             else: open_in_editor(d["xml_path"])
 
         def _open_xml_or_errors(app, d):
             if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)): return      # v0.19.6 TR1: not used
-            if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
+            if not d["xml_exists"]: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.movie_xml_not_found_6ce5"))
             elif d["xml_errors"]:
                 ErrorDialog(app, f"XML Errors - {d.get('movie_name', d['subfolder'])}",
                             d["xml_path"], d["xml_errors"])
@@ -19811,7 +21578,7 @@ class App(tk.Tk):
         # v0.10.4 — unified: show errors first with Open button, else open editor
         def _open_xml_unified(app, d):                           ### MODIFIED v0.19.1 — always open the file ###
             if not d["xml_exists"] and not xml_in_use(_lib_root_of(d)): return      # v0.19.6 TR1: not used
-            if not d["xml_exists"]: messagebox.showinfo("Missing", "movie.xml not found.")
+            if not d["xml_exists"]: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.movie_xml_not_found_6ce5"))
             else:
                 open_in_editor(d["xml_path"])     # errors: hover, or right-click → [!] XML errors
 
@@ -19822,7 +21589,7 @@ class App(tk.Tk):
 
         def _play_video(app, d):
             if d.get("video_path"): os_open(d["video_path"])
-            else: messagebox.showinfo("Missing", "No video.")
+            else: messagebox.showinfo(_i18n.t("mc.missing_2aee"), _i18n.t("mc.no_video_d25b"))
 
         def _show_subtitles(app, d):
             SubtitleDialog(app, d["subfolder"], d)
@@ -19838,21 +21605,21 @@ class App(tk.Tk):
             if root and os.path.isdir(root):
                 os_open(root)
             else:
-                messagebox.showinfo("Library offline", f"The library folder is not reachable:\n{root}", parent=self)
+                messagebox.showinfo(_i18n.t("mc.library_offline_74a2"), _i18n.t("mc.the_library_folder_is_8d83", root=root), parent=app)
 
         ### NEW v0.16.0 — Source column double-click: popup to choose IMDB or TMDB ###
         def _open_source_choice(app, d):
             imdb_v = d.get("source_imdb_val")
             tmdb_v = d.get("source_tmdb_val")
             if not imdb_v and not tmdb_v:
-                messagebox.showinfo("Source IDs", "No IMDb or TMDB ID found for this movie.", parent=self)
+                messagebox.showinfo(_i18n.t("mc.source_ids_cad7"), _i18n.t("mc.no_imdb_or_tmdb_83c9"), parent=app)
                 return
             dlg = tk.Toplevel(app)
-            dlg.title("Open Source Website")
+            dlg.title(_i18n.t("mc.open_source_website_3b72"))
             dlg.configure(bg=C_BG)
             dlg.resizable(False, False)
             dlg.transient(app)
-            tk.Label(dlg, text="Open on which website?",
+            tk.Label(dlg, text=_i18n.t("mc.open_on_which_website_7302"),
                      font=("Helvetica", 11, "bold"), bg=C_BG, fg=C_TEXT,
                      pady=12).pack(padx=24)
             btn_kw = dict(font=("Helvetica", 10, "bold"), relief="flat",
@@ -19864,7 +21631,7 @@ class App(tk.Tk):
                           command=lambda u=url_i: (open_url_with_browser(u), dlg.destroy()),
                           **btn_kw).pack(side="left", padx=(0,8))
             else:
-                tk.Button(bf, text="IMDb (not found)", state="disabled",
+                tk.Button(bf, text=_i18n.t("mc.imdb_not_found_bb0f"), state="disabled",
                           bg=C_SURFACE2, fg=C_DIM, **btn_kw).pack(side="left", padx=(0,8))
             if tmdb_v:
                 url_t = f"https://www.themoviedb.org/movie/{tmdb_v}"
@@ -19872,9 +21639,9 @@ class App(tk.Tk):
                           command=lambda u=url_t: (open_url_with_browser(u), dlg.destroy()),
                           **btn_kw).pack(side="left")
             else:
-                tk.Button(bf, text="TMDB (not found)", state="disabled",
+                tk.Button(bf, text=_i18n.t("mc.tmdb_not_found_9fee"), state="disabled",
                           bg=C_SURFACE2, fg=C_DIM, **btn_kw).pack(side="left")
-            tk.Button(bf, text="Cancel", bg=C_SURFACE2, fg=C_TEXT,
+            tk.Button(bf, text=_i18n.t("mc.cancel_ea47"), bg=C_SURFACE2, fg=C_TEXT,
                       command=dlg.destroy, **btn_kw).pack(side="left", padx=(16,0))
             dlg.update_idletasks()
             x = app.winfo_rootx() + (app.winfo_width() - dlg.winfo_width()) // 2
@@ -19943,6 +21710,8 @@ class App(tk.Tk):
 
     def _ctx_from_keyboard(self, _e=None):                     ### NEW v0.19.2 B57 — Shift+F10 / Menu key ###
         """Open the right-click menu for the focused / first selected row, at the row."""
+        if getattr(self, "_part", None) not in (None, "movies"):   # v0.20.0 AU17: the Movies part only (as Ctrl+A, I14)
+            return "break"
         if self._scanning:
             return "break"
         iid = self.tree.focus() or (self._sel_iids() or [None])[0]
@@ -19977,10 +21746,10 @@ class App(tk.Tk):
         the CURRENT selection."""
         multi = len(self._ctx_sel) > 1
         if single and multi and not reason:
-            reason = "one movie only"
+            reason = _i18n.t("ctx.one_only")
         key = ctx_action_key(label)
         if fn is None or reason:
-            self._ctx_entries.setdefault(key, (label, None, reason or "not available"))
+            self._ctx_entries.setdefault(key, (label, None, reason or _i18n.t("ctx.not_available")))
             menu.add_command(label=f"{label} ({reason})" if reason else label, state="disabled", accelerator=accel)
             return
         self._ctx_entries[key] = (label, fn, None)
@@ -19997,18 +21766,18 @@ class App(tk.Tk):
         key = getattr(self, "_ctx_last_key", None) or ctx_action_key(last[0])
         ent = self._ctx_entries.get(key)
         if ent is None:
-            m.insert_command(at, label=f"↻  Repeat: {ctx_action_key(last[0])} (not for this selection)", state="disabled")
+            m.insert_command(at, label=_i18n.t("ctx.repeat_not_here", label=ctx_action_key(last[0])), state="disabled")
             return
         label, fn, reason = ent
         if fn is None or reason:
-            m.insert_command(at, label=f"↻  Repeat: {label.strip()} ({reason})", state="disabled")
+            m.insert_command(at, label=_i18n.t("ctx.repeat", label=f"{label.strip()} ({reason})"), state="disabled")
             return
 
         def _run(fn=fn, label=label, key=key):
             self._ctx_last = (label, fn)
             self._ctx_last_key = key
             fn(self._ctx_d, list(self._ctx_sel), self._ctx_iid)
-        m.insert_command(at, label=f"↻  Repeat: {label.strip()}", command=_run)
+        m.insert_command(at, label=_i18n.t("ctx.repeat", label=label.strip()), command=_run)
 
     def _build_ctx_menu(self, iid, d, sel_data):                  ### NEW v0.19.2 B57 ###
         for sub in getattr(self, "_ctx_subs", []):
@@ -20027,48 +21796,49 @@ class App(tk.Tk):
 
         # ── title line, Repeat, Fix issues ──────────────────────────────────
         n_iss = sum(len(rows) for _k, _l, rows in issues)
+        T = _i18n.t                                                # v0.20.0 UI1c
         if multi:
-            title = f"▸ {_n(len(sel_data), 'movie')} selected"
+            title = T("ctx.n_selected", movies=_n(len(sel_data), "movie", ","))
         else:
             yr = d.get("movie_year")
             title = f"▸ {d.get('movie_name') or d['subfolder']}" + (f" ({yr})" if yr and yr != "-" else "")
         if issues:
-            title += f"  ·  {n_iss} issue{'s' if n_iss != 1 else ''}" if not multi else f"  ·  {_n(len(issues), 'kind')} of issue"
+            title += T("ctx.n_issues", issues=_n(n_iss, "issue")) if not multi else T("ctx.kinds_of_issue", kinds=_n(len(issues), "kind"))
         m.add_command(label=title, state="disabled", font=("Helvetica", 9, "bold"))
         self._ctx_add_not_dup(m, d, sel_data)                    ### NEW v0.19.3 B64 — right below the title ###
         last = getattr(self, "_ctx_last", None)
         _rep_at = ((m.index("end") or 0) + 1) if (last and SETTINGS.get("ctx_repeat_last", True)) else None   ### MODIFIED v0.19.4 B101 — filled in at the end ###
         if issues:
-            fx = self._ctx_menu_sub(m, f"⚠  Fix issues ({len(issues)})")
+            fx = self._ctx_menu_sub(m, T("ctx.fix_issues", n=len(issues)))
             for key, lbl, rows in issues:
-                text = f"{lbl} — {_n(len(rows), 'movie')}" if multi else lbl
+                text = f"{lbl} — {_n(len(rows), 'movie', ',')}" if multi else lbl
                 fn, reason = self._ctx_fix_action(key, rows)
                 add(fx, text, fn, reason)
         m.add_separator()
 
         # ── direct actions ──────────────────────────────────────────────────
-        add(m, "📂  Open Folder", lambda d, s, i: os_open(d["subfolder_path"]), accel="Ctrl+O", single=True)
-        add(m, "🎬  Play Video", (lambda d, s, i: os_open(d["video_path"])) if d.get("video_path") else None,
-            None if d.get("video_path") or multi else "missing", single=True)
+        add(m, "📂  " + T("act.open_folder"), lambda d, s, i: os_open(d["subfolder_path"]), accel="Ctrl+O", single=True)
+        add(m, "🎬  " + T("ctx.play_video"), (lambda d, s, i: os_open(d["video_path"])) if d.get("video_path") else None,
+            None if d.get("video_path") or multi else T("ctx.missing"), single=True)
         _nfo_any = any(dd.get("nfo_exists") or nfo_in_use(_lib_root_of(dd)) for dd in sel_data)   # v0.19.6 TR1b
-        (add if _nfo_any else (lambda *a, **k: None))(m, "📝  Edit NFO", (lambda d, s, i: open_in_editor(d["nfo_path"])) if d.get("nfo_exists") else None,
-            None if d.get("nfo_exists") or multi else "missing", accel="Ctrl+E", single=True)
+        (add if _nfo_any else (lambda *a, **k: None))(m, "📝  " + T("ctx.edit_nfo"), (lambda d, s, i: open_in_editor(d["nfo_path"])) if d.get("nfo_exists") else None,
+            None if d.get("nfo_exists") or multi else T("ctx.missing"), accel="Ctrl+E", single=True)
         m.add_separator()
 
         # ── 🖼 Artwork ───────────────────────────────────────────────────────
-        art = self._ctx_menu_sub(m, "🖼  Artwork")
-        for lb, ke, kp in (("🖼  Open poster", "poster_exists", "poster_path"),
-                           ("🖼  Open folder.jpg", "folder_exists", "folder_path"),
-                           ("🖼  Open fanart.jpg", "fanart_exists", "fanart_path")):
+        art = self._ctx_menu_sub(m, "🖼  " + T("ctx.artwork"))
+        for lb, ke, kp in (("🖼  " + T("ctx.open_poster"), "poster_exists", "poster_path"),
+                           ("🖼  " + T("ctx.open_file", name="folder.jpg"), "folder_exists", "folder_path"),
+                           ("🖼  " + T("ctx.open_file", name="fanart.jpg"), "fanart_exists", "fanart_path")):
             if not multi and d.get(ke):
-                add(art, f"🖼  Open {os.path.basename(d[kp])}", lambda d, s, i, k=kp: os_open(d[k]), single=True)
+                add(art, "🖼  " + T("ctx.open_file", name=os.path.basename(d[kp])), lambda d, s, i, k=kp: os_open(d[k]), single=True)
             else:
-                add(art, lb, None, "one movie only" if multi else "missing")
+                add(art, lb, None, T("ctx.one_only") if multi else T("ctx.missing"))
         art.add_separator()
         _src_ok = lambda mode: any(image_sources_for(dd, mode) for dd in sel_data)
-        for lbl, mode, fn in (("🖼  Fetch Poster/Folder", "poster", lambda d, s, i: self._fetch_poster_folder(s)),
-                              ("🎨  Fetch Fanart", "fanart", lambda d, s, i: self._fetch_fanart(s)),
-                              ("🖼  Fetch Backdrops", "backdrops", lambda d, s, i: self._fetch_backdrops(s))):
+        for lbl, mode, fn in (("🖼  " + T("ctx.fetch_poster"), "poster", lambda d, s, i: self._fetch_poster_folder(s)),
+                              ("🎨  " + T("ctx.fetch_fanart"), "fanart", lambda d, s, i: self._fetch_fanart(s)),
+                              ("🖼  " + T("ctx.fetch_backdrops"), "backdrops", lambda d, s, i: self._fetch_backdrops(s))):
             if _src_ok(mode):
                 add(art, lbl, fn)
             else:
@@ -20076,121 +21846,138 @@ class App(tk.Tk):
         art.add_separator()
         _tmdb_key_set = bool(SETTINGS.get("tmdb_api_key", "").strip())
         _has_tmdb_id = any(dd.get("source_tmdb_val") for dd in sel_data)
-        _tip = "no TMDB API key" if not _tmdb_key_set else "no TMDB ID found"
-        _can_replace = _tmdb_key_set and _has_tmdb_id and os.path.isdir(d.get("subfolder_path", ""))
-        add(art, "🔄  Replace All Backdrops", lambda d, s, i: self._replace_all_backdrops(d),
+        _tip = T("ctx.no_tmdb_key") if not _tmdb_key_set else T("ctx.no_tmdb_id")
+        _can_replace = _tmdb_key_set and _has_tmdb_id and bool(d.get("subfolder_path")) and not self._root_offline(d)   # v0.20.0 AU16: no disk check on right-click
+        add(art, "🔄  " + T("ctx.replace_backdrops"), lambda d, s, i: self._replace_all_backdrops(d),
             None if (_can_replace or multi) else _tip, single=True)
         _extract = (lambda d, s, i: self._extract_multi(s)) if multi else (lambda d, s, i: self._do_extract(d))
-        _ex_reason = None if ff_ok else "FFmpeg not found"
+        _ex_reason = None if ff_ok else T("ctx.ffmpeg_missing")
         if not multi and not d.get("video_path"):
-            _ex_reason = "video missing"
-        add(art, "🎞  Extract Backdrop(s)", _extract, _ex_reason)
+            _ex_reason = T("ctx.video_missing")
+        add(art, "🎞  " + T("ctx.extract_backdrops"), _extract, _ex_reason)
         art.add_separator()
         _n_fix = sum(1 for dd in sel_data if copy_poster_needed(dd))   ### MODIFIED v0.19.4 B103 — was a byte-size test ###
-        _cp = "🖼  Copy poster.jpg → folder.jpg" + (f" — {_n_fix} of {len(sel_data)} need it" if multi else "")
-        add(art, _cp, lambda d, s, i: self._copy_poster_to_folder(s), None if _n_fix else "already identical")
+        _cp = "🖼  " + T("ctx.copy_poster") + (" — " + T("ctx.need_it", a=_n_fix, b=len(sel_data)) if multi else "")
+        add(art, _cp, lambda d, s, i: self._copy_poster_to_folder(s), None if _n_fix else T("ctx.already_identical"))
         add(art, IMAGE_FIX_LABEL, lambda d, s, i: self._fix_images_for(s))     ### MODIFIED v0.19.4 I17 — no "coming in F4" fallback ###
 
         # ── 📝 Metadata ──────────────────────────────────────────────────────
-        md = self._ctx_menu_sub(m, "📝  Metadata")
+        md = self._ctx_menu_sub(m, "📝  " + T("ctx.metadata"))
         if _nfo_any:                                                            # v0.19.6 TR1b
-            add(md, "📝  Open .nfo", lambda d, s, i: open_in_editor(d["nfo_path"]),
-                None if (d.get("nfo_exists") or multi) else "missing", single=True)
+            add(md, "📝  " + T("ctx.open_nfo"), lambda d, s, i: open_in_editor(d["nfo_path"]),
+                None if (d.get("nfo_exists") or multi) else T("ctx.missing"), single=True)
         _xml_any = any(dd.get("xml_exists") or xml_in_use(_lib_root_of(dd)) for dd in sel_data)   # v0.19.6 TR1
         if _xml_any:
-            add(md, "📝  Open movie.xml", lambda d, s, i: open_in_editor(d["xml_path"]),
-                None if (d.get("xml_exists") or multi) else "missing", single=True)
+            add(md, "📝  " + T("ctx.open_xml"), lambda d, s, i: open_in_editor(d["xml_path"]),
+                None if (d.get("xml_exists") or multi) else T("ctx.missing"), single=True)
         if _nfo_any:                                                            # v0.19.6 TR1b
-            add(md, f"[!] NFO errors ({len(d.get('nfo_errors') or [])})",
+            add(md, T("ctx.nfo_errors", n=len(d.get("nfo_errors") or [])),
                 lambda d, s, i: ErrorDialog(self, f"NFO - {d.get('movie_name', d['subfolder'])}", d["nfo_path"], d["nfo_errors"]),
-                None if (d.get("nfo_errors") or multi) else "none", single=True)
+                None if (d.get("nfo_errors") or multi) else T("ctx.none"), single=True)
         if _xml_any:                                                            # v0.19.6 TR1
-            add(md, f"[!] XML errors ({len(d.get('xml_errors') or [])})",
+            add(md, T("ctx.xml_errors", n=len(d.get("xml_errors") or [])),
                 lambda d, s, i: ErrorDialog(self, f"XML - {d.get('movie_name', d['subfolder'])}", d["xml_path"], d["xml_errors"]),
-                None if (d.get("xml_errors") or multi) else "none", single=True)
+                None if (d.get("xml_errors") or multi) else T("ctx.none"), single=True)
         _n_tm = sum(1 for dd in sel_data if _title_mismatch(dd))                ### NEW v0.19.3 B60 ###
         if _xml_any and _nfo_any:                                               # v0.19.6 TR1, TR1b
-            add(md, "🔤  Make titles the same (NFO ↔ XML)…" + (f" — {_n_tm} of {len(sel_data)}" if multi and _n_tm else ""),
-                lambda d, s, i: self._title_sync_for(s), None if _n_tm else "local titles match")
+            add(md, "🔤  " + T("ctx.titles_same") + (" — " + T("ctx.of", a=_n_tm, b=len(sel_data)) if multi and _n_tm else ""),
+                lambda d, s, i: self._title_sync_for(s), None if _n_tm else T("ctx.titles_match"))
         _nfo_k = [dd for dd in sel_data if dd.get("nfo_exists") and dd.get("nfo_kodi_name") is False]   ### NEW v0.19.4 B107 ###
         if _nfo_any:                                                            # v0.19.6 TR1b
-            add(md, NFO_RENAME_LABEL + (f" — {len(_nfo_k)} of {len(sel_data)}" if multi and _nfo_k else ""),
+            add(md, NFO_RENAME_LABEL + (" — " + T("ctx.of", a=len(_nfo_k), b=len(sel_data)) if multi and _nfo_k else ""),
                 lambda d, s, i: self._nfo_rename_for([x for x in s if x.get("nfo_exists") and x.get("nfo_kodi_name") is False]),
-                None if _nfo_k else "Kodi already reads the NFO")
+                None if _nfo_k else T("ctx.kodi_reads"))
+        _x2n = [dd for dd in sel_data if xml2nfo_candidate(dd)]                    ### NEW v0.20.0 F3d ###
+        if _x2n:
+            add(md, XML2NFO_LABEL + (" — " + T("ctx.of", a=len(_x2n), b=len(sel_data)) if multi else ""),
+                lambda d, s, i: self._xml2nfo_for([x for x in s if xml2nfo_candidate(x)]), None)
+        _mr_k = [dd for dd in sel_data if media_rename_candidate(dd)]              ### NEW v0.20.0 F3c2 ###
+        if any(media_programs(_lib_root_of(dd)) for dd in sel_data):
+            add(md, MEDIA_RENAME_LABEL + (" — " + T("ctx.of", a=len(_mr_k), b=len(sel_data)) if multi and _mr_k else ""),
+                lambda d, s, i: self._media_rename_for([x for x in s if media_rename_candidate(x)]),
+                None if _mr_k else T("f3r.ctx_none"))
+        _art_k = [dd for dd in sel_data if art_links_candidate(dd)]                ### NEW v0.20.0 RD9 ###
+        if _nfo_any:
+            add(md, ART_LINKS_LABEL + (" — " + T("ctx.of", a=len(_art_k), b=len(sel_data)) if multi and _art_k else ""),
+                lambda d, s, i: self._art_links_for([x for x in s if art_links_candidate(x)]),
+                None if _art_k else T("rd9.ctx_none"))
         # v0.19.6 TR1b: collections live in the NFO; "movie.xml only" has no Collection menu
-        col = self._ctx_menu_sub(md, "🗂  Collection") if _nfo_any else tk.Menu(m, tearoff=0)   ### NEW v0.19.4 B110e ###
+        col = self._ctx_menu_sub(md, "🗂  " + T("ctx.collection")) if _nfo_any else tk.Menu(m, tearoff=0)   ### NEW v0.19.4 B110e ###
         _cfix, _cskip = collection_fix_items(sel_data, None, self._lib_lang())
-        add(col, FIX_COLL_LABEL + (f" — {len(_cfix)} of {len(sel_data)}" if multi and _cfix else ""),
+        add(col, FIX_COLL_LABEL + (" — " + T("ctx.of", a=len(_cfix), b=len(sel_data)) if multi and _cfix else ""),
             lambda d, s, i: self._fix_collections_for(s),
-            None if _cfix else (next(iter(_cskip)) if _cskip else "nothing to fix"))
+            None if _cfix else (next(iter(_cskip)) if _cskip else T("ctx.nothing_to_fix")))
         add(col, CHECK_COLL_ONE_LABEL, lambda d, s, i: self._check_collections(s),
-            None if any(collection_check_ready(x)[0] for x in sel_data) else "no TMDB ID")
+            None if any(collection_check_ready(x)[0] for x in sel_data) else T("ctx.no_tmdb_id_short"))
         add(col, CREATE_COLL_LABEL, lambda d, s, i: self._create_collection_folders_for(s),
-            None if any(x.get("coll_nfo") for x in sel_data) else "no collection")   ### NEW v0.19.4 B110g ###
+            None if any(x.get("coll_nfo") for x in sel_data) else T("ctx.no_collection"))   ### NEW v0.19.4 B110g ###
         _cdir = (COLL_FOLDERS.get(_cr.group_key(d)) or {}).get("dir")
-        add(col, "📂  Open Collection Folder", lambda d, s, i, p=_cdir: os_open(p), None if _cdir else "no collection folder", single=True)
+        add(col, "📂  " + T("ctx.open_coll_folder"), lambda d, s, i, p=_cdir: os_open(p), None if _cdir else T("ctx.no_coll_folder"), single=True)
         add(col, SET_COLL_LABEL, lambda d, s, i: self._set_collection_for(s),
-            None if any(x.get("nfo_exists") for x in sel_data) else "no NFO")
+            None if any(x.get("nfo_exists") for x in sel_data) else T("ctx.no_nfo"))
         add(col, REMOVE_COLL_LABEL, lambda d, s, i: self._remove_collection_for(s),     ### MODIFIED v0.19.4 fix 3b ###
-            None if any(x.get("coll_nfo") or (x.get("coll_tmdb") or {}).get("id") for x in sel_data) else "no collection")
+            None if any(x.get("coll_nfo") or (x.get("coll_tmdb") or {}).get("id") for x in sel_data) else T("ctx.no_collection"))
         add(col, COLL_ART_LABEL, lambda d, s, i: self._collection_art_for(_cr.group_key(d), collection_name(d)),   ### NEW v0.19.4 fix 2g ###
-            None if d.get("coll_nfo") else "no collection", single=True)
+            None if d.get("coll_nfo") else T("ctx.no_collection"), single=True)
         _cid = collection_tmdb_id([d])                                  ### MODIFIED v0.19.4 fix 2d — a search without the id ###
-        add(col, "🌐  Open Collection on TMDB" if _cid else "🌐  Search Collection on TMDB",
+        add(col, "🌐  " + (T("ctx.open_coll_tmdb") if _cid else T("ctx.search_coll_tmdb")),
             lambda d, s, i, c=_cid: open_url_with_browser(collection_tmdb_url(c, collection_name(d))),
-            None if d.get("coll_nfo") else "no collection", single=True)
+            None if d.get("coll_nfo") else T("ctx.no_collection"), single=True)
         md.add_separator()
-        add(md, "⭐  Sync Ratings from IMDb / TMDB", lambda d, s, i: self._sync_ratings(s))
-        add(md, "🎬  Normalize Genres", lambda d, s, i: self._normalize_genres_for(s))
+        add(md, "⭐  " + T("ctx.sync_ratings"), lambda d, s, i: self._sync_ratings(s))
+        add(md, "🎬  " + T("ctx.normalize_genres"), lambda d, s, i: self._normalize_genres_for(s))
+        _gt = genres_tmdb_candidates(sel_data)                                    ### NEW v0.20.0 I36 ###
+        add(md, GENRES_TMDB_LABEL + (" — " + T("ctx.of", a=len(_gt), b=len(sel_data)) if multi and _gt else ""),
+            lambda d, s, i: self._genres_tmdb_for(s), None if _gt else T("i36.ctx_none"))
         custom_genres = self._collect_custom_genres(sel_data)
-        add(md, f"➕  Add Custom Genre(s) to Settings ({len(custom_genres)})",
-            lambda d, s, i, cg=custom_genres: self._add_custom_genres(cg, s), None if custom_genres else "none found")
+        add(md, "➕  " + T("ctx.add_custom_genres", n=len(custom_genres)),
+            lambda d, s, i, cg=custom_genres: self._add_custom_genres(cg, s), None if custom_genres else T("ctx.none_found"))
 
         # ── 🔗 IDs & Sources ─────────────────────────────────────────────────
-        ids = self._ctx_menu_sub(m, "🔗  IDs & Sources")
-        add(ids, "🔎  Search Sources", lambda d, s, i: self._search_sources_for(s))
-        add(ids, "✅  Verify IMDb/TMDB IDs", lambda d, s, i: self._verify_ids(s))
-        add(ids, "🔗  Normalize Sources", lambda d, s, i: self._normalize_sources_for(s))
+        ids = self._ctx_menu_sub(m, "🔗  " + T("ctx.ids_sources"))
+        add(ids, "🔎  " + T("act.search_sources"), lambda d, s, i: self._search_sources_for(s))
+        add(ids, "✅  " + T("ctx.verify_ids"), lambda d, s, i: self._verify_ids(s))
+        add(ids, "🔗  " + T("ctx.normalize_sources"), lambda d, s, i: self._normalize_sources_for(s))
         ids.add_separator()
-        add(ids, "📋  Copy Movie Name", lambda d, s, i: self._copy_movie_name(d), single=True)
+        add(ids, "📋  " + T("ctx.copy_name"), lambda d, s, i: self._copy_movie_name(d), single=True)
 
         # ── 🎞 Video & Subtitles ─────────────────────────────────────────────
-        vs = self._ctx_menu_sub(m, "🎞  Video & Subtitles")
-        add(vs, "💬  Subtitles…", lambda d, s, i: SubtitleDialog(self, d["subfolder"], d),   ### MODIFIED v0.19.3 B65 — also without subtitles ###
+        vs = self._ctx_menu_sub(m, "🎞  " + T("ctx.video_subs"))
+        add(vs, "💬  " + T("ctx.subtitles"), lambda d, s, i: SubtitleDialog(self, d["subfolder"], d),   ### MODIFIED v0.19.3 B65 — also without subtitles ###
             None, single=True)
-        add(vs, "🔤  Hard-coded subtitles…", lambda d, s, i: self._hardsubs_for(s))
-        add(vs, "🎞  Extract Backdrop(s)", _extract, _ex_reason)
+        add(vs, "🔤  " + T("ctx.hardsubs"), lambda d, s, i: self._hardsubs_for(s))
+        add(vs, "🎞  " + T("ctx.extract_backdrops"), _extract, _ex_reason)
 
         # ── 🌐 Open online ───────────────────────────────────────────────────
-        on = self._ctx_menu_sub(m, "🌐  Open online")
+        on = self._ctx_menu_sub(m, "🌐  " + T("ctx.open_online"))
         imdb_id, tmdb_id = d.get("source_imdb_val"), d.get("source_tmdb_val")
-        add(on, "🌐  Open on IMDb", lambda d, s, i: open_url_with_browser(f"https://www.imdb.com/title/{d.get('source_imdb_val')}"),
-            None if (imdb_id or multi) else "ID not found", single=True)
-        add(on, "🌐  Open on TMDB", lambda d, s, i: open_url_with_browser(f"https://www.themoviedb.org/movie/{d.get('source_tmdb_val')}"),
-            None if (tmdb_id or multi) else "ID not found", single=True)
-        add(on, "🌐  Open on Fanart.tv", lambda d, s, i: self._open_fanart_tv(d),
-            None if (tmdb_id or multi) else "ID not found", single=True)
-        add(on, "🌐  Open on OpenSubtitles.org", lambda d, s, i: self._open_opensubtitles(d), single=True)
-        add(on, "🎬  Open in Scraper", lambda d, s, i: open_with_scraper(d["subfolder_path"]),
-            None if (SETTINGS.get("scraper_path", "") or multi) else "no scraper set", single=True)
+        add(on, "🌐  " + T("ctx.open_imdb"), lambda d, s, i: open_url_with_browser(f"https://www.imdb.com/title/{d.get('source_imdb_val')}"),
+            None if (imdb_id or multi) else T("ctx.id_not_found"), single=True)
+        add(on, "🌐  " + T("ctx.open_tmdb"), lambda d, s, i: open_url_with_browser(f"https://www.themoviedb.org/movie/{d.get('source_tmdb_val')}"),
+            None if (tmdb_id or multi) else T("ctx.id_not_found"), single=True)
+        add(on, "🌐  " + T("ctx.open_fanarttv"), lambda d, s, i: self._open_fanart_tv(d),
+            None if (tmdb_id or multi) else T("ctx.id_not_found"), single=True)
+        add(on, "🌐  " + T("ctx.open_opensubs"), lambda d, s, i: self._open_opensubtitles(d), single=True)
+        add(on, "🎬  " + T("ctx.open_scraper"), lambda d, s, i: open_with_scraper(d["subfolder_path"]),
+            None if (SETTINGS.get("scraper_path", "") or multi) else T("ctx.no_scraper"), single=True)
 
         # ── 🩺 Check & Repair ────────────────────────────────────────────────
-        cr = self._ctx_menu_sub(m, "🩺  Check & Repair")
-        add(cr, "🏥  Health Status Report", lambda d, s, i: self._show_health_report(s))
-        add(cr, "🔍  Run Improvements Check", lambda d, s, i: self._run_improvements_on(s))
-        add(cr, "🛠  Auto Repair", lambda d, s, i: self._auto_repair(s))
+        cr = self._ctx_menu_sub(m, "🩺  " + T("ctx.check_repair"))
+        add(cr, "🏥  " + T("ctx.health_report"), lambda d, s, i: self._show_health_report(s))
+        add(cr, "🔍  " + T("ctx.improvements"), lambda d, s, i: self._run_improvements_on(s))
+        add(cr, "🛠  " + T("ctx.auto_repair"), lambda d, s, i: self._auto_repair(s))
         m.add_separator()
 
         # ── 🔄 Update ────────────────────────────────────────────────────────
-        up = self._ctx_menu_sub(m, "🔄  Update")
+        up = self._ctx_menu_sub(m, "🔄  " + T("ctx.update"))
         if multi:
-            add(up, "🔄  Update (no FFprobe)", lambda d, s, i: self._reval_multi_no_ffmpeg(self._selected_movie_iids(), s), accel="Ctrl+R")
-            add(up, "🔬  Update (with FFprobe)", lambda d, s, i: self._reval_multi_ffmpeg(self._selected_movie_iids(), s), accel="Ctrl+Shift+R")
+            add(up, "🔄  " + T("act.update_no_ff"), lambda d, s, i: self._reval_multi_no_ffmpeg(self._selected_movie_iids(), s), accel="Ctrl+R")
+            add(up, "🔬  " + T("act.update_ff"), lambda d, s, i: self._reval_multi_ffmpeg(self._selected_movie_iids(), s), accel="Ctrl+Shift+R")
         else:
-            add(up, "🔄  Update (no FFprobe)", lambda d, s, i: self._reval_no_ffmpeg(i, d), accel="Ctrl+R")
-            add(up, "🔬  Update (with FFprobe)", lambda d, s, i: self._reval_ffmpeg(i, d), accel="Ctrl+Shift+R")
+            add(up, "🔄  " + T("act.update_no_ff"), lambda d, s, i: self._reval_no_ffmpeg(i, d), accel="Ctrl+R")
+            add(up, "🔬  " + T("act.update_ff"), lambda d, s, i: self._reval_ffmpeg(i, d), accel="Ctrl+Shift+R")
         # Refresh Icons is not here any more: it redraws every row, not the selection (v0.19.4 I17; Tools keeps it)
-        add(m, "✖  Remove from list", lambda d, s, i: self._remove_from_list(s))
+        add(m, "✖  " + T("ctx.remove_from_list"), lambda d, s, i: self._remove_from_list(s))
         if _rep_at is not None:                                      ### NEW v0.19.4 B101 — every entry is known now ###
             self._ctx_insert_repeat(m, _rep_at, last)
 
@@ -20216,9 +22003,11 @@ class App(tk.Tk):
             "title":     lambda d, s, i: self._title_sync_for(rows),   ### NEW v0.19.3 B60 ###
             "dup":       lambda d, s, i: self._not_duplicate_for(rows),   ### NEW v0.19.3 B64 ###
             "nfo_name":  lambda d, s, i: self._nfo_rename_for(rows),      ### NEW v0.19.3 B73 ###
+            "art_links": lambda d, s, i: self._art_links_for(rows),       ### NEW v0.20.0 RD9 ###
+            "media_rename": lambda d, s, i: self._media_rename_for(rows),  ### NEW v0.20.0 F3c2 ###
         }
         if key == "video":                                       ### NEW v0.19.3 B71 — shown, greyed: no automatic fix ###
-            return None, "no automatic fix"
+            return None, _i18n.t("ctx.no_auto_fix")
         if key == "collection_art":                              ### NEW v0.19.4 fix 2g — one collection: choose its images ###
             _ks = {_cr.group_key(r) for r in rows if _cr.group_key(r)}
             if len(_ks) == 1:
@@ -20233,7 +22022,7 @@ class App(tk.Tk):
         if key in ("collection", "collection_art"):              ### NEW v0.19.4 B110c / g ###
             f = getattr(self, {"collection": "_fix_collections_for",
                                "collection_art": "_create_collection_folders_for"}[key], None)
-            return ((lambda d, s, i: f(rows)) if f else None), (None if f else "not available yet")
+            return ((lambda d, s, i: f(rows)) if f else None), (None if f else _i18n.t("ctx.not_yet"))
         if key == "images":
             f4 = getattr(self, "_fix_images_for", None)
             return (lambda d, s, i: f4(rows)), None                           ### MODIFIED v0.19.4 I17 ###
@@ -20244,7 +22033,7 @@ class App(tk.Tk):
         preview (rule-based choice per movie), then run with one backup run."""
         rows = [r for r in rows if _title_mismatch(r)]
         if not rows:
-            messagebox.showinfo(TITLE_SYNC_ACTION, "The local titles already match (NFO <title> = XML <LocalTitle>).",
+            messagebox.showinfo(shown_action(TITLE_SYNC_ACTION), _i18n.t("mc.the_local_titles_already_b1a4"),
                                 parent=self)
             return None
         if len(rows) == 1:
@@ -20254,8 +22043,8 @@ class App(tk.Tk):
         default = _title_sync_default()
         plan = [(r, title_sync_choice(r, default)) for r in rows]
         todo = [(r, v, t) for r, (v, t, _w) in plan if v is not None]
-        pv = _PreviewRunDialog(self, "🔤  " + TITLE_SYNC_ACTION + " — Preview", title_sync_batch_text(plan),
-                               file_stem="title_sync_preview", run_label="  ▶ Make titles the same  ")
+        pv = _PreviewRunDialog(self, "🔤  " + shown_action(TITLE_SYNC_ACTION) + " — " + _i18n.t("f3r.preview"), title_sync_batch_text(plan),
+                               file_stem="title_sync_preview", run_label=_i18n.t("mc.make_titles_the_same_e266"))
         self._title_sync_preview = pv
         self.wait_window(pv)
         if not pv.run or not todo:
@@ -20265,8 +22054,8 @@ class App(tk.Tk):
         def _step(job, item):
             r, value, target = item
             name = r.get("movie_name") or r.get("subfolder", "")
-            nfo = r.get("nfo_path") if r.get("nfo_exists") else None
-            xml = r.get("xml_path") if r.get("xml_exists") else None
+            nfo = _metadata_targets(r)[0]   # v0.20.0 F3b
+            xml = _metadata_targets(r)[1]   # v0.20.0 F3b
             if not job.backup(name, nfo, xml):
                 raise BackupFailed()
             ok, err = _write_local_title(r, value, (target,))
@@ -20276,12 +22065,12 @@ class App(tk.Tk):
             return True
 
         def _finish(job, skipped=len(plan) - len(todo)):
-            msg = f"{_n(job.done, 'movie')}: local titles made the same." + (f" {skipped} skipped (see the preview)." if skipped else "")
+            msg = _i18n.t("m3.ts_done", movies=_n(job.done, "movie")) + (_i18n.t("m3.skipped_preview", n=skipped) if skipped else "")
             if job.errors:
-                msg += "\n\nNot changed:\n" + "\n".join(job.errors[:8])
+                msg += _i18n.t("mc.not_changed_2fc6", join="\n".join(job.errors[:8]))
             msg += job.cancel_note()                                 ### NEW v0.19.4 B83 ###
             msg += ("\n\n" + UNDO_HINT) if job.done else ""            ### NEW v0.19.4 B109e ###
-            messagebox.showinfo(TITLE_SYNC_ACTION, msg, parent=self)
+            messagebox.showinfo(shown_action(TITLE_SYNC_ACTION), msg, parent=self)
 
         _BatchJob(self, todo, TITLE_SYNC_ACTION, name_of=lambda it: it[0].get("movie_name") or it[0].get("subfolder", "")
                   ).run(_step, _finish)
@@ -20321,38 +22110,53 @@ class App(tk.Tk):
         if len(sel_data) > 1:
             pairs = self._sel_dup_pairs(sel_data)
             self._ctx_add(m, NOT_DUP_EACH_LABEL, (lambda dd, s, i: self._mark_not_dup(self._sel_dup_pairs(s))) if pairs else None,
-                          None if pairs else "no duplicates among them")
+                          None if pairs else _i18n.t("ctx.no_dups_among"))
             return
         if d.get("duplicate_of"):
             self._ctx_add(m, NOT_DUP_LABEL, lambda dd, s, i: self._not_duplicate_for([dd]))
         elif self._row_marks(d):
             n = len(self._row_marks(d))
-            self._ctx_add(m, f"↺  Undo 'not a duplicate' ({n})…", lambda dd, s, i: NotDuplicateDialog(self, dd, "undo"))
+            self._ctx_add(m, "↺  " + _i18n.t("ctx.undo_not_dup", n=n), lambda dd, s, i: NotDuplicateDialog(self, dd, "undo"))
         else:
-            self._ctx_add(m, NOT_DUP_LABEL, None, "no duplicate found")
+            self._ctx_add(m, NOT_DUP_LABEL, None, _i18n.t("ctx.no_dup_found"))
 
     def _nfo_rename_for(self, rows):                              ### NEW v0.19.3 B73 ###
         """One movie → NfoRenameDialog (choice <video>.nfo / movie.nfo);
-        several → preview, then one run with one backup folder."""
-        items = []
-        for r in rows:
-            try:
-                p = nfo_rename_plan(r["subfolder_path"], r.get("subfolder"))
-            except OSError as ex:
-                logger.warning(f"Rename NFO: {r.get('subfolder')}: {ex}")
-                p = None
-            if p:
-                items.append((r, p))
+        several → preview, then one run with one backup folder.
+        ### MODIFIED v0.20.0 AU20 (audit recommendation 2) ### several movies are planned in a worker (one folder listing
+        each froze the window on a NAS share); the preview follows on the Tk thread."""
+        def _plan(rs):
+            items = []
+            for r in rs:
+                try:
+                    p = nfo_rename_plan(r["subfolder_path"], r.get("subfolder"))
+                except OSError as ex:
+                    logger.warning(f"Rename NFO: {r.get('subfolder')}: {ex}")
+                    p = None
+                if p:
+                    items.append((r, p))
+            return items
+        if len(rows) > 1:
+            def _work():
+                items = _plan(rows)
+                try:
+                    ui_post(lambda: self._nfo_rename_items(items))
+                except (RuntimeError, tk.TclError):
+                    pass
+            threading.Thread(target=_work, name="nfo-rename-plan", daemon=True).start()
+            return rows
+        return self._nfo_rename_items(_plan(rows))
+
+    def _nfo_rename_items(self, items):                            ### NEW v0.20.0 AU20 — Tk thread ###
         if not items:
-            messagebox.showinfo(NFO_RENAME_ACTION, "Kodi already reads the NFO of the selected movie(s) "
-                                "(no folder-named NFO to rename).", parent=self)
+            messagebox.showinfo(shown_action(NFO_RENAME_ACTION), _i18n.t("mc.kodi_already_reads_the_bd9a"), parent=self)
             return None
         if len(items) == 1:
             dlg = NfoRenameDialog(self, *items[0])
             self._nfo_rename_dlg = dlg
             return dlg
-        pv = _PreviewRunDialog(self, "🏷  " + NFO_RENAME_ACTION + " — Preview", nfo_rename_batch_text(items),
-                               file_stem="nfo_rename_preview", run_label="  ▶ Rename NFOs  ")
+        pv = _PreviewRunDialog(self, "🏷  " + shown_action(NFO_RENAME_ACTION) + " — " + _i18n.t("f3r.preview"), nfo_rename_batch_text(items),
+                               file_stem="nfo_rename_preview", run_label=_i18n.t("mc.rename_nfos_3a55"))
         self._nfo_rename_preview = pv
         self.wait_window(pv)
         if not pv.run:
@@ -20365,26 +22169,304 @@ class App(tk.Tk):
             return True
 
         def _finish(job):
-            msg = f"{_n(job.done, 'NFO')} renamed for Kodi."
+            msg = _i18n.t("mc.renamed_for_kodi_da17", n=_n(job.done, 'NFO'))
             if job.errors:
-                msg += "\n\nNot renamed:\n" + "\n".join(job.errors[:8])
+                msg += _i18n.t("mc.not_renamed_6b4e", join="\n".join(job.errors[:8]))
             msg += job.cancel_note()                                 ### NEW v0.19.4 B83 ###
             msg += ("\n\n" + UNDO_HINT) if job.done else ""            ### NEW v0.19.4 B109e ###
-            messagebox.showinfo(NFO_RENAME_ACTION, msg, parent=self)
+            messagebox.showinfo(shown_action(NFO_RENAME_ACTION), msg, parent=self)
 
-        _BatchJob(self, items, NFO_RENAME_ACTION, progress_title="Renaming NFOs…",
+        _BatchJob(self, items, NFO_RENAME_ACTION, progress_title=_i18n.t("au.prog.rename_nfo"),
+                  name_of=lambda it: it[0].get("movie_name") or it[0].get("subfolder", "")).run(_step, _finish)
+        return items
+
+    def _genres_tmdb_all(self):                                   ### NEW v0.20.0 I36 ###
+        if self._busy(shown_action(GENRES_TMDB_ACTION)):
+            return None
+        return self._genres_tmdb_for(list(self._results))
+
+    def _genres_tmdb_for(self, rows):                             ### NEW v0.20.0 I36 ###
+        """Look the movies up on TMDB in a worker (progress, Cancel), then the review of the differences."""
+        title = shown_action(GENRES_TMDB_ACTION)
+        if self._busy(title):
+            return None
+        key = SETTINGS.get("tmdb_api_key", "").strip()
+        if not key:
+            messagebox.showwarning(title, _i18n.t("i36.no_key"), parent=self)
+            return None
+        rows = genres_tmdb_candidates(rows)
+        if not rows:
+            messagebox.showinfo(title, _i18n.t("i36.no_rows"), parent=self)
+            return None
+        if not self._confirm_services(("tmdb",)):
+            return None
+        prog = _BatchProgressDialog(self, title + "…", total=len(rows)) if len(rows) >= 3 else None
+        self._genres_tmdb_prog = prog
+
+        def _work():
+            _done = [0]                                           # v0.20.0 AU22: the movies really looked up
+
+            def _adv(i):
+                _done[0] = i
+                if prog:
+                    prog.advance(i)
+            items, errors = genres_tmdb_compare(rows, key, "en-US", progress=_adv,
+                                                cancelled=(lambda: prog.cancelled) if prog else None)
+            if prog:
+                prog.close()
+            ui_post(lambda: self._genres_tmdb_review(items, errors, _done[0], bool(prog and prog.cancelled)))
+        _AppJobThread(self, target=_work).start()
+        return rows
+
+    def _genres_tmdb_review(self, items, errors, checked, cancelled=False):   ### NEW v0.20.0 I36 — Tk thread ###
+        title = shown_action(GENRES_TMDB_ACTION)
+        _cn = _i18n.t("au.cancelled_after", n=checked) if cancelled else ""   # v0.20.0 AU22: Cancel is said
+        if not items:
+            msg = _i18n.t("i36.same", n=checked) + _cn
+            if errors:
+                msg += _i18n.t("i36.errors", join="\n".join(errors[:8]))
+            messagebox.showinfo(title, msg, parent=self)
+            return None
+        if errors or cancelled:                                   # v0.20.0 AU22: they were dropped when some differ
+            messagebox.showwarning(title, (_cn.strip() + (_i18n.t("i36.errors", join="\n".join(errors[:8])) if errors else "")).strip(),
+                                   parent=self)
+        dlg = GenresTmdbDialog(self, items, checked)
+        self._genres_tmdb_dlg = dlg
+        self.wait_window(dlg)
+        chosen = [it for it, on in zip(items, dlg.ticks) if on] if dlg.result else []
+        if not chosen:
+            return None
+
+        def _step(job, item):
+            r, _cur, new = item
+            lib = _lib_root_of(r)
+            nfo = _metadata_targets(r)[0]   # v0.20.0 F3b
+            xml = _metadata_targets(r)[1]   # v0.20.0 F3b
+            if not (nfo or xml):
+                raise RuntimeError(_i18n.t("i36.no_file"))
+            if not job.backup(r.get("movie_name") or r.get("subfolder", ""), nfo, xml):
+                raise BackupFailed()
+            ok_n, err_n = write_genres_to_nfo(nfo, new) if nfo else (True, "")
+            ok_x, err_x = write_genres_to_xml(xml, new) if xml else (True, "")
+            if not (ok_n and ok_x):
+                raise RuntimeError(err_n or err_x)
+            job.changed.append(r["subfolder_path"])
+            return True
+
+        def _finish(job):
+            msg = _i18n.t("i36.done", n=job.done)
+            if job.errors:
+                msg += _i18n.t("i36.failed", join="\n".join(job.errors[:8]))
+            msg += job.cancel_note()
+            msg += ("\n\n" + UNDO_HINT) if job.done else ""
+            messagebox.showinfo(title, msg, parent=self)
+
+        _BatchJob(self, chosen, GENRES_TMDB_ACTION, progress_title=title + "…",
+                  name_of=lambda it: it[0].get("movie_name") or it[0].get("subfolder", "")).run(_step, _finish)
+        return chosen
+
+    def _xml2nfo_all(self):                                       ### NEW v0.20.0 F3d ###
+        if self._busy(shown_action(XML2NFO_ACTION)):
+            return None
+        return self._xml2nfo_for([r for r in self._results if xml2nfo_candidate(r)])
+
+    def _xml2nfo_for(self, rows):                                 ### NEW v0.20.0 F3d ###
+        """A preview (movie → the NFO name), then one run with one backup folder; Undo removes the new NFOs."""
+        title = shown_action(XML2NFO_ACTION)
+        rows = [r for r in rows if xml2nfo_candidate(r)]
+        if not rows:
+            messagebox.showinfo(title, _i18n.t("f3d.none"), parent=self)
+            return None
+        rows = [r for r in rows if nfo_in_use(_lib_root_of(r))]      # v0.20.0 AU16: one "movie.xml only" library no
+        if not rows:                                                   # longer blocks the NFO libraries' movies
+            messagebox.showinfo(title, _i18n.t("f3d.nfo_off", path=HEALTH_MODE_PATH), parent=self)
+            return None
+        lines = [_i18n.t("f3d.preview_head", n=_n(len(rows), 'movie')), ""]
+        for r in rows:
+            lines.append(f"🎬 {r.get('movie_name') or r.get('subfolder', '')}:  movie.xml  →  "
+                         f"{os.path.basename(xml2nfo_target(r))}")
+        pv = _PreviewRunDialog(self, "🔄  " + title + " — " + _i18n.t("f3r.preview"), "\n".join(lines),
+                               file_stem="xml2nfo_preview", run_label=_i18n.t("f3d.run"))
+        self._xml2nfo_pv = pv
+        self.wait_window(pv)
+        if not pv.run:
+            return None
+
+        def _step(job, r):
+            apply_xml2nfo(r, job.ref)
+            job.changed.append(r["subfolder_path"])
+            return True
+
+        def _finish(job):
+            msg = _i18n.t("f3d.done", n=_n(job.done, 'movie'))
+            if job.errors:
+                msg += _i18n.t("f3d.not_done", join="\n".join(job.errors[:8]))
+            msg += job.cancel_note()
+            msg += ("\n\n" + UNDO_HINT) if job.done else ""
+            messagebox.showinfo(title, msg, parent=self)
+
+        _BatchJob(self, rows, XML2NFO_ACTION, progress_title=_i18n.t("f3d.progress"),
+                  name_of=lambda r: r.get("movie_name") or r.get("subfolder", "")).run(_step, _finish)
+        return rows
+
+    def _media_rename_all(self):                                  ### NEW v0.20.0 F3c2 ###
+        if self._busy(shown_action(MEDIA_RENAME_ACTION)):
+            return None
+        if not any(media_programs(_lib_root_of(r)) for r in self._results):
+            messagebox.showinfo(shown_action(MEDIA_RENAME_ACTION), _i18n.t("f3r.no_programs", path=HEALTH_MODE_PATH), parent=self)
+            return None
+        return self._media_rename_for([r for r in self._results if media_rename_candidate(r)])
+
+    def _media_rename_for(self, rows):                            ### NEW v0.20.0 F3c2 ###
+        """Plan in a worker (one folder listing per movie), the preview on the Tk thread, then one run with one
+        backup folder (Backup History → Undo puts the old names back)."""
+        title = shown_action(MEDIA_RENAME_ACTION)
+        rows = [r for r in rows if media_rename_candidate(r)]
+        if not rows:
+            messagebox.showinfo(title, _i18n.t("f3r.none"), parent=self)
+            return None
+
+        def _work():
+            items = []
+            for r in rows:
+                try:
+                    p = media_rename_plan(r)
+                except Exception as ex:
+                    logger.warning(f"{MEDIA_RENAME_ACTION}: {r.get('subfolder')}: {ex}")
+                    p = None
+                if p:
+                    items.append((r, p))
+            try:
+                ui_post(lambda: self._media_rename_preview(items))
+            except (RuntimeError, tk.TclError):
+                pass
+        threading.Thread(target=_work, name="media-rename-plan", daemon=True).start()
+        return rows
+
+    def _media_rename_preview(self, items):                       ### NEW v0.20.0 F3c2 — Tk thread ###
+        title = shown_action(MEDIA_RENAME_ACTION)
+        if not items:
+            messagebox.showinfo(title, _i18n.t("f3r.none"), parent=self)
+            return None
+        progs = sorted({p for r, _p in items for p in media_programs(_lib_root_of(r))}, key=_mp.PROGRAMS.index)
+        text = media_rename_preview_text(items, ", ".join(_mp.PROGRAM_LABEL[p] for p in progs))
+        todo = [(r, p[0]) for r, p in items if p[0]]
+        pv = _PreviewRunDialog(self, "🏷  " + title + " — " + _i18n.t("f3r.preview"), text, file_stem="media_rename_preview",
+                               run_label=_i18n.t("f3r.run"))
+        self._media_rename_pv = pv
+        if not todo:
+            try:
+                pv.run_button.configure(state="disabled")
+            except (AttributeError, tk.TclError):
+                pass
+        self.wait_window(pv)
+        if not pv.run or not todo:
+            return None
+
+        def _step(job, item):
+            r, moves = item
+            apply_media_renames(r, moves, job.ref)
+            job.changed.append(r["subfolder_path"])
+            return True
+
+        def _finish(job):
+            msg = _i18n.t("f3r.done", n=_n(sum(len(m) for r, m in todo[:job.done]), 'file'))
+            if job.errors:
+                msg += _i18n.t("mc.not_renamed_6b4e", join="\n".join(job.errors[:8]))
+            msg += job.cancel_note()
+            msg += ("\n\n" + UNDO_HINT) if job.done else ""
+            messagebox.showinfo(title, msg, parent=self)
+
+        _BatchJob(self, todo, MEDIA_RENAME_ACTION, progress_title=_i18n.t("f3r.progress"),
+                  name_of=lambda it: it[0].get("movie_name") or it[0].get("subfolder", "")).run(_step, _finish)
+        return todo
+
+    def _art_links_all(self):                                     ### NEW v0.20.0 RD9 ###
+        if self._busy(shown_action(ART_LINKS_ACTION)):
+            return None
+        if not any(nfo_in_use(_lib_root_of(r)) for r in self._results):   # v0.20.0 F3: per library
+            messagebox.showinfo(shown_action(ART_LINKS_ACTION), _i18n.t("mc.the_nfo_is_not_bf9c", health_mode_path=HEALTH_MODE_PATH), parent=self)
+            return None
+        return self._art_links_for(list(self._results))
+
+    def _art_links_for(self, rows):                               ### NEW v0.20.0 RD9 ###
+        """Count on disk in a worker (the dry run), then the preview on the Tk thread, then one run with one backup folder."""
+        rows = [r for r in rows if art_links_candidate(r)]
+        if not rows:
+            messagebox.showinfo(shown_action(ART_LINKS_ACTION), _i18n.t("rd9.none"), parent=self)
+            return None
+        try:
+            self._sb_action.configure(text=_i18n.t("rd9.counting"))
+        except (AttributeError, tk.TclError):
+            pass
+
+        def _work():
+            items = []
+            for r in rows:
+                try:
+                    p = art_links_plan(r)
+                except Exception as ex:
+                    logger.warning(f"Remove online artwork links: {r.get('subfolder')}: {ex}")
+                    p = None
+                if p:
+                    items.append((r, p))
+            try:
+                ui_post(lambda: self._art_links_preview(items))
+            except (RuntimeError, tk.TclError):
+                pass
+        threading.Thread(target=_work, name="art-links-count", daemon=True).start()
+        return rows
+
+    def _art_links_preview(self, items):                          ### NEW v0.20.0 RD9 — Tk thread ###
+        try:
+            self._sb_action.configure(text="")
+        except (AttributeError, tk.TclError):
+            pass
+        if not items:
+            messagebox.showinfo(shown_action(ART_LINKS_ACTION), _i18n.t("rd9.none"), parent=self)
+            return None
+        pv = _PreviewRunDialog(self, "🔗  " + shown_action(ART_LINKS_ACTION) + " — " + _i18n.t("rd9.pv_title"),
+                               art_links_preview_text(items), file_stem="art_links_preview", run_label=_i18n.t("rd9.run"))
+        self._art_links_pv = pv
+        self.wait_window(pv)
+        if not pv.run:
+            return None
+        links = [0]
+
+        def _step(job, item):
+            r, p = item
+            if not job.backup(r.get("movie_name") or r.get("subfolder", ""), p["nfo"]):
+                raise BackupFailed()
+            ok, res = write_art_links_fix(p["nfo"], p["local"])
+            if not ok:
+                raise RuntimeError(res)
+            if not res:
+                return False
+            links[0] += sum(res.values())
+            job.changed.append(r["subfolder_path"])
+            return True
+
+        def _finish(job):
+            msg = _i18n.t("rd9.done", links=links[0], n=job.done)
+            if job.errors:
+                msg += _i18n.t("rd9.failed", join="\n".join(job.errors[:8]))
+            msg += job.cancel_note()
+            msg += ("\n\n" + UNDO_HINT) if job.done else ""
+            messagebox.showinfo(shown_action(ART_LINKS_ACTION), msg, parent=self)
+
+        _BatchJob(self, items, ART_LINKS_ACTION, progress_title=shown_action(ART_LINKS_ACTION) + "…",
                   name_of=lambda it: it[0].get("movie_name") or it[0].get("subfolder", "")).run(_step, _finish)
         return items
 
     def _nfo_rename_all(self):                                    ### NEW v0.19.3 B73 ###
         if self._busy(NFO_RENAME_ACTION):                ### MODIFIED v0.19.4 B91 — one message ###
             return None
-        if not nfo_in_use():                                         ### NEW v0.19.6 TR1b ###
-            messagebox.showinfo(NFO_RENAME_ACTION, f"The NFO is not used in this health mode (movie.xml only).\n\n{HEALTH_MODE_PATH}", parent=self)
+        if not any(nfo_in_use(_lib_root_of(r)) for r in self._results):   ### NEW v0.19.6 TR1b; v0.20.0 F3: per library ###
+            messagebox.showinfo(shown_action(NFO_RENAME_ACTION), _i18n.t("mc.the_nfo_is_not_bf9c", health_mode_path=HEALTH_MODE_PATH), parent=self)
             return None
         rows = [r for r in self._results if r.get("nfo_exists") and r.get("nfo_kodi_name") is False]
         if not rows:
-            messagebox.showinfo(NFO_RENAME_ACTION, "No movie has a folder-named NFO that Kodi cannot read.", parent=self)
+            messagebox.showinfo(shown_action(NFO_RENAME_ACTION), _i18n.t("mc.no_movie_has_a_bd5d"), parent=self)
             return None
         return self._nfo_rename_for(rows)
 
@@ -20420,14 +22502,14 @@ class App(tk.Tk):
         if not added:
             return []
         if not _sc.save_not_duplicates(pairs):
-            messagebox.showerror("Not a duplicate", "not_duplicates.json could not be written (see logs\\app.log).", parent=self)
+            messagebox.showerror(_i18n.t("mc.not_a_duplicate_1bc2"), _i18n.t("mc.not_duplicates_json_could_2d43"), parent=self)
         self._last_not_dup = added
         self._recheck_duplicates()
         a, b = added[0]
-        txt = (f"✔  Marked: {a.get('movie_name') or a['subfolder']} is not a duplicate of {b.get('movie_name') or b['subfolder']}"
-               if len(added) == 1 else f"✔  Marked {len(added)} pairs as not duplicates")
+        txt = (_i18n.t("mc.nd.one", a=a.get('movie_name') or a['subfolder'], b=b.get('movie_name') or b['subfolder'])   # v0.20.0 UI1e
+               if len(added) == 1 else _i18n.t("mc.nd.many", n=len(added)))
         try:
-            self.stats_var.set(txt + "  —  right-click the movie → Undo to take it back")
+            self.stats_var.set(txt + _i18n.t("mc.nd.undo"))
         except Exception:
             pass
         return added
@@ -20436,7 +22518,8 @@ class App(tk.Tk):
         drop = {frozenset((p["a"], p["b"])) for p in pair_dicts}
         pairs = [p for p in not_dup_pairs() if frozenset((p["a"], p["b"])) not in drop]
         _NOT_DUP["pairs"] = pairs
-        _sc.save_not_duplicates(pairs)
+        if not _sc.save_not_duplicates(pairs):                    # v0.20.0 AU16: said, as when marking
+            messagebox.showerror(_i18n.t("mc.not_a_duplicate_1bc2"), _i18n.t("mc.not_duplicates_json_could_2d43"), parent=self)
         self._recheck_duplicates()
 
     def _recheck_duplicates(self):                                ### NEW v0.19.3 B64 ###
@@ -20457,8 +22540,8 @@ class App(tk.Tk):
             d.get("nfo_path") if d.get("nfo_exists") else None,
             d.get("xml_path") if d.get("xml_exists") else None)
         if not titles:
-            messagebox.showinfo("Copy Movie Name",
-                                "No title found in NFO or XML.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.copy_movie_name_128f"),
+                                _i18n.t("mc.no_title_found_in_ab76"), parent=self)
             return
         unique = list(dict.fromkeys(titles))  # preserve order, deduplicate
         if len(unique) == 1:
@@ -20472,7 +22555,7 @@ class App(tk.Tk):
         so it runs in a worker thread with a progress window (3+ movies)."""
         checks = SETTINGS.get("improve_checks", _DEFAULT_SETTINGS["improve_checks"])
         data_list = list(data_list)
-        prog = _BatchProgressDialog(self, "Improvements Check…", total=len(data_list)) \
+        prog = _BatchProgressDialog(self, _i18n.t("au.prog.improvements"), total=len(data_list)) \
                if len(data_list) >= _PROGRESS_MIN else None
         def _worker():
             results, done = [], []
@@ -20496,9 +22579,9 @@ class App(tk.Tk):
                 for e in d.get("xml_errors", []):
                     errs.append(f"XML Line {e['line']}: {e['message']}")
                 for e in d.get("nfo_infos", []) or []:                ### NEW v0.19.1 B12 ###
-                    errs.append(f"NFO Line {e['line']} (info): {e['message']}")
+                    errs.append(_i18n.t("uf.nfo_line_info_f8bb", line=e['line'], message=e['message']))
                 for e in d.get("xml_infos", []) or []:
-                    errs.append(f"XML Line {e['line']} (info): {e['message']}")
+                    errs.append(_i18n.t("uf.xml_line_info_144a", line=e['line'], message=e['message']))
                 if errs:
                     error_rows.append((d.get("movie_name", d["subfolder"]), errs))
             report = format_improvements_report(results, error_rows)
@@ -20509,7 +22592,7 @@ class App(tk.Tk):
         # FIX v0.16.0 — use cached FFmpeg status; never block on main thread  ### FIX v0.16.0 ###
         ff_ok = self._ffmpeg_status[0] if self._ffmpeg_status else False
         if not ff_ok:
-            messagebox.showerror("FFmpeg missing", "FFmpeg not available."); return
+            messagebox.showerror(_i18n.t("mc.ffmpeg_missing_b06f"), _i18n.t("mc.ffmpeg_not_available_11ae")); return
         todo = [d for d in data_list if d.get("video_path")]
         done = []
         for n, d in enumerate(todo):
@@ -20520,8 +22603,8 @@ class App(tk.Tk):
             done.append(d)
             left = len(todo) - n - 1
             if getattr(dlg, "_cancelled", False) and left > 0:            ### NEW v0.19.1 — cancel remaining ###
-                if messagebox.askyesno("Extract Backdrop(s)",
-                                       f"Extraction cancelled.\n\nSkip the remaining {_n(left, 'movie')} too?",
+                if messagebox.askyesno(_i18n.t("mc.extract_backdrop_s_28de"),
+                                       _i18n.t("mc.extraction_cancelled_skip_the_5629", n=_n(left, 'movie')),
                                        parent=self):
                     break
         self._schedule_refresh([d["subfolder_path"] for d in done],
@@ -20536,7 +22619,7 @@ class App(tk.Tk):
         paths = [d.get("subfolder_path") for d in data_list if d.get("subfolder_path")]
         self._schedule_refresh(paths, need_ffprobe=False)
         try:
-            self._sb_action.configure(text=f"  Updating {_n(len(paths), 'movie')} in the background…")
+            self._sb_action.configure(text=_i18n.t("mc.updating_in_the_background_88de", n=_n(len(paths), 'movie')))
         except (AttributeError, tk.TclError):
             pass
         logger.info(f"Batch re-validate (no FFMPEG): {len(data_list)} movies — background refresh")
@@ -20581,10 +22664,11 @@ class App(tk.Tk):
         logger.info(txt)
         return n
 
-    def _handle_missing_folder(self, d):
+    def _handle_missing_folder(self, d, state=None):
         """Called when an action finds the folder of *d* missing.  Returns True
-        when the caller must stop (row removed or library offline)."""
-        st = self._folder_gone(d)
+        when the caller must stop (row removed or library offline).
+        ### v0.20.0 AU20 ### *state*: the answer of _folder_gone already got in a worker (no disk check here)."""
+        st = state or self._folder_gone(d)
         if st == "present":
             return False
         if st == "deleted":
@@ -20592,9 +22676,8 @@ class App(tk.Tk):
         else:
             root = d.get("library_root") or os.path.dirname(d.get("subfolder_path") or "")
             self._note_offline([root])
-            messagebox.showinfo("Library offline",
-                                f"The library folder is not reachable:\n{root}\n\n"
-                                "The row is kept with its last scan.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.library_offline_74a2"),
+                                _i18n.t("mc.the_library_folder_is_6320", root=root), parent=self)
         return True
 
     def _remove_from_list(self, data_list):
@@ -20609,18 +22692,50 @@ class App(tk.Tk):
         from the previous scan — they are NOT cleared.        ### NEW v0.11.0 ###
         """
         sp, sn = data["subfolder_path"], data["subfolder"]
-        if not os.path.isdir(sp) and self._handle_missing_folder(data): return   ### MODIFIED v0.19.1 ###
-        r, _kept = rescan_or_keep(data, use_ffprobe=False)         ### MODIFIED v0.19.5 AS-A8 ###
-        if not _kept:
-            carry_after_rescan(r, data)                                ### MODIFIED v0.19.4 P4 — one rule (same video, same IDs) ###
-        _apply_health(r)
-        for i, o in enumerate(self._results):
-            if o["subfolder_path"] == sp: self._results[i] = r; break
-        self._row_replaced(self._iid_for_path(sp, iid), r)         ### MODIFIED v0.19.4 P1 ###
-        self._regroup_if_moved(data, r)                            ### NEW v0.19.4 fix 3a ###
-        self._update_stats()
-        logger.info(f"Re-validated (no FFMPEG): {sn}")
-        self._incremental_save(self._results)                  ### NEW v0.18.0 — persist updated row ###
+        ### MODIFIED v0.20.0 AU20 (recommendation 2 of the audit) ### the folder check and the rescan run in a worker:
+        # on a sleeping NAS share they froze the window (the several-movies Update already ran in the background).
+        # _reval_running counts the open updates (the self-test waits for 0).
+        if self._busy():                                          # v0.20.0 RV3: not during a scan
+            return
+        _busy_paths = self.__dict__.setdefault("_reval_paths", set())
+        if _pkey(sp) in _busy_paths:                              # v0.20.0 RV3: Ctrl+R twice = one update
+            return
+        _busy_paths.add(_pkey(sp))
+        self._reval_running = getattr(self, "_reval_running", 0) + 1
+
+        def _work():
+            try:
+                if not os.path.isdir(sp):
+                    st, r, _kept = self._folder_gone(data), None, True
+                else:
+                    st = "present"
+                    r, _kept = rescan_or_keep(data, use_ffprobe=False)   ### MODIFIED v0.19.5 AS-A8 ###
+                    if not _kept:
+                        carry_after_rescan(r, data)                    ### MODIFIED v0.19.4 P4 — one rule (same video, same IDs) ###
+                    _apply_health(r)
+            except Exception as ex:
+                logger.error(f"Update (no FFprobe) failed for {sn}: {ex}")
+                st, r = "error", None
+            ui_post(lambda: self._reval_no_ffmpeg_done(iid, data, st, r))
+        _AppJobThread(self, target=_work, name="update-one").start()   # v0.20.0 RV3: a scan / close waits for it
+
+    def _reval_no_ffmpeg_done(self, iid, data, st, r):            ### NEW v0.20.0 AU20 — Tk thread ###
+        try:
+            sp, sn = data["subfolder_path"], data["subfolder"]
+            if st != "present":
+                if st != "error":
+                    self._handle_missing_folder(data, state=st)
+                return
+            for i, o in enumerate(self._results):
+                if o["subfolder_path"] == sp: self._results[i] = r; break
+            self._row_replaced(self._iid_for_path(sp, iid), r)         ### MODIFIED v0.19.4 P1 ###
+            self._regroup_if_moved(data, r)                            ### NEW v0.19.4 fix 3a ###
+            self._update_stats()
+            logger.info(f"Re-validated (no FFMPEG): {sn}")
+            self._incremental_save(self._results)                  ### NEW v0.18.0 — persist updated row ###
+        finally:
+            self._reval_running = max(0, getattr(self, "_reval_running", 1) - 1)
+            self.__dict__.setdefault("_reval_paths", set()).discard(_pkey(data.get("subfolder_path") or ""))
     def _reval(self, iid, data):
         sp, sn = data["subfolder_path"], data["subfolder"]
         if not os.path.isdir(sp) and self._handle_missing_folder(data): return   ### MODIFIED v0.19.1 ###
@@ -20663,8 +22778,7 @@ class App(tk.Tk):
                     name_disp = r.get("movie_name", r.get("subfolder", "?"))
                     ### MODIFIED v0.19.4 B106 — a status-bar line, no pop-up ###
                     try:
-                        self._sb_action.configure(text=f"  {UPDATE_FF_TEXT}: {name_disp} — quality "
-                                                       f"{r.get('video_quality','—')}, Lang OK {r.get('lang_ok','—')}")
+                        self._sb_action.configure(text=_i18n.t("mc.quality_lang_ok_60a9", update_ff_text=UPDATE_FF_TEXT, name_disp=name_disp, get=r.get('video_quality','—'), get2=r.get('lang_ok','—')))
                     except tk.TclError:
                         pass
                     logger.info(f"Re-validated (with FFprobe): {sn}")
@@ -20716,10 +22830,9 @@ class App(tk.Tk):
                     self._remove_rows(gone)
                 self._update_stats()
                 self._incremental_save(self._results)          ### NEW v0.18.0 ###
-                msg = f"{_n(n, 'movie')} of {len(data_list)} updated with FFprobe."   ### MODIFIED v0.19.4 B106 — one wording ###
+                msg = _i18n.t("mc.of_updated_with_ffprobe_beb3", n=_n(n, 'movie'), n2=len(data_list))   ### MODIFIED v0.19.4 B106 — one wording ###
                 if cancelled:
-                    msg += (f"\n\nCancelled after {seen} of {len(data_list)}; "
-                            f"{len(data_list) - seen} left out (not changed).")
+                    msg += (_i18n.t("mc.cancelled_after_of_left_a60d", seen=seen, n=len(data_list), v=len(data_list) - seen))
                 messagebox.showinfo(UPDATE_FF_TEXT, msg, parent=self)
                 logger.info(f"Batch update (with FFprobe): {n}/{len(data_list)} done" + (" — cancelled" if cancelled else ""))
             ui_post(_finish)
@@ -20751,7 +22864,7 @@ class App(tk.Tk):
         existing_set = {g.strip() for g in existing.splitlines() if g.strip()}
         new_genres = [g for g in custom_genres if g not in existing_set]
         if not new_genres:
-            messagebox.showinfo("Add Custom Genres", "All custom genres are already in the list.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.add_custom_genres_9c78"), _i18n.t("mc.all_custom_genres_are_2c93"), parent=self)
             return
         updated = existing.rstrip() + "\n" + "\n".join(new_genres)
         SETTINGS["genre_list"] = "\n".join(g.strip() for g in updated.splitlines() if g.strip())
@@ -20761,9 +22874,8 @@ class App(tk.Tk):
         for d in self._results:
             d["genre_display"], d["genre_status"] = classify_genres(d.get("genres", []))
         self._apply_health_rules_inplace()
-        messagebox.showinfo("Add Custom Genres",
-                            f"Added {_n(len(new_genres), 'genre')} to Settings:\n"
-                            + ", ".join(new_genres), parent=self)
+        messagebox.showinfo(_i18n.t("mc.add_custom_genres_9c78"),
+                            _i18n.t("mc.added_to_settings_d45c", n=_n(len(new_genres), 'genre'), join=", ".join(new_genres)), parent=self)
 
     def _open_opensubtitles(self, d):
         """Item 16 — Open movie page on OpenSubtitles.org."""
@@ -20776,16 +22888,15 @@ class App(tk.Tk):
             d.get("xml_path") if d.get("xml_exists") else None)
 
         if not title:
-            messagebox.showwarning("OpenSubtitles",
-                                   "Could not find movie title in NFO or XML.\n"
-                                   "Cannot build search URL.")
+            messagebox.showwarning(_i18n.t("mc.opensubtitles_b5f4"),
+                                   _i18n.t("mc.could_not_find_movie_637a"))
             return
 
         url = build_opensubtitles_url(title, year)
         if url:
             open_url_with_browser(url)
         else:
-            messagebox.showerror("OpenSubtitles", "Failed to build URL.", parent=self)
+            messagebox.showerror(_i18n.t("mc.opensubtitles_b5f4"), _i18n.t("mc.failed_to_build_url_64d5"), parent=self)
 
     # ── Extract frames ─────────────────────────────────────────────────────────
     # ── Online Ratings Sync (item 2) ───────────────────────────────────────────
@@ -20796,14 +22907,13 @@ class App(tk.Tk):
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         omdb_key = SETTINGS.get("omdb_api_key", "").strip()
         if not tmdb_key and not omdb_key:
-            messagebox.showwarning("No API Keys",
-                "No TMDB or OMDb API keys are configured.\n"
-                "Go to Settings → API Keys to add them.")
+            messagebox.showwarning(_i18n.t("mc.no_api_keys_c066"),
+                _i18n.t("mc.no_tmdb_or_omdb_8d9b"))
             return
         # Show progress dialog immediately for ≥10 movies          ### NEW v0.17.0 ###
         prog = None
         if len(data_list) >= _PROGRESS_MIN:                     ### MODIFIED v0.19.1 — was 10 ###
-            prog = _BatchProgressDialog(self, "Processing Movies… (Ratings Sync)",
+            prog = _BatchProgressDialog(self, _i18n.t("uf.processing_movies_ratings_sync_d0ad"),
                                         total=len(data_list))
         _AppJobThread(self, target=self._sync_ratings_worker,
                          args=(data_list, tmdb_key, omdb_key, prog, preview), daemon=True).start()
@@ -20895,7 +23005,7 @@ class App(tk.Tk):
     def _sync_ratings_worker(self, data_list, tmdb_key, omdb_key, prog=None, preview=False):   ### NEW v0.19.1 B20; preview v0.19.3 I6 ###
         """Runs _sync_ratings_worker_run inside a service run (B20): a service that refuses
         (daily limit / invalid key) is not asked again until the run ends."""
-        _service_run_begin(**self._service_run_args(prog, {"omdb": "TMDB", "tmdb": "OMDb (IMDb data)"}))   ### B22 ###
+        _service_run_begin(**self._service_run_args(prog, {"omdb": "TMDB", "tmdb": _i18n.t("uf.omdb_imdb_data_5eaf")}))   ### B22 ###
         try:
             with _sc.backup_action("Ratings Sync"):                     ### NEW v0.19.1 I1 ###
                 return self._sync_ratings_worker_run(data_list, tmdb_key, omdb_key, prog, preview)
@@ -20965,8 +23075,8 @@ class App(tk.Tk):
             if (prog and prog.cancelled) or _service_run_cancelled():   # B22
                 break
             name = d.get("movie_name") or d["subfolder"]
-            nfo_path = d.get("nfo_path") if d.get("nfo_exists") else None
-            xml_path = d.get("xml_path") if d.get("xml_exists") else None
+            nfo_path = _metadata_targets(d)[0]   # v0.20.0 F3b
+            xml_path = _metadata_targets(d)[1]   # v0.20.0 F3b
             imdb_id, tmdb_id = get_movie_ids_robust(nfo_path, xml_path)
 
             _take_fetch_errors()
@@ -21084,9 +23194,9 @@ class App(tk.Tk):
             prog.close()
         _closed = False
         if preview and pending:                                 ### NEW v0.19.3 I6 — current → new, then write ###
-            run = self._ask_on_ui(lambda: _PreviewRunDialog(self, "⭐  Sync Ratings — All Movies — Preview",
+            run = self._ask_on_ui(lambda: _PreviewRunDialog(self, _i18n.t("uf.sync_ratings_all_movies_38c3"),
                                                             ratings_preview_text(pending), file_stem="ratings_preview",
-                                                            run_label="  ▶ Write ratings  "),
+                                                            run_label=_i18n.t("mc.write_ratings_85a5")),
                                   lambda dlg: dlg.run)
             if run:
                 for p in pending:
@@ -21094,28 +23204,28 @@ class App(tk.Tk):
             else:
                 _closed = True
         self._schedule_refresh(changed_paths, need_ffprobe=False)   ### v0.19.0 ###
-        _msg = f"Ratings sync finished for {_n(len(data_list), 'movie')}; {written} updated."
+        _msg = _i18n.t("uf.ratings_sync_finished_for_c270", n=_n(len(data_list), 'movie'), written=written)
         if written:                                              ### NEW v0.19.4 B109e ###
             _msg += "\n" + UNDO_HINT
         if _closed:
-            _msg += f"\n\nThe preview was closed: nothing was written ({_n(len(pending), 'movie')} {'was' if len(pending) == 1 else 'were'} ready)."
+            _msg += _i18n.tn("uf.m.preview_closed", len(pending), movies=_n(len(pending), 'movie'))   # v0.20.0 UI1f
         if write_failed:                                         ### NEW v0.19.2 B41 ###
-            _msg += (f"\n\n{len(write_failed)} could not be written:\n"
+            _msg += (_i18n.t("uf.could_not_be_written_5fa5", n=len(write_failed))
                      + "\n".join(write_failed[:8]) + ("\n…" if len(write_failed) > 8 else ""))
-        for _lst, _head in ((no_id, "skipped: no ID the sources can use"),          ### NEW v0.19.6 TR2 ###
-                            (no_answer, "skipped: the sources have no rating")):
+        for _lst, _head in ((no_id, _i18n.t("uf.skipped_no_id_the_de84")),          ### NEW v0.19.6 TR2 ###
+                            (no_answer, _i18n.t("uf.skipped_the_sources_have_4902"))):
             if _lst:
                 _msg += (f"\n\n{_n(len(_lst), 'movie')} {_head}:\n" + "\n".join(_lst[:8])
-                         + (f"\n… and {len(_lst) - 8} more (logs\\app.log)" if len(_lst) > 8 else ""))
+                         + (_i18n.t("uf.and_more_logs_app_0bd4", v=len(_lst) - 8) if len(_lst) > 8 else ""))
                 for _x in _lst:
                     logger.info(f"Ratings sync skipped {_x}")
         if unreachable:                                          ### NEW v0.19.1 ###
-            _msg += (f"\n\n{_n(len(unreachable), 'movie')} skipped because TMDB/OMDb could not be reached:\n"
+            _msg += (_i18n.t("uf.skipped_because_tmdb_omdb_700d", n=_n(len(unreachable), 'movie'))
                      + "\n".join(unreachable[:8]) + ("\n…" if len(unreachable) > 8 else ""))
         _svc = _service_run_summary()                            ### NEW v0.19.1 B20 — said once ###
         if _svc:
             _msg += "\n\n" + "\n".join(_svc)
-        ui_post(lambda m=_msg: messagebox.showinfo("Ratings Sync Complete", m))
+        ui_post(lambda m=_msg: messagebox.showinfo(_i18n.t("mc.ratings_sync_complete_ff80"), m))
 
 
     def _reval_by_path(self, d, no_ffprobe=False):               ### MODIFIED v0.19.0 — wrapper ###
@@ -21160,6 +23270,8 @@ class App(tk.Tk):
             if not pth:
                 continue
             k = _pkey(pth)
+            if not getattr(self, "_rf_in_stale", False):           # v0.20.0 XB1: a real change is never dropped
+                getattr(self, "_rf_stale_keys", set()).discard(k)
             self._rf_pending[k] = bool(self._rf_pending.get(k)) or bool(need_ffprobe)
         if self._rf_pending and self._rf_timer is None and not self._rf_running:
             self._rf_timer = self.after(self._RF_DELAY_MS, self._run_refresh)
@@ -21176,6 +23288,10 @@ class App(tk.Tk):
             return
         batch = dict(self._rf_pending); self._rf_pending.clear()
         rows = {_pkey(r.get("subfolder_path", "")): r for r in self._results}
+        ### NEW v0.20.0 XB1 — a re-read asked only because of the health mode is dropped when a scan read the folder meanwhile
+        _stale = getattr(self, "_rf_stale_keys", set())
+        batch = {k: ff for k, ff in batch.items() if not (k in _stale and k in rows and not ff and not row_needs_reread(rows[k]))}
+        self._rf_stale_keys = set()
         jobs = [(rows[k], ff) for k, ff in batch.items() if k in rows]
         if not jobs:
             return
@@ -21219,7 +23335,7 @@ class App(tk.Tk):
         if self._no_scan("No data"):                ### MODIFIED v0.19.4 I17 ###
             return
         ### MODIFIED v0.19.3 I6 — a preview of the local changes instead of the yes/no question ###
-        if not _ask_preview(self, "🎬  Normalize Genres — All Movies — Preview", genres_preview_text(self._results),
+        if not _ask_preview(self, _i18n.t("uf.normalize_genres_all_movies_fbad"), genres_preview_text(self._results),
                             "normalize_genres_preview", "  ▶ Normalize Genres  "):
             return
         self._normalize_genres_for(self._results, confirm_all=True)
@@ -21230,14 +23346,13 @@ class App(tk.Tk):
             return
         if self._no_scan("No data"):                ### MODIFIED v0.19.4 I17 ###
             return
-        if not messagebox.askyesno("Run Improvements Check — All Movies",
-                f"Run improvements check for ALL {_n(len(self._results), 'movie')}?\n"
-                "Results will be saved to a file you choose.\n\nContinue?",
+        if not messagebox.askyesno(_i18n.t("mc.run_improvements_check_all_ab38"),
+                _i18n.t("mc.run_improvements_check_for_fcc9", n=_n(len(self._results), 'movie')),
                 icon="question"):
             return
         from tkinter import filedialog
         out_path = filedialog.asksaveasfilename(
-            title="Save Improvements Report",
+            title=_i18n.t("mc.save_improvements_report_aed0"),
             defaultextension=".txt",
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")])
         if not out_path:
@@ -21246,17 +23361,17 @@ class App(tk.Tk):
 
     def _show_health_report(self, data_list):                    ### ADDED_BY_CLAUDE_v18.2 ###
         """Show health report for the given list of movie row dicts."""
-        if self._busy("Scan in Progress"):                ### MODIFIED v0.19.4 B91 — one message ###
+        if self._busy(_i18n.t("uf.scan_in_progress_0de9")):                ### MODIFIED v0.19.4 B91 — one message ###
             return
         if not data_list:
-            messagebox.showinfo("No Selection",
-                "No movies selected.", parent=self); return
+            messagebox.showinfo(_i18n.t("mc.no_selection_3b33"),
+                _i18n.t("mc.no_movies_selected_3bde"), parent=self); return
         report = format_health_report(data_list)
         HealthReportDialog(self, report, len(data_list))
 
     def _show_health_report_all(self):                           ### ADDED_BY_CLAUDE_v18.2 ###
         """Show health report for all loaded movies."""
-        if self._busy("Scan in Progress"):                ### MODIFIED v0.19.4 B91 — one message ###
+        if self._busy(_i18n.t("uf.scan_in_progress_0de9")):                ### MODIFIED v0.19.4 B91 — one message ###
             return
         if self._no_scan("No Data"):                ### MODIFIED v0.19.4 I17 ###
             return
@@ -21266,7 +23381,7 @@ class App(tk.Tk):
     def _run_improvements_batch(self, data_list, out_path):     ### NEW v0.15.0 ###
         """Run improvements check for a list of movies, writing results to file."""
         prog_win = tk.Toplevel(self)
-        prog_win.title("Improvements Check — All Movies")
+        prog_win.title(_i18n.t("mc.improvements_check_all_movies_7dba"))
         prog_win.configure(bg=C_BG)
         prog_win.resizable(False, False)
         prog_win.transient(self)
@@ -21274,16 +23389,16 @@ class App(tk.Tk):
         cancel_flag = [False]
         prog_win.protocol("WM_DELETE_WINDOW", lambda: cancel_flag.__setitem__(0, True))   # D9: × stops the run
 
-        tk.Label(prog_win, text="Running Improvements Check…",
+        tk.Label(prog_win, text=_i18n.t("mc.running_improvements_check_c30f"),
                  bg=C_BG, fg=C_TEXT, font=("Helvetica", 11)).pack(pady=(20, 6))
         prog_var = tk.IntVar(value=0)
         progress = ttk.Progressbar(prog_win, variable=prog_var, maximum=len(data_list),
                                    length=360)
         progress.pack(pady=4)
-        status_lbl = tk.Label(prog_win, text="Starting…", bg=C_BG, fg=C_SUBTEXT,
+        status_lbl = tk.Label(prog_win, text=_i18n.t("mc.starting_c04b"), bg=C_BG, fg=C_SUBTEXT,
                               font=("Helvetica", 9))
         status_lbl.pack(pady=4)
-        tk.Button(prog_win, text="  Cancel  ", bg=C_ERR, fg=C_BG,
+        tk.Button(prog_win, text=_i18n.t("mc.cancel_2fee"), bg=C_ERR, fg=C_BG,
                   relief="flat", cursor="hand2",
                   command=lambda: cancel_flag.__setitem__(0, True)).pack(pady=6)
         prog_win.bind("<Escape>", lambda e: cancel_flag.__setitem__(0, True))
@@ -21291,11 +23406,11 @@ class App(tk.Tk):
         def _worker():
             try:
                 with open(out_path, "w", encoding="utf-8") as fout:
-                    fout.write(f"MediaClinic Improvements Report — {_n(len(data_list), 'movie')}\n")
+                    fout.write(_i18n.t("uf.mediaclinic_improvements_report_9283", n=_n(len(data_list), 'movie')))
                     fout.write("=" * 60 + "\n\n")
                     for i, d in enumerate(data_list):
                         if cancel_flag[0]:
-                            fout.write("\n[Cancelled by user]\n")
+                            fout.write(_i18n.t("uf.cancelled_by_user_a231"))
                             break
                         name = d.get("movie_name", d["subfolder"])
                         ui_post(lambda n=name, idx=i: (
@@ -21319,12 +23434,12 @@ class App(tk.Tk):
                             fout.write("\n")
                 ui_post(lambda: (
                     prog_win.destroy(),
-                    saved_offer_open(self, "Improvements Check Complete", out_path, "Report saved to")))   # v0.19.4 B109b
+                    saved_offer_open(self, _i18n.t("uf.improvements_check_complete_30c8"), out_path, _i18n.t("uf.report_saved_to_a49c"))))   # v0.19.4 B109b
             except Exception as ex:
                 _msg = f"Improvements check failed:\n{ex}"       ### FIXED v0.18.3 — 'ex' is gone when the lambda runs ###
                 ui_post(lambda m=_msg: (
                     prog_win.destroy(),
-                    messagebox.showerror("Error", m)))
+                    messagebox.showerror(_i18n.t("mc.error_902b"), m)))
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -21338,7 +23453,7 @@ class App(tk.Tk):
         # ── Step 1: scan for extrafanart folders — in a worker, one walk (D10) ──
         rows = list(self._results)
         try:
-            self._sb_action.configure(text="  Looking for extrafanart folders…")
+            self._sb_action.configure(text=_i18n.t("mc.looking_for_extrafanart_folders_5b93"))
         except (AttributeError, tk.TclError):
             pass
 
@@ -21367,11 +23482,11 @@ class App(tk.Tk):
         except (AttributeError, tk.TclError):
             pass
         if not ef_targets:
-            messagebox.showinfo("No extrafanart", "No extrafanart subfolders found."); return
+            messagebox.showinfo(_i18n.t("mc.no_extrafanart_8106"), _i18n.t("mc.no_extrafanart_subfolders_found_5c27")); return
 
         # ── Step 2: show preview popup ────────────────────────────────────────
         preview = tk.Toplevel(self)
-        preview.title("Extrafanart Subfolders to Delete")
+        preview.title(_i18n.t("mc.extrafanart_subfolders_to_delete_fb53"))
         preview.configure(bg=C_BG)
         preview.resizable(True, True)
         preview.transient(self)
@@ -21379,7 +23494,7 @@ class App(tk.Tk):
         _modal(preview)                                                  ### MODIFIED v0.19.4 B98 ###
 
         tk.Label(preview,
-                 text=f"Extrafanart Subfolders to Delete  ({len(ef_targets)} found)",
+                 text=_i18n.t("mc.extrafanart_subfolders_to_delete_9543", n=len(ef_targets)),
                  bg=C_BG, fg=C_TEXT,
                  font=("Helvetica", 11, "bold")).pack(padx=16, pady=(14, 4))
         self._ef_warning = extrafanart_warning_text(len(ef_targets), _n_img)
@@ -21421,13 +23536,13 @@ class App(tk.Tk):
 
         sep = tk.Frame(preview, bg=C_SURFACE2, height=1); sep.pack(fill="x", padx=14, pady=(6, 0))
         bf = tk.Frame(preview, bg=C_BG); bf.pack(pady=(8, 14))
-        self._ef_delete_btn = tk.Button(bf, text="  Delete  ",          ### MODIFIED v0.19.2 B34 — was "Confirm Deletion" ###
+        self._ef_delete_btn = tk.Button(bf, text=_i18n.t("mc.delete_55e2"),          ### MODIFIED v0.19.2 B34 — was "Confirm Deletion" ###
                   bg=C_ERR, fg=C_BG,
                   relief="flat", cursor="hand2",
                   font=("Helvetica", 10, "bold"),
                   command=_confirm)
         self._ef_delete_btn.pack(side="left", padx=6)
-        self._ef_cancel_btn = tk.Button(bf, text="  Cancel  ",
+        self._ef_cancel_btn = tk.Button(bf, text=_i18n.t("mc.cancel_2fee"),
                   bg=C_SURFACE2, fg=C_TEXT,
                   relief="flat", cursor="hand2",
                   font=("Helvetica", 10), default="active",
@@ -21450,7 +23565,7 @@ class App(tk.Tk):
             return
 
         # ── Step 3: delete with backup and progress ───────────────────────────
-        prog = _BatchProgressDialog(self, "Deleting extrafanart Subfolders…",
+        prog = _BatchProgressDialog(self, _i18n.t("uf.deleting_extrafanart_subfolders_751e"),
                                     total=len(ef_targets)) if len(ef_targets) >= _PROGRESS_MIN else None   ### MODIFIED v0.19.2 B34 ###
         _AppJobThread(self, target=self._extrafanart_delete_worker, args=(ef_targets, prog),
                          daemon=True).start()
@@ -21490,10 +23605,9 @@ class App(tk.Tk):
         if changed_paths:
             self._schedule_refresh(changed_paths, need_ffprobe=False)    ### v0.19.0 ###
         ui_post(lambda: messagebox.showinfo(
-            "Delete Complete",
-            f"Deleted {_n(deleted, 'extrafanart folder')}."   # v0.19.4 B105
-            + (f"\n\nErrors ({len(errors)}):\n" + "\n".join(errors[:5])
-               if errors else "")))
+            _i18n.t("mc.delete_complete_d708"),
+            _i18n.t("m3.deleted", folders=_n(deleted, "extrafanart folder"))   # v0.19.4 B105; v0.20.0 UI1d
+            + (_i18n.t("m3.errors_n", n=len(errors), list="\n".join(errors[:5])) if errors else "")))
         return deleted, errors
 
 
@@ -21504,11 +23618,8 @@ class App(tk.Tk):
             return
         if self._no_scan("No data"):                ### MODIFIED v0.19.4 I17 ###
             return
-        if not messagebox.askyesno("Sync Ratings Online — All Movies",
-                f"This will sync ratings for ALL {_n(len(self._results), 'movie')}.\n"
-                "Requires TMDB and/or OMDb API keys.\n\n"
-                "The ratings are fetched first; a preview shows current → new\n"
-                "before anything is written.\n\nContinue?",
+        if not messagebox.askyesno(_i18n.t("mc.sync_ratings_online_all_09dd"),
+                _i18n.t("mc.this_will_sync_ratings_4c39", n=_n(len(self._results), 'movie')),
                 icon="warning"):
             return
         self._sync_ratings(list(self._results), preview=True)      ### MODIFIED v0.19.3 I6 ###
@@ -21522,7 +23633,7 @@ class App(tk.Tk):
             return
         prog = None                                            ### NEW v0.17.0 ###
         if len(data_list) >= _PROGRESS_MIN:                     ### MODIFIED v0.19.1 — was 10 ###
-            prog = _BatchProgressDialog(self, "Processing Movies… (Normalize Genres)",
+            prog = _BatchProgressDialog(self, _i18n.t("uf.processing_movies_normalize_genres_bcf1"),
                                         total=len(data_list))
         _AppJobThread(
             self, target=self._normalize_genres_worker,
@@ -21547,7 +23658,7 @@ class App(tk.Tk):
         if not getattr(self, "_unhandled_notice", False):   # first one per session: tell the user once
             self._unhandled_notice = True
             self._safe_after(0, lambda: self._sb_set_notice(
-                "⚠ An internal error was logged — see logs\\app.log"))
+                _i18n.t("uf.an_internal_error_was_1a57")))
         if sys.stderr is not None:
             tk.Tk.report_callback_exception(self, et, ev, tb)
 
@@ -21562,14 +23673,10 @@ class App(tk.Tk):
         logger.error(f"settings.json could not be read ({err}); "
                      + (f"kept as {kept}" if kept else "it could not be copied aside") + "; defaults in use")
         messagebox.showwarning(
-            "Settings file could not be read",
-            f"Your settings file could not be read:\n{err}\n\n"
-            + (f"It was kept as:\n{kept}\n\n" if kept else "It could not be copied aside.\n\n")
-            + ("MediaClinic started with the default settings and WILL NOT SAVE settings in this session, so your file stays as it is. "
-               "Close MediaClinic, close the program that holds the file, and start again."
-               if _sc.SETTINGS_SAVE_BLOCKED[0] else
-               "MediaClinic started with the default settings. Your API keys, libraries "
-               "and rules are in the kept copy; open it in a text editor to recover them."),
+            _i18n.t("mc.settings_file_could_not_f0e2"),
+            _i18n.t("m3.set_unreadable", err=err)
+            + (_i18n.t("m3.set_kept", kept=kept) if kept else _i18n.t("m3.set_not_kept"))
+            + (_i18n.t("m3.set_blocked") if _sc.SETTINGS_SAVE_BLOCKED[0] else _i18n.t("m3.set_defaults")),
             parent=self)
 
     def _tell_migrations(self):                                    ### NEW v0.19.2 B35 ###
@@ -21578,7 +23685,7 @@ class App(tk.Tk):
         notes = list(_sc.SETTINGS_MIGRATION_NOTICES)
         del _sc.SETTINGS_MIGRATION_NOTICES[:]
         if notes:
-            messagebox.showinfo("Health rules changed", "\n\n".join(notes), parent=self)
+            messagebox.showinfo(_i18n.t("mc.health_rules_changed_9f83"), "\n\n".join(notes), parent=self)
 
     def _show_migration_status(self):                              ### NEW v0.19.2 B55 ###
         notes = list(_sc.SETTINGS_MIGRATION_STATUS)
@@ -21669,8 +23776,9 @@ class App(tk.Tk):
                     hhmm = datetime.datetime.fromisoformat(e["until"]).strftime("%H:%M")
                 except Exception:
                     hhmm = "?"
-                parts.append(f"⚠ {_SERVICE_LABEL.get(svc, svc)} paused — "
-                             f"{_REFUSAL_TEXT.get(e.get('kind'), e.get('kind'))} (retry after about {hhmm})")
+                _svc = _i18n.t("api.omdb") if svc == "omdb" else _SERVICE_LABEL.get(svc, svc)   # v0.20.0 UI1c (logs stay English)
+                _why = _i18n.t("api.refusal." + e.get("kind")) if _i18n.has("api.refusal." + str(e.get("kind"))) else e.get("kind")
+                parts.append(_i18n.t("sb.paused", service=_svc, why=_why, time=hhmm))
             self._sb_pause.configure(text="   ".join(parts))
             if act:
                 aid = getattr(self, "_pause_after_id", None)
@@ -21688,9 +23796,9 @@ class App(tk.Tk):
         lines = []
         for svc, e in act.items():
             lines.append(f"{_SERVICE_LABEL.get(svc, svc)} — paused until {e['until'].replace('T', ' ')}\n"
-                         f"{e.get('message') or api_failure_message(svc, e.get('kind'))}")
-        if messagebox.askyesno("Online services paused",
-                "\n\n".join(lines) + "\n\nEnd the pause now (the next action asks the service again)?",
+                         f"{api_failure_message(svc, e.get('kind')) if e.get('kind') else e.get('message') or ''}")
+        if messagebox.askyesno(_i18n.t("mc.online_services_paused_4645"),
+                _i18n.t("mc.end_the_pause_now_6197", join="\n\n".join(lines)),
                 parent=self):
             for svc in list(act):
                 api_pause_end(svc)
@@ -21731,7 +23839,7 @@ class App(tk.Tk):
         """Right-click → Hard-coded subtitles… (one movie or a selection)."""
         rows = [d for d in data_list if d.get("nfo_exists") or d.get("xml_exists")]
         if not rows:
-            messagebox.showinfo("Hard-coded subtitles", "No NFO or XML file — nothing to write.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.hard_coded_subtitles_034f"), _i18n.t("mc.no_nfo_or_xml_6a49"), parent=self)
             return
         sets = [set(d.get("subs_hard") or []) for d in rows]
         current = sorted(set.intersection(*sets)) if sets else []
@@ -21744,12 +23852,11 @@ class App(tk.Tk):
         if confirm and len(rows) > 1:
             names = [d.get("movie_name") or d["subfolder"] for d in rows]
             more = f"\n… and {len(names) - 15} more" if len(names) > 15 else ""
-            what = ", ".join(codes) if codes else "none (remove all marks)"
-            if not messagebox.askyesno("Hard-coded subtitles",
-                    f"Set hard-coded subtitles to: {what}\nfor these {_n(len(rows), 'movie')}?\n\n"
-                    + "\n".join(names[:15]) + more, parent=self):
+            what = ", ".join(codes) if codes else _i18n.t("uf.none_remove_all_marks_2847")
+            if not messagebox.askyesno(_i18n.t("mc.hard_coded_subtitles_034f"),
+                    _i18n.t("mc.set_hard_coded_subtitles_d130", what=what, n=_n(len(rows), 'movie'), join="\n".join(names[:15]), more=more), parent=self):
                 return
-        prog = _BatchProgressDialog(self, "Hard-coded subtitles…", total=len(rows)) \
+        prog = _BatchProgressDialog(self, _i18n.t("uf.hard_coded_subtitles_5e0e"), total=len(rows)) \
                if len(rows) >= _PROGRESS_MIN else None
         _AppJobThread(self, target=self._hardsubs_worker, args=(list(rows), list(codes), prog),
                          daemon=True).start()
@@ -21761,8 +23868,8 @@ class App(tk.Tk):
         for i, d in enumerate(rows):
             if prog and prog.cancelled:
                 break
-            nfo = d.get("nfo_path") if d.get("nfo_exists") else None
-            xml = d.get("xml_path") if d.get("xml_exists") else None
+            nfo = _metadata_targets(d)[0]   # v0.20.0 F3b
+            xml = _metadata_targets(d)[1]   # v0.20.0 F3b
             name = d.get("movie_name") or d["subfolder"]
             if get_hardsub_langs(nfo, xml) != sorted(codes):
                 if not _batch_backup_ok(name, backup_ref, nfo, xml):    ### MODIFIED v0.19.2 B40 ###
@@ -21781,19 +23888,19 @@ class App(tk.Tk):
         what = ", ".join(codes) if codes else "none"
         def _done():
             try:
-                self._sb_action.configure(text=f"  Hard-coded subtitles ({what}) written for {_n(len(changed_paths), 'movie')}")
+                self._sb_action.configure(text=_i18n.t("mc.hard_coded_subtitles_written_8146", what=what, n=_n(len(changed_paths), 'movie')))
             except Exception:
                 pass
             if errors:
-                messagebox.showerror("Hard-coded subtitles", "\n".join(errors[:20]), parent=self)
+                messagebox.showerror(_i18n.t("mc.hard_coded_subtitles_034f"), "\n".join(errors[:20]), parent=self)
         ui_post(_done)
 
     # ── v0.19.1 B5: genres from TMDb / OMDb ──────────────────────────────────
     def _ask_genre_preview(self, text):                           ### NEW v0.19.1 ###
         """Worker thread: show the genres that would be written; True = write."""
         res = self._ask_on_ui(
-            lambda: _PreviewRunDialog(self, "🎬  Normalize Genres — genres found online", text,
-                                      "genres_online", run_label="  ✔ Write genres  "),
+            lambda: _PreviewRunDialog(self, _i18n.t("uf.normalize_genres_genres_found_9172"), text,
+                                      "genres_online", run_label=_i18n.t("mc.write_genres_a5f6")),
             lambda dlg: bool(dlg.run))
         return bool(res)
 
@@ -21803,10 +23910,10 @@ class App(tk.Tk):
         Never used when Verify IDs said the ID belongs to another film."""
         chk = (d.get("id_check") or {}).get("result")
         if chk in (ID_OTHER, ID_DIFFERENT, ID_NOT_FOUND):
-            return [], f"skipped — Verify IDs says: {chk}"
+            return [], _i18n.t("uf.skipped_verify_ids_says_9d92", chk=chk)
         imdb_id, tmdb_id = get_movie_ids_robust(nfo_path, xml_path)
         if not imdb_id and not tmdb_id:
-            return [], "no IMDb/TMDB ID (run Search Sources first)"
+            return [], _i18n.t("uf.no_imdb_tmdb_id_a567")
         names, src = [], ""
         if tmdb_key:
             tid = tmdb_id
@@ -21828,14 +23935,14 @@ class App(tk.Tk):
                 names = [x.strip() for x in data["Genre"].split(",") if x.strip()]
                 src = "OMDb"
         if not names:
-            return [], "no genres on TMDB/OMDb"
+            return [], _i18n.t("uf.no_genres_on_tmdb_b241")
         normalized, _c = normalize_genre_list(names)
         return normalized, src
 
     def _normalize_genres_worker(self, data_list, prog=None):        ### NEW v0.19.1 B20 — one service run ###
         """Runs _normalize_genres_worker_run inside a service run (B20): a service that refuses
         (daily limit / invalid key) is not asked again until the run ends."""
-        _service_run_begin(**self._service_run_args(prog, {"tmdb": "OMDb (IMDb data)", "omdb": "TMDB"}))   ### B22 ###
+        _service_run_begin(**self._service_run_args(prog, {"tmdb": _i18n.t("uf.omdb_imdb_data_5eaf"), "omdb": "TMDB"}))   ### B22 ###
         try:
             with _sc.backup_action("Normalize Genres"):                     ### NEW v0.19.1 I1 ###
                 return self._normalize_genres_worker_run(data_list, prog)
@@ -21858,8 +23965,8 @@ class App(tk.Tk):
             if (prog and prog.cancelled) or _service_run_cancelled():   # B22                       ### NEW v0.17.0 ###
                 break
             # Each movie gets its OWN fresh genre read — no shared state ### NEW v0.15.0 ###
-            nfo_path = d.get("nfo_path") if d.get("nfo_exists") else None
-            xml_path = d.get("xml_path") if d.get("xml_exists") else None
+            nfo_path = _metadata_targets(d)[0]   # v0.20.0 F3b
+            xml_path = _metadata_targets(d)[1]   # v0.20.0 F3b
 
             _ginfo = resolve_movie_genres(nfo_path, xml_path)   ### MODIFIED v0.19.1 — NFO + XML ###
             movie_genres = _ginfo["genres"]
@@ -21871,7 +23978,7 @@ class App(tk.Tk):
                     try:
                         fetched, why = self._fetch_online_genres(d, nfo_path, xml_path, _tk, _ok)
                     except Exception as ex:
-                        fetched, why = [], f"could not reach TMDB/OMDb ({_tmdb_error_message(ex).splitlines()[0]})"
+                        fetched, why = [], _i18n.t("uf.could_not_reach_tmdb_0889", v=_tmdb_error_message(ex).splitlines()[0])
                     if fetched:
                         pending_online.append((d, nfo_path, xml_path, fetched, why))
                     else:
@@ -21944,12 +24051,12 @@ class App(tk.Tk):
         # v0.19.1 B5 — genres fetched online: one preview, then write   ### NEW v0.19.1 ###
         n_online = 0
         if pending_online and not (prog and prog.cancelled):
-            lines = [f"Genres found online for {_n(len(pending_online), 'movie')} that have none:", ""]
+            lines = [_i18n.t("uf.genres_found_online_for_e476", n=_n(len(pending_online), 'movie')), ""]
             for d, _nfo_, _x, g, src in pending_online:     # v0.19.4 B105: _n is the plurals helper
                 lines.append(f"  {d.get('movie_name') or d.get('subfolder')}  →  {'/'.join(g)}   ({src})")
             if online_skipped:
-                lines += ["", f"Not found / skipped ({len(online_skipped)}):"] + [f"  {x}" for x in online_skipped]
-            lines += ["", "Write these genres to the NFO and XML?"]
+                lines += ["", _i18n.t("uf.not_found_skipped_1b1f", n=len(online_skipped))] + [f"  {x}" for x in online_skipped]
+            lines += ["", _i18n.t("uf.write_these_genres_to_24b7")]
             if self._ask_genre_preview("\n".join(lines)):
                 for d, nfo_p, xml_p, g, src in pending_online:
                     nm = d.get("movie_name", d.get("subfolder", "unknown"))
@@ -21970,17 +24077,16 @@ class App(tk.Tk):
         _svc = _service_run_summary()                          ### NEW v0.19.1 B20 ###
         def _done():
             self._schedule_refresh(changed_paths, need_ffprobe=False)   ### MODIFIED v0.19.0 — rescan, not just redraw ###
-            msg = f"Normalized genres in {_n(changed, 'movie')}." + (f"\n{UNDO_HINT}" if changed else "")   # B109e
+            msg = _i18n.t("mc.normalized_genres_in_59bb", n=_n(changed, 'movie'), v=f"\n{UNDO_HINT}" if changed else "")   # B109e
             if _svc:
                 msg += "\n\n" + "\n".join(_svc)
             if n_online:
-                msg += f"\n{n_online} of them got their genres from TMDB/OMDb."
+                msg += _i18n.t("mc.of_them_got_their_7a86", n_online=n_online)
             if online_skipped and not pending_online:
-                msg += (f"\n\nNo genres found online for {_n(len(online_skipped), 'movie')}:\n"
-                        + "\n".join(online_skipped[:6]) + ("\n…" if len(online_skipped) > 6 else ""))
+                msg += (_i18n.t("mc.no_genres_found_online_2b7c", n=_n(len(online_skipped), 'movie'), join="\n".join(online_skipped[:6]), v="\n…" if len(online_skipped) > 6 else ""))
             if errors:
-                msg += "\n\nErrors:\n" + "\n".join(errors[:5])
-            messagebox.showinfo("Normalize Genres", msg, parent=self)
+                msg += _i18n.t("mc.errors_83c4", join="\n".join(errors[:5]))
+            messagebox.showinfo(_i18n.t("mc.normalize_genres_acad"), msg, parent=self)
         ui_post(_done)
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -21991,10 +24097,10 @@ class App(tk.Tk):
         """Save current scan results to a JSON file chosen by the user."""
         if self._busy():                                       ### NEW v0.19.4 B91 ###
             return
-        if self._no_scan("Save Scan Results"):                ### MODIFIED v0.19.4 I17 ###
+        if self._no_scan(_i18n.t("uf.save_scan_results_8ded")):                ### MODIFIED v0.19.4 I17 ###
             return
         p = filedialog.asksaveasfilename(
-            title="Save Scan Results",
+            title=_i18n.t("mc.save_scan_results_8ded"),
             defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
             initialfile="scan_results.json")
@@ -22003,18 +24109,24 @@ class App(tk.Tk):
         try:
             with open(p, "w", encoding="utf-8") as f:
                 json.dump(self._results, f, ensure_ascii=False, indent=2, default=str)
-            messagebox.showinfo("Save Scan Results",
-                                f"Saved {_n(len(self._results), 'movie')} to:\n{p}")
+            messagebox.showinfo(_i18n.t("mc.save_scan_results_8ded"),
+                                _i18n.t("mc.saved_to_66ce", n=_n(len(self._results), 'movie'), p=p))
             logger.info(f"Scan results saved: {p}")
         except Exception as e:
-            messagebox.showerror("Save Failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("mc.save_failed_2862"), str(e), parent=self)
 
     def _open_scan_results(self):                              ### NEW v0.16.0 ###
         """Load scan results from a JSON file, replacing current results."""
         if self._busy():                                       ### NEW v0.19.4 B91 ###
             return
+        ### NEW v0.20.0 AU21 (audit recommendation 3) ### the opened rows replace the list AND become the last results
+        # (saved at close): asked first when a list is loaded
+        if self._results and not messagebox.askyesno(_i18n.t("mc.open_scan_results_f80d"),
+                                                     _i18n.t("au.open.ask", n=_n(len(self._results), 'movie')), parent=self):
+            return
         p = filedialog.askopenfilename(
-            title="Open Scan Results",
+            parent=self,
+            title=_i18n.t("mc.open_scan_results_f80d"),
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
         if not p:
             return
@@ -22025,17 +24137,25 @@ class App(tk.Tk):
                 raise ValueError("File does not contain a list of scan results.")
             loaded = _results_from_json(data)
         except Exception as e:
-            messagebox.showerror("Open Failed",
-                                 f"Could not parse scan results file:\n{e}\n\n"
-                                 "Current scan results are unchanged.")
+            messagebox.showerror(_i18n.t("mc.open_failed_6944"),
+                                 _i18n.t("mc.could_not_parse_scan_d7ac", e=e))
             return
         self._results = loaded
+        ### v0.20.0 AU21 ### the old offline marks belonged to the replaced list (checked again for the new rows); a
+        # switched-off library's set-aside row that the file also holds is not kept twice
+        _lk = {_pkey(r.get("subfolder_path") or "") for r in loaded}
+        self._inactive_rows = [r for r in (self._inactive_rows or []) if _pkey(r.get("subfolder_path") or "") not in _lk]
+        self._offline_roots = set()
         finalize_results(self._results)                        ### NEW v0.18.4 ###
         self._clear_tree()                                     ### v0.19.4 B110h ###
         self._keep_sort()                                      ### MODIFIED v0.19.3 B63 — was _apply_default_sort (reset) ###
         self._update_stats()
-        messagebox.showinfo("Open Scan Results",
-                            f"Loaded {_n(len(loaded), 'movie')} from:\n{p}")
+        try:
+            self._check_offline_async()
+        except Exception:
+            pass
+        messagebox.showinfo(_i18n.t("mc.open_scan_results_f80d"),
+                            _i18n.t("mc.loaded_from_8be5", n=_n(len(loaded), 'movie'), p=p))
         logger.info(f"Scan results loaded: {p}")
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -22050,7 +24170,7 @@ class App(tk.Tk):
             return
         prog = None                                            ### NEW v0.17.0 ###
         if len(data_list) >= _PROGRESS_MIN:                     ### MODIFIED v0.19.1 — was 10 ###
-            prog = _BatchProgressDialog(self, "Processing Movies… (Normalize Sources)",
+            prog = _BatchProgressDialog(self, _i18n.t("uf.processing_movies_normalize_sources_f1bb"),
                                         total=len(data_list))
         _AppJobThread(
             self, target=self._normalize_sources_worker,
@@ -22067,10 +24187,10 @@ class App(tk.Tk):
                    if r.get("source_imdb_status") in (STATUS_WARN, STATUS_MISSING, STATUS_ERROR)   # P4 (E2)
                    or r.get("source_tmdb_status") in (STATUS_WARN, STATUS_MISSING, STATUS_ERROR)]
         if not targets:
-            messagebox.showinfo("Normalize Sources — All Movies",
-                                "No movies with missing or conflicting source IDs found."); return
+            messagebox.showinfo(_i18n.t("mc.normalize_sources_all_movies_5eda"),
+                                _i18n.t("mc.no_movies_with_missing_ae8b")); return
         ### MODIFIED v0.19.3 I6 — a preview instead of the yes/no question ###
-        if not _ask_preview(self, "🔗  Normalize Sources — All Movies — Preview", sources_preview_text(targets),
+        if not _ask_preview(self, _i18n.t("uf.normalize_sources_all_movies_c084"), sources_preview_text(targets),
                             "normalize_sources_preview", "  ▶ Normalize Sources  "):
             return
         self._normalize_sources_for(targets)
@@ -22094,8 +24214,8 @@ class App(tk.Tk):
         for _idx, d in enumerate(data_list):                  ### UPDATED v0.17.0 ###
             if prog and prog.cancelled:                       ### NEW v0.17.0 ###
                 break
-            nfo_path   = d.get("nfo_path") if d.get("nfo_exists") else None
-            xml_path   = d.get("xml_path") if d.get("xml_exists") else None
+            nfo_path   = _metadata_targets(d)[0]   # v0.20.0 F3b
+            xml_path   = _metadata_targets(d)[1]   # v0.20.0 F3b
             movie_name = d.get("movie_name", d.get("subfolder", "?"))
 
             src      = extract_source_ids_from_files(nfo_path, xml_path)
@@ -22111,8 +24231,11 @@ class App(tk.Tk):
                 if status == STATUS_OK:
                     continue
 
-                elif status == STATUS_MISSING:
+                elif status == STATUS_MISSING or (status == STATUS_ERROR and not any(all_vals)
+                                                  and src.get(f"{id_type.lower()}_invalid_vals")):
                     # Case C — ask user to type ID ("Skip all remaining" remembered per run)
+                    # ### v0.20.0 RD11b ### also when the tags hold only a value that is not an ID ('7840' in the IMDb
+                    # tag): it used to be skipped silently; the typed ID replaces the bad value in every tag
                     if skip_missing_all:                              ### NEW v0.19.0 ###
                         continue
                     res = self._ask_on_ui(                            ### MODIFIED v0.19.0 — Event wait ###
@@ -22162,10 +24285,10 @@ class App(tk.Tk):
             prog.close()                                      ### NEW v0.17.0 ###
         def _done():
             self._schedule_refresh(changed_paths, need_ffprobe=False)   ### MODIFIED v0.19.0 ###
-            msg = f"Normalize Sources: updated {_n(changed, 'ID')}." + (f"\n{UNDO_HINT}" if changed else "")   # B109e
+            msg = _i18n.t("mc.normalize_sources_updated_9182", n=_n(changed, 'ID'), v=f"\n{UNDO_HINT}" if changed else "")   # B109e
             if errors:
-                msg += "\n\nErrors:\n" + "\n".join(errors[:5])
-            messagebox.showinfo("Normalize Sources", msg, parent=self)
+                msg += _i18n.t("mc.errors_83c4", join="\n".join(errors[:5]))
+            messagebox.showinfo(_i18n.t("mc.normalize_sources_af3c"), msg, parent=self)
         ui_post(_done)
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -22178,9 +24301,9 @@ class App(tk.Tk):
             return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         if not tmdb_key:
-            messagebox.showwarning("Search Sources",
-                "No TMDB API key configured.\nGo to Settings → API Keys."); return
-        prog = _BatchProgressDialog(self, "Searching TMDB…", total=len(data_list)) \
+            messagebox.showwarning(_i18n.t("mc.search_sources_8f6d"),
+                _i18n.t("mc.no_tmdb_api_key_6e12")); return
+        prog = _BatchProgressDialog(self, _i18n.t("au.prog.search_tmdb"), total=len(data_list)) \
                if len(data_list) >= _PROGRESS_MIN else None           ### NEW v0.19.1 ###
         _AppJobThread(
             self, target=self._search_sources_worker,
@@ -22197,13 +24320,12 @@ class App(tk.Tk):
             return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         if not tmdb_key:
-            messagebox.showwarning("Search Sources — All Movies",
-                "No TMDB API key configured.\nGo to Settings → API Keys."); return
-        if not messagebox.askyesno("Search Sources — All Movies",
-                f"Search TMDB for ALL {_n(len(self._results), 'movie')}?\n"
-                "This may take a while.\n\nContinue?", icon="question"):
+            messagebox.showwarning(_i18n.t("mc.search_sources_all_movies_d2c0"),
+                _i18n.t("mc.no_tmdb_api_key_6e12")); return
+        if not messagebox.askyesno(_i18n.t("mc.search_sources_all_movies_d2c0"),
+                _i18n.t("mc.search_tmdb_for_all_5801", n=_n(len(self._results), 'movie')), icon="question"):
             return
-        prog = _BatchProgressDialog(self, "Searching TMDB — All Movies…", total=len(self._results))   ### NEW v0.19.1 ###
+        prog = _BatchProgressDialog(self, _i18n.t("uf.searching_tmdb_all_movies_4df8"), total=len(self._results))   ### NEW v0.19.1 ###
         _AppJobThread(
             self, target=self._search_sources_worker,
             args=(list(self._results), tmdb_key, True, prog),
@@ -22244,7 +24366,7 @@ class App(tk.Tk):
             if results:
                 _SearchSourcesResultDialog(self, results, searched)
             else:
-                messagebox.showinfo("Search Sources", "Cancelled — nothing searched.", parent=self)
+                messagebox.showinfo(_i18n.t("mc.search_sources_8f6d"), _i18n.t("mc.cancelled_nothing_searched_b1ee"), parent=self)
         ui_post(_show)
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -22263,9 +24385,9 @@ class App(tk.Tk):
             return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         if not tmdb_key:
-            messagebox.showwarning("Verify IMDb/TMDB IDs",
-                "No TMDB API key configured.\nGo to Settings → API Keys.", parent=self); return
-        prog = _BatchProgressDialog(self, "Verifying IMDb/TMDB IDs…", total=len(data_list)) \
+            messagebox.showwarning(_i18n.t("mc.verify_imdb_tmdb_ids_9e09"),
+                _i18n.t("mc.no_tmdb_api_key_6e12"), parent=self); return
+        prog = _BatchProgressDialog(self, _i18n.t("uf.verifying_imdb_tmdb_ids_04a4"), total=len(data_list)) \
                if len(data_list) >= 3 else None
         _AppJobThread(self, target=self._verify_ids_worker,
                          args=(list(data_list), tmdb_key, prog), daemon=True).start()
@@ -22288,7 +24410,7 @@ class App(tk.Tk):
             return
         key = SETTINGS.get("tmdb_api_key", "").strip()
         if not key:
-            messagebox.showwarning(title, "No TMDB API key configured.\nGo to Settings → API Keys.", parent=self)
+            messagebox.showwarning(title, _i18n.t("mc.no_tmdb_api_key_6e12"), parent=self)
             return
         now = time.time()
         todo, skipped = [], {}
@@ -22301,7 +24423,7 @@ class App(tk.Tk):
         fresh = len(rows) - len(todo) - sum(skipped.values())
         if not todo and fresh > 0:                                 ### NEW v0.19.4 fix 12 — offer to check again ###
             if not messagebox.askyesno(title, collection_check_summary(0, 0, skipped, fresh)
-                                       + f"\n\nCheck {'it' if fresh == 1 else 'them'} again now?", icon="question", parent=self):
+                                       + _i18n.tn("m3.check_again", fresh), icon="question", parent=self):
                 return
             todo = [r for r in rows if collection_check_ready(r)[0]]
             ask, fresh = False, 0                                  # P2 (E16): they are asked now
@@ -22309,12 +24431,10 @@ class App(tk.Tk):
             messagebox.showinfo(title, collection_check_summary(0, 0, skipped, fresh), parent=self)
             return
         if ask and not messagebox.askyesno(title,
-                f"Ask TMDB for the collection of {_n(len(todo), 'movie')}?\n"
-                "One request per movie and two per collection (max 40 per 10 s). Nothing is written to your files."
-                + ("\n\n" + all_movies_note(self) if all_movies_note(self) else "") + "\n\nContinue?",
+                _i18n.t("mc.ask_tmdb_for_the_e7ee", n=_n(len(todo), 'movie'), v="\n\n" + all_movies_note(self) if all_movies_note(self) else ""),
                 icon="question", parent=self):
             return
-        prog = _BatchProgressDialog(self, "Checking collections…", total=len(todo)) if len(todo) >= _PROGRESS_MIN else None
+        prog = _BatchProgressDialog(self, _i18n.t("au.prog.check_coll"), total=len(todo)) if len(todo) >= _PROGRESS_MIN else None
         lang = _tmdb_lang_for(SETTINGS.get("lang_ok_code", "EN"))
         _AppJobThread(self, target=self._check_collections_worker, args=(todo, key, lang, prog, skipped, fresh, fetch),
                          name="check-collections", daemon=True).start()
@@ -22337,12 +24457,12 @@ class App(tk.Tk):
         rows = collection_siblings(list(rows), self._results)     ### NEW v0.19.4 fix 5 — the whole collection, one name ###
         items, skipped = collection_fix_items(rows, None, self._lib_lang())
         if not items:
-            messagebox.showinfo(title, "Nothing to change.\n\n" + "\n".join(f"{k} — {why}" for why, k in sorted(skipped.items())),
+            messagebox.showinfo(title, _i18n.t("mc.nothing_to_change_6e7b", join="\n".join(f"{k} — {why}" for why, k in sorted(skipped.items()))),
                                 parent=self)
             return None
         if preview and (len(items) > 1 or skipped):
-            pv = _PreviewRunDialog(self, FIX_COLL_LABEL.rstrip("…") + " — Preview", collection_fix_text(items, skipped),
-                                   file_stem="collection_fix_preview", run_label="  ▶ Write collections  ")
+            pv = _PreviewRunDialog(self, FIX_COLL_LABEL.rstrip("…") + " — " + _i18n.t("f3r.preview"), collection_fix_text(items, skipped),
+                                   file_stem="collection_fix_preview", run_label=_i18n.t("mc.write_collections_87e1"))
             self._coll_fix_preview = pv
             self.wait_window(pv)
             if not pv.run:
@@ -22417,7 +24537,7 @@ class App(tk.Tk):
         if not root:
             return None
         if not os.path.isdir(root):
-            messagebox.showwarning(title, f"The collection folder is not reachable:\n{root}", parent=self)
+            messagebox.showwarning(title, _i18n.t("mc.the_collection_folder_is_aba1", root=root), parent=self)
             return None
         if not COLL_FOLDERS and not getattr(self, "_cf_tried", False):   ### NEW v0.19.4 P3 (B3) — read them first ###
             self._cf_tried = True
@@ -22425,16 +24545,16 @@ class App(tk.Tk):
             return None
         items = collection_folder_items(rows, root, complete=preview or replace)   # B117: the preview can offer Replace
         if not items:
-            messagebox.showinfo(title, "Every collection of the selected movies has its folder, poster and fanart.", parent=self)
+            messagebox.showinfo(title, _i18n.t("mc.every_collection_of_the_d660"), parent=self)
             return None
         if preview:
-            pv = _PreviewRunDialog(self, CREATE_COLL_LABEL.rstrip("…") + " — Preview", collection_folder_text(items),
-                                   file_stem="collection_folder_preview", run_label="  ▶ Create  ")
+            pv = _PreviewRunDialog(self, CREATE_COLL_LABEL.rstrip("…") + " — " + _i18n.t("f3r.preview"), collection_folder_text(items),
+                                   file_stem="collection_folder_preview", run_label=_i18n.t("mc.create_82da"))
             self._coll_folder_preview = pv
             _rv = tk.BooleanVar(value=False)                     ### NEW v0.19.5 B117 — default off ###
             pv._replace_var = _rv
             pv.bind("<Destroy>", lambda e, p=pv: setattr(p, "replace_chosen", bool(_rv.get())) if e.widget is p else None, add="+")
-            _rcb = tk.Checkbutton(pv._btn_row, text="Replace the existing poster and fanart", variable=_rv, bg=C_BG, fg=C_TEXT,
+            _rcb = tk.Checkbutton(pv._btn_row, text=_i18n.t("mc.replace_the_existing_poster_3968"), variable=_rv, bg=C_BG, fg=C_TEXT,
                                   selectcolor=C_SURFACE, activebackground=C_BG, activeforeground=C_TEXT)
             _rcb.pack(side="left", padx=(12, 0))
             self.wait_window(pv)
@@ -22444,7 +24564,7 @@ class App(tk.Tk):
             if not replace:
                 items = [it for it in items if it["make"] or it["need"]]
                 if not items:
-                    messagebox.showinfo(title, "Nothing was changed: every collection already has its folder, poster and fanart.", parent=self)
+                    messagebox.showinfo(title, _i18n.t("mc.nothing_was_changed_every_54ad"), parent=self)
                     return None
         key = SETTINGS.get("tmdb_api_key", "").strip()
         lang = self._lib_lang()
@@ -22507,16 +24627,16 @@ class App(tk.Tk):
             return True
 
         def _finish(job):
-            msg = f"{_n(job.done, 'collection folder')} done."
+            msg = _i18n.t("mc.done_b4a9", n=_n(job.done, 'collection folder'))
             if job.errors:
-                msg += "\n\nNot done:\n" + "\n".join(job.errors[:8])
+                msg += _i18n.t("mc.not_done_8624", join="\n".join(job.errors[:8]))
             msg += job.cancel_note()
             msg += ("\n\n" + UNDO_HINT) if job.done else ""
             self._coll_create_done = (job.done, list(job.errors))   # read by the self-test
             self._read_collection_folders()
             messagebox.showinfo(title, msg, parent=self)
 
-        return _BatchJob(self, items, title, progress_title="Creating collection folders…",
+        return _BatchJob(self, items, title, progress_title=_i18n.t("uf.creating_collection_folders_b2ef"),
                          name_of=lambda it: it["name"]).run(_step, _finish)
 
     def _ask_coll_root(self, title):                               ### NEW v0.19.4 fix 2e / g — one place ###
@@ -22524,11 +24644,10 @@ class App(tk.Tk):
         root = _coll_root()
         if root:
             return root
-        if not messagebox.askyesno(title, "Kodi reads collection artwork from one folder that you choose in Kodi "
-                                   "(Settings → Media → Videos → Movie set information folder).\n\nChoose that folder now?",
+        if not messagebox.askyesno(title, _i18n.t("mc.kodi_reads_collection_artwork_1ce8"),
                                    parent=self):
             return None
-        root = filedialog.askdirectory(parent=self, title="Collection folder (Kodi's movie set information folder)")
+        root = filedialog.askdirectory(parent=self, title=_i18n.t("mc.collection_folder_kodi_s_3636"))
         if not root:
             return None
         root = os.path.normpath(root)
@@ -22545,7 +24664,7 @@ class App(tk.Tk):
         if not root:
             return None
         if not os.path.isdir(root):
-            messagebox.showwarning(title, f"The collection folder is not reachable:\n{root}", parent=self)
+            messagebox.showwarning(title, _i18n.t("mc.the_collection_folder_is_aba1", root=root), parent=self)
             return None
         rows = [r for r in self._results if _cr.group_key(r) == key] or list(rows or [])
         st = COLL_FOLDERS.get(key) or {}
@@ -22559,11 +24678,11 @@ class App(tk.Tk):
         def _step(job, item):
             r, target = item
             rm = remove or target is None                               # P7 (E19): a None target = clean
-            nfo = r.get("nfo_path") if r.get("nfo_exists") else None    # v0.19.6 TR1b: only an NFO in use
+            nfo = _metadata_targets(r)[0]    # v0.19.6 TR1b: only an NFO in use
             if not nfo:
                 raise RuntimeError("no NFO in use — the collection is kept in the NFO")
             if target and target[0] == "title":                      ### NEW v0.19.4 B110f — the local titles ###
-                xml = r.get("xml_path") if r.get("xml_exists") else None
+                xml = _metadata_targets(r)[1]   # v0.20.0 F3b
                 if not job.backup(r.get("movie_name") or r.get("subfolder", ""), nfo, xml):
                     raise BackupFailed("backup failed — not changed")
                 ok, err = _write_local_title(r, target[1], ("nfo", "xml"))
@@ -22571,13 +24690,15 @@ class App(tk.Tk):
                     raise RuntimeError(err)
                 job.changed.append(r["subfolder_path"])
                 return True
-            xml = r.get("xml_path") if r.get("xml_exists") else None   ### v0.19.4 fix 6 — movie.xml too ###
+            xml = _metadata_targets(r)[1]   ### v0.19.4 fix 6 — movie.xml too ###
             if not job.backup(r.get("movie_name") or r.get("subfolder", ""), nfo, xml):
                 raise BackupFailed("backup failed — not changed")
             ok, err = remove_collection_from_nfo(nfo) if rm else write_collection_to_nfo(nfo, *target)
             if not ok:
                 raise RuntimeError(err)
             job.changed.append(r["subfolder_path"])                      ### MODIFIED v0.19.4 P3 (B1) — the NFO changed ###
+            if remove:                                                  # v0.20.0 AU22: marked in _finish
+                job.__dict__.setdefault("rm_ok", []).append(r)
             if not rm and target:                                       ### NEW v0.19.4 fix 15 ###
                 job.renames.append((r, collection_name(r), target[0]))
             if xml:
@@ -22589,13 +24710,16 @@ class App(tk.Tk):
         def _finish(job):
             if not remove and job.renames:                              ### NEW v0.19.4 P3 (E23) — only the written ones ###
                 no_collection_set([x[0] for x in job.renames], False)
-            what = "removed from their collection" if remove else "got their collection"
+            if remove and getattr(job, "rm_ok", None):                  # v0.20.0 AU22: only the NFOs that lost the <set>
+                if not no_collection_set(job.rm_ok, True):
+                    logger.warning("no_collection.json could not be written")
+            what = _i18n.t("uf.removed_from_their_collection_5353") if remove else _i18n.t("uf.got_their_collection_1059")
             msg = f"{_n(job.done, 'movie')} {what}."
             if job.errors:
-                msg += "\n\nNot changed:\n" + "\n".join(job.errors[:8])
+                msg += _i18n.t("mc.not_changed_2fc6", join="\n".join(job.errors[:8]))
             msg += job.cancel_note()
             if job.notes:                                               ### NEW v0.19.4 fix 15 ###
-                msg += "\n\nCollection folders:\n" + "\n".join("  " + x for x in job.notes)
+                msg += _i18n.t("mc.collection_folders_0de9", join="\n".join("  " + x for x in job.notes))
             msg += ("\n\n" + UNDO_HINT) if job.done else ""
             self._coll_write_done = (job.done, list(job.errors))       # read by the self-test
             messagebox.showinfo(title, msg, parent=self)
@@ -22609,7 +24733,7 @@ class App(tk.Tk):
                 _fin0(job)
                 if job.done:
                     then(job)
-        job = _BatchJob(self, items, title, progress_title="Writing collections…",
+        job = _BatchJob(self, items, title, progress_title=_i18n.t("au.prog.write_coll"),
                         name_of=lambda it: it[0].get("movie_name") or it[0].get("subfolder", ""))
         job.renames, job.notes = [], []                                  ### NEW v0.19.4 fix 15 ###
         job.after_steps = lambda j: j.notes.extend(self._migrate_coll_folders(j.renames, j.ref))
@@ -22628,8 +24752,7 @@ class App(tk.Tk):
             olds = sorted({_cr.kodi_legal_name(o) for _r, o, n2 in renames
                            if o and n2 and _cr.kodi_legal_name(o).casefold() != _cr.kodi_legal_name(n2).casefold()
                            and os.path.isdir(os.path.join(root, _cr.kodi_legal_name(o)))})
-            return [f"'{o}' not moved: the library {missing[0]} is not loaded (scan it first) — its movies may "
-                    "use this folder; then use Fix on 'Collection folder: images left in …'" for o in olds]
+            return [_i18n.t("uf.not_moved_the_library_8ded", o=o, v=missing[0]) for o in olds]
         pairs = []
         for _r, old, new in renames:
             if (old and new and _cr.kodi_legal_name(old).casefold() != _cr.kodi_legal_name(new).casefold()
@@ -22641,13 +24764,13 @@ class App(tk.Tk):
                 continue
             still = [x for x in results if id(x) not in written and _cr.group_key(x) == _cr.norm_name(old)]
             if still:
-                notes.append(f"'{_cr.kodi_legal_name(old)}' kept: {_n(len(still), 'other movie')} still "
-                             f"{'uses' if len(still) == 1 else 'use'} the name '{old}'")
+                notes.append(_i18n.tn("uf.m.kept_still_uses", len(still), folder=_cr.kodi_legal_name(old),   # v0.20.0 UI1f
+                                      others=_n(len(still), 'other movie'), old=old))
                 continue
             try:
                 note = migrate_collection_folder(root, old, new, ref)
             except Exception as ex:
-                note = f"'{_cr.kodi_legal_name(old)}' not moved: {ex}"
+                note = _i18n.t("mc.not_moved_c673", kodi_legal_name=_cr.kodi_legal_name(old), ex=ex)
             if note:
                 notes.append(note)
         return notes
@@ -22656,17 +24779,15 @@ class App(tk.Tk):
         """The configured libraries with no movie in the table (never scanned, or empty).  A collection folder is
         shared by every library, so it is not moved while one of them is unknown (user decision 5)."""
         have = {_pkey(r.get("library_root") or os.path.dirname(r.get("subfolder_path") or ""))
-                for r in (results if results is not None else list(self._results))}
-        return [l for l in self._libraries() if _pkey(l) not in have]
+                for r in (results if results is not None else list(self._results)) + list(self._inactive_rows)}   # 5j
+        return [l for l in self._all_libraries() if _pkey(l) not in have]
 
     def _import_old_coll_folder_for(self, rows, ask=True):          ### NEW v0.19.4 fix 15 ###
         """Fix "Collection folder: images left in …": move the old folder's files into the collection's folder."""
-        title = "Move to the Collection Folder"
+        title = _i18n.t("au.move_coll")
         _miss = self._libs_not_loaded()                               ### NEW v0.19.4 P3 (B7) ###
         if _miss:
-            messagebox.showinfo(title, "Not moved: the library\n" + "\n".join(_miss[:5]) + "\nhas no movies loaded.\n\n"
-                                "A collection folder is shared by every library; scan that library first, so its "
-                                "movies are known, then use this Fix again.", parent=self)
+            messagebox.showinfo(title, _i18n.t("mc.not_moved_the_library_80da", join="\n".join(_miss[:5])), parent=self)
             return None
         root = _coll_root()
         items, seen = [], set()
@@ -22677,14 +24798,11 @@ class App(tk.Tk):
                 seen.add(k)
                 items.append((st["old_name"], collection_name(r)))
         if not items or not root:
-            messagebox.showinfo(title, "No images are left in an old collection folder.", parent=self)
+            messagebox.showinfo(title, _i18n.t("mc.no_images_are_left_b83c"), parent=self)
             return None
         lines = "\n".join(f"  {o}  →  {_cr.kodi_legal_name(n)}" for o, n in items)
         if ask and not messagebox.askyesno(
-                title, f"Move the files of {_n(len(items), 'old collection folder')} into the folder named after "
-                f"the collection?\n\n{lines}\n\nWhen both folders have a poster or fanart, the old folder's image is "
-                "kept and the other one goes to replaced\\ (nothing is deleted). The empty old folder is removed.\n\n"
-                + UNDO_HINT, icon="question", parent=self):
+                title, _i18n.t("mc.move_the_files_of_4bd1", n=_n(len(items), 'old collection folder'), lines=lines, undo_hint=UNDO_HINT), icon="question", parent=self):
             return None
 
         def _step(job, it):
@@ -22694,13 +24812,13 @@ class App(tk.Tk):
             return bool(note)
 
         def _finish(job):
-            msg = "\n".join(job.notes) or "Nothing was moved."
+            msg = "\n".join(job.notes) or _i18n.t("uf.nothing_was_moved_c6c6")
             if job.errors:
-                msg += "\n\nNot moved:\n" + "\n".join(job.errors[:8])
+                msg += _i18n.t("mc.not_moved_65bc", join="\n".join(job.errors[:8]))
             self._coll_move_done = (job.done, list(job.errors))         # read by the self-test
             messagebox.showinfo(title, msg + ("\n\n" + UNDO_HINT if job.done else ""), parent=self)
             self._read_collection_folders()
-        job = _BatchJob(self, items, title, progress_title="Moving collection folders…", name_of=lambda it: it[0])
+        job = _BatchJob(self, items, title, progress_title=_i18n.t("uf.moving_collection_folders_ce83"), name_of=lambda it: it[0])
         job.notes = []
         return job.run(_step, _finish)
 
@@ -22711,7 +24829,7 @@ class App(tk.Tk):
         title = SET_COLL_LABEL.split("  ", 1)[-1].rstrip("…")
         rows = [r for r in rows if r.get("nfo_exists")]
         if not rows:
-            messagebox.showinfo(title, "The selected movie(s) have no NFO.", parent=self)
+            messagebox.showinfo(title, _i18n.t("mc.the_selected_movie_s_9506"), parent=self)
             return None
         tname = None
         if name is None:
@@ -22768,17 +24886,17 @@ class App(tk.Tk):
                 lines.append(f"  {who}:  movie.xml ← NFO  '{nfo['name']}'")
             elif r.get("coll_none") or not x.get("name"):
                 removes.append(r)
-                lines.append(f"  {who}:  movie.xml cleaned (not in a collection)")
+                lines.append(_i18n.t("uf.movie_xml_cleaned_not_1b17", who=who))
             else:
                 writes.append((r, (x["name"], x.get("tmdbcolid"), None)))
                 lines.append(f"  {who}:  NFO ← movie.xml  '{x['name']}'")
         if not writes and not removes:
-            messagebox.showinfo(title, "movie.xml and the NFO already say the same collection.", parent=self)
+            messagebox.showinfo(title, _i18n.t("mc.movie_xml_and_the_727e"), parent=self)
             return None
         if preview and len(lines) > 1:
-            pv = _PreviewRunDialog(self, title + " — Preview", f"{_n(len(lines), 'movie')}:\n\n" + "\n".join(lines)
-                                   + "\n\nEach NFO and movie.xml is backed up first (Backup History / Undo).",
-                                   file_stem="collection_xml_preview", run_label="  ▶ Sync  ")
+            pv = _PreviewRunDialog(self, title + " — " + _i18n.t("f3r.preview"), f"{_n(len(lines), 'movie')}:\n\n" + "\n".join(lines)
+                                   + _i18n.t("uf.each_nfo_and_movie_aebd"),
+                                   file_stem="collection_xml_preview", run_label=_i18n.t("mc.sync_698b"))
             self._coll_sync_preview = pv
             self.wait_window(pv)
             if not pv.run:
@@ -22792,13 +24910,13 @@ class App(tk.Tk):
         if not root:
             return None
         if not os.path.isdir(root):
-            messagebox.showwarning(title, f"The collection folder is not reachable:\n{root}", parent=self)
+            messagebox.showwarning(title, _i18n.t("mc.the_collection_folder_is_aba1", root=root), parent=self)
             return None
         d = os.path.join(root, _cr.kodi_legal_name(name))
         try:
             os.makedirs(d, exist_ok=True)
         except OSError as ex:
-            messagebox.showwarning(title, f"The folder could not be made:\n{d}\n\n{ex}", parent=self)
+            messagebox.showwarning(title, _i18n.t("mc.the_folder_could_not_60e4", d=d, ex=ex), parent=self)
             return None
         logger.info(f"Set Collection: folder {d}")
         key = _cr.norm_name(name)
@@ -22812,25 +24930,27 @@ class App(tk.Tk):
         title = REMOVE_COLL_LABEL.split("  ", 1)[-1].rstrip("…")
         rows = [r for r in rows if r.get("nfo_exists") and (r.get("coll_nfo") or (r.get("coll_tmdb") or {}).get("id"))]
         if not rows:
-            messagebox.showinfo(title, "The selected movie(s) have no NFO or no collection — nothing to remove.",
+            messagebox.showinfo(title, _i18n.t("mc.the_selected_movie_s_6426"),
                                 parent=self)                       # P7 (E20)
             return None
         writes = [r for r in rows if r.get("coll_nfo")]
         if ask and not messagebox.askyesno(
-                title, f"{_n(len(rows), 'movie')}: not in a collection.\n\n"
-                + (f"The collection (<set>) is removed from the NFO of {_n(len(writes), 'movie')}; each NFO is backed up "
-                   "first (Backup History / Undo).\n\n" if writes else "")
-                + "MediaClinic remembers this and no longer suggests TMDB's collection for them "
-                  "(Set Collection… puts a movie in a collection again).", parent=self):
+                title, _i18n.t("m3.coll_none", movies=_n(len(rows), "movie"))
+                + (_i18n.t("m3.coll_removed", movies=_n(len(writes), "movie")) if writes else "")
+                + _i18n.t("m3.coll_remember"), parent=self):
             return None
-        if not no_collection_set(rows, True):
+        ### MODIFIED v0.20.0 AU22 (audit point 4) ### only the movies without a <set> to remove are marked now; the
+        # others when their NFO really lost it (_write_collections → job.rm_ok): a failed backup / locked NFO used to
+        # leave the <set> while the movie was already marked "not in a collection"
+        _now = [r for r in rows if not r.get("coll_nfo")]
+        if _now and not no_collection_set(_now, True):
             logger.warning("no_collection.json could not be written")
         if not writes:
             finalize_results(self._results)
             self._refresh_table(); self._update_stats()
             self._incremental_save(self._results)
             self._coll_write_done = (0, [])                       # read by the self-test
-            messagebox.showinfo(title, f"{_n(len(rows), 'movie')} marked as not in a collection.", parent=self)
+            messagebox.showinfo(title, _i18n.t("mc.marked_as_not_in_fc68", n=_n(len(rows), 'movie')), parent=self)
             return None
         return self._write_collections([(r, None) for r in writes], title, remove=True)
 
@@ -22906,7 +25026,7 @@ class App(tk.Tk):
             title = CHECK_COLL_LABEL.split("  ", 1)[-1].rstrip("…")
             text = collection_check_summary(len(got), len(asked), skipped, fresh)
             if error:
-                messagebox.showerror(title + " — stopped", f"{error}\n\n{text}\nWhat was fetched is kept.", parent=self)
+                messagebox.showerror(_i18n.t("mc.stopped_5432", title=title), _i18n.t("mc.what_was_fetched_is_6b1d", error=error, text=text), parent=self)
             else:
                 messagebox.showinfo(title, text, parent=self)
         try:
@@ -22921,11 +25041,10 @@ class App(tk.Tk):
             return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         if not tmdb_key:
-            messagebox.showwarning("Verify IMDb/TMDB IDs — All Movies",
-                "No TMDB API key configured.\nGo to Settings → API Keys.", parent=self); return
-        if not messagebox.askyesno("Verify IMDb/TMDB IDs — All Movies",
-                f"Check the IMDb and TMDB IDs of ALL {_n(len(self._results), 'movie')} against TMDB?\n"
-                "About two requests per movie (max 40 per 10 s). Nothing is written.\n\nContinue?",
+            messagebox.showwarning(_i18n.t("mc.verify_imdb_tmdb_ids_0f4e"),
+                _i18n.t("mc.no_tmdb_api_key_6e12"), parent=self); return
+        if not messagebox.askyesno(_i18n.t("mc.verify_imdb_tmdb_ids_0f4e"),
+                _i18n.t("mc.check_the_imdb_and_ee0a", n=_n(len(self._results), 'movie')),
                 icon="question", parent=self):
             return
         self._verify_ids(list(self._results))
@@ -22965,12 +25084,12 @@ class App(tk.Tk):
                 self._incremental_save(self._results)
             done[:] = rows_done
             if error:
-                messagebox.showerror("Verify IMDb/TMDB IDs — stopped",
-                    f"{error}\n\n{len(done)} of {_n(len(data_list), 'movie')} were checked.", parent=self)
+                messagebox.showerror(_i18n.t("mc.verify_imdb_tmdb_ids_0c33"),
+                    _i18n.t("mc.of_were_checked_6c5b", error=error, n=len(done), n2=_n(len(data_list), 'movie')), parent=self)
             if done:
                 _IdVerifyReportDialog(self, done)
             elif not error:
-                messagebox.showinfo("Verify IMDb/TMDB IDs", "Cancelled — nothing checked.", parent=self)
+                messagebox.showinfo(_i18n.t("mc.verify_imdb_tmdb_ids_9e09"), _i18n.t("mc.cancelled_nothing_checked_7993"), parent=self)
         ui_post(_finish)
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -23063,13 +25182,12 @@ class App(tk.Tk):
         if self._busy("Auto Repair"):                ### MODIFIED v0.19.4 B91 — one message ###
             return
         if not data_list:
-            messagebox.showinfo("Auto Repair", "No movies selected.", parent=self); return
+            messagebox.showinfo(_i18n.t("mc.auto_repair_917e"), _i18n.t("mc.no_movies_selected_3bde"), parent=self); return
         tmdb_key = SETTINGS.get("tmdb_api_key", "").strip()
         omdb_key = SETTINGS.get("omdb_api_key", "").strip()
         if not tmdb_key:
-            messagebox.showwarning("Auto Repair",
-                "No TMDB API key configured (Settings → API Keys).\n"
-                "ID look-ups and TMDB fills will be skipped; ratings need TMDB and/or OMDb keys.", parent=self)
+            messagebox.showwarning(_i18n.t("mc.auto_repair_917e"),
+                _i18n.t("mc.no_tmdb_api_key_23b4"), parent=self)
         dlg = _AutoRepairOptionsDialog(self, len(data_list), offer_dry_run=all_movies,
                                        has_rating_keys=bool(tmdb_key or omdb_key))
         self.wait_window(dlg)
@@ -23082,12 +25200,12 @@ class App(tk.Tk):
         if dlg.result.get("dry_run"):
             entries = [{"name": d.get("movie_name") or d["subfolder"],
                         "planned": [lbl for _c, lbl in _auto_repair_plan(d, SETTINGS)]} for d in data_list]
-            pv = _PreviewRunDialog(self, "🛠  Auto Repair — Preview (dry run)",
+            pv = _PreviewRunDialog(self, _i18n.t("uf.auto_repair_preview_dry_5e4b"),
                                    format_auto_repair_summary(entries, dry_run=True))
             self.wait_window(pv)
             if not pv.run:
                 return
-        prog = _BatchProgressDialog(self, "Auto Repair…", total=len(data_list)) if len(data_list) >= 3 else None
+        prog = _BatchProgressDialog(self, _i18n.t("au.prog.auto_repair"), total=len(data_list)) if len(data_list) >= 3 else None
         _AppJobThread(self, target=self._auto_repair_worker, args=(list(data_list), opts, prog)).start()
 
     def _auto_repair_all(self):                                    ### NEW v0.19.0 ###
@@ -23098,6 +25216,50 @@ class App(tk.Tk):
         self._auto_repair(list(self._results), all_movies=True)
 
     # ── Auto Repair actions (worker thread) ───────────────────────────────────
+    def _ar_xml_tags(self, ctx):                                ### NEW v0.20.0 KR1.4 ###
+        """Add the movie.xml tags the old programs read: the ID writer writes all three ID tags; <VoteCount> = <Votes>."""
+        xml = ctx.get("xml")
+        gaps = xml_old_reader_gaps(xml) if xml else []
+        if not gaps:
+            return "skipped", _i18n.t("kr.ar.none")
+        src = extract_source_ids_from_files(None, xml)
+        n = 0
+        for k in ("imdb", "tmdb"):
+            if k in gaps and src.get(f"{k}_val"):
+                ctx["backup"]()
+                ok, err = _write_source_id_to_files(None, xml, k.upper(), src[f"{k}_val"])
+                if not ok:
+                    return "failed", f"movie.xml {k}: {err}"
+                n += 1
+        if "votes" in gaps:
+            root = _parse_root(xml)
+            v = ((root.findtext("Votes") if root is not None else "") or "").strip()
+            content = _read_for_edit(xml)[0]
+            rt = re.search(r"</([\w.-]+)\s*>\s*$", content)
+            if v and rt:
+                ctx["backup"]()
+                _atomic_write_text(xml, _insert_before_root_close(content, rt.group(1), f"<VoteCount>{v}</VoteCount>"))
+                n += 1
+        return ("fixed", _i18n.t("kr.ar.xml_added", n=n)) if n else ("skipped", _i18n.t("kr.ar.none"))
+
+    def _ar_ids_kodi(self, ctx):                                ### NEW v0.20.0 KR1.1 ###
+        """Write <uniqueid> for each NFO ID Kodi cannot see (the writer adds it and keeps <imdbid> / <tmdbid>)."""
+        nfo = ctx["nfo"]
+        if not nfo:
+            return "skipped", _i18n.t("kr.ar.none")
+        src = extract_source_ids_from_files(nfo, None)
+        n = 0
+        for k in src.get("nfo_kodi_missing") or []:
+            val = src.get(f"{k}_val")
+            if not val:
+                continue
+            ctx["backup"]()
+            ok, err = _write_source_id_to_files(nfo, None, k.upper(), val)
+            if not ok:
+                return "failed", f"<uniqueid> {k}: {err}"
+            n += 1
+        return ("fixed", _i18n.t("kr.ar.added", n=n)) if n else ("skipped", _i18n.t("kr.ar.none"))
+
     def _ar_fix_ids(self, ctx, mode):
         d, nfo, xml = ctx["d"], ctx["nfo"], ctx["xml"]
         key, lang = ctx["tmdb_key"], ctx["lang"]
@@ -23113,13 +25275,13 @@ class App(tk.Tk):
                     if not ok:
                         return "failed", f"copy {id_type} ID: {err}"
                     n += 1
-            return ("fixed", f"copied {_n(n, 'ID')} to the other file") if n else ("skipped", "nothing to copy")
+            return ("fixed", _i18n.t("uf.copied_to_the_other_488c", n=_n(n, 'ID'))) if n else ("skipped", _i18n.t("uf.nothing_to_copy_91c1"))
         if not key:
-            return "skipped", "no TMDB API key"
+            return "skipped", _i18n.t("uf.no_tmdb_api_key_3c89")
         local_titles = _local_titles_for(d)
         year = d.get("movie_year_raw") or (d.get("movie_year") if str(d.get("movie_year", "-")).isdigit() else None)
         chosen = None
-        if mode == "resolve":
+        if mode == "resolve" or src["tmdb_all_vals"] or src["imdb_all_vals"]:   ### MODIFIED v0.20.0 RD11 — one ID missing: the other one first ###
             # keep the candidate that TMDb confirms for this title/year
             matches = []
             for tid in dict.fromkeys(v for v in src["tmdb_all_vals"] if v):
@@ -23160,40 +25322,41 @@ class App(tk.Tk):
             if exact and len({c["tmdb_id"] for c in exact}) == 1:
                 chosen = exact[0]
             elif not cands:
-                return "skipped", "no TMDB search result for the title"
+                return "skipped", _i18n.t("uf.no_tmdb_search_result_8ece")
             else:
                 if ctx["state"].get("skip_all_ids"):
-                    return "skipped", "no exact TMDB match (skip-all chosen)"
+                    return "skipped", _i18n.t("uf.no_exact_tmdb_match_500c")
                 cand, skip_all = self._ask_id_chooser(ctx["name"], year, cands, show_apply_all=ctx.get("multi", False))
                 if skip_all:
                     ctx["state"]["skip_all_ids"] = True
                 if cand is None:
-                    return "skipped", "no exact TMDB match — skipped by user"
+                    return "skipped", _i18n.t("uf.no_exact_tmdb_match_de4c")
                 chosen = cand
         if not chosen.get("imdb_id") and chosen.get("tmdb_id"):
             chosen["imdb_id"] = _tmdb_external_ids(chosen["tmdb_id"], key, fetch)
+        if chosen.get("imdb_only"):                                   ### v0.20.0 AU11 — checked BEFORE the write (it wrote, then said "failed") ###
+            _old_tm = get_movie_ids_robust(nfo, xml)[1]               ### NEW v0.19.5 CO-D9 — the rule of Confirm IMDb, on every path ###
+            if _old_tm:
+                return "failed", _i18n.t("uf.the_files_still_hold_b309", old_tm=_old_tm)
         ctx["backup"]()
         ok, err = _write_both_source_ids(nfo, xml, chosen.get("imdb_id") or None, chosen.get("tmdb_id") or None)
         if not ok:
             return "failed", f"write IDs: {err}"
         ctx["state"]["verified_tmdb"] = chosen.get("tmdb_id")
         if chosen.get("imdb_only"):                                   ### NEW v0.19.1 B14 ###
-            _old_tm = get_movie_ids_robust(nfo, xml)[1]               ### NEW v0.19.5 CO-D9 — the rule of Confirm IMDb, on every path ###
-            if _old_tm:
-                return "failed", f"the files still hold TMDB ID {_old_tm}, which TMDB does not have: remove it (Edit NFO), then confirm again"
             d["id_check"] = _imdb_only_check(chosen.get("imdb_id"), chosen.get("title"), chosen.get("year"),
                                              "Confirmed in Auto Repair (Enter ID…): not on TMDB")
-            return "fixed", f"IMDb {chosen.get('imdb_id')} confirmed — not on TMDB (TMDB tags left empty)"
+            return "fixed", _i18n.t("uf.imdb_confirmed_not_on_aa8f", get=chosen.get('imdb_id'))
         d["id_check"] = {"result": ID_OK, "detail": f"Set by Auto Repair: '{chosen.get('title')}' ({chosen.get('year')})",
                          "imdb_id": chosen.get("imdb_id") or None, "tmdb_id": chosen.get("tmdb_id"),
                          "tmdb_title": chosen.get("title") or "", "tmdb_year": chosen.get("year") or "",
                          "when": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")}
-        return "fixed", f"IDs set to TMDB {chosen.get('tmdb_id')} / IMDb {chosen.get('imdb_id') or '—'} ('{chosen.get('title')}', {chosen.get('year')})"
+        return "fixed", _i18n.t("uf.ids_set_to_tmdb_dab0", get=chosen.get('tmdb_id'), v=chosen.get('imdb_id') or '—', get2=chosen.get('title'), get3=chosen.get('year'))
 
     def _ar_ratings(self, ctx):
         pref = ctx.get("rating_pref", "votes")
         if pref == "skip":
-            return "skipped", "ratings not synced in this run"
+            return "skipped", _i18n.t("uf.ratings_not_synced_in_8661")
         d, nfo, xml = ctx["d"], ctx["nfo"], ctx["xml"]
         imdb_id, tmdb_id = get_movie_ids_robust(nfo, xml)
         _take_fetch_errors()
@@ -23212,7 +25375,7 @@ class App(tk.Tk):
             return "failed", "ratings: " + _errs[0]
         tok, ook = self._rating_valid(tr, tv), self._rating_valid(or_, ov)
         if not tok and not ook:
-            return "skipped", "no valid rating online (rating 0 or no votes)"
+            return "skipped", _i18n.t("uf.no_valid_rating_online_754e")
         if pref == "tmdb":
             r, v, srcl = (tr, tv, "TMDB") if tok else (or_, ov, "OMDb/IMDb")
         elif pref == "omdb":
@@ -23231,19 +25394,19 @@ class App(tk.Tk):
         info = resolve_movie_genres(nfo, xml)                  ### MODIFIED v0.19.1 — NFO + XML ###
         genres = info["genres"]
         if not genres:
-            return "skipped", "no genres in the NFO or XML"
+            return "skipped", _i18n.t("uf.no_genres_in_the_4e58")
         normalized, changed = normalize_genre_list(genres)
         sync = bool(info["only_in_xml"] or info["only_in_nfo"] or info["nfo_wrong"])
         if not changed and not sync:
-            return "skipped", "genres already normalized"
+            return "skipped", _i18n.t("uf.genres_already_normalized_1581")
         ctx["backup"]()
         ok_n, err_n = write_genres_to_nfo(nfo, normalized) if nfo else (False, "")
         ok_x, err_x = write_genres_to_xml(xml, normalized) if xml else (False, "")
         if not (ok_n or ok_x):
             return "failed", f"genres: {err_n or err_x}"
         if nfo and xml and not (ok_n and ok_x):                    ### NEW v0.19.5 WR-B3 — one good file is not a success ###
-            return "failed", f"genres: {'the XML' if ok_x else 'the NFO'} was changed, {'the NFO' if ok_x else 'the XML'} not: {err_n or err_x}"
-        return "fixed", ("genres normalized: " if changed else "genres synced NFO/XML: ") + "/".join(normalized)
+            return "failed", _i18n.t("uf.m.genres_xml_only" if ok_x else "uf.m.genres_nfo_only", err=err_n or err_x)   # UI1f
+        return "fixed", ("genres normalized: " if changed else _i18n.t("uf.genres_synced_nfo_xml_1d7c")) + "/".join(normalized)
 
     def _ar_tmdb_data(self, ctx):
         """Movie data for a VERIFIED TMDB id (verified in this run or by Verify IDs)."""
@@ -23266,30 +25429,30 @@ class App(tk.Tk):
     def _ar_genres_tmdb(self, ctx):
         data = self._ar_tmdb_data(ctx)
         if not data:
-            return "skipped", "TMDB ID not verified (run Verify IMDb/TMDB IDs first)"
+            return "skipped", _i18n.t("uf.tmdb_id_not_verified_c67b")
         names = [g.get("name") for g in (data.get("genres") or []) if g.get("name")]
         if not names:
-            return "skipped", "TMDB lists no genres"
+            return "skipped", _i18n.t("uf.tmdb_lists_no_genres_952f")
         normalized, _c = normalize_genre_list(names)
         ctx["backup"]()
         ok_n, err_n = write_genres_to_nfo(ctx["nfo"], normalized) if ctx["nfo"] else (False, "no NFO")
         ok_x, err_x = write_genres_to_xml(ctx["xml"], normalized) if ctx["xml"] else (False, "no XML")
         if not (ok_n or ok_x):
-            return "failed", f"genres from TMDB: {err_n}; {err_x}"
+            return "failed", _i18n.t("uf.genres_from_tmdb_773b", err_n=err_n, err_x=err_x)
         if ctx["nfo"] and ctx["xml"] and not (ok_n and ok_x):      ### NEW v0.19.5 WR-B3 ###
-            return "failed", f"genres from TMDB: {'the XML' if ok_x else 'the NFO'} was changed, {'the NFO' if ok_x else 'the XML'} not: {err_n or err_x}"
-        return "fixed", "genres from TMDB: " + "/".join(normalized)
+            return "failed", _i18n.t("uf.m.genres_tmdb_xml_only" if ok_x else "uf.m.genres_tmdb_nfo_only", err=err_n or err_x)   # UI1f
+        return "fixed", _i18n.t("uf.genres_from_tmdb_ab65") + "/".join(normalized)
 
     def _ar_year_tmdb(self, ctx):
         data = self._ar_tmdb_data(ctx)
         if not data:
-            return "skipped", "TMDB ID not verified (run Verify IMDb/TMDB IDs first)"
+            return "skipped", _i18n.t("uf.tmdb_id_not_verified_c67b")
         year = (data.get("release_date") or "")[:4]
         if not year.isdigit():
-            return "skipped", "TMDB has no release year"
+            return "skipped", _i18n.t("uf.tmdb_has_no_release_d23e")
         ctx["backup"]()
         ok, err = _write_tag_in_files(ctx["nfo"], ctx["xml"], "year", "ProductionYear", year)
-        return ("fixed", f"year {year} from TMDB") if ok else ("failed", f"year: {err}")
+        return ("fixed", _i18n.t("uf.year_from_tmdb_5497", year=year)) if ok else ("failed", f"year: {err}")
 
     def _ar_amp_fix(self, ctx):                                     ### NEW v0.19.2 B33 ###
         if not ctx["nfo"]:
@@ -23298,19 +25461,19 @@ class App(tk.Tk):
         ok, res = _write_amp_fix(ctx["nfo"])
         if not ok:
             return "failed", f"'&' fix: {res}"
-        return ("fixed", f"{res} unescaped '&' escaped in the NFO") if res else ("skipped", "no unescaped '&' found")
+        return ("fixed", f"{res} unescaped '&' escaped in the NFO") if res else ("skipped", _i18n.t("uf.no_unescaped_found_3cfd"))
 
     def _ar_title_copy(self, ctx):
         nt, xt = get_primary_titles(ctx["nfo"], ctx["xml"])
         if nt and not xt and ctx["xml"]:
             ctx["backup"]()
             ok, err = _write_tag_in_files(None, ctx["xml"], None, "LocalTitle", nt)
-            return ("fixed", f"XML <LocalTitle> set to '{nt}'") if ok else ("failed", err)
+            return ("fixed", _i18n.t("uf.xml_localtitle_set_to_3d41", nt=nt)) if ok else ("failed", err)
         if xt and not nt and ctx["nfo"]:
             ctx["backup"]()
             ok, err = _write_tag_in_files(ctx["nfo"], None, "title", None, xt)
-            return ("fixed", f"NFO <title> set to '{xt}'") if ok else ("failed", err)
-        return "skipped", "both titles present or no source title"
+            return ("fixed", _i18n.t("uf.nfo_title_set_to_deb0", xt=xt)) if ok else ("failed", err)
+        return "skipped", _i18n.t("uf.both_titles_present_or_a74a")
 
     def _ar_struct_fix(self, ctx):                                  ### NEW v0.19.3 I8 ###
         done = []
@@ -23356,7 +25519,7 @@ class App(tk.Tk):
                 ctx["backup"]()
                 _atomic_write_text(path, "".join(new))
                 done.append(f"{side.upper()}: {changed} fix(es)")
-        return ("fixed", "; ".join(done)) if done else ("skipped", "nothing to trim or remove")
+        return ("fixed", "; ".join(done)) if done else ("skipped", _i18n.t("uf.nothing_to_trim_or_cf47"))
 
     def _ar_collection(self, ctx):                                  ### NEW v0.19.4 B110e ###
         name, cid, ov, why = _cr.fix_target(ctx["d"], COLL_CACHE, ctx.get("lang") or "en", _COLL_CHOSEN)   # fix 5
@@ -23364,21 +25527,21 @@ class App(tk.Tk):
             return "skipped", why
         _now = get_movie_ids_robust(ctx["nfo"], ctx["xml"])[1]     ### NEW v0.19.5 CO-D1 — the plan's data belongs to the old ID ###
         if str(_now or "") != str(ctx["d"].get("source_tmdb_val") or ""):
-            return "skipped", "the TMDB ID changed in this run: run Check Collections Online for this movie"
+            return "skipped", _i18n.t("uf.the_tmdb_id_changed_3bb1")
         ctx["backup"]()
         ok, err = write_collection_to_nfo(ctx["nfo"], name, cid, ov)
         if ok and ctx.get("xml") and os.path.isfile(ctx["xml"]):        ### v0.19.4 fix 6 — movie.xml too ###
             ok, err = write_collection_to_xml(ctx["xml"], name, cid)
         if ok and ctx.get("coll_renames") is not None:                  ### NEW v0.19.4 fix 15 ###
             ctx["coll_renames"].append((ctx["d"], collection_name(ctx["d"]), name))
-        return ("fixed", f"collection set to '{name}' (TMDB {cid})") if ok else ("failed", err)
+        return ("fixed", _i18n.t("uf.collection_set_to_tmdb_f906", name=name, cid=cid)) if ok else ("failed", err)
 
     def _ar_nfo_name(self, ctx):                                    ### NEW v0.19.3 B73 ###
         """Rename the folder-named NFO (A: <video>.nfo, B: movie.nfo — never the video)."""
         d = ctx["d"]
         p = nfo_rename_plan(d["subfolder_path"], d.get("subfolder"))
         if not p:
-            return "skipped", "Kodi already reads the NFO"
+            return "skipped", _i18n.t("uf.kodi_already_reads_the_4597")
         ctx["backup"]()
         dest = apply_nfo_rename(p, p["default"], ctx["name"], backup=False)
         ctx["nfo"] = dest
@@ -23394,9 +25557,9 @@ class App(tk.Tk):
         ctx["backup"]()
         if target == "xml":
             ok, err = _write_tag_in_files(None, ctx["xml"], None, "LocalTitle", value)
-            return (("fixed", f'XML <LocalTitle> set to "{value}" ({why})') if ok else ("failed", err))
+            return (("fixed", _i18n.t("uf.xml_localtitle_set_to_b8f6", value=value, why=why)) if ok else ("failed", err))
         ok, err = _write_tag_in_files(ctx["nfo"], None, "title", None, value)
-        return (("fixed", f'NFO <title> set to "{value}" ({why})') if ok else ("failed", err))
+        return (("fixed", _i18n.t("uf.nfo_title_set_to_fbf6", value=value, why=why)) if ok else ("failed", err))
 
     def _auto_repair_worker(self, data_list, opts, prog=None):        ### NEW v0.19.1 B20 — one service run ###
         """Runs _auto_repair_worker_run inside a service run (B20): a service that refuses
@@ -23424,12 +25587,12 @@ class App(tk.Tk):
             e = {"name": name, "planned": [lbl for _c, lbl in plan], "fixed": [], "skipped": [], "failed": [], "failing": []}
             entries.append(e)
             if not plan:
-                e["skipped"].append("nothing to repair automatically")
+                e["skipped"].append(_i18n.t("uf.nothing_to_repair_automatically_8205"))
                 e["failing"] = list(d.get("health_reasons") or [])
                 if prog: prog.advance(i + 1)
                 continue
-            nfo = d.get("nfo_path") if d.get("nfo_exists") else None
-            xml = d.get("xml_path") if d.get("xml_exists") else None
+            nfo = _metadata_targets(d)[0]   # v0.20.0 F3b
+            xml = _metadata_targets(d)[1]   # v0.20.0 F3b
             backed = [False]
             def _backup(n=name, nf=nfo, xm=xml, flag=backed):
                 if not flag[0]:
@@ -23446,6 +25609,8 @@ class App(tk.Tk):
                     if code == "ids_resolve":   st, msg = self._ar_fix_ids(ctx, "resolve")
                     elif code == "ids_search":  st, msg = self._ar_fix_ids(ctx, "search")
                     elif code == "ids_partial": st, msg = self._ar_fix_ids(ctx, "partial")
+                    elif code == "ids_kodi":    st, msg = self._ar_ids_kodi(ctx)     ### NEW v0.20.0 KR1.1 ###
+                    elif code == "xml_tags":    st, msg = self._ar_xml_tags(ctx)     ### NEW v0.20.0 KR1.4 ###
                     elif code == "ratings":     st, msg = self._ar_ratings(ctx)
                     elif code == "genres":      st, msg = self._ar_genres(ctx)
                     elif code == "genres_tmdb": st, msg = self._ar_genres_tmdb(ctx)
@@ -23495,12 +25660,12 @@ class App(tk.Tk):
             try:
                 coll_notes = self._migrate_coll_folders(coll_renames, backup_ref)
             except Exception as ex:
-                coll_notes = [f"collection folders not moved: {ex}"]
+                coll_notes = [_i18n.t("uf.collection_folders_not_moved_084d", ex=ex)]
         if prog:
             prog.close()
         text = format_auto_repair_summary(entries)
         if coll_notes:
-            text += "\n\nCollection folders:\n" + "\n".join("  " + x for x in coll_notes)
+            text += _i18n.t("mc.collection_folders_0de9", join="\n".join("  " + x for x in coll_notes))
         _svc = _service_run_summary()                            ### NEW v0.19.1 B20 ###
         if _svc:
             text = "\n".join(_svc) + "\n\n" + text
@@ -23510,8 +25675,8 @@ class App(tk.Tk):
             self._update_stats()
             self._incremental_save(self._results)
             if error:
-                messagebox.showerror("Auto Repair — stopped", f"{error}\n\nThe summary shows what was done.", parent=self)
-            TextReportDialog(self, "🛠  Auto Repair — Summary", text, "auto_repair_summary")
+                messagebox.showerror(_i18n.t("mc.auto_repair_stopped_f6df"), _i18n.t("mc.the_summary_shows_what_22f6", error=error), parent=self)
+            TextReportDialog(self, _i18n.t("uf.auto_repair_summary_4913"), text, "auto_repair_summary")
             if coll_notes:
                 self._read_collection_folders()
         ui_post(_done)
@@ -23523,7 +25688,7 @@ class App(tk.Tk):
             return
         key = SETTINGS.get("tmdb_api_key", "").strip()
         if not key:
-            messagebox.showwarning("Fix IDs", "No TMDB API key configured.", parent=self); return
+            messagebox.showwarning(_i18n.t("mc.fix_ids_101e"), _i18n.t("mc.no_tmdb_api_key_51c5"), parent=self); return
         lang = _tmdb_lang_for(SETTINGS.get("lang_ok_code", "EN"))
         def _worker():
             try:
@@ -23533,34 +25698,35 @@ class App(tk.Tk):
                     cands = _tmdb_search_movie(t, year, key, lang)
                     if cands: break
                 if not cands:
-                    ui_post(lambda: messagebox.showinfo("Fix IDs", f"No TMDB result for '{row.get('movie_name')}'.", parent=self)); return
+                    ui_post(lambda: messagebox.showinfo(_i18n.t("mc.fix_ids_101e"), _i18n.t("mc.no_tmdb_result_for_0e05", get=row.get('movie_name')), parent=self)); return
                 pre = next((i for i, c in enumerate(cands) if c.get("exact")), None)
                 cand, _skip = self._ask_id_chooser(row.get("movie_name") or row["subfolder"], year, cands, False, pre)
                 if cand is None:
                     return
-                nfo = row.get("nfo_path") if row.get("nfo_exists") else None
-                xml = row.get("xml_path") if row.get("xml_exists") else None
+                nfo = _metadata_targets(row)[0]   # v0.20.0 F3b
+                xml = _metadata_targets(row)[1]   # v0.20.0 F3b
                 if not cand.get("imdb_id") and cand.get("tmdb_id"):
                     cand["imdb_id"] = _tmdb_external_ids(cand["tmdb_id"], key)
+                if cand.get("imdb_only"):                           ### v0.20.0 AU11 — checked BEFORE writing (Search Sources'
+                    _old_tm = get_movie_ids_robust(nfo, xml)[1]     # rule): it used to write the IMDb ID, then say "failed" ###
+                    if _old_tm:
+                        ui_post(lambda t=_old_tm: messagebox.showwarning(_i18n.t("mc.fix_ids_101e"), _i18n.t("mc.the_files_still_hold_edc2", t=t), parent=self))
+                        return
                 if not _with_backup_action("Fix IDs", _backup_ok, row.get("movie_name") or row["subfolder"], nfo, xml):   ### MODIFIED v0.19.2 B40; v0.19.5 WR-C1: its label ###
-                    ui_post(lambda: messagebox.showerror("Fix IDs", f"{row.get('movie_name') or row['subfolder']}\n"
-                                                               f"Backup failed — nothing was changed (see logs\\app.log).", parent=self)); return
+                    ui_post(lambda: messagebox.showerror(_i18n.t("mc.fix_ids_101e"), _i18n.t("mc.backup_failed_nothing_was_7979", v=row.get('movie_name') or row['subfolder']), parent=self)); return
                 ok, err = _write_both_source_ids(nfo, xml, cand.get("imdb_id") or None, cand.get("tmdb_id") or None)
                 _sc.note_written([row["subfolder_path"]])            ### NEW v0.19.5 WR-C1 ###
                 if not ok:
                     self._schedule_refresh([row["subfolder_path"]])   ### NEW v0.19.5 WR-B2 — one file may have changed ###
-                    ui_post(lambda m=err: messagebox.showerror("Fix IDs", f"{m}\n\nOne file may have changed: Backup History can put it back.", parent=self)); return
+                    ui_post(lambda m=err: messagebox.showerror(_i18n.t("mc.fix_ids_101e"), _i18n.t("mc.one_file_may_have_b553", m=m), parent=self)); return
                 r = self._rescan_row_no_probe(row)
                 if cand.get("imdb_only"):                                   ### NEW v0.19.1 B14 ###
-                    _old_tm = get_movie_ids_robust(nfo, xml)[1]             ### NEW v0.19.5 CO-D9 ###
-                    if _old_tm:
-                        ui_post(lambda t=_old_tm: messagebox.showwarning("Fix IDs", f"The files still hold TMDB ID {t}, which TMDB does not have.\n\nRemove it from the NFO and XML first (Edit NFO), then confirm again.", parent=self))
-                        return
                     r["id_check"] = _imdb_only_check(cand.get("imdb_id"), cand.get("title"), cand.get("year"))
                     _apply_health(r)
                 else:
                     try:
                         r["id_check"] = verify_movie_ids(r, key, lang)
+                        take_collection_data(r, r["id_check"])           # v0.20.0 AU11: as Verify IDs does
                     except Exception as ex:
                         r["id_check"] = {"result": ID_OK, "detail": f"Set to TMDB {cand.get('tmdb_id')} (re-check failed: {_tmdb_error_message(ex)})",
                                          "imdb_id": cand.get("imdb_id"), "tmdb_id": cand.get("tmdb_id"), "tmdb_title": cand.get("title"),
@@ -23575,26 +25741,22 @@ class App(tk.Tk):
                 ui_post(_ui)
             except Exception as ex:
                 logger.error(f"Fix IDs: {ex}")
-                ui_post(lambda m=_tmdb_error_message(ex): messagebox.showerror("Fix IDs", m, parent=self))
-        threading.Thread(target=_worker, daemon=True).start()
+                ui_post(lambda m=_tmdb_error_message(ex): messagebox.showerror(_i18n.t("mc.fix_ids_101e"), m, parent=self))
+        _AppJobThread(self, target=_worker).start()              # v0.20.0 AU11: a scan / close waits for it (was a plain thread)
 
     def _fetch_poster_folder(self, data_list):                 ### NEW v0.16.0 ###
         """Launch Fetch Poster/Folder dialog for each movie in data_list."""
-        if self._artwork_busy(data_list, "Fetch Poster/Folder"):              ### NEW v0.19.3 B62 ###
+        if self._artwork_busy(data_list, _i18n.t("uf.fetch_poster_folder_9cbe")):              ### NEW v0.19.3 B62 ###
             return
-        tmdb_key = self._image_source_keys("Fetch Poster/Folder", data_list, "poster")   ### MODIFIED v0.19.1 I10 / B25 ###
+        tmdb_key = self._image_source_keys(_i18n.t("uf.fetch_poster_folder_9cbe"), data_list, "poster")   ### MODIFIED v0.19.1 I10 / B25 ###
         if tmdb_key is None:
             return
         for d in data_list:
             tmdb_id = d.get("source_tmdb_val")
             if not image_sources_for(d, "poster", tmdb_key):            ### v0.19.1 B25 — TMDb, fanart.tv or frames ###
-                messagebox.showwarning("Fetch Poster/Folder",
+                messagebox.showwarning(_i18n.t("mc.fetch_poster_folder_9cbe"),
                     f"{d.get('movie_name', d['subfolder'])}\n"
-                    + ("No TMDB ID found — cannot fetch images.\n"
-                       "Run 'Normalize Sources' or 'Search Sources' first."
-                       if "poster" == "poster" else
-                       "No TMDB ID, no fanart.tv source and no video to take frames from.\n"
-                       "Run 'Normalize Sources' or 'Search Sources' first."))
+                    + (_i18n.t("m3.no_tmdb_images") if "poster" == "poster" else _i18n.t("m3.no_src_at_all")))
                 continue
             dlg = _FetchImageDialog(self, d, "poster", tmdb_key, tmdb_id)
             self.wait_window(dlg)
@@ -23611,13 +25773,9 @@ class App(tk.Tk):
         for d in data_list:
             tmdb_id = d.get("source_tmdb_val")
             if not image_sources_for(d, "fanart", tmdb_key):            ### v0.19.1 B25 — TMDb, fanart.tv or frames ###
-                messagebox.showwarning("Fetch Fanart",
+                messagebox.showwarning(_i18n.t("mc.fetch_fanart_fe5e"),
                     f"{d.get('movie_name', d['subfolder'])}\n"
-                    + ("No TMDB ID found — cannot fetch images.\n"
-                       "Run 'Normalize Sources' or 'Search Sources' first."
-                       if "fanart" == "poster" else
-                       "No TMDB ID, no fanart.tv source and no video to take frames from.\n"
-                       "Run 'Normalize Sources' or 'Search Sources' first."))
+                    + (_i18n.t("m3.no_tmdb_images") if "fanart" == "poster" else _i18n.t("m3.no_src_at_all")))
                 continue
             dlg = _FetchImageDialog(self, d, "fanart", tmdb_key, tmdb_id)
             self.wait_window(dlg)
@@ -23634,13 +25792,8 @@ class App(tk.Tk):
         for d in data_list:
             tmdb_id = d.get("source_tmdb_val")
             if not image_sources_for(d, "backdrops", tmdb_key):            ### v0.19.1 B25 — TMDb, fanart.tv or frames ###
-                messagebox.showwarning("Fetch Backdrops",
-                    f"{d.get('movie_name', d['subfolder'])}\n"
-                    + ("No TMDB ID found — cannot fetch backdrops.\n"
-                       "Run 'Normalize Sources' or 'Search Sources' first."
-                       if "backdrops" == "poster" else
-                       "No TMDB ID, no fanart.tv source and no video to take frames from.\n"
-                       "Run 'Normalize Sources' or 'Search Sources' first."))
+                messagebox.showwarning(_i18n.t("mc.fetch_backdrops_d653"),
+                    f"{d.get('movie_name', d['subfolder'])}\n" + _i18n.t("m3.no_src_at_all"))
                 continue
             dlg = _FetchBackdropDialog(self, d, tmdb_key, tmdb_id)
             self.wait_window(dlg)
@@ -23671,8 +25824,7 @@ class App(tk.Tk):
         if not services and mode and any("frames" in image_sources_for(d, mode, "") for d in data_list):
             return ""
         if not services:
-            messagebox.showwarning(title, "No TMDB API key configured.\nGo to Settings → API Keys.\n"
-                                          "(A fanart.tv key works too.)")
+            messagebox.showwarning(title, _i18n.t("mc.no_tmdb_api_key_c36b"))
             return None
         if not self._confirm_services(services):              ### B22 — paused service: Try anyway? ###
             return None
@@ -23688,9 +25840,9 @@ class App(tk.Tk):
           5. Show final summary dialog
         All work runs in a background thread.
         """
-        if self._artwork_busy([d], "Replace All Backdrops"):     ### NEW v0.19.3 B62 ###
+        if self._artwork_busy([d], _i18n.t("uf.replace_all_backdrops_f4cd")):     ### NEW v0.19.3 B62 ###
             return
-        tmdb_key = self._image_source_keys("Replace All Backdrops")   ### MODIFIED v0.19.1 I10 — TMDb and/or fanart.tv ###
+        tmdb_key = self._image_source_keys(_i18n.t("uf.replace_all_backdrops_f4cd"))   ### MODIFIED v0.19.1 I10 — TMDb and/or fanart.tv ###
         if tmdb_key is None:
             return
         tmdb_id  = d.get("source_tmdb_val")
@@ -23700,11 +25852,11 @@ class App(tk.Tk):
         use_fan  = bool(fanarttv_key()) and bool(tmdb_id or imdb_id)
 
         if not tmdb_id and not use_fan:
-            messagebox.showwarning("Replace All Backdrops",
-                f"{movie}\nNo TMDB ID found.\nRun 'Normalize Sources' first.")
+            messagebox.showwarning(_i18n.t("mc.replace_all_backdrops_f4cd"),
+                _i18n.t("mc.no_tmdb_id_found_88d1", movie=movie))
             return
         if not os.path.isdir(sp):
-            messagebox.showerror("Replace All Backdrops", f"Folder not found:\n{sp}", parent=self)
+            messagebox.showerror(_i18n.t("mc.replace_all_backdrops_f4cd"), _i18n.t("mc.folder_not_found_4e5b", sp=sp), parent=self)
             return
 
         # Progress popup (created on main thread, shown only after 15s)
@@ -23717,11 +25869,11 @@ class App(tk.Tk):
         def _show_progress(pct, eta_str):
             if _prog_win[0] is None:
                 w = tk.Toplevel(self)
-                w.title("Replace All Backdrops")
+                w.title(_i18n.t("mc.replace_all_backdrops_f4cd"))
                 w.configure(bg=C_BG)
                 w.resizable(False, False)
                 w.transient(self)
-                tk.Label(w, text=f"Processing backdrops… please wait",
+                tk.Label(w, text=_i18n.t("mc.processing_backdrops_please_wait_01b8"),
                          bg=C_BG, fg=C_TEXT,
                          font=("Helvetica", 10, "bold")).pack(pady=(18, 6), padx=20)
                 pv = tk.StringVar(value="0%")
@@ -23732,7 +25884,7 @@ class App(tk.Tk):
                 tk.Label(w, textvariable=lv,
                          bg=C_BG, fg=C_DIM,
                          font=("Helvetica", 8)).pack(pady=(2, 16), padx=20)
-                tk.Button(w, text="Cancel",
+                tk.Button(w, text=_i18n.t("mc.cancel_ea47"),
                           bg=C_ERR, fg=C_BG,
                           relief="flat", cursor="hand2",
                           font=("Helvetica", 9, "bold"),
@@ -23776,13 +25928,13 @@ class App(tk.Tk):
                     raise OSError("folder not found")
                 existing_paths = replaceable_backdrops(sp)       ### MODIFIED v0.19.1 B23 — Kodi folders: fanartN ###
             except OSError as e:
-                fail_reason = f"Cannot read movie folder: {e}"
+                fail_reason = _i18n.t("uf.cannot_read_movie_folder_5cfd", e=e)
 
             if fail_reason:
                 ui_post(lambda m=fail_reason: (
                     _close_progress(),
-                    messagebox.showerror("Replace All Backdrops — Failed",
-                                         f"Reason: {m}")))
+                    messagebox.showerror(_i18n.t("mc.replace_all_backdrops_failed_7ae1"),
+                                         _i18n.t("mc.reason_a163", m=m))))
                 return
 
             total_existing = len(existing_paths)
@@ -23799,16 +25951,16 @@ class App(tk.Tk):
                 fail_reason = "\n".join(errs)
                 ui_post(lambda m=fail_reason: (
                     _close_progress(),
-                    messagebox.showerror("Replace All Backdrops — Failed",
-                                         f"Reason: {m}")))
+                    messagebox.showerror(_i18n.t("mc.replace_all_backdrops_failed_7ae1"),
+                                         _i18n.t("mc.reason_a163", m=m))))
                 return
 
             if not tm_list and not fa_list:
-                _src_txt = "TMDB and fanart.tv returned" if use_fan else "TMDB returned"
+                _src_txt = _i18n.t("uf.tmdb_and_fanart_tv_ffd0") if use_fan else _i18n.t("au.tmdb_returned")
                 ui_post(lambda: (
                     _close_progress(),
-                    messagebox.showwarning("Replace All Backdrops",
-                        f"{movie}\n{_src_txt} 0 backdrops. Nothing to download.")))
+                    messagebox.showwarning(_i18n.t("mc.replace_all_backdrops_f4cd"),
+                        _i18n.t("mc.backdrops_nothing_to_download_534a", movie=movie, src_txt=_src_txt))))
                 return
 
             # ── v0.19.1 B17: compare the counts BEFORE any backup / delete ───
@@ -23830,7 +25982,7 @@ class App(tk.Tk):
             choice = choice if choice in ("tmdb", "fanarttv", "both") else "tmdb"
             tmdb_imgs = (merge_image_sources(tm_list, fa_list) if choice == "both"
                          else fa_list if choice == "fanarttv" else tm_list)
-            _src_label = IMAGE_SOURCE_LABEL[choice] if choice != "both" else "TMDB + fanart.tv"
+            _src_label = IMAGE_SOURCE_LABEL[choice] if choice != "both" else _i18n.t("uf.tmdb_fanart_tv_733b")
             _start_time[0] = time.time()          # the question's time is not part of the ETA
             want = len(tmdb_imgs) if want is None else max(1, min(int(want), len(tmdb_imgs)))   ### v0.19.3 B61 ###
             failed_dl = [0]
@@ -23847,11 +25999,11 @@ class App(tk.Tk):
                     rate = elapsed / completed[0]
                     remaining = rate * (total_steps - completed[0])
                     if remaining > 60:
-                        eta = f"ETA: {int(remaining // 60)}m {int(remaining % 60)}s"
+                        eta = _i18n.t("au.eta_m", m=int(remaining // 60), s=int(remaining % 60))
                     elif remaining > 0:
-                        eta = f"ETA: {int(remaining)}s"
+                        eta = _i18n.t("au.eta_s", s=int(remaining))
                     else:
-                        eta = "Almost done…"
+                        eta = _i18n.t("au.almost")
                 else:
                     eta = ""
                 if elapsed > 1.0:                                  ### MODIFIED v0.19.1 — was 15 s ###
@@ -23874,19 +26026,19 @@ class App(tk.Tk):
                         completed[0]  += 1
                         _update_progress()
                     except Exception as e:
-                        fail_reason = f"Backup failed for {os.path.basename(p)}: {e}"
+                        fail_reason = _i18n.t("uf.backup_failed_for_b010", p=os.path.basename(p), e=e)
                         break
 
                 if fail_reason:
                     ui_post(lambda m=fail_reason: (
                         _close_progress(),
-                        messagebox.showerror("Replace All Backdrops — Failed",
-                                             f"Reason: {m}")))
+                        messagebox.showerror(_i18n.t("mc.replace_all_backdrops_failed_7ae1"),
+                                             _i18n.t("mc.reason_a163", m=m))))
                     return
 
             if _cancelled[0]:
                 ui_post(lambda: (_close_progress(),
-                    messagebox.showinfo("Replace All Backdrops", "Cancelled by user.")))
+                    messagebox.showinfo(_i18n.t("mc.replace_all_backdrops_f4cd"), _i18n.t("mc.cancelled_by_user_63fb"))))
                 return
 
             # ── STEP 4: Download the new backdrops to temp names ─────────────
@@ -23931,11 +26083,11 @@ class App(tk.Tk):
             if _cancelled[0]:                                    ### NEW v0.19.4 B78 — cancel = nothing changed ###
                 _drop_staged()
                 ui_post(lambda: (_close_progress(), messagebox.showinfo(
-                    "Replace All Backdrops", "Cancelled by user. The backdrops were not changed.")))
+                    _i18n.t("mc.replace_all_backdrops_f4cd"), _i18n.t("mc.cancelled_by_user_the_46e1"))))
                 return
             if not _staged:                                      ### NEW v0.19.4 B78 — nothing arrived: keep the originals ###
                 ui_post(lambda: (_close_progress(), messagebox.showwarning(
-                    "Replace All Backdrops — Nothing downloaded",
+                    _i18n.t("mc.replace_all_backdrops_nothing_9917"),
                     replace_backdrops_none_text(movie, total_existing, want, failed_dl[0], len(tmdb_imgs)))))
                 logger.warning(f"Replace All Backdrops: no image arrived for '{movie}' — "
                                f"the {_n(total_existing, 'original backdrop')} {'was' if total_existing == 1 else 'were'} kept")   # v0.19.4 B105
@@ -23967,7 +26119,10 @@ class App(tk.Tk):
             _failed_names = {x.casefold() for x in _swap_failed}
             for p in existing_paths:
                 try:
-                    if os.path.normcase(p) not in _landed and os.path.isfile(p) and os.path.basename(p).casefold() not in _failed_names:
+                    ### MODIFIED v0.20.0 AU5 ### no new image landed (every swap failed): the originals stay — they used
+                    # to be deleted, leaving the folder with fewer or no backdrops
+                    if (_landed and os.path.normcase(p) not in _landed and os.path.isfile(p)
+                            and os.path.basename(p).casefold() not in _failed_names):
                         os.remove(p)
                         delete_count += 1
                     completed[0] += 1
@@ -23983,19 +26138,18 @@ class App(tk.Tk):
             def _finish():
                 _close_progress()
                 _bad = _swap_failed or _not_deleted                ### NEW v0.19.5 WR-B5 ###
-                msg = (("Replace All Backdrops — Finished with problems\n\n" if _bad else "Replace All Backdrops — Completed Successfully\n\n") +
-                       f"Backups created:               {_n(backup_count, 'file')}"
-                       + (f" (avg {avg_backup // 1024} KB)" if avg_backup else "") + "\n" +
-                       f"Backdrops deleted:             {_n(delete_count, 'file')}\n"
-                       f"Backdrops downloaded ({_src_label}):   {_n(download_count, 'file')}"
-                       + (f" (avg {avg_download // 1024} KB)" if avg_download else "")
-                       + (f"\n\nOnly {download_count} of the {want} asked for could be downloaded "     ### NEW v0.19.3 B61 ###
-                          f"({failed_dl[0]} failed, {len(tmdb_imgs)} offered)." if download_count < want else "")
-                       + (f"\n\nCould not be put in place: {', '.join(_swap_failed)}; the old image stays (see logs\\app.log)."   ### NEW v0.19.4 B78 ###
-                          if _swap_failed else "")
-                       + (f"\n\nCould not be deleted: {', '.join(_not_deleted)}. Another program may hold it; delete it later, or Undo in Backup History."
-                          if _not_deleted else ""))
-                (messagebox.showwarning if _bad else messagebox.showinfo)("Replace All Backdrops", msg)
+                T = _i18n.t                                        # v0.20.0 UI1d
+                msg = ((T("m3.rb_bad") if _bad else T("m3.rb_ok")) +
+                       T("m3.rb_backups", files=_n(backup_count, "file"))
+                       + (T("m3.rb_avg", kb=avg_backup // 1024) if avg_backup else "") + "\n" +
+                       T("m3.rb_deleted", files=_n(delete_count, "file")) +
+                       T("m3.rb_downloaded", src=_src_label, files=_n(download_count, "file"))
+                       + (T("m3.rb_avg", kb=avg_download // 1024) if avg_download else "")
+                       + (T("m3.rb_only", n=download_count, want=want, failed=failed_dl[0], offered=len(tmdb_imgs))   ### NEW v0.19.3 B61 ###
+                          if download_count < want else "")
+                       + (T("m3.rb_swap", list=", ".join(_swap_failed)) if _swap_failed else "")   ### NEW v0.19.4 B78 ###
+                       + (T("m3.rb_notdel", list=", ".join(_not_deleted)) if _not_deleted else ""))
+                (messagebox.showwarning if _bad else messagebox.showinfo)(T("m3.rb_title"), msg)
                 self._reval_by_path(d)
 
             ui_post(_finish)
@@ -24006,39 +26160,36 @@ class App(tk.Tk):
         """Open the selected movie's Fanart.tv page using its TMDB ID."""
         tmdb_id = d.get("source_tmdb_val")
         if not tmdb_id:
-            messagebox.showinfo("Fanart.tv — Movie ID not available",
-                "No TMDB ID found for this movie.\n"
-                "Run 'Normalize Sources' or 'Search Sources' first.",
+            messagebox.showinfo(_i18n.t("mc.fanart_tv_movie_id_49b5"),
+                _i18n.t("mc.no_tmdb_id_found_ab37"),
                 parent=self)
             return
         try:
             int(tmdb_id)  # validate it's numeric
         except (ValueError, TypeError):
-            messagebox.showwarning("Invalid TMDB ID",
-                f"The TMDB ID '{tmdb_id}' appears invalid.\n"
-                "Please verify the metadata for this movie.",
+            messagebox.showwarning(_i18n.t("mc.invalid_tmdb_id_2f25"),
+                _i18n.t("mc.the_tmdb_id_appears_0b9b", tmdb_id=tmdb_id),
                 parent=self)
             return
         url = f"https://fanart.tv/movie/{tmdb_id}/"
         try:
             open_url_with_browser(url)
         except Exception as e:
-            messagebox.showerror("Unable to open Fanart.tv",
-                f"Could not open the browser:\n{e}", parent=self)
+            messagebox.showerror(_i18n.t("mc.unable_to_open_fanart_4df1"),
+                _i18n.t("mc.could_not_open_the_4037", e=e), parent=self)
 
     def _clear_all(self):
         """Clear all scan results from the table (Ctrl+L)."""
         if self._scanning: return
         if not self._results:
-            messagebox.showinfo("Clear All", "Nothing to clear."); return
-        if not messagebox.askyesno("Clear All",
-                "Are you sure you want to clear the scan results?\n\n"
-                "This also empties the Ignored Folders list.",          ### MODIFIED v0.19.4 B104 ###
+            messagebox.showinfo(_i18n.t("mc.clear_all_e77f"), _i18n.t("mc.nothing_to_clear_acb2")); return
+        if not messagebox.askyesno(_i18n.t("mc.clear_all_e77f"),
+                _i18n.t("mc.are_you_sure_you_55b8"),          ### MODIFIED v0.19.4 B104 ###
                 icon="warning"):
             return
-        self._results = []; self._item_map.clear()
+        self._results = []; self._item_map.clear(); self._inactive_rows = []   # v0.20.0 5j: Clear All clears them too
         self._clear_tree()                                     ### v0.19.4 B110h ###
-        self._update_status_bar(0, 0, 0, "Cleared", self.sort_var.get())
+        self._update_status_bar(0, 0, 0, _i18n.t("mc.cleared"), self.sort_var.get())   # v0.20.0 UI1e
         _sc.save_results_cache([])                             ### NEW v0.19.2 B42 — the old rows no longer return at the next start ###
         self._ignored_data = {}; _sc.save_ignored({})          ### NEW v0.19.2 B53 ###
         self._update_ignored_link()
@@ -24047,16 +26198,17 @@ class App(tk.Tk):
         # FIX v0.16.0 — use cached FFmpeg status; never block on main thread  ### FIX v0.16.0 ###
         ff_ok = self._ffmpeg_status[0] if self._ffmpeg_status else False
         if not ff_ok:
-            messagebox.showerror("FFmpeg missing",
-                                 "FFmpeg not available. Set path in Settings."); return
+            messagebox.showerror(_i18n.t("mc.ffmpeg_missing_b06f"),
+                                 _i18n.t("mc.ffmpeg_not_available_set_0c88")); return
         if not d.get("video_path"):
-            messagebox.showwarning("No video","No video file in this folder."); return
+            messagebox.showwarning(_i18n.t("mc.no_video_6fdd"),_i18n.t("mc.no_video_file_in_579e")); return
         timeout = SETTINGS.get("extract_timeout", 60)
         dlg = FrameExtractionDialog(self, d["video_path"], d["subfolder_path"],
                                     timeout_sec=timeout)
         self.wait_window(dlg)
-        SETTINGS["extract_timeout"]  = dlg._timeout_var.get()
-        SETTINGS["backdrop_count"]   = dlg._count_var.get()   # item 14: persist count
+        _used = getattr(dlg, "_used", None)                       # v0.20.0 AU16: the values the run used (a box
+        if _used:                                                 # cleared by hand raised TclError here)
+            SETTINGS["extract_timeout"], SETTINGS["backdrop_count"] = _used
         _save_settings(SETTINGS)
         self._schedule_refresh([d["subfolder_path"]], need_ffprobe=False)   ### MODIFIED v0.19.0 ###
 
@@ -24066,11 +26218,11 @@ class App(tk.Tk):
         """Ctrl+E — open NFO of selected row in editor, or Notepad."""
         sel = self._selected_movie_iids()                       ### v0.19.4 B110h ###
         if sel:
-            d = self._item_map.get(sel[0])
+            d = self._item_map.get(self._focus_or_first(sel))
             if d and d.get("nfo_exists"):
                 open_in_editor(d["nfo_path"]); return
             if d is not None:                                   ### NEW v0.19.4 B109c — no empty editor ###
-                flash_status(self, f"{d.get('movie_name') or d.get('subfolder')}: no NFO to open (Ctrl+E)")
+                flash_status(self, _i18n.t("au.no_nfo_open", movie=d.get('movie_name') or d.get('subfolder')))
                 return
         # fallback: open notepad++/notepad
         editor = SETTINGS.get("text_editor","").strip()
@@ -24085,11 +26237,20 @@ class App(tk.Tk):
             try: subprocess.Popen(["notepad.exe"])
             except Exception: pass
 
+    def _focus_or_first(self, sel):                               ### NEW v0.20.0 AU22 (audit point 4) ###
+        """The row Ctrl+O / Ctrl+E act on: the focused one (last clicked) when it is selected, else the first —
+        with several selected they always took the first, whichever the user had clicked."""
+        try:
+            f = self.tree.focus()
+        except tk.TclError:
+            f = ""
+        return f if f in sel else sel[0]
+
     def _open_folder_shortcut(self):
         """Ctrl+O — open folder of selected row."""
         sel = self._selected_movie_iids()                       ### v0.19.4 B110h ###
         if not sel: return
-        d = self._item_map.get(sel[0])
+        d = self._item_map.get(self._focus_or_first(sel))
         if d: os_open(d["subfolder_path"])
 
     def _reval_selected_no_ffmpeg(self):
@@ -24124,9 +26285,9 @@ class App(tk.Tk):
         """Pick a root folder: it is added to the libraries (if new) and the
         table switches to it.  Rows of the other libraries are kept."""
         if self._scanning: return
-        p = filedialog.askdirectory(title="Add a library (root folder)")
+        p = filedialog.askdirectory(title=_i18n.t("mc.add_a_library_root_ec74"))
         if p:
-            libs = self._libraries()
+            libs = self._all_libraries()                        # v0.20.0 5j: keeps the inactive ones
             if _pkey(p) not in {_pkey(x) for x in libs}:
                 libs.append(_norm_lib(p))
             res = self._set_libraries(libs, select="")          ### MODIFIED v0.19.2 B55 — stays on "All libraries" ###
@@ -24136,7 +26297,40 @@ class App(tk.Tk):
     # ══════════════════════════════════════════════════════════════════════════
     # NEW v0.19.0 — multiple library folders
     # ══════════════════════════════════════════════════════════════════════════
-    def _libraries(self):
+    def _libraries(self):                                         ### MODIFIED v0.20.0 5j — the ACTIVE libraries ###
+        """The active library roots: everything that scans, shows and counts uses these."""
+        return [x for x in self._all_libraries() if library_active(x)]
+
+    def _inactive_keys(self):                                     ### NEW v0.20.0 5j ###
+        return {_pkey(x) for x in self._all_libraries() if not library_active(x)}
+
+    def _row_inactive(self, row, keys=None):                      ### NEW v0.20.0 5j ###
+        return _pkey(_lib_root_of(row)) in (keys if keys is not None else self._inactive_keys())
+
+    def _apply_library_active(self):                              ### NEW v0.20.0 5j — Tk thread ###
+        """Rows of an inactive library leave the results for _inactive_rows (still saved); active again → back.
+        Returns the number of rows moved."""
+        allr = list(self._results) + list(self._inactive_rows)
+        keys = self._inactive_keys()
+        off = [r for r in allr if self._row_inactive(r, keys)]
+        on = [r for r in allr if not self._row_inactive(r, keys)]
+        _was = {id(r) for r in self._inactive_rows}               # v0.20.0 AU10: by row, not by count (A off and B
+        moved = sum(1 for r in off if id(r) not in _was) + sum(1 for r in on if id(r) in _was)   # on with as many rows: 0)
+        if not moved:
+            return 0
+        self._inactive_rows = off
+        self._results = on
+        finalize_results(self._results)
+        self._incremental_save(self._results)
+        self._item_map.clear()
+        self._clear_tree()
+        self._refresh_table()
+        self._update_library_widgets()
+        self._update_stats()
+        logger.info(f"Libraries: {len(off)} rows of inactive libraries set aside, {len(on)} shown")
+        return moved
+
+    def _all_libraries(self):                                     ### NEW v0.20.0 5j (was _libraries) ###
         """Configured library roots (library_folders); falls back to the single
         legacy folder (last_folder / self._folder)."""
         libs = [_norm_lib(x) for x in (SETTINGS.get("library_folders") or [])     ### MODIFIED v0.19.1 — normpath ###
@@ -24173,7 +26367,7 @@ class App(tk.Tk):
                 vids, found = [], []                            ### found: v0.19.4 B92 — this library's folders, added only when the listing completed ###
                 for e in os.scandir(root):
                     try:
-                        if e.is_dir():
+                        if e.is_dir() and not _is_collection_folder(e.path):   # v0.20.0 CF1
                             found.append(e)
                         elif os.path.splitext(e.name)[1].lower() in VIDEO_EXTENSIONS:
                             vids.append(e.name)
@@ -24210,6 +26404,30 @@ class App(tk.Tk):
         messagebox.showinfo(title or APP_NAME, NO_SCAN_TEXT, parent=self)
         return True
 
+    def _busy_what(self):                                          ### NEW v0.20.0 AU10 — one wording, translated ###
+        """'' when idle; else what runs ("a scan", "an image fix", "an action") in the interface language."""
+        return (_i18n.t("au.what.scan") if self._scanning else _i18n.t("uf.an_image_fix_8548")
+                if getattr(self, "_busy_fix", None) else _i18n.t("au.what.action") if getattr(self, "_bg_running", 0) else "")
+
+    def _restart_now(self):                                        ### NEW v0.20.0 UI1a ###
+        """Settings → User Interface → Restart now: refused while a scan, a batch or a Fix image runs; otherwise
+        the normal close (settings, results and window memory saved, timers cancelled) and a new start
+        (__main__ starts it once the window is gone). Returns True when the close was started."""
+        what = self._busy_what()
+        if what:
+            messagebox.showinfo(APP_NAME, _i18n.t("ui.lang.restart_busy", what=what), parent=self)
+            return False
+        self._restart_requested = True
+        self._on_app_close()
+        try:
+            alive = bool(self.winfo_exists())
+        except tk.TclError:
+            alive = False
+        if alive:                                               # the close was declined
+            self._restart_requested = False
+            return False
+        return True
+
     def _busy(self, title=None):                                   ### NEW v0.19.4 B91 ###
         """True (and one message) while a scan runs: every action that reads
         or writes the results calls it first."""
@@ -24227,7 +26445,7 @@ class App(tk.Tk):
             names = ", ".join(offline)
             logger.warning(f"Library offline (skipped, cached rows kept): {names}")
             try:
-                self._sb_action.configure(text=f"  Offline: {names}")
+                self._sb_action.configure(text=_i18n.t("mc.offline_395e", names=names))
             except Exception:
                 pass
 
@@ -24277,7 +26495,7 @@ class App(tk.Tk):
             x = _norm_lib(x)                                    ### MODIFIED v0.19.1 — normpath ###
             if x and _pkey(x) not in seen:
                 seen.add(_pkey(x)); clean.append(x)
-        old = {_pkey(x) for x in self._libraries()}
+        old = {_pkey(x) for x in self._all_libraries()}            # v0.20.0 5j
         removed = old - seen
         added = seen - old
         SETTINGS["library_folders"] = clean
@@ -24295,6 +26513,8 @@ class App(tk.Tk):
                              if _pkey(r.get("library_root") or os.path.dirname(r.get("subfolder_path") or "")) not in removed]
             finalize_results(self._results)
             self._incremental_save(self._results)
+        if removed:                                             ### NEW v0.20.0 5j — a removed library's set-aside rows go too ###
+            self._inactive_rows = [r for r in self._inactive_rows if _pkey(_lib_root_of(r)) not in removed]
         self._offline_roots -= removed
         self._update_library_widgets()
         self._item_map.clear()
@@ -24315,14 +26535,13 @@ class App(tk.Tk):
             pass
         dlg = tk.Toplevel(self)
         self._lib_prompt = dlg
-        dlg.title("Libraries changed")
+        dlg.title(_i18n.t("mc.libraries_changed_8a81"))
         dlg.configure(bg=C_BG)
         dlg.transient(self)
         dlg.resizable(False, False)
-        tk.Label(dlg, text="The library list changed — scan now?",
+        tk.Label(dlg, text=_i18n.t("mc.the_library_list_changed_38c0"),
                  font=("Helvetica", 11, "bold"), bg=C_BG, fg=C_TEXT).pack(padx=22, pady=(18, 4))
-        tk.Label(dlg, text=("Quick Scan reads only movies that are new or changed.\n"
-                            "The scan covers the library selected in the library box."),
+        tk.Label(dlg, text=(_i18n.t("mc.quick_scan_reads_only_0b3c")),
                  font=("Helvetica", 9), bg=C_BG, fg=C_SUBTEXT, justify="center").pack(padx=22, pady=(0, 12))
         bf = tk.Frame(dlg, bg=C_BG); bf.pack(pady=(0, 16))
         def _go(kind):
@@ -24336,9 +26555,9 @@ class App(tk.Tk):
             elif kind == "quick":
                 self._update_scan()
         kw = dict(font=("Helvetica", 10, "bold"), relief="flat", cursor="hand2", padx=10, pady=4)
-        b_full  = tk.Button(bf, text="Full Scan",  bg=C_OK, fg=C_BG, command=lambda: _go("full"), **kw)
-        b_quick = tk.Button(bf, text="Quick Scan", bg="#89dceb", fg=C_BG, command=lambda: _go("quick"), **kw)
-        b_none  = tk.Button(bf, text="Not now",    bg=C_SURFACE2, fg=C_TEXT, command=lambda: _go("none"), **kw)
+        b_full  = tk.Button(bf, text=_i18n.t("btn.full_scan"),  bg=C_OK, fg=C_BG, command=lambda: _go("full"), **kw)
+        b_quick = tk.Button(bf, text=_i18n.t("btn.quick_scan"), bg="#89dceb", fg=C_BG, command=lambda: _go("quick"), **kw)
+        b_none  = tk.Button(bf, text=_i18n.t("mc.not_now_3049"),    bg=C_SURFACE2, fg=C_TEXT, command=lambda: _go("none"), **kw)
         for b in (b_full, b_quick, b_none):
             b.pack(side="left", padx=5)
         default = b_quick if added else b_none
@@ -24374,7 +26593,7 @@ class App(tk.Tk):
     def _scan_roots_or_warn(self):
         roots = self._scope_roots()
         if not roots:
-            messagebox.showwarning("No folder", "No library folder yet. Use Browse… or Libraries… first.", parent=self)
+            messagebox.showwarning(_i18n.t("mc.no_folder_fece"), _i18n.t("mc.no_library_folder_yet_6bba"), parent=self)
             return None
         if roots[0] and not self._folder:
             self._folder = self._libraries()[0]
@@ -24407,13 +26626,28 @@ class App(tk.Tk):
     def _bg_wait_note(self, title):                               ### NEW v0.19.4 P2 (E15) ###
         """True (and a message) while a long action still runs: a scan would replace the rows it updates."""
         if getattr(self, "_bg_running", 0):
-            messagebox.showinfo(title, "An action is still running (see its progress window).\n\n"
-                                       "Wait until it has finished, then scan.", parent=self)
+            messagebox.showinfo(title, _i18n.t("mc.an_action_is_still_0936"), parent=self)
+            return True
+        return False
+
+    def _restore_defer(self, fn):                                 ### NEW v0.20.0 AU9 (pre-build audit) ###
+        """True while the last results are still loading (start-up worker): *fn* (the scan asked for) runs right
+        after they are in.  A scan started in those seconds used to throw the restored rows away — the other and
+        offline libraries' rows and the set-aside ones never loaded, and the scan then saved the cache without them."""
+        if getattr(self, "_restore_pending", False) and time.time() - getattr(self, "_restore_t0", 0) > 180:
+            self._restore_pending = False                        # the restore never reported back: never block scans
+        if getattr(self, "_restore_pending", False):
+            self._after_restore = fn
+            try:
+                self.stats_var.set(_i18n.t("mc.st.loading_last"))
+            except Exception:
+                pass
             return True
         return False
 
     def _update_scan(self):
         if self._scanning: return
+        if self._restore_defer(self._update_scan): return         # v0.20.0 AU9
         if self._bg_wait_note("Quick Scan"): return               # P2
         roots = self._scan_roots_or_warn()                     ### MODIFIED v0.19.0 — libraries ###
         if not roots: return
@@ -24433,7 +26667,7 @@ class App(tk.Tk):
         self.cancel_btn.pack(side="left", padx=(6, 0))
         self.pbar_canvas.pack(side="left", fill="x", expand=True)
         self.pbar_label.pack(side="left", padx=(8, 0))
-        self._draw_scan_progress(0, "Quick Scan — listing the libraries…")
+        self._draw_scan_progress(0, _i18n.t("uf.quick_scan_listing_the_71dd"))
 
         _unread = [(r.get("subfolder_path"), r.get("nfo_path") if r.get("nfo_exists") else None)
                    for r in self._results if r.get("coll_unread")]     ### NEW v0.19.4 B110a ###
@@ -24468,11 +26702,11 @@ class App(tk.Tk):
                 self._update_stats()
                 self._incremental_save(self._results)
         if offline and not online:
-            messagebox.showwarning("Library offline", "Not reachable — cached rows kept:\n" + "\n".join(offline), parent=self)
+            messagebox.showwarning(_i18n.t("mc.library_offline_74a2"), _i18n.t("mc.not_reachable_cached_rows_a3fd", join="\n".join(offline)), parent=self)
         elif offline:
-            messagebox.showinfo("Empty", "No subfolders found.\n\nNot reachable, rows kept:\n" + "\n".join(offline), parent=self)
+            messagebox.showinfo(_i18n.t("mc.empty_ce2c"), _i18n.t("mc.no_subfolders_found_not_5ce4", join="\n".join(offline)), parent=self)
         else:
-            messagebox.showinfo("Empty", "No subfolders found.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.empty_ce2c"), _i18n.t("mc.no_subfolders_found_0410"), parent=self)
 
     def _scan_ui_idle(self):                                      ### NEW v0.19.4 B100 ###
         """The scan buttons and the progress bar back to idle (no rows touched)."""
@@ -24515,7 +26749,7 @@ class App(tk.Tk):
         self.cancel_btn.pack(side="left", padx=(6, 0))
         self.pbar_canvas.pack(side="left", fill="x", expand=True)
         self.pbar_label.pack(side="left", padx=(8, 0))
-        self._draw_scan_progress(0, "Quick Scan — detecting changes…")
+        self._draw_scan_progress(0, _i18n.t("uf.quick_scan_detecting_changes_7f2b"))
         logger.info(f"Quick Scan started: {folder} (ffprobe={'on' if probe else 'off'})")
 
         def worker():
@@ -24554,6 +26788,9 @@ class App(tk.Tk):
                         except (TypeError, ValueError):
                             pass
                     with lock: changed.append(entry)            # new folder
+                    return
+                if row_needs_reread(prior):                     ### NEW v0.20.0 XB1 — scanned in another health mode ###
+                    with lock: changed.append(entry)
                     return
                 if "folder_kind" not in prior and not (prior.get("nfo_exists") or prior.get("xml_exists")) \
                         and (prior.get("video_count", 0) == 0 or prior.get("video_count", 0) >= 3):
@@ -24597,7 +26834,7 @@ class App(tk.Tk):
                 ui_post(lambda: (
                     self._scan_done(prior_for_ff),
                     messagebox.showinfo("Quick Scan",
-                                        "No changes detected — library is up to date.")))
+                                        _i18n.t("mc.no_changes_detected_library_c1ec"))))
                 return
 
             # ── Phase B: rescan changed/new subfolders (parallel) ───────────
@@ -24659,8 +26896,7 @@ class App(tk.Tk):
                 logger.error(f"Scan worker crashed: {_exc}", exc_info=True)
                 ### MODIFIED v0.19.4 P2 (E4) — the previous rows stay (was: an empty result list) ###
                 ui_post(lambda e=_exc: (self._scan_done(prior_for_ff),
-                                       messagebox.showerror("Quick Scan", f"Quick Scan stopped: {e}\n\n"
-                                                            "The previous results are kept (see logs\\app.log).", parent=self)))
+                                       messagebox.showerror("Quick Scan", _i18n.t("mc.quick_scan_stopped_the_b6fa", e=e), parent=self)))
 
         threading.Thread(target=_worker_guarded, daemon=True).start()
 
@@ -24725,6 +26961,8 @@ class App(tk.Tk):
         Preserves existing FFprobe data (video quality, subs, lang).
         """
         if self._scanning: return
+        if self._restore_defer(self._update_scan_no_ff): return   # v0.20.0 AU9
+        if self._bg_wait_note("Update Scan"): return              # v0.20.0 AU9: as Full / Quick Scan (P2 E15)
         roots = self._scan_roots_or_warn()                     ### MODIFIED v0.19.0 ###
         if not roots: return
         self._scan_label = "Update Scan"
@@ -24735,6 +26973,8 @@ class App(tk.Tk):
         Refreshes all data including video resolution, audio streams, subs.
         """
         if self._scanning: return
+        if self._restore_defer(self._update_scan_with_ff): return   # v0.20.0 AU9
+        if self._bg_wait_note("Update Scan"): return              # v0.20.0 AU9
         roots = self._scan_roots_or_warn()                     ### MODIFIED v0.19.0 ###
         if not roots: return
         self._scan_label = "Update Scan"
@@ -24742,6 +26982,7 @@ class App(tk.Tk):
 
     def _scan(self):
         if self._scanning: return
+        if self._restore_defer(self._scan): return                # v0.20.0 AU9
         if self._bg_wait_note("Full Scan"): return                # P2
         roots = self._scan_roots_or_warn()                     ### MODIFIED v0.19.0 — libraries ###
         if not roots: return
@@ -24750,7 +26991,7 @@ class App(tk.Tk):
 
     def _cancel(self):
         self._cancel_scan = True
-        self.pbar_label.configure(text="Cancelling…")
+        self.pbar_label.configure(text=_i18n.t("mc.cancelling_9bdc"))
 
     def _draw_scan_progress(self, pct, text):
         c = self.pbar_canvas; c.delete("all")
@@ -24770,7 +27011,7 @@ class App(tk.Tk):
         self._scanning = True; self._cancel_scan = False
         self.scan_btn.configure(state="disabled"); self.update_btn.configure(state="disabled")
         try:
-            self.pbar_label.pack(side="left", padx=(8, 0)); self.pbar_label.configure(text="Listing the libraries…")
+            self.pbar_label.pack(side="left", padx=(8, 0)); self.pbar_label.configure(text=_i18n.t("mc.listing_the_libraries_ae06"))
         except tk.TclError:
             pass
 
@@ -24841,7 +27082,7 @@ class App(tk.Tk):
                     }
 
             # ── Phase 1: one directory listing per movie (parallel) ──────────
-            ui_post(lambda: self._draw_scan_progress(0, "Phase 1/4 — Listing subfolders…"))
+            ui_post(lambda: self._draw_scan_progress(0, _i18n.t("uf.phase_listing_subfolders_e8c4")))
             listings = {}
             lock = threading.Lock()
             def _list(entry):
@@ -24935,7 +27176,7 @@ class App(tk.Tk):
             results_partial = list(stubs)
             disp = kept_rows + unread_kept + results_partial   ### NEW v0.19.0 — other libraries stay visible; unread_kept v0.19.4 B88 ###
             _scan_rows84[0] = disp                        ### NEW v0.19.4 B84 — for the crash path ###
-            _p1 = "Phase 1/4 complete — subfolders listed" + (f" ({len(ignored_new)} ignored)" if ignored_new else "")
+            _p1 = _i18n.t("uf.phase_complete_subfolders_listed_ee0e") + (f" ({len(ignored_new)} ignored)" if ignored_new else "")
             ui_post(lambda r=list(disp), m=_p1: self._phase_update(r, m))
             if self._cancel_scan:
                 ui_post(lambda: self._scan_done(merge_unfinished_rows(disp, _prior_results_for_ffprobe))); return   ### MODIFIED v0.19.4 B84 ###
@@ -24950,7 +27191,7 @@ class App(tk.Tk):
                 _apply_health(row)
             self._run_phase(entries, results_partial, _phase2, "Phase 2/4 — Images", 0, 25, n_workers, disp)
             ui_post(lambda r=list(disp):
-                       self._phase_update(r, "Phase 2/4 complete — images scanned"))
+                       self._phase_update(r, _i18n.t("uf.phase_complete_images_scanned_d89e")))
             if self._cancel_scan:
                 ui_post(lambda: self._scan_done(merge_unfinished_rows(disp, _prior_results_for_ffprobe))); return   ### MODIFIED v0.19.4 B84 ###
 
@@ -24993,6 +27234,13 @@ class App(tk.Tk):
                 row["source_tmdb_all"]    = src_ids["tmdb_all_vals"]
                 row["source_imdb_empty"]  = src_ids["imdb_empty_tags"]     ### NEW v0.19.1 B13 ###
                 row["source_tmdb_empty"]  = src_ids["tmdb_empty_tags"]     ### NEW v0.19.1 B13 ###
+                row["source_imdb_invalid"] = src_ids["imdb_invalid_vals"]  ### NEW v0.20.0 RD11 ###
+                row["source_tmdb_invalid"] = src_ids["tmdb_invalid_vals"]
+                row["nfo_kodi_id_missing"] = src_ids.get("nfo_kodi_missing", [])   ### NEW v0.20.0 KR1.1 ###
+                row["xml_reader_gaps"] = xml_old_reader_gaps(xml_p)                ### NEW v0.20.0 KR1.4 ###
+                row["nfo_premiered_year"] = premiered_year(nfo_p)                  ### NEW v0.20.0 KR1.2 ###
+                row["nfo_art_links"] = nfo_online_art_kinds(nfo_p)                 ### NEW v0.20.0 RD9 ###
+                row["year_premiered_diff"] = year_premiered_diff(nfo_p)            ### NEW v0.20.0 — B126 in the Full Scan too ###
                 row["movie_name"] = get_movie_name_from_files(nfo_p, xml_p, sn)
                 row["movie_year"] = get_movie_year_display(nfo_p, xml_p)
                 row["movie_title_raw"] = get_movie_titles_from_files(nfo_p, xml_p)
@@ -25008,7 +27256,7 @@ class App(tk.Tk):
                 _apply_health(row)
             self._run_phase(entries, results_partial, _phase3, "Phase 3/4 — Metadata", 25, 50, n_workers, disp)
             ui_post(lambda r=list(disp):
-                       self._phase_update(r, "Phase 3/4 complete — metadata scanned"))
+                       self._phase_update(r, _i18n.t("uf.phase_complete_metadata_scanned_156f")))
             if self._cancel_scan:
                 ui_post(lambda: self._scan_done(merge_unfinished_rows(disp, _prior_results_for_ffprobe))); return   ### MODIFIED v0.19.4 B84 ###
 
@@ -25123,8 +27371,10 @@ class App(tk.Tk):
         if throttle and (now - self._last_cache_save) < 10.0:
             return
         if self._scanning and getattr(self, "_scan_prior", None) is not None:   ### NEW v0.19.4 P2 (E10) ###
-            results = merge_unfinished_rows(results, self._scan_prior)      # unfinished folders: the previous row
+            results = merge_unfinished_rows(results, self._scan_prior, keep_unlisted=True)   # v0.20.0 AU9
         self._last_cache_save = now
+        if getattr(self, "_inactive_rows", None):                 ### NEW v0.20.0 5j — kept for when they are ticked again ###
+            results = list(results) + list(self._inactive_rows)
         if SETTINGS.get("last_folder") != self._folder or SETTINGS.get("last_results"):
             SETTINGS["last_folder"]  = self._folder
             SETTINGS["last_results"] = []
@@ -25164,7 +27414,7 @@ class App(tk.Tk):
                 logger.warning(f"Ignored folders report not saved: {e}")
         if not results:
             self._scanning = False
-            self.stats_var.set("Cancelled or empty.")
+            self.stats_var.set(_i18n.t("mc.st.cancelled_or_empty"))
             if _ig is not None:
                 self._maybe_show_ignored(_ig)
             return
@@ -25200,21 +27450,95 @@ class App(tk.Tk):
             self._maybe_show_ignored(_ig)                      ### NEW v0.19.2 B53 ###
 
     # ── NFO-only libraries (v0.19.6 TR1) ──────────────────────────────────────
-    def _ask_health_mode(self):                                ### NEW v0.19.6 TR1 / TR1b ###
-        """At the start, once for every user: the health mode (three buttons)."""
-        old = getattr(self, "_health_mode_dlg", None)
+    def _ask_first_start(self, kind=None):                     ### NEW v0.20.0 6g (replaces the v0.19.6 three-button question) ###
+        """At the start: the full first-start window for a new user, the programs question once for an existing one."""
+        kind = kind or first_start_kind(SETTINGS)
+        if not kind:
+            return None
+        old = getattr(self, "_first_start_dlg", None)
         try:
             if old is not None and old.winfo_exists():
                 return old
         except tk.TclError:
             pass
-        self._health_mode_dlg = HealthModeDialog(self, self._health_mode_answer)
-        return self._health_mode_dlg
+        self._first_start_dlg = FirstStartDialog(self, kind == "full", self._first_start_answer)
+        return self._first_start_dlg
 
-    def _health_mode_answer(self, mode):                       ### NEW v0.19.6 TR1 / TR1b ###
+    def _maybe_ask_plex_nfo(self):                             ### NEW v0.20.0 6h ###
+        """Only Plex ticked (Settings or a library) and not asked yet: the pop-up "Plex reads no NFO"."""
+        if not PLEX_NFO_ASK_AUTO or SETTINGS.get("plex_nfo_checks") or not plex_only_somewhere():
+            return None
+        return self._ask_plex_nfo()
+
+    def _ask_plex_nfo(self):                                   ### NEW v0.20.0 6h ###
+        old = getattr(self, "_plex_nfo_dlg", None)
+        try:
+            if old is not None and old.winfo_exists():
+                return old
+        except tk.TclError:
+            pass
+        self._plex_nfo_dlg = PlexNfoDialog(self, self._plex_nfo_answer)
+        return self._plex_nfo_dlg
+
+    def _plex_nfo_answer(self, value):                         ### NEW v0.20.0 6h ###
+        SETTINGS["plex_nfo_checks"] = value
+        _save_settings(SETTINGS)
+        logger.info(f"Plex only: NFO and collection checks {value}")
+        if self._results:
+            self._apply_health_rules_inplace()
+            self._incremental_save(self._results)
+
+    def _first_start_answer(self, kind, answers):              ### NEW v0.20.0 6g ###
+        """Start / Save: the programs (they set the health mode; nothing ticked keeps it), the strictness, the movies
+        folder (added as a library, then the scan offer) and the FFmpeg folder.  Not now: only remembered as asked."""
+        add = None
+        _before = (list(SETTINGS.get("media_programs") or []), SETTINGS.get("health_preset"))   # v0.20.0 AU12
+        if kind == "save":
+            progs = list(_mp.clean_programs(answers.get("programs") or ()))
+            SETTINGS["media_programs"] = progs
+            pre = answers.get("preset")
+            if pre in _sm.HEALTH_PRESET_IDS and pre != SETTINGS.get("health_preset"):
+                SETTINGS["health_rules"] = _sm.apply_health_preset(SETTINGS.get("health_rules") or {}, pre, health_mode())
+                SETTINGS["health_preset"] = pre
+            if answers.get("ffmpeg_dir"):
+                SETTINGS["ffmpeg_path"] = answers["ffmpeg_dir"]
+                refresh_ffmpeg_paths()
+                threading.Thread(target=self._async_test_ffmpeg, daemon=True).start()
+            add = answers.get("folder")
+            mode = _mp.health_mode_for(progs) or health_mode()
+            logger.info(f"First start: programs {progs or 'none'}, preset {SETTINGS.get('health_preset')}, "
+                        f"folder {'yes' if add else 'no'}, FFmpeg folder {'chosen' if answers.get('ffmpeg_dir') else 'not chosen'}")
+        else:
+            mode = health_mode()
+            logger.info("First start: programs question — Not now")
+        SETTINGS["programs_asked"] = True
+        SETTINGS["first_start_pending"] = False
+        _hm_was = health_mode()
+        self._health_mode_answer(mode)                         # saves; the preset's by-mode value; columns; scan offer
+        ### NEW v0.20.0 AU12 (pre-build audit) ### new programs or strictness with the same health mode: the loaded
+        # results follow at once ("Not read by Infuse", the Kodi-only rules…) — _health_mode_answer only does it when
+        # the mode changes
+        if (self._results and health_mode() == _hm_was
+                and (list(SETTINGS.get("media_programs") or []), SETTINGS.get("health_preset")) != _before):
+            self._apply_health_rules_inplace()
+            self._incremental_save(self._results)
+        if add:
+            libs = self._all_libraries()
+            if _pkey(add) not in {_pkey(x) for x in libs}:
+                libs.append(_norm_lib(add))
+            res = self._set_libraries(libs, select="")
+            if res and res[0]:
+                self._offer_library_scan(added=True)
+        if PLEX_NFO_ASK_AUTO:                                   # v0.20.0 6h
+            self.after(300, self._maybe_ask_plex_nfo)
+
+    def _health_mode_answer(self, mode):                       ### NEW v0.19.6 TR1 / TR1b (v0.20.0 6g: from the first-start window) ###
         was = health_mode()
         SETTINGS["health_mode"] = health_mode({"health_mode": mode})
         SETTINGS["health_mode_asked"] = True
+        if SETTINGS.get("health_preset") in _sm.HEALTH_PRESET_IDS:   ### NEW v0.20.0 HP1d — the by-mode value (folder.jpg) ###
+            SETTINGS["health_rules"] = _sm.apply_health_preset(SETTINGS.get("health_rules") or {},
+                                                               SETTINGS["health_preset"], SETTINGS["health_mode"])
         _save_settings(SETTINGS)
         logger.info(f"Start question: health mode {SETTINGS['health_mode']}")
         self._apply_column_visibility()
@@ -25224,7 +27548,7 @@ class App(tk.Tk):
             self._apply_health_rules_inplace()
             self._incremental_save(self._results)
             if not self._scanning and messagebox.askyesno(
-                    "Scan again?", "A Full Scan now reads your libraries again for the new health mode.\n\nScan now?", parent=self):
+                    _i18n.t("mc.scan_again_bbe7"), _i18n.t("mc.a_full_scan_now_b250"), parent=self):
                 self._scan()
 
     def _ask_nfo_only(self, queue=None):                       ### NEW v0.19.6 TR1 ###
@@ -25278,7 +27602,7 @@ class App(tk.Tk):
         n = sum(1 for i in d.get("items", []) if i.get("kind") in _fc.IGNORED_KINDS)
         n += sum(len(v) for v in (d.get("root_videos") or {}).values())
         try:
-            self._sb_ignored.configure(text=(f"{n:,} folder{'s' if n != 1 else ''} not added — View" if n else ""))
+            self._sb_ignored.configure(text=(_i18n.tn("sb.ignored", n, as_text=_i18n.num(n)) if n else ""))
         except (AttributeError, tk.TclError):
             pass
 
@@ -25296,11 +27620,10 @@ class App(tk.Tk):
     def _show_ignored(self):                                   ### NEW v0.19.2 B53 ###
         d = getattr(self, "_ignored_data", None) or {}
         if not d and not self._results:                        ### NEW v0.19.4 B104 ###
-            messagebox.showinfo("Ignored Folders", "No scan has run yet — the list fills when a scan finds folders "
-                                "that are not movies.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.ignored_folders_70f8"), _i18n.t("mc.no_scan_has_run_3ff5"), parent=self)
             return None
         if not d.get("items") and not any((d.get("root_videos") or {}).values()) and not kept_metadata_items(self._results):
-            messagebox.showinfo("Ignored Folders", "The last scan added every folder as a movie.", parent=self)
+            messagebox.showinfo(_i18n.t("mc.ignored_folders_70f8"), _i18n.t("mc.the_last_scan_added_b607"), parent=self)
             return None
         old = getattr(self, "_ignored_dlg", None)
         try:
@@ -25314,7 +27637,7 @@ class App(tk.Tk):
     def _restore_last_session(self):                          ### MODIFIED v0.19.0 — libraries, offline roots ###
         if self._scanning or self._results:
             return        # a scan was started (or rows loaded) before the deferred restore ran
-        libs = self._libraries()
+        libs = self._all_libraries()                           # v0.20.0 5j: the inactive ones' rows are loaded too (set aside)
         if libs:
             self._folder = libs[0]
         self._update_library_widgets()
@@ -25325,9 +27648,11 @@ class App(tk.Tk):
         ### MODIFIED v0.19.3 I4 — load, parse and finalize in a worker; the window paints at once ###
         self._restore_gen = getattr(self, "_restore_gen", 0) + 1
         gen = self._restore_gen
+        self._restore_pending = True                             # v0.20.0 AU9: a scan asked for now waits for the rows
+        self._restore_t0 = time.time()
         view = self._view_state()                              # read on the Tk thread
         try:
-            self.stats_var.set("⏳  Loading last scan…")
+            self.stats_var.set(_i18n.t("mc.st.loading_last"))
         except Exception:
             pass
 
@@ -25354,6 +27679,18 @@ class App(tk.Tk):
         threading.Thread(target=work, name="restore-last-scan", daemon=True).start()
 
     def _restore_apply(self, rows, gen, prepared=None, n_coll=0):   ### NEW v0.19.3 I4 — Tk thread; n_coll v0.19.4 fix 1 ###
+        if gen == getattr(self, "_restore_gen", 0):                 # v0.20.0 AU9: the scan asked for meanwhile runs now
+            self._restore_pending = False
+            _then = getattr(self, "_after_restore", None); self._after_restore = None
+            try:
+                self._restore_apply_rows(rows, gen, prepared, n_coll)
+            finally:
+                if _then:
+                    self.after(50, _then)
+            return
+        self._restore_apply_rows(rows, gen, prepared, n_coll)
+
+    def _restore_apply_rows(self, rows, gen, prepared=None, n_coll=0):
         if gen != getattr(self, "_restore_gen", 0) or self._scanning or self._results:
             return        # a scan was started (or rows loaded) meanwhile: it wins
         if not rows:
@@ -25362,6 +27699,13 @@ class App(tk.Tk):
         # rows are restored even when a library is offline (network share);
         # reachability is checked in the background
         self._check_offline_async()
+        _k5j = self._inactive_keys()                             ### NEW v0.20.0 5j — set aside, not shown ###
+        _off5j = [r for r in rows if self._row_inactive(r, _k5j)] if _k5j else []
+        if _off5j:
+            self._inactive_rows = _off5j
+            rows = [r for r in rows if not self._row_inactive(r, _k5j)]
+            finalize_results(rows)
+            prepared = None                                     # the worker's table order had them
         self._results = rows
         self._update_stats()
         # the table in the next Tk callback, so no single pause adds both (v0.19.3 I4)
@@ -25372,6 +27716,7 @@ class App(tk.Tk):
         if SETTINGS.get("collection_folder"):                  ### NEW v0.19.4 B110g — the set folders, in a worker ###
             self._last_coll_folder = SETTINGS.get("collection_folder")
             self.after(500, self._read_collection_folders)
+        self.after(700, self._reread_stale)                    ### NEW v0.20.0 XB1 — results saved in another health mode ###
 
     def _restore_column_widths(self):                          ### NEW v0.18.0 ###
         """Apply persisted column widths from SETTINGS["column_widths"]."""
@@ -25395,20 +27740,15 @@ class App(tk.Tk):
     def _on_app_close(self):                                   ### NEW v0.18.0 ###
         """Save column widths and current results, then destroy the window."""
         if getattr(self, "_bg_running", 0):                     ### NEW v0.19.5 SH-E4 ###
-            if not messagebox.askyesno("Close MediaClinic", "An action is still running.\n\nStop it and close MediaClinic?\n"
-                                       "The movie it is working on can be left with one file changed; Backup History can put it back.\n"
-                                       "(No = keep MediaClinic open.)", parent=self):
+            if not messagebox.askyesno(_i18n.t("mc.close_mediaclinic_977f"), _i18n.t("mc.an_action_is_still_8a1c"), parent=self):
                 return
         if self._scanning:                                      ### NEW v0.19.4 P2 (E10) ###
-            if not messagebox.askyesno("Close MediaClinic", "A scan is still running.\n\nStop it and close MediaClinic?\n"
-                                       "Folders the scan has not finished keep their previous results.\n"
-                                       "(No = keep MediaClinic open.)", parent=self):
+            if not messagebox.askyesno(_i18n.t("mc.close_mediaclinic_977f"), _i18n.t("mc.a_scan_is_still_9f0d"), parent=self):
                 return
             self._cancel_scan = True
         if self._busy_fix:                                      ### NEW v0.19.3 B62 — a fix is still running ###
-            if not messagebox.askyesno("Close MediaClinic",
-                                       "An image fix is still running.\n\nStop it and close MediaClinic?\n"
-                                       "(Nothing is changed by the stopped fix. No = keep MediaClinic open.)",
+            if not messagebox.askyesno(_i18n.t("mc.close_mediaclinic_977f"),
+                                       _i18n.t("mc.an_image_fix_is_6f2b"),
                                        parent=self):
                 return
             for w in self.winfo_children():
@@ -25452,9 +27792,13 @@ class App(tk.Tk):
             SETTINGS["last_folder"] = self._folder
             _rows = self._results
             if self._scanning and getattr(self, "_scan_prior", None) is not None:   # P2 (E10)
-                _rows = merge_unfinished_rows(_rows, self._scan_prior)
-            _sc.save_results_cache(_rows)
+                _rows = merge_unfinished_rows(_rows, self._scan_prior, keep_unlisted=True)   # v0.20.0 AU9
+            _sc.save_results_cache(list(_rows) + list(self._inactive_rows))   # v0.20.0 5j
         _save_settings(SETTINGS)
+        try:                                                     # v0.20.0 AU10: no listener outlives the window
+            _PAUSE_LISTENERS.remove(self._pause_cb)
+        except (AttributeError, ValueError):
+            pass
         self.destroy()
 
     ### NEW v0.10.0 — Richer status bar update ###
@@ -25462,16 +27806,18 @@ class App(tk.Tk):
         """Update the richer status bar labels."""
         try:
             hf = getattr(self, "_health_filter", None)
-            self._sb_movies.configure(text=f"  Movies: {total}")
-            self._sb_warn.configure(text=f"  Warnings: {warnings}" + ("  ◀ filtered" if hf == "warning" else ""))
-            self._sb_errors.configure(text=f"  Errors: {errors}" + ("  ◀ filtered" if hf == "error" else ""))
+            self._sb_movies.configure(text="  " + _i18n.t("sb.movies", n=_i18n.num(total)))       # v0.20.0 UI1c
+            self._sb_warn.configure(text="  " + _i18n.t("sb.warnings", n=_i18n.num(warnings))
+                                    + (_i18n.t("sb.filtered") if hf == "warning" else ""))
+            self._sb_errors.configure(text="  " + _i18n.t("sb.errors", n=_i18n.num(errors))
+                                      + (_i18n.t("sb.filtered") if hf == "error" else ""))
             if action:
                 _off = getattr(self, "_offline_roots", None)                ### NEW v0.19.0 ###
                 if _off:
-                    action += f"   —   Offline: {len(_off)} library(ies), cached rows shown"
-                self._sb_action.configure(text=f"  Last: {action}")
+                    action += _i18n.t("sb.offline", n=len(_off))
+                self._sb_action.configure(text="  " + _i18n.t("sb.last", action=action))
             _sn = str(sort_name or "")                        ### v0.19.3 B63 — the summary can be long ###
-            self._sb_sort.configure(text=f"Sort: {_sn if len(_sn) <= 70 else _sn[:69] + '…'}  ")
+            self._sb_sort.configure(text=_i18n.t("sb.sort", sort=_sn if len(_sn) <= 70 else _sn[:69] + "…") + "  ")
         except Exception:
             pass
 
@@ -25533,9 +27879,40 @@ class App(tk.Tk):
         vals[COL_COLLECTION] = name
         return tuple(vals)
 
+    def _set_collection_folder(self, path):                       ### NEW v0.20.0 CF1 — one place ###
+        """Store the collection folder (Libraries window, the grouping prompt) and re-read the collection folders."""
+        SETTINGS["collection_folder"] = os.path.normpath(path) if path else ""
+        _save_settings(SETTINGS)
+        logger.info(f"Collection folder: {SETTINGS['collection_folder'] or '(none)'}")
+        self._last_coll_folder = SETTINGS["collection_folder"]
+        ui_post(self._read_collection_folders)
+        if self._results:
+            self._apply_health_rules_inplace()
+
+    def _ask_collection_folder(self, parent=None):               ### NEW v0.20.0 CF1 ###
+        """Grouping by collection without a collection folder: Choose folder… / Create <Sets> / Not now.  Returns the
+        folder or None (Not now: the table is grouped anyway; the collection artwork checks stay off)."""
+        if SETTINGS.get("collection_folder"):
+            return SETTINGS["collection_folder"]
+        dlg = _CollFolderPrompt(parent or self, suggest_collection_folder(self._all_libraries()))
+        self.wait_window(dlg)
+        if dlg.result:
+            self._set_collection_folder(dlg.result)
+            return SETTINGS["collection_folder"]
+        return None
+
+    def _collection_folder(self):                                 ### NEW v0.20.0 CF1 (read by Settings) ###
+        return SETTINGS.get("collection_folder") or ""
+
+    def _open_libraries(self, owner=None):                         ### NEW v0.20.0 CF1 (Settings → Libraries…) ###
+        dlg = _LibrariesDialog(self, owner=owner)
+        self.wait_window(dlg)
+
     def _toggle_grouping(self):
         SETTINGS["group_by_collection"] = bool(self._group_var.get())
         _save_settings(SETTINGS)
+        if SETTINGS["group_by_collection"] and not SETTINGS.get("collection_folder") and COLL_FOLDER_ASK_AUTO:   # CF1
+            self.after(0, self._ask_collection_folder)
         self._refresh_table()
         return "break"
 
@@ -25586,23 +27963,24 @@ class App(tk.Tk):
                 pass
         self._ctx_subs = []
         is_open = bool(self.tree.item(iid, "open"))
-        m.add_command(label="▸  Collapse" if is_open else "▾  Expand", command=lambda: self._coll_set_open(iid, not is_open))
-        m.add_command(label="☑  Select Its Movies", command=lambda: (self._coll_set_open(iid, True),
+        T = _i18n.t                                                # v0.20.0 UI1c
+        m.add_command(label=T("ctx.coll.collapse") if is_open else T("ctx.coll.expand"), command=lambda: self._coll_set_open(iid, not is_open))
+        m.add_command(label=T("ctx.coll.select"), command=lambda: (self._coll_set_open(iid, True),
                                                                      self.tree.selection_set(self.tree.get_children(iid))))   ### B110h helper ###
         m.add_separator()
-        m.add_command(label=FIX_COLL_LABEL + f" — {_n(len(rows), 'movie')}", command=lambda: self._fix_collections_for(rows))
-        m.add_command(label="🗂  Rename / Join Collection…", command=lambda: self._set_collection_for(rows))   # fix 5
+        m.add_command(label=FIX_COLL_LABEL + f" — {_n(len(rows), 'movie', ',')}", command=lambda: self._fix_collections_for(rows))
+        m.add_command(label="🗂  " + T("ctx.coll.rename_join"), command=lambda: self._set_collection_for(rows))   # fix 5
         m.add_command(label=CREATE_COLL_LABEL, command=lambda: self._create_collection_folders_for(rows))
         m.add_command(label=COLL_ART_LABEL, command=lambda: self._collection_art_for(key, name, rows))   ### NEW v0.19.4 fix 2g ###
         cdir = (COLL_FOLDERS.get(key) or {}).get("dir")
-        m.add_command(label="📂  Open Collection Folder", command=lambda: os_open(cdir), state="normal" if cdir else "disabled")
+        m.add_command(label="📂  " + T("ctx.open_coll_folder"), command=lambda: os_open(cdir), state="normal" if cdir else "disabled")
         cid = collection_tmdb_id(rows)                          ### MODIFIED v0.19.4 fix 2d ###
-        m.add_command(label="🌐  Open Collection on TMDB" if cid else "🌐  Search Collection on TMDB",
+        m.add_command(label="🌐  " + (T("ctx.open_coll_tmdb") if cid else T("ctx.search_coll_tmdb")),
                       command=lambda: open_url_with_browser(collection_tmdb_url(cid, name)))
         m.add_command(label=CHECK_COLL_ONE_LABEL, command=lambda: self._check_collections(rows))
         m.add_separator()
-        m.add_command(label="▾  Expand All", command=lambda: self._coll_all(True))
-        m.add_command(label="▸  Collapse All", command=lambda: self._coll_all(False))
+        m.add_command(label=T("ctx.coll.expand_all"), command=lambda: self._coll_all(True))
+        m.add_command(label=T("ctx.coll.collapse_all"), command=lambda: self._coll_all(False))
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:
@@ -25674,7 +28052,7 @@ class App(tk.Tk):
 
     def _update_part_count(self):                                  ### NEW v0.19.4 L1 ###
         try:
-            self._part_btns["movies"].configure(text=f"🎬  Movies ({len(self._results)})")
+            self._part_btns["movies"].configure(text="🎬  " + _i18n.t("hdr.movies_n", n=_i18n.num(len(self._results))))
         except (AttributeError, KeyError, tk.TclError):
             pass
 
@@ -25694,15 +28072,14 @@ class App(tk.Tk):
     def _build_series_part(self, f):                               ### NEW v0.19.4 L1 ###
         """The Series part: the same structure, greyed, until series support (v0.22)."""
         bar = tk.Frame(f, bg=C_BG); bar.pack(fill="x", padx=20, pady=(14, 0))
-        tk.Label(bar, text="No series library", font=("Helvetica", 10), bg=C_SURFACE, fg=C_DIM,
+        tk.Label(bar, text=_i18n.t("series.no_library"), font=("Helvetica", 10), bg=C_SURFACE, fg=C_DIM,
                  anchor="w", padx=10, pady=6).pack(side="left", fill="x", expand=True, ipady=2)
-        for t in ("  Libraries…  ", "  Browse…  ", "  Full Scan  ", "  Quick Scan  "):
+        for t in (f"  {_i18n.t(k)}  " for k in ("btn.libraries", "btn.browse", "btn.full_scan", "btn.quick_scan")):
             tk.Button(bar, text=t, font=("Helvetica", 10), relief="flat", state="disabled", bg=C_SURFACE,
                       disabledforeground=C_HOVER).pack(side="left", padx=(6, 0))
         body = tk.Frame(f, bg=C_BG); body.pack(fill="both", expand=True, padx=40, pady=40)
-        tk.Label(body, text="📺  TV series", font=("Helvetica", 15, "bold"), bg=C_BG, fg=C_TEXT).pack(anchor="w")
-        tk.Label(body, text="Series support comes in v0.22: seasons, episodes and their metadata in their own part.\n"
-                            "Until then, MediaClinic lists the series folders it finds in the Movies libraries here:",
+        tk.Label(body, text="📺  " + _i18n.t("series.title"), font=("Helvetica", 15, "bold"), bg=C_BG, fg=C_TEXT).pack(anchor="w")
+        tk.Label(body, text=_i18n.t("series.text"),
                  font=("Helvetica", 11), bg=C_BG, fg=C_SUBTEXT, justify="left").pack(anchor="w", pady=(8, 6))
         lnk = tk.Label(body, text=IGNORED_MENU_LABEL.strip(), font=("Helvetica", 11, "underline"), bg=C_BG,
                        fg=C_ACCENT, cursor="hand2")
@@ -25744,7 +28121,8 @@ class App(tk.Tk):
         self.stats_var.set("  •  ".join(([ov["per_lib"]] if ov["per_lib"] else []) + [
             f"{_n(t, 'movie')}", f"poster:{pc}/{t}", f"folder:{fc}/{t}",
             f"fanart:{ac}/{t}",
-        ] + ([f"nfo:{nc}/{len(_nr)}({ne}err)"] if _nr else []) + ([f"xml:{xc}/{len(_xr)}({xe}err)"] if _xr else []) + [   # v0.19.6 TR1bf"video:{vc}/{t}",
+        ] + ([f"nfo:{nc}/{len(_nr)}({ne}err)"] if _nr else []) + ([f"xml:{xc}/{len(_xr)}({xe}err)"] if _xr else []) + [   # v0.19.6 TR1b
+            f"video:{vc}/{t}",                                   # v0.20.0 AU10: it had slipped into the comment
             f"{iso}-OK:{lk}/{t}"
         ]))
         ### NEW v0.13.0 — always recalculate errors/warnings for status bar ###
@@ -25753,9 +28131,8 @@ class App(tk.Tk):
         self._update_status_bar(t, _warn, _err, "", self.sort_var.get())
         try:                                                            ### NEW v0.19.2 B55 ###
             if ov["hidden"]:
-                self._sb_movies.configure(text=f"  Movies: {t} ({lf})")
-                self._sb_libhidden.configure(
-                    text=f"· {ov['hidden']} {'library' if ov['hidden'] == 1 else 'libraries'} hidden by the filter — show all")
+                self._sb_movies.configure(text="  " + _i18n.t("sb.movies_lib", n=_i18n.num(t), lib=lf))
+                self._sb_libhidden.configure(text=_i18n.tn("sb.libhidden", ov["hidden"]))
             else:
                 self._sb_libhidden.configure(text="")
             self._update_library_widgets()                             # counts in the box tooltip and dropdown
@@ -25771,8 +28148,8 @@ class App(tk.Tk):
             fnt = tk_font.Font(font=lbl.cget("font"))
             if avail <= 40 or fnt.measure(full) <= avail:
                 lbl.configure(text=full); return
-            key = "   — showing"
-            head, tail = (full.split(key, 1)[0], key + full.split(key, 1)[1]) if key in full else (full, "")
+            key = LIB_FILTER_SEP                                       # v0.20.0 UI1c: not the English word
+            head, tail = (full.rsplit(key, 1)[0], key + full.rsplit(key, 1)[1]) if key in full else (full, "")
             lo, hi = 0, len(head)
             while lo < hi:                                             # longest head that fits
                 mid = (lo + hi + 1) // 2
@@ -25903,9 +28280,9 @@ class App(tk.Tk):
         def img_cell(exists, status, quality):
             """Return merged cell: icon + quality label."""
             if not exists:
-                return f"{STATUS_MISSING} Missing"
+                return f"{STATUS_MISSING} {_i18n.t('cell.missing')}"        # v0.20.0 UI1c
             if status == STATUS_ERROR:
-                return f"{STATUS_ERROR} {quality if quality != '—' else 'Error'}"
+                return f"{STATUS_ERROR} {quality if quality != '—' else _i18n.t('cell.error')}"
             if status == STATUS_WARN:
                 return f"{STATUS_WARN} {quality}"
             return f"{STATUS_OK} {quality}"
@@ -25920,14 +28297,14 @@ class App(tk.Tk):
                 return f"{STATUS_MISSING} -"
             if votes_status == STATUS_ERROR:
                 return f"{STATUS_ERROR} -"
-            return f"{votes_status} {votes_int:,}"
+            return f"{votes_status} {_i18n.num(votes_int)}"      # v0.20.0 UI1c: 12,345 / 12.345
 
         # Source cell format: "⬤ IMDB - ⬤ TMDB"                           ### NEW v0.16.0 ###
         def source_cell(imdb_status, tmdb_status):
             return f"{imdb_status} IMDb  {tmdb_status} TMDB"
 
         return (
-            r.get("movie_name", r["subfolder"]),               # COL_MOVIE_NAME
+            (lambda v, p: f"{v}{p}" if p and v else v)(r.get("movie_name", r["subfolder"]), stack_parts_label(r)),   # COL_MOVIE_NAME (+ ' — Part 1 + Part 2', RD10b)
             r.get("movie_year", "-"),                          # COL_YEAR
             r.get("genre_status", STATUS_ERROR) + " " + r.get("genre_display", "-"),  # COL_GENRE
             rating_cell(r.get("rating_str", "-"), r.get("rating_status", STATUS_MISSING)),  # COL_RATING
@@ -25953,11 +28330,11 @@ class App(tk.Tk):
                 (f"{t['language']} ({t['channels']})" if t.get('channels') else t['language'])
                 for t in sorted(r.get("audio_tracks", []), key=lambda x: x.get("language",""))
             ),
-            r.get("lang_ok", "-"),                                                     # COL_LANG_OK
+            _LANG_OK_SHOWN().get(r.get("lang_ok", "-"), r.get("lang_ok", "-")),       # COL_LANG_OK (v0.20.0 UI1c: S / N)
             r["subs_summary"],                                                         # COL_SUBS
             (r.get("library_root") or os.path.dirname(r.get("subfolder_path") or ""))  # COL_LIBRARY ### NEW v0.19.0 ###
-            + (" (offline)" if self._root_offline(r) else "")
-            + (" (not read)" if r.get("read_error") else ""),                      ### NEW v0.19.4 B88 ###
+            + (_i18n.t("cell.offline") if self._root_offline(r) else "")
+            + (_i18n.t("cell.not_read") if r.get("read_error") else ""),           ### NEW v0.19.4 B88; v0.20.0 UI1c ###
             collection_name(r),                                                    # COL_COLLECTION ### NEW v0.19.4 B110a ###
         )
 
@@ -26029,16 +28406,15 @@ class App(tk.Tk):
         e = sum(1 for r in self._results if r["health_status"] == "error")
         w = sum(1 for r in self._results if r["health_status"] == "warning")
         self._incremental_save(self._results)
-        messagebox.showinfo("Recompute Health",
-                            f"Health status recomputed for {_n(len(self._results), 'movie')} "
-                            f"with the current rules.\n\nErrors: {e}   Warnings: {w}", parent=self)
+        messagebox.showinfo(_i18n.t("mc.recompute_health_a6cf"),
+                            _i18n.t("mc.health_status_recomputed_for_8284", n=_n(len(self._results), 'movie'), e=e, w=w), parent=self)
 
     def _show_statistics(self):
         if self._busy():                                       ### NEW v0.19.4 B91 ###
             return
         if self._no_scan("Library Statistics"):                ### MODIFIED v0.19.4 I17 ###
             return
-        TextReportDialog(self, "📊  Library Statistics", format_library_statistics(self._results),
+        TextReportDialog(self, "📊  " + _i18n.t("au.st.title0"), format_library_statistics(self._results),
                          "library_statistics")
 
     def _show_duplicates(self):
@@ -26046,7 +28422,7 @@ class App(tk.Tk):
             return
         if self._no_scan("Duplicate Movies"):                ### MODIFIED v0.19.4 I17 ###
             return
-        TextReportDialog(self, "👯  Duplicate Movies Report", format_duplicates_report(self._results),
+        TextReportDialog(self, _i18n.t("uf.duplicate_movies_report_3444"), format_duplicates_report(self._results),
                          "duplicate_movies")
 
     # ── Fix image proportions / size (v0.19.2 F4) ─────────────────────────────
@@ -26055,9 +28431,7 @@ class App(tk.Tk):
         busy = [r for r in rows if _pkey(r.get("subfolder_path") or "") in self._busy_fix]
         if not busy:
             return False
-        messagebox.showinfo(title, "Fix image is still running for this movie:\n"
-                            + "\n".join(r.get("movie_name") or r.get("subfolder", "") for r in busy[:5])
-                            + "\n\nTry again when it has finished.", parent=self)
+        messagebox.showinfo(title, _i18n.t("mc.fix_image_is_still_dc4b", join="\n".join(r.get("movie_name") or r.get("subfolder", "") for r in busy[:5])), parent=self)
         return True
 
     def _image_fix_notice(self, text, flash_win=None):         ### NEW v0.19.3 B62 ###
@@ -26085,7 +28459,7 @@ class App(tk.Tk):
         if self._busy(IMAGE_FIX_ACTION):                            ### NEW v0.19.4 B91 — first ###
             return
         if _ifx is None or not _PIL_AVAILABLE:
-            messagebox.showwarning(IMAGE_FIX_ACTION, "Pillow is not installed — images cannot be fixed.", parent=self)
+            messagebox.showwarning(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.pillow_is_not_installed_e915"), parent=self)
             return None
         if self._artwork_busy(rows, IMAGE_FIX_ACTION):                ### NEW v0.19.3 B62 ###
             return None
@@ -26094,7 +28468,7 @@ class App(tk.Tk):
         rows = list(rows)
         if len(rows) == 1:
             if not any(rows[0].get(f"{k}_exists") for k in _FIX_KINDS):
-                messagebox.showinfo(IMAGE_FIX_ACTION, "This movie has no poster, folder image or fanart.", parent=self)
+                messagebox.showinfo(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.this_movie_has_no_5915"), parent=self)
                 return None
             return ImageFixDialog(self, rows[0])
         return self._fix_images_batch(rows)
@@ -26105,15 +28479,13 @@ class App(tk.Tk):
         info = upscaler_download_info()
         par = parent or self
         if not info:
-            messagebox.showinfo("AI upscaler", "The AI upscaler is available on Windows only.", parent=par)
+            messagebox.showinfo(_i18n.t("mc.ai_upscaler_643b"), _i18n.t("mc.the_ai_upscaler_is_fa66"), parent=par)
             return None
         if not messagebox.askyesno(
-                "AI upscaler",
-                f"Download {info['release']}?\n\n{info['url']}\n({info['size'] / 1e6:.0f} MB, checked against its "
-                f"SHA-256)\n\nIt is installed in {upscaler_dir()} and tested once on a tiny image.\n"
-                "Licences: MIT (the program), BSD-3-Clause (Real-ESRGAN and its models).", parent=par):
+                _i18n.t("mc.ai_upscaler_643b"),
+                _i18n.t("mc.download_mb_checked_against_a89a", release=info['release'], url=info['url'], v=format(info['size'] / 1e6, '.0f'), upscaler_dir=upscaler_dir()), parent=par):
             return None
-        prog = _BatchProgressDialog(par, "Downloading the AI upscaler…", total=100)
+        prog = _BatchProgressDialog(par, _i18n.t("uf.downloading_the_ai_upscaler_3426"), total=100)
 
         def work():
             try:
@@ -26148,13 +28520,11 @@ class App(tk.Tk):
         except tk.TclError:
             par = self
         if err:
-            messagebox.showerror("AI upscaler", f"Not installed: {err}", parent=par)
+            messagebox.showerror(_i18n.t("mc.ai_upscaler_643b"), _i18n.t("mc.not_installed_ec73", err=err), parent=par)
         elif ok:
-            messagebox.showinfo("AI upscaler", "Real-ESRGAN is installed and works. \"AI upscale\" can be used now.", parent=par)
+            messagebox.showinfo(_i18n.t("mc.ai_upscaler_643b"), _i18n.t("mc.real_esrgan_is_installed_4e94"), parent=par)
         else:
-            messagebox.showwarning("AI upscaler", f"Installed, but the test failed: {why}.\n\n"
-                                   "AI upscale stays off; images are enlarged with the plain resize "
-                                   "(limits ×1.25 / ×1.5).", parent=par)
+            messagebox.showwarning(_i18n.t("mc.ai_upscaler_643b"), _i18n.t("mc.installed_but_the_test_7b55", why=why), parent=par)
         if done:
             done()
 
@@ -26162,7 +28532,7 @@ class App(tk.Tk):
         if self._busy(IMAGE_FIX_ACTION):                            ### NEW v0.19.4 B91 — first ###
             return
         if _ifx is None or not _PIL_AVAILABLE:
-            messagebox.showwarning(IMAGE_FIX_ACTION, "Pillow is not installed — images cannot be fixed.", parent=self)
+            messagebox.showwarning(shown_action(IMAGE_FIX_ACTION), _i18n.t("mc.pillow_is_not_installed_e915"), parent=self)
             return None
         if self._busy(IMAGE_FIX_ACTION):                ### MODIFIED v0.19.4 B91 — one message ###
             return None
@@ -26173,18 +28543,18 @@ class App(tk.Tk):
         with a progress window; one backup folder for the run."""
         plan = image_fix_batch_plan(rows)
         if not plan:
-            messagebox.showinfo(IMAGE_FIX_ACTION,
-                                "No poster, folder image or fanart with wrong proportions or a low resolution.",
+            messagebox.showinfo(shown_action(IMAGE_FIX_ACTION),
+                                _i18n.t("mc.no_poster_folder_image_b139"),
                                 parent=self)
             return None
         todo = [p for p in plan if p[3]]
-        pv = _PreviewRunDialog(self, f"🛠  {IMAGE_FIX_ACTION} — Preview", image_fix_batch_text(plan),
-                               file_stem="image_fix_preview", run_label="  ▶ Fix images  ")
+        pv = _PreviewRunDialog(self, f"🛠  {shown_action(IMAGE_FIX_ACTION)} — " + _i18n.t("f3r.preview"), image_fix_batch_text(plan),
+                               file_stem="image_fix_preview", run_label=_i18n.t("mc.fix_images_e814"))
         self._image_fix_preview = pv
         self.wait_window(pv)
         if not pv.run or not todo:
             return None
-        prog = _BatchProgressDialog(self, "Fixing images…", total=len(todo)) if len(todo) >= _PROGRESS_MIN else None
+        prog = _BatchProgressDialog(self, _i18n.t("au.prog.fix_images"), total=len(todo)) if len(todo) >= _PROGRESS_MIN else None
 
         ### MODIFIED v0.19.3 I7 — on the _BatchJob helper (same backups, messages, refresh) ###
         def _step(job, item):
@@ -26195,14 +28565,14 @@ class App(tk.Tk):
             return True
 
         def _finish(job, skipped=len(plan) - len(todo)):
-            msg = f"{_n(job.done, 'image')} fixed." + (f" {skipped} skipped (see the preview)." if skipped else "")
+            msg = _i18n.t("m3.images_fixed", images=_n(job.done, "image")) + (_i18n.t("m3.skipped_preview", n=skipped) if skipped else "")
             if getattr(job, "notes", None):                       # v0.19.5 WR-B6
-                msg += "\n\nFixed, but not everything:\n" + "\n".join(job.notes[:8])
+                msg += _i18n.t("mc.fixed_but_not_everything_d802", join="\n".join(job.notes[:8]))
             if job.errors:
-                msg += "\n\nNot changed:\n" + "\n".join(job.errors[:8])
+                msg += _i18n.t("mc.not_changed_2fc6", join="\n".join(job.errors[:8]))
             msg += job.cancel_note()                                 ### NEW v0.19.4 B83 ###
             msg += ("\n\n" + UNDO_HINT) if job.done else ""            ### NEW v0.19.4 B109e ###
-            messagebox.showinfo(IMAGE_FIX_ACTION, msg, parent=self)
+            messagebox.showinfo(shown_action(IMAGE_FIX_ACTION), msg, parent=self)
 
         _BatchJob(self, todo, IMAGE_FIX_ACTION, prog=prog,
                   name_of=lambda it: f"{it[0].get('movie_name', it[0].get('subfolder', ''))} ({it[1]})").run(_step, _finish)
@@ -26210,26 +28580,24 @@ class App(tk.Tk):
 
     def _copy_poster_to_folder(self, data_list, confirm=True):   # backups labelled "Copy poster → folder" (I1)
         """Overwrite folder.jpg with poster.jpg where they differ (backup first)."""
-        if self._artwork_busy(data_list, "Copy poster → folder"):   ### NEW v0.19.3 B62 ###
+        if self._artwork_busy(data_list, _i18n.t("uf.copy_poster_folder_85f2")):   ### NEW v0.19.3 B62 ###
             return
-        if self._busy("Copy poster → folder"):                ### MODIFIED v0.19.4 B91 — one message ###
+        if self._busy(_i18n.t("uf.copy_poster_folder_85f2")):                ### MODIFIED v0.19.4 B91 — one message ###
             return
         targets = [d for d in data_list if copy_poster_needed(d)]   ### MODIFIED v0.19.1 B23; v0.19.4 B103 — the same test as the menu ###
         if not targets:
-            messagebox.showinfo("Copy poster.jpg → folder.jpg",
-                                "Nothing to do — folder.jpg already matches poster.jpg "
-                                "(or there is no poster.jpg).", parent=self)
+            messagebox.showinfo(_i18n.t("mc.copy_poster_jpg_folder_488b"),
+                                _i18n.t("mc.nothing_to_do_folder_0e84"), parent=self)
             return
         if confirm and len(targets) > 1:                          ### NEW v0.19.3 I6 — several: a preview ###
-            if not _ask_preview(self, "🖼  Copy poster.jpg → folder.jpg — Preview", copy_poster_preview_text(targets),
+            if not _ask_preview(self, _i18n.t("uf.copy_poster_jpg_folder_bf77"), copy_poster_preview_text(targets),
                                 "copy_poster_preview", "  ▶ Copy  "):
                 return
         elif confirm and not messagebox.askyesno(
-                "Copy poster.jpg → folder.jpg",
-                f"Overwrite folder.jpg with poster.jpg in {_n(len(targets), 'movie')}?\n\n"
-                "Existing folder.jpg files are backed up first.", icon="warning", parent=self):
+                _i18n.t("mc.copy_poster_jpg_folder_488b"),
+                _i18n.t("mc.overwrite_folder_jpg_with_fb56", n=_n(len(targets), 'movie')), icon="warning", parent=self):
             return
-        prog = _BatchProgressDialog(self, "Copying poster.jpg → folder.jpg…", total=len(targets)) \
+        prog = _BatchProgressDialog(self, _i18n.t("uf.copying_poster_jpg_folder_bd91"), total=len(targets)) \
                if len(targets) >= _PROGRESS_MIN else None     ### MODIFIED v0.19.1 ###
 
         ### MODIFIED v0.19.3 I7 — on the _BatchJob helper (same backups, messages, refresh) ###
@@ -26245,12 +28613,12 @@ class App(tk.Tk):
             return True
 
         def _finish(job):
-            msg = f"folder.jpg updated in {_n(job.done, 'movie')}."
+            msg = _i18n.t("mc.folder_jpg_updated_in_5277", n=_n(job.done, 'movie'))
             if job.errors:
-                msg += "\n\nErrors:\n" + "\n".join(job.errors[:5])
+                msg += _i18n.t("mc.errors_83c4", join="\n".join(job.errors[:5]))
             msg += job.cancel_note()                                 ### NEW v0.19.4 B83 ###
             msg += ("\n\n" + UNDO_HINT) if job.done else ""            ### NEW v0.19.4 B109e ###
-            messagebox.showinfo("Copy poster.jpg → folder.jpg", msg, parent=self)
+            messagebox.showinfo(_i18n.t("mc.copy_poster_jpg_folder_488b"), msg, parent=self)
 
         _BatchJob(self, targets, "Copy poster → folder", prog=prog,     ### I1 label ###
                   name_of=lambda d: d.get("movie_name", d["subfolder"])).run(_step, _finish)
@@ -26333,7 +28701,7 @@ class App(tk.Tk):
         if hasattr(self, "_filter_label"):                       ### ADDED_BY_CLAUDE_v18.2 ###
             if term.strip() or hf or lf:
                 self._filter_label.configure(
-                    text=f"{len(filtered)} of {len(self._results)} shown")
+                    text=_i18n.t("filter.shown", shown=_i18n.num(len(filtered)), total=_i18n.num(len(self._results))))
             else:
                 self._filter_label.configure(text="")
 
@@ -26344,7 +28712,7 @@ class App(tk.Tk):
         if self._busy("Export"):                ### MODIFIED v0.19.4 B91 — one message ###
             return
         if not self._results:
-            messagebox.showinfo("Export", "Scan first — there is nothing to export.", parent=self); return
+            messagebox.showinfo(_i18n.t("mc.export_0095"), _i18n.t("mc.scan_first_there_is_03a3"), parent=self); return
         view_rows = [self._item_map[i] for i in self._view_movie_iids()]   ### v0.19.4 B110h — movies only, view order ###
         ExportListDialog(self, self._results, view_rows,
                          os.path.basename(self._folder or "") if self._folder else "")
@@ -26412,16 +28780,21 @@ def _hr_missing_ids(row, rules, settings, error_reasons, warning_reasons):
         st   = row.get(f"source_{_k}_status", STATUS_MISSING)
         vals = [v for v in (row.get(f"source_{_k}_all") or []) if v]
         distinct = len(set(vals))
+        bad = [v for v in (row.get(f"source_{_k}_invalid") or []) if v]   ### NEW v0.20.0 RD11 ###
         if rules.get(f"missing_{_k}_id", True) and _id_bucket is not None:   ### MODIFIED v0.19.1 B24 ###
             if st == STATUS_MISSING:
                 _id_bucket.append(f"Missing {_lbl} ID (empty tags ready to fill)"   ### MODIFIED v0.19.1 B13 ###
                                   if row.get(f"source_{_k}_empty") else f"Missing {_lbl} ID")
+            elif st == STATUS_ERROR and not vals and bad:                       # v0.20.0 RD11
+                _id_bucket.append(f"Missing {_lbl} ID (the tag holds '{bad[0]}', not a valid ID)")
             elif st == STATUS_ERROR and not vals:
                 _id_bucket.append(f"Missing {_lbl} ID (tag present but empty)")
         if rules.get(f"corrupt_{_k}_id", True):
             if distinct > 1:
                 error_reasons.append(
                     f"{_lbl} ID conflict between tags ({', '.join(sorted(set(vals)))})")
+            elif st == STATUS_ERROR and vals and bad:                           # v0.20.0 RD11
+                error_reasons.append(f"{_lbl} ID conflict between tags: '{bad[0]}' is not a valid ID")
             elif st == STATUS_ERROR and vals:
                 error_reasons.append(f"{_lbl} ID present in some tags but empty in others")
         if rules.get(f"{_k}_id_partial", True):
@@ -26454,7 +28827,7 @@ def _hr_genre_missing(row, rules, settings, error_reasons, warning_reasons):
 
 def _hr_missing_movie_year(row, rules, settings, error_reasons, warning_reasons):
     if rules.get("missing_movie_year", True):
-        if row.get("movie_year_raw") is None:
+        if year_is_missing(row):                                    # v0.20.0 KR1.2: <premiered> counts
             error_reasons.append("Missing movie year in NFO/XML")
 
 
@@ -26513,6 +28886,38 @@ def _hr_missing_fanart(row, rules, settings, error_reasons, warning_reasons):
             warning_reasons.append("Missing fanart")
 
 
+LOGO_ART_KINDS = ("clearlogo", "logo")                             ### NEW v0.20.0 RD8 ###
+DISC_ART_KINDS = ("disc", "discart", "cdart")
+
+
+def extra_art_kinds(names):                                      ### NEW v0.20.0 RD8 ###
+    """The artwork kinds in the row's extra_art names: 'clearlogo.png' and '<video>-clearlogo.png' both give
+    'clearlogo' (the part after the last '-' when the whole name is not a kind)."""
+    out = set()
+    for n in names or ():
+        stem = os.path.splitext(str(n))[0].lower()
+        out.add(stem if stem in _nc.EXTRA_ART_KINDS else stem.rsplit("-", 1)[-1])
+    return out
+
+
+def _hr_nfo_online_art_links(row, rules, settings, error_reasons, warning_reasons):   ### NEW v0.20.0 RD9 ###
+    # Off by default and in every preset (the user, 2026-11-14): the user turns it on, then cleans with the fix
+    if rules.get("nfo_online_art_links", False) and row.get("nfo_exists"):
+        k = art_links_removable(row)
+        if k:
+            warning_reasons.append(f"NFO has online artwork links for artwork you have locally ({', '.join(k)})")
+
+
+def _hr_missing_logo_disc(row, rules, settings, error_reasons, warning_reasons):   ### NEW v0.20.0 RD8 ###
+    # Off by default; only the Tight preset turns it on (the user, 2026-11-14): Kodi's own skin hardly uses them
+    if rules.get("missing_logo_disc", False):
+        kinds = extra_art_kinds(row.get("extra_art"))
+        if not kinds & set(LOGO_ART_KINDS):
+            warning_reasons.append("Missing clear logo")
+        if not kinds & set(DISC_ART_KINDS):
+            warning_reasons.append("Missing disc art")
+
+
 def _hr_missing_folder(row, rules, settings, error_reasons, warning_reasons):
     if rules.get("missing_folder", False):                         ### MODIFIED v0.19.2 B35 — default OFF ###
         if not row.get("folder_exists"):
@@ -26523,10 +28928,46 @@ def _hr_missing_folder(row, rules, settings, error_reasons, warning_reasons):
                 warning_reasons.append("Missing folder image")
 
 
+def _hr_profile_names_unread(row, rules, settings, error_reasons, warning_reasons):   ### NEW v0.20.0 F3c ###
+    """A file in a name a ticked program does not read (Infuse: movie.nfo, cover.jpg …): that program
+    shows no NFO / poster / fanart for the movie.  Only with programs ticked; the renamer (F3c2) fixes it."""
+    if not rules.get("profile_names_unread", True):
+        return
+    progs = media_programs(_lib_root_of(row), settings)
+    if not progs or (row.get("video_count") or 1) > 1:            # several videos (parts, versions): Infuse's names
+        return                                                     # for them are not researched (D-F3c-7)
+    vb = os.path.splitext(os.path.basename(row.get("video_path") or ""))[0]
+    for kind, ok_key, path_key in (("nfo", "nfo_exists", "nfo_path"), ("poster", "poster_exists", "poster_path"),
+                                   ("fanart", "fanart_exists", "fanart_path")):
+        if not row.get(ok_key) or not row.get(path_key):
+            continue
+        name = os.path.basename(row[path_key])
+        who = _mp.unread_by(kind, name, vb, progs)
+        if who:
+            want = _mp.expand(_mp.READS[who[0]][kind][0], "<video>") + ("" if kind == "nfo" else ".jpg")
+            warning_reasons.append(f"Not read by {', '.join(_mp.PROGRAM_LABEL[p] for p in who)}: {name} (needs {want})")
+
+
 def _hr_nfo_name_not_kodi(row, rules, settings, error_reasons, warning_reasons):
     if rules.get("nfo_name_not_kodi", True):                        ### NEW v0.19.1 B23 ###
         if row.get("nfo_exists") and row.get("nfo_kodi_name") is False:
-            warning_reasons.append("NFO named after the folder — Kodi reads '<video file name>.nfo' or 'movie.nfo'")
+            warning_reasons.append("NFO named after the folder and not the only NFO — Kodi reads '<video file name>.nfo' or 'movie.nfo'")   # v0.20.0 KR1.3
+
+
+def _hr_xml_tags_old_readers(row, rules, settings, error_reasons, warning_reasons):   ### NEW v0.20.0 KR1.4 ###
+    if rules.get("xml_tags_old_readers", True) and row.get("xml_exists"):
+        g = [x for x in (row.get("xml_reader_gaps") or []) if x in ("imdb", "tmdb", "votes")]
+        if g:
+            what = " / ".join({"imdb": "IMDb ID", "tmdb": "TMDB ID", "votes": "votes"}[x] for x in g)
+            warning_reasons.append(f"{what} only in movie.xml tags the old programs ignore (Auto Repair adds <IMDbId> / <TMDbId> / <VoteCount>)")
+
+
+def _hr_id_not_kodi(row, rules, settings, error_reasons, warning_reasons):   ### NEW v0.20.0 KR1.1 ###
+    if rules.get("id_not_kodi", True) and row.get("nfo_exists"):
+        miss = [x for x in (row.get("nfo_kodi_id_missing") or []) if x in ("imdb", "tmdb")]
+        if miss:
+            ids = " / ".join({"imdb": "IMDb", "tmdb": "TMDB"}[x] for x in miss)
+            warning_reasons.append(f"{ids} ID only in <imdbid> / <tmdbid> — Kodi reads <uniqueid> (Auto Repair adds it)")
 
 
 def _hr_nfo_unescaped_amp(row, rules, settings, error_reasons, warning_reasons):
@@ -26797,8 +29238,37 @@ def _hr_duplicate_movie(row, rules, settings, error_reasons, warning_reasons):
             warning_reasons.append(f"Possible duplicate of: {shown}")
 
 
-HEALTH_RULES = (_hr_year_premiered, _hr_missing_video_file, _hr_corrupt_nfo, _hr_missing_nfo, _hr_corrupt_xml, _hr_missing_xml, _hr_corrupt_images, _hr_missing_ids, _hr_rating_conflict, _hr_votes_conflict, _hr_genre_missing, _hr_missing_movie_year, _hr_no_audio_tracks, _hr_video_quality_minimum, _hr_multiple_video_files, _hr_missing_poster, _hr_multiple_nfo_files, _hr_missing_fanart, _hr_missing_folder, _hr_nfo_name_not_kodi, _hr_nfo_unescaped_amp, _hr_struct_issues, _hr_poster_proportion, _hr_poster_folder_quality_minimum, _hr_fanart_quality_minimum, _hr_poster_folder_identical, _hr_insufficient_backdrops, _hr_backdrop_too_small, _hr_missing_rating, _hr_rating_warning, _hr_suspicious_rating, _hr_genre_only_in_xml, _hr_genre_only_in_nfo, _hr_genre_nfo_wrong_tags, _hr_genre_warning, _hr_missing_votes, _hr_votes_warning, _hr_lang_not_ok, _hr_nfo_xml_too_large, _hr_required_audio_language, _hr_required_subtitle_language, _hr_missing_movie_title, _hr_title_mismatch, _hr_folder_name_mismatch, _hr_duplicate_movie,
+HEALTH_RULES = (_hr_id_not_kodi, _hr_xml_tags_old_readers, _hr_year_premiered, _hr_missing_video_file, _hr_corrupt_nfo, _hr_missing_nfo, _hr_corrupt_xml, _hr_missing_xml, _hr_corrupt_images, _hr_missing_ids, _hr_rating_conflict, _hr_votes_conflict, _hr_genre_missing, _hr_missing_movie_year, _hr_no_audio_tracks, _hr_video_quality_minimum, _hr_multiple_video_files, _hr_missing_poster, _hr_multiple_nfo_files, _hr_missing_fanart, _hr_missing_folder, _hr_missing_logo_disc, _hr_nfo_online_art_links, _hr_profile_names_unread, _hr_nfo_name_not_kodi, _hr_nfo_unescaped_amp, _hr_struct_issues, _hr_poster_proportion, _hr_poster_folder_quality_minimum, _hr_fanart_quality_minimum, _hr_poster_folder_identical, _hr_insufficient_backdrops, _hr_backdrop_too_small, _hr_missing_rating, _hr_rating_warning, _hr_suspicious_rating, _hr_genre_only_in_xml, _hr_genre_only_in_nfo, _hr_genre_nfo_wrong_tags, _hr_genre_warning, _hr_missing_votes, _hr_votes_warning, _hr_lang_not_ok, _hr_nfo_xml_too_large, _hr_required_audio_language, _hr_required_subtitle_language, _hr_missing_movie_title, _hr_title_mismatch, _hr_folder_name_mismatch, _hr_duplicate_movie,
                 _hr_collection_mismatch, _hr_collection_artwork)   # the order of the reasons (B110c / g: last)
+
+
+class HealthReason(str):                                       ### NEW v0.20.0 UI1a — codes before texts ###
+    """A health reason: the English text it always was (so every comparison, the cache and the reports keep
+    working) plus the code of the rule that gave it (``code``, the rule function without ``_hr_``) and its values
+    for the translated text (``values``; UI1c fills them where the text has values).  Rows loaded from the cache
+    are recomputed (finalize_results), so their reasons carry codes as well."""
+    __slots__ = ("code", "values")
+
+    def __new__(cls, text, code="", values=None):
+        s = super().__new__(cls, text)
+        s.code = code
+        s.values = dict(values or {})
+        return s
+
+    def __reduce__(self):                                       # copy / pickle keep the code
+        return (HealthReason, (str(self), self.code, self.values))
+
+
+def reason_code(r):
+    """The rule code of a health reason ("" for a plain string, e.g. a row built by hand)."""
+    return getattr(r, "code", "") or ""
+
+
+def _coded(reasons, start, code):
+    for i in range(start, len(reasons)):
+        r = reasons[i]
+        if not reason_code(r):
+            reasons[i] = HealthReason(r, code, getattr(r, "values", None))
 
 
 def compute_movie_health_detailed(row: dict, rules: dict,
@@ -26827,7 +29297,11 @@ def compute_movie_health_detailed(row: dict, rules: dict,
     warning_reasons = []
 
     for _rule in HEALTH_RULES:                                  ### MODIFIED v0.19.3 I7 — one function per rule ###
+        _ne, _nw = len(error_reasons), len(warning_reasons)
         _rule(row, rules, settings, error_reasons, warning_reasons)
+        _code = _rule.__name__[4:] if _rule.__name__.startswith("_hr_") else _rule.__name__   ### NEW v0.20.0 UI1a ###
+        _coded(error_reasons, _ne, _code)
+        _coded(warning_reasons, _nw, _code)
 
     if error_reasons:
         return ("error", error_reasons, warning_reasons)
@@ -26890,25 +29364,24 @@ def title_sync_choice(row, default="nfo"):
     (c) else *default*: "nfo" keeps the NFO title, "skip" writes nothing."""
     nt, xt = (row.get("nfo_title") or "").strip(), (row.get("xml_localtitle") or "").strip()
     if not nt or not xt or _norm_title_cmp(nt) == _norm_title_cmp(xt):
-        return None, None, "the local titles do not differ"
+        return None, None, _i18n.t("uf.the_local_titles_do_f20f")
     ot = _norm_title_cmp(row.get("original_title"))
     if ot:
         n_o, x_o = _norm_title_cmp(nt) == ot, _norm_title_cmp(xt) == ot
         if x_o and not n_o:
-            return nt, "xml", "the XML title was the original title"
+            return nt, "xml", _i18n.t("uf.the_xml_title_was_8d02")
         if n_o and not x_o:
-            return xt, "nfo", "the NFO title was the original title"
+            return xt, "nfo", _i18n.t("uf.the_nfo_title_was_52f0")
     ft = _loose_title_cmp(_folder_title(row.get("subfolder")))
     if ft:
         n_f, x_f = _loose_title_cmp(nt) == ft, _loose_title_cmp(xt) == ft
         if n_f and not x_f:
-            return nt, "xml", "the NFO title matches the folder name"
+            return nt, "xml", _i18n.t("uf.the_nfo_title_matches_2b9d")
         if x_f and not n_f:
-            return xt, "nfo", "the XML title matches the folder name"
+            return xt, "nfo", _i18n.t("uf.the_xml_title_matches_7b9f")
     if default == "nfo":
-        return nt, "xml", "unclear which is right — the NFO title is kept (Settings → Health Rules)"
-    return None, None, (f'unclear which title is right: NFO <title> "{nt}" vs XML <LocalTitle> "{xt}" — '
-                        'use right-click → Metadata → "Make titles the same…"')
+        return nt, "xml", _i18n.t("uf.unclear_which_is_right_3950")
+    return None, None, (_i18n.t("uf.unclear_which_title_is_d53f", nt=nt, xt=xt))
 
 
 def _title_sync_default():
@@ -26925,19 +29398,19 @@ def _write_local_title(row, value, targets):
     """Write *value* into NFO <title> ("nfo") and/or XML <LocalTitle> ("xml")
     of the row's files (escaping, strict UTF-8 and movie.nfo first come from
     _write_tag_in_files).  Returns (ok, error)."""
-    nfo = row.get("nfo_path") if row.get("nfo_exists") and "nfo" in targets else None
-    xml = row.get("xml_path") if row.get("xml_exists") and "xml" in targets else None
+    nfo = (_metadata_targets(row)[0] if "nfo" in targets else None)   # v0.20.0 F3b
+    xml = (_metadata_targets(row)[1] if "xml" in targets else None)   # v0.20.0 F3b
     return _write_tag_in_files(nfo, xml, "title" if nfo else None, "LocalTitle" if xml else None, value)
 
 
 # ── _matches_filter — pure filter helper (v0.18.2) ───────────────────────────
 def collection_check_summary(checked, colls, skipped, fresh=0):   ### NEW v0.19.4 B110b ###
     """'k checked, n collections, m skipped — why'."""
-    parts = [f"{_n(checked, 'movie')} checked", f"{_n(colls, 'collection')} found"]
+    parts = [_i18n.t("rp.checked_a1ba", n=_n(checked, 'movie')), _i18n.t("rp.found_308a", n=_n(colls, 'collection'))]
     for why, k in sorted((skipped or {}).items()):
-        parts.append(f"{k} skipped — {why}")
+        parts.append(_i18n.t("rp.skipped_e7ae", k=k, why=why))
     if fresh:
-        parts.append(f"{fresh} checked less than {_cr.CHECK_MAX_AGE_DAYS} days ago (not asked again)")
+        parts.append(_i18n.t("rp.checked_less_than_days_e09d", fresh=fresh, check_max_age_days=_cr.CHECK_MAX_AGE_DAYS))
     return ", ".join(parts[:2]) + ("\n" + "\n".join(parts[2:]) if parts[2:] else "") + "."
 
 
@@ -27060,8 +29533,29 @@ def _matches_filter(row: dict, term: str) -> bool:              ### ADDED_BY_CLA
     quality = row.get("video_quality", "").lower()
     reasons = " | ".join(row.get("health_reasons", []) or []).lower()   ### NEW v0.18.4 ###
     coll = collection_name(row).lower()                                ### NEW v0.19.4 B110a ###
-    return (t in name or year.startswith(t) or t in genre
-            or t == health or t in lang or t in quality or t in reasons or (bool(coll) and t in coll))
+    if (t in name or year.startswith(t) or t in genre
+            or t == health or t in lang or t in quality or t in reasons or (bool(coll) and t in coll)):
+        return True
+    if _i18n.current() == "en":
+        return False
+    ### NEW v0.20.0 UI1e — the reasons and the status as SHOWN in Portuguese / Spanish match too (the stored text is English)
+    if health and _i18n.has("ex.health." + health) and t == _i18n.t("ex.health." + health).lower():
+        return True
+    return any(t in _shown_reason_lower(r) for r in (row.get("health_reasons", []) or []))
+
+
+_SHOWN_REASON_CACHE = {}                                          ### NEW v0.20.0 UI1e ###
+
+
+def _shown_reason_lower(r):
+    """reason_text(r).lower(), remembered per language (the filter runs on every key press over every row)."""
+    k = (_i18n.current(), r)
+    v = _SHOWN_REASON_CACHE.get(k)
+    if v is None:
+        if len(_SHOWN_REASON_CACHE) > 20000:
+            _SHOWN_REASON_CACHE.clear()
+        v = _SHOWN_REASON_CACHE[k] = reason_text(r).lower()
+    return v
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -27091,6 +29585,289 @@ def acquire_single_instance(name=SINGLE_INSTANCE_MUTEX):
         return h, True
     except Exception:
         return None, True
+
+
+def windows_ui_locale():                                        ### NEW v0.20.0 UI1a ###
+    """The Windows display language as a locale name ("pt-BR", "en-US" …), "" off Windows or on any error."""
+    if os.name != "nt":
+        return ""
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        lang = k32.GetUserDefaultUILanguage()
+        buf = ctypes.create_unicode_buffer(85)
+        if k32.LCIDToLocaleName(int(lang), buf, 85, 0):
+            return buf.value
+    except Exception:
+        pass
+    return ""
+
+
+_SETTINGS_TAB_KEYS = {                                          ### NEW v0.20.0 UI1c — Settings ▾ entries by tab name ###
+    "Editor & FFmpeg": "settings.tab.editor", "API Keys": "settings.tab.api_keys", "Browser": "settings.tab.browser",
+    "Language": "settings.tab.language", "Improvements": "settings.tab.improvements",
+    "Image Sizes": "settings.tab.image_sizes", "Ratings": "settings.tab.ratings", "Genres": "settings.tab.genres",
+    "NFO / XML": "settings.tab.nfo_xml", "User Interface": "settings.tab.ui", "Health Rules": "settings.tab.health",
+    "Backup": "settings.tab.backup"}
+
+
+def _i18n_refresh():                                             ### NEW v0.20.0 UI1c ###
+    """Rebuild every text made at import in the current interface language: the menu label constants, the
+    registry labels, the column headings and tips, the ⚠ Fix issues lines, the sort words and a few hints.
+    English gives back exactly the texts the code had before UI1c.  Log lines never use these (app.log stays
+    English: _SERVICE_LABEL / _REFUSAL_TEXT are not touched)."""
+    g = globals()
+    for name, spec in _I18N_LABELS.items():
+        g[name] = ui_label(*spec)
+    for a in ACTIONS.values():
+        if a.get("spec"):
+            a["label"] = ui_label(*a["spec"])
+    for c in COLUMN_MODEL:
+        if c["label"] != "LANG_OK_LABEL":
+            c["label"] = _i18n.t("col." + c["id"])
+        c["header_tip"] = _i18n.t("col." + c["id"] + ".tip")
+    for k in _FIX_ISSUE_LABELS:
+        _FIX_ISSUE_LABELS[k] = _i18n.t("fix." + k)
+    g["_ALL_LIBS"] = _i18n.t("lib.all")
+    g["NO_SCAN_TEXT"] = _i18n.t("hint.no_scan")
+    g["UNDO_HINT"] = _i18n.t("hint.undo", path=menu_path("backup_history"))
+    g["BACKUP_FAILED_TEXT"] = _i18n.t("au.backup_failed", path=menu_path("open_logs"))   # v0.20.0 AU15: the log may
+    # not be in logs\ next to the program (B95: the config folder or %TEMP%)
+    _se.relabel()
+    _i18n_refresh_ui1d()                                         # v0.20.0 UI1d
+    _fc.relabel()
+    _export.relabel()
+    _export.REASON_TEXT[0] = reason_text
+
+
+def apply_ui_language(code):                                     ### NEW v0.20.0 UI1c — tests and init ###
+    """Use *code* and rebuild the import-time texts; the windows built afterwards use it. Returns the code."""
+    code = _i18n.set_language(code)
+    _i18n_refresh()
+    return code
+
+
+# ### NEW v0.20.0 UI1c ### the stored English text of each health reason (unchanged: cache, comparisons, app.log
+# and the rule tests read it) → its catalog key "reason.<key>".  reason_text() finds the template, takes the values
+# ({q}, {min}, {src} …) out of the stored text and shows the catalog text in the interface language.  A reason not
+# listed here (struct issues, collections, title mismatch details) is shown as stored until UI1d.
+_REASON_TEMPLATES = [
+    ('missing_video', 'Missing video file'),
+    ('corrupt_nfo', 'Corrupt NFO file (XML error)'),
+    ('missing_nfo', 'Missing NFO file'),
+    ('corrupt_xml', 'Corrupt XML file (XML error)'),
+    ('missing_xml', 'Missing XML file'),
+    ('corrupt_poster', 'Corrupt poster image (cannot be decoded)'),
+    ('corrupt_fanart', 'Corrupt fanart image (cannot be decoded)'),
+    ('corrupt_folder', 'Corrupt folder image (cannot be decoded)'),
+    ('missing_id_empty', 'Missing {src} ID (empty tags ready to fill)'),
+    ('missing_id_invalid', "Missing {src} ID (the tag holds '{v}', not a valid ID)"),   # v0.20.0 RD11
+    ('missing_id_tag_empty', 'Missing {src} ID (tag present but empty)'),
+    ('missing_id', 'Missing {src} ID'),
+    ('id_conflict_invalid', "{src} ID conflict between tags: '{v}' is not a valid ID"),   # v0.20.0 RD11
+    ('id_conflict', '{src} ID conflict between tags ({ids})'),
+    ('id_partly_empty', '{src} ID present in some tags but empty in others'),
+    ('id_one_file', '{src} ID present in one file only (NFO or XML)'),
+    ('rating_conflict_both', 'Rating conflict between NFO and XML (values differ)'),
+    ('rating_conflict_xml', 'Rating conflict inside movie.xml (its ratings differ)'),
+    ('rating_conflict_nfo', 'Rating conflict inside the NFO (<rating> and <ratings> differ)'),
+    ('votes_conflict', 'Votes conflict between NFO <votes> and XML <Votes>'),
+    ('votes_conflict_xml', 'Votes conflict inside movie.xml (<Votes> and <VoteCount> differ)'),
+    ('genre_missing', 'Missing genre information'),
+    ('missing_year', 'Missing movie year in NFO/XML'),
+    ('ffprobe_failed', 'FFprobe could not read the video'),
+    ('no_audio', 'No audio tracks detected'),
+    ('video_min', 'Video quality below minimum ({q} < {min})'),
+    ('multiple_videos', 'Multiple video files in same folder'),
+    ('missing_poster_folder', 'Missing poster (only folder.jpg)'),
+    ('missing_poster', 'Missing poster'),
+    ('multiple_nfo', '{n} NFO files: {used} (used), {others} — delete the one you do not need (Kodi, Jellyfin and Emby read movie.nfo first)'),
+    ('missing_fanart', 'Missing fanart'),
+    ('profile_names', 'Not read by {programs}: {name} (needs {want})'),   # v0.20.0 F3c
+    ('missing_logo', 'Missing clear logo'),                       # v0.20.0 RD8
+    ('missing_disc', 'Missing disc art'),                         # v0.20.0 RD8
+    ('nfo_art_links', 'NFO has online artwork links for artwork you have locally ({kinds})'),   # v0.20.0 RD9
+    ('missing_folder', 'Missing folder image'),
+    ('nfo_name', "NFO named after the folder and not the only NFO — Kodi reads '<video file name>.nfo' or 'movie.nfo'"),                 # v0.20.0 KR1.3
+    ('xml_tags_old', '{what} only in movie.xml tags the old programs ignore (Auto Repair adds <IMDbId> / <TMDbId> / <VoteCount>)'),   # v0.20.0 KR1.4
+    ('id_not_kodi', '{ids} ID only in <imdbid> / <tmdbid> — Kodi reads <uniqueid> (Auto Repair adds it)'),   # v0.20.0 KR1.1
+    ('nfo_amp', "NFO has an unescaped '&' — Jellyfin may ignore the whole NFO (Auto Repair fixes it)"),
+    ('ratio_poster', 'Poster has wrong proportions'),
+    ('ratio_fanart', 'Fanart has wrong proportions'),
+    ('ratio_folder', 'Folder image has wrong proportions'),
+    ('small_poster', 'Poster image file below minimum size ({kb} KB < {min} KB)'),
+    ('small_folder', 'Folder image file below minimum size ({kb} KB < {min} KB)'),
+    ('small_fanart', 'Fanart image file below minimum size ({kb} KB < {min} KB)'),
+    ('ext_mismatch', '{name} is a {fmt} file (extension mismatch)'),
+    ('poster_q_min', 'Poster/folder quality below minimum ({q} < {min})'),
+    ('fanart_q_min', 'Fanart quality below minimum ({q} < {min})'),
+    ('poster_folder_differ', 'Poster and folder image are different (different file sizes) — Copy poster → folder makes them the same'),
+    ('few_backdrops', 'Too few backdrops ({n} of {min} required)'),
+    ('small_backdrops', 'Backdrop images suspiciously small (avg {kb} KB)'),
+    ('missing_rating', 'Missing rating'),
+    ('rating_unreadable', 'Rating tag unreadable (non-numeric value)'),
+    ('suspicious_rating', 'Suspicious rating value ({v})'),
+    ('genre_only_xml', 'NFO has no <genre> tags (genres only in XML)'),
+    ('genre_only_nfo', 'XML has no <Genre> tags (genres only in NFO)'),
+    ('genre_wrong_tags', 'NFO uses non-Kodi genre tags (<Genres>/<Genre>)'),
+    ('genre_issues', 'Genre issues detected (non-standard genres)'),
+    ('missing_votes', 'Missing votes'),
+    ('votes_unreadable', 'Votes tag unreadable (non-numeric value)'),
+    ('lang_not_ok', 'Target language not found in audio or subtitles'),
+    ('year_premiered', 'NFO <year> and <premiered> differ ({v})'),
+    ('too_large', 'NFO or XML file exceeds maximum size'),
+    ('req_audio', 'Required audio language not found ({lang})'),
+    ('req_subs', 'Required subtitle language not found ({lang})'),
+    ('missing_title', 'Missing movie title in NFO/XML'),
+    ('folder_name', "Folder name doesn't match movie title"),
+    ('duplicate', 'Possible duplicate of: {list}'),
+    # v0.20.0 AU23 — collection reasons (collection_rules.py), shown translated
+    ('coll_gone', "Collection: '{name}' (TMDB {cid}) no longer exists on TMDB"),
+    ('coll_not_listed', "Collection: '{name}' (TMDB {cid}) is not listed by TMDB for this movie"),
+    ('coll_missing', "Collection: missing (TMDB: '{name}')"),
+    ('coll_other_id', "Collection: NFO links TMDB collection {a}, TMDB lists {b} for this movie"),
+    ('coll_differ', "Collection: NFO says '{a}', TMDB says '{b}'"),
+    ('coll_spell_one', "Collection: written as '{a}' here and as '{b}' in {n} other movie (Kodi shows two sets)"),
+    ('coll_spell_many', "Collection: written as '{a}' here and as '{b}' in {n} other movies (Kodi shows two sets)"),
+    ('coll_xml_block', "Collection: movie.xml has an NFO-style <set> block (not a movie.xml tag)"),
+    ('coll_xml_differ', "Collection: movie.xml says '{a}', the NFO says '{b}'"),
+    ('coll_old_folder', "Collection folder: images left in '{a}' (another name of this collection) — Fix moves them to '{b}'"),
+    ('coll_art_near', "Collection artwork: folder missing (a folder '{a}' exists — Kodi needs the same accents)"),
+    ('coll_art_folder', "Collection artwork: folder missing"),
+    ('coll_art_poster', "Collection artwork: poster missing"),
+    ('coll_art_fanart', "Collection artwork: fanart missing"),
+]
+
+
+def _reason_regex(template):
+    parts = re.split(r"(\{\w+\})", template)
+    return re.compile("^" + "".join(f"(?P<{p[1:-1]}>.+?)" if re.fullmatch(r"\{\w+\}", p) else re.escape(p)
+                                    for p in parts) + "$", re.S)
+
+
+_REASON_RES = [(k, _reason_regex(s)) for k, s in _REASON_TEMPLATES]
+_REASON_HIT = {}                                                 # stored text → (key, values)
+
+
+def reason_parts(r):                                             ### NEW v0.20.0 UI1c ###
+    """(key, values) of a stored health reason, or (None, {}) when no template matches."""
+    s = str(r)
+    hit = _REASON_HIT.get(s)
+    if hit is None:
+        hit = (None, {})
+        for k, rx in _REASON_RES:
+            m = rx.match(s)
+            if m:
+                hit = (k, m.groupdict())
+                break
+        if len(_REASON_HIT) < 20000:
+            _REASON_HIT[s] = hit
+    return hit
+
+
+def reason_text(r):                                              ### NEW v0.20.0 UI1c ###
+    """A health reason as shown (movie panel, movie tooltip; reports from UI1d): the catalog text in the interface
+    language with the values of the stored English text; a reason without a template is shown as stored."""
+    key, vals = reason_parts(r)
+    if key and _i18n.has("reason." + key):
+        return _i18n.t("reason." + key, **vals)
+    return str(r)
+
+
+def _LANG_OK_SHOWN():                                            ### NEW v0.20.0 UI1c (UI-D3) ###
+    """The Lang OK? cell on screen: Y / N in English, S / N in PT and ES; sort and filter use the stored code."""
+    return {"Y": _i18n.t("cell.yes"), "N": _i18n.t("cell.no")}
+
+
+def _sort_combo_width(labels):                                   ### NEW v0.20.0 UI1c ###
+    """Characters for a sort-level box: 20 as before, wider when a label is longer (PT / ES, no clipping)."""
+    return max(20, min(30, max((len(x) for x in labels), default=20)))
+
+
+_ACTION_KEYS = {"Fix Image Proportions / Size": "action.image_fix", "Rename NFO for Kodi": "action.nfo_rename",
+                "Remove online artwork links": "action.art_links",   # v0.20.0 RD9
+                "Rename files for my programs": "action.media_rename",   # v0.20.0 F3c2
+                "Convert movie.xml to NFO": "action.xml2nfo",               # v0.20.0 F3d
+                "Check Genres Against TMDB": "action.genres_tmdb",   # v0.20.0 I36
+                "Make titles the same": "action.title_sync"}          ### NEW v0.20.0 UI1d ###
+
+
+def shown_action(label):                                         ### NEW v0.20.0 UI1d ###
+    """An action's name where it is shown (window and message titles); the stored backup label stays English."""
+    return _i18n.t(_ACTION_KEYS[label]) if label in _ACTION_KEYS else label
+
+
+# display-only constants rebuilt by _i18n_refresh (the name → its catalog key)
+_I18N_CONSTS = {"NFO_MOVIE_NOTE": "c.nfo_movie_note", "B28_SLOW_TEXT": "c.b28_slow", "B28_BUDGET_TEXT": "c.b28_budget",
+                "READ_ERROR_NOTE": "c.read_error_note", "SCAN_BUSY_TEXT": "c.scan_busy", "UPDATE_FF_TEXT": "c.update_ff",
+                "NFO_ONLY_TITLE": "c.nfo_only_title", "HEALTH_MODE_TITLE": "hm.title", "HEALTH_MODE_QUESTION": "hm.question",
+                "NFO_ONLY_CHOICES_TEXT": "c.nfo_only_choices", "NFO_ONLY_LATER_TEXT": "c.nfo_only_later"}
+_I18N_DICTS = {"_FIX_KIND_LABEL": "c.kind.", "DATE_ADDED_SRC": "c.added.", "_AR_LABELS": "c.ar.", "_AUDIO_SRC_NAMES": "c.audio_src."}
+
+
+def _i18n_refresh_ui1d():                                        ### NEW v0.20.0 UI1d ###
+    """The UI1d import-time texts: settings_dialog's (health modes, rule sections …), the display-only constants and
+    dicts, the image-source and AI-speed labels.  Stored codes never change."""
+    g = globals()
+    import settings_dialog as _sdm
+    _sdm.relabel()
+    g["HEALTH_MODES"], g["HEALTH_MODE_PATH"] = _sdm.HEALTH_MODES, _sdm.HEALTH_MODE_PATH
+    g["HEALTH_MODE_FOOT"] = (_i18n.t("hm.foot1"), _i18n.t("hm.foot2", path=_sdm.HEALTH_MODE_PATH))
+    for name, key in _I18N_CONSTS.items():
+        g[name] = _i18n.t(key)
+    for name, pre in _I18N_DICTS.items():
+        d = g[name]
+        for k in d:
+            if _i18n.has(pre + k):
+                d[k] = _i18n.t(pre + k)
+    IMAGE_SOURCE_LABEL["both"], IMAGE_SOURCE_LABEL["frames"] = _i18n.t("c.src.both"), _i18n.t("c.src.frames")
+    g["AI_MODE_LABELS"] = (_i18n.t("c.ai.gentle"), _i18n.t("c.ai.fast"))   # a tuple: rebuilt, the setting stores the code
+
+
+def lang_ok_heading(iso):                                        ### NEW v0.20.0 UI1c ###
+    """'PT OK?' / '¿PT OK?' — the Lang OK? column named after the target language."""
+    return _i18n.t("col.lang_ok", iso=iso)
+
+
+def init_interface_language(settings, locale_name=None):          ### NEW v0.20.0 UI1a ###
+    """Choose the interface language before the first widget is built: the stored ``ui_language`` when valid, no
+    choice → the Windows language, a broken value → English (one log line, never a pop-up). Returns the code."""
+    stored = (settings or {}).get("ui_language")
+    if stored is not None and not isinstance(stored, str):     # v0.20.0 RV1: ["pt_BR"] crashed here (unhashable)
+        logger.warning(f"Interface language {stored!r} is not a text — English is used")
+        stored = "en"
+    loc = windows_ui_locale() if locale_name is None else locale_name
+    code = _i18n.pick_language(stored, loc)
+    if stored not in (None, "") and stored not in _i18n.CATALOGS:
+        logger.warning(f"Interface language {stored!r} is not known — English is used")
+    _i18n.set_missing_hook(lambda lang, key: logger.warning(f"Interface text {key!r} missing in {lang} — English shown"))
+    if "App" in globals():                                      # "Same as Windows (…)" names this language
+        App._windows_ui_code = _i18n.windows_language(loc)
+    return apply_ui_language(code)                              # v0.20.0 UI1c: the import-time texts too
+
+
+def restart_command(argv=None, frozen=None, executable=None):    ### NEW v0.20.0 UI1a ###
+    """The command that starts MediaClinic again: the same exe when frozen, else the same Python (pythonw kept)
+    with the same script; always with ``--restarted`` once."""
+    argv = list(sys.argv if argv is None else argv)
+    frozen = (getattr(sys, "frozen", False) or "__compiled__" in globals()) if frozen is None else frozen
+    exe = executable or sys.executable
+    rest = [a for a in argv[1:] if a != "--restarted"]
+    if frozen:
+        return [exe] + rest + ["--restarted"]
+    return [exe, os.path.abspath(argv[0])] + rest + ["--restarted"]
+
+
+def acquire_single_instance_restarted(wait_s=5.0, step=0.25, acquire=None):   ### NEW v0.20.0 UI1a ###
+    """After Restart now: wait up to *wait_s* for the old process to let the mutex go, so the "already
+    running" path is never taken on a restart. Returns (handle, first) like acquire_single_instance."""
+    acquire = acquire or acquire_single_instance
+    end = time.monotonic() + wait_s
+    while True:
+        h, first = acquire()
+        if first or time.monotonic() >= end:
+            return h, first
+        time.sleep(step)
 
 
 def release_single_instance(handle):
@@ -27138,7 +29915,10 @@ def bring_running_window_forward(title_start=None):
 
 
 if __name__ == "__main__":
-    _si_handle, _si_first = acquire_single_instance()          ### NEW v0.19.2 B59 ###
+    if "--restarted" in sys.argv:                               ### NEW v0.20.0 UI1a — Restart now ###
+        _si_handle, _si_first = acquire_single_instance_restarted()
+    else:
+        _si_handle, _si_first = acquire_single_instance()      ### NEW v0.19.2 B59 ###
     if not _si_first:
         logger.info("MediaClinic is already running — bringing its window forward")
         bring_running_window_forward()
@@ -27149,5 +29929,26 @@ if __name__ == "__main__":
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("MediaClinic.MediaClinic")
         except Exception:
             pass
-    app = App()
+    try:                                                       ### NEW v0.20.0 AU18 (pre-build audit) ###
+        init_interface_language(SETTINGS)                      ### NEW v0.20.0 UI1a — before the first widget ###
+        app = App()
+    except Exception as _start_ex:                             # the windowed exe used to vanish without a word
+        logger.exception(f"MediaClinic could not start: {_start_ex}")
+        if os.name == "nt":
+            try:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(
+                    None, f"MediaClinic could not start:\n{_start_ex}\n\nDetails are in:\n{LOG_PATH}",
+                    "MediaClinic", 0x10)
+            except Exception:
+                pass
+        release_single_instance(_si_handle)
+        raise
     app.mainloop()
+    if getattr(app, "_restart_requested", False):              ### NEW v0.20.0 UI1a — Restart now ###
+        release_single_instance(_si_handle)
+        try:
+            import subprocess
+            subprocess.Popen(restart_command(), close_fds=True)
+        except Exception as _e:
+            logger.error(f"Restart failed: {_e}")

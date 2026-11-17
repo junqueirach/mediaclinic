@@ -32,8 +32,9 @@ SOURCES = {
     "plex": "Plex support: Local Media Assets – Movies; Local Files for Trailers and Extras; "
             "Naming and Organizing your Movie Media Files; Using NFO Metadata Files",
 }
-TO_VERIFY = ("Emby NFO names (no official list; same code origin as Jellyfin)",
-             "Emby external subtitle names (no official article; treated like Jellyfin)")
+# ### MODIFIED v0.20.0 6h ### the movie names were checked on real Plex, Emby and Jellyfin servers and Infuse (2026-11-17;
+# MediaClinic\MEDIA_SERVERS_REFERENCE.md): Plex reads no NFO, Plex reads <video>-poster, Emby reads <video>-fanart.
+TO_VERIFY = ("Emby external subtitle names (no official article; treated like Jellyfin)",)
 
 # ── Image extensions ─────────────────────────────────────────────────────────
 # Reading order of the extensions for one name: the formats MediaClinic writes
@@ -52,7 +53,7 @@ EXT_FORMAT = {".jpg": "JPEG", ".jpeg": "JPEG", ".tbn": "JPEG", ".png": "PNG",
 # (pattern, servers that read it).  The Kodi names keep B23's order so a Kodi
 # library resolves exactly as before; the Jellyfin / Emby / Plex names follow.
 POSTER_NAMES = [
-    ("{video}-poster",  ("kodi", "jellyfin", "emby")),
+    ("{video}-poster",  ("kodi", "jellyfin", "emby", "plex")),    # Plex: tested 2026-11-17 (not in its docs)
     ("poster",          ("kodi", "jellyfin", "emby", "plex")),
     ("{video}",         ("jellyfin", "emby", "plex")),
     ("{video}-cover",   ("jellyfin", "emby")),
@@ -66,7 +67,7 @@ POSTER_NAMES = [
 POSTER_TBN = [("{video}.tbn", ("kodi",)), ("movie.tbn", ("kodi",))]   # legacy Kodi thumbnails
 FOLDER_NAMES = [("folder", ("kodi", "jellyfin", "emby", "plex"))]
 FANART_NAMES = [
-    ("{video}-fanart",  ("kodi", "jellyfin", "plex")),
+    ("{video}-fanart",  ("kodi", "jellyfin", "emby", "plex")),    # Emby: tested 2026-11-17
     ("fanart",          ("kodi", "jellyfin", "emby", "plex")),
     ("backdrop",        ("jellyfin", "emby", "plex")),
     ("background",      ("jellyfin", "emby", "plex")),
@@ -95,8 +96,8 @@ EXTRA_ART_KINDS = ("clearlogo", "logo", "landscape", "thumb", "banner", "disc", 
 # and Emby read it first — then "<video>.nfo", then MediaClinic's "<folder>.nfo"
 # (Jellyfin reads it for disc folders).  Disc NFOs come before all of them.
 NFO_NAMES = [
-    ("movie.nfo",    ("kodi", "jellyfin", "emby", "plex")),
-    ("{video}.nfo",  ("kodi", "jellyfin", "emby", "plex")),
+    ("movie.nfo",    ("kodi", "jellyfin", "emby")),               # Plex reads no NFO (tested 2026-11-17)
+    ("{video}.nfo",  ("kodi", "jellyfin", "emby")),
     ("{folder}.nfo", ("jellyfin",)),
 ]
 DISC_NFO_NAMES = ("VIDEO_TS.nfo", "index.nfo")
@@ -159,6 +160,17 @@ def stack_base(stem):
         return None
     part = m.group("n") or m.group("l")
     return m.group("base").strip(" -._").lower(), (int(part) if part.isdigit() else ord(part.lower()) - 96)
+
+
+def stack_title(stem):
+    """'Movie-CD1' → 'Movie' (case kept): the name Kodi gives a stack (CStackDirectory::GetStackedTitlePath drops the
+    part marker), so it reads 'Movie.nfo' and 'Movie-poster.jpg' for it.  None when *stem* has no stack marker.
+    (v0.20.0 RD10)"""
+    m = STACK_RE.match(stem or "")
+    if not m:
+        return None
+    base = m.group("base").rstrip(" -._")
+    return base if base.strip(" -._") else None
 
 
 def _stem(name):

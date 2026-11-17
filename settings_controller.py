@@ -36,6 +36,9 @@ import logging                                                   ### NEW v0.19.2
 import os
 import re
 import shutil
+import stat                                                      ### NEW v0.20.0 RD1 ###
+import mc_i18n as _i18n
+import settings_model as _sm                                      ### NEW v0.20.0 HP1d ###                                           ### NEW v0.20.0 UI1f — shown texts ###
 import subprocess
 import threading                                                 ### NEW v0.19.1 I1 ###
 import time                                                      ### NEW v0.19.5 I20 ###
@@ -268,7 +271,7 @@ def load_settings():
             try:
                 for _try in range(10):                           ### NEW v0.19.5 SH-E1 — another program may hold it for a moment ###
                     try:
-                        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                        with open(CONFIG_PATH, "r", encoding="utf-8-sig") as f:   # v0.20.0 AU7: a BOM (Notepad) is fine
                             data = json.load(f)
                         break
                     except PermissionError:
@@ -279,6 +282,14 @@ def load_settings():
                     raise ValueError(f"top level is {type(data).__name__}, not an object")
             except Exception as e:                               ### NEW v0.19.2 B36 ###
                 _keep_corrupt_settings(e)
+                ### NEW v0.20.0 AU7 (pre-build audit) ### the defaults need no migration: without this list the next
+                # start ran every migration on them (movie.xml checks switched on, the old start question asked)
+                merged["settings_migrations"] = list(_MIGRATIONS)
+                merged["first_start_pending"] = True             # the settings were lost: the first-start window again
+                if PRESET_AT_FIRST_START:                        # v0.20.0 RV6: the same strictness as a real first start
+                    merged["health_rules"] = _sm.apply_health_preset(merged.get("health_rules") or {},
+                                                                     _sm.HEALTH_PRESET_DEFAULT, _mode_of(merged))
+                    merged["health_preset"] = _sm.HEALTH_PRESET_DEFAULT
                 sync_quality_mirrors(merged)
                 return merged
             for sub in ("improve_checks", "health_rules"):
@@ -311,6 +322,11 @@ def load_settings():
         else:
             # first start: nothing to migrate — the new defaults already apply
             merged["settings_migrations"] = list(_MIGRATIONS)
+            merged["first_start_pending"] = True                 ### NEW v0.20.0 6g — the full first-start window ###
+            if PRESET_AT_FIRST_START:                            ### NEW v0.20.0 HP1d — a new user starts with Tight ###
+                merged["health_rules"] = _sm.apply_health_preset(merged.get("health_rules") or {},
+                                                                 _sm.HEALTH_PRESET_DEFAULT, _mode_of(merged))
+                merged["health_preset"] = _sm.HEALTH_PRESET_DEFAULT
     except Exception:
         pass
     sync_quality_mirrors(merged)                                 ### NEW v0.19.0 ###
@@ -373,8 +389,7 @@ def reset_wrong_types(merged):
                 reset.append(f"{sub}.{k}")
     if reset:
         SETTINGS_MIGRATION_STATUS.append(
-            f"Settings: {len(reset)} value{'' if len(reset) == 1 else 's'} of the wrong type reset to the default "   # v0.19.4 B105
-            f"({', '.join(reset[:3])}{' …' if len(reset) > 3 else ''}) — see logs\\app.log")
+            _i18n.tn("uf.m.settings_reset", len(reset), names=', '.join(reset[:3]) + (' …' if len(reset) > 3 else '')))   # v0.20.0 UI1f
     return reset
 
 
@@ -384,13 +399,24 @@ def reset_wrong_types(merged):
 # (marker in "settings_migrations"); a user who turns a rule on again later is
 # never overridden.  The App shows the notice once, through after().
 _MIGRATIONS = ("b35_folder_rules_off", "b55_library_filter_reset", "b110_collection_column_hidden",
-               "tr1_xml_integration_kept", "tr1b_health_mode")  # v0.19.6 TR1, TR1b
+               "tr1_xml_integration_kept", "tr1b_health_mode",  # v0.19.6 TR1, TR1b
+               "hp1_health_preset")                                  # v0.20.0 HP1d
 SETTINGS_MIGRATION_NOTICES = []                                  # one message box each (B35)
 SETTINGS_MIGRATION_STATUS = []                                   # one status-bar line each (B55)
 B55_STATUS = "Library filter reset to 'All libraries' — every library is shown again"
 B35_NOTICE = ("Two health rules are now off by default: 'Missing folder image' and "
               "'Poster and folder image are different' (no media server needs them). "
               "Turn them on again in Settings → Health Rules if you want them.")
+
+
+# ### NEW v0.20.0 HP1d ### the tests keep today's rule defaults (MEDIACLINIC_TEST_DEFAULTS=1, set by the self-test and
+# the harness before they import the app); a dedicated check runs the first start with it off
+PRESET_AT_FIRST_START = os.environ.get("MEDIACLINIC_TEST_DEFAULTS") != "1"
+
+
+def _mode_of(s):
+    m = (s or {}).get("health_mode")
+    return m if m in ("nfo", "nfo_xml", "xml") else "nfo"
 
 
 def _run_settings_migrations(merged):
@@ -431,6 +457,10 @@ def _run_settings_migrations(merged):
         merged.pop("xml_choice_asked", None)
         merged["health_mode_asked"] = False
         _log.info(f"Settings migration tr1b_health_mode: health mode {merged['health_mode']}")
+    if "hp1_health_preset" in todo:                              ### NEW v0.20.0 HP1d (HP-Q1) ###
+        # no rule changes: the preset the rules already equal, else "custom" (the user's rules stay as they are)
+        merged["health_preset"] = _sm.matching_health_preset(merged.get("health_rules") or {}, _mode_of(merged))
+        _log.info(f"Settings migration hp1_health_preset: {merged['health_preset']} (rules unchanged)")
     merged["settings_migrations"] = done + todo
     save_settings(merged)                                        # once: the markers are on disk now
 
@@ -512,7 +542,7 @@ def _keep_corrupt_results(why):                                  ### NEW v0.19.4
         dst = f"{RESULTS_CACHE_PATH}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
         shutil.copy2(RESULTS_CACHE_PATH, dst)
         _log.warning(f"last_results.json could not be read ({why}) — kept as {os.path.basename(dst)}")
-        RESULTS_CACHE_NOTES.append(f"The last scan could not be read (kept as {os.path.basename(dst)}) — run a Full Scan")
+        RESULTS_CACHE_NOTES.append(_i18n.t("uf.the_last_scan_could_5f28", dst=os.path.basename(dst)))
         return dst
     except Exception as e:
         _log.error(f"last_results.json could not be read ({why}) and no copy was made: {e}")
@@ -587,6 +617,55 @@ def load_results_cache_stepwise():                                ### NEW v0.19.
 _JSON_SAVE_LOCK = threading.RLock()                                ### NEW v0.19.4 P2 (F12) ###
 
 
+### NEW v0.20.0 RD1 — a read-only file is not "held by another program" ###
+# A Reddit tester's Fix image failed on every try with "another program is holding the file": Windows refuses to
+# replace (or delete) a file marked read-only with the same PermissionError.  The error now says so, the path is
+# recorded for the batch question, and the flag is cleared only when the user says yes (clear_read_only).
+READ_ONLY_TEXT = "the file is read-only (file Properties → Read-only), so it was not changed"
+READ_ONLY_SEEN = []                       # read-only paths met by a write, in order (the batch question reads its part)
+_RO_LOCK = threading.Lock()
+
+
+class ReadOnlyFileError(PermissionError):
+    """A write refused because the file is marked read-only."""
+
+
+def is_read_only(path):
+    """True when *path* exists and is marked read-only (Windows attribute; elsewhere: no write bit for the owner)."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return False
+    attrs = getattr(st, "st_file_attributes", None)
+    if attrs is not None:
+        return bool(attrs & stat.FILE_ATTRIBUTE_READONLY)
+    return not (st.st_mode & stat.S_IWUSR)
+
+
+def clear_read_only(path):
+    """Clear the read-only mark of *path* (only on the user's yes). True when the file is writable afterwards."""
+    try:
+        os.chmod(path, stat.S_IMODE(os.stat(path).st_mode) | stat.S_IWRITE)
+    except OSError as e:
+        _log.warning(f"Could not clear read-only on {path}: {e}")
+        return False
+    ok = not is_read_only(path)
+    if ok:
+        _log.info(f"Read-only cleared (the user's choice): {path}")
+    return ok
+
+
+def read_only_since(mark):
+    """The distinct read-only paths recorded after position *mark* of READ_ONLY_SEEN."""
+    with _RO_LOCK:
+        return list(dict.fromkeys(READ_ONLY_SEEN[mark:]))
+
+
+def read_only_mark():
+    with _RO_LOCK:
+        return len(READ_ONLY_SEEN)
+
+
 def _replace_retry(tmp, path, tries=20, wait=0.05, op=None):       ### NEW v0.19.5 I20 ###
     """os.replace (or *op*), tried again for up to 1 s. On Windows it is refused while any reader has the target open: this app's
     own read of the same file, an antivirus, a backup or sync tool. Without this the save was lost, with only a log line.
@@ -596,6 +675,11 @@ def _replace_retry(tmp, path, tries=20, wait=0.05, op=None):       ### NEW v0.19
             (op or os.replace)(tmp, path)
             return
         except PermissionError as e:
+            ro = next((p for p in (path, tmp) if is_read_only(p)), None)   ### NEW v0.20.0 RD1 — no retry, say why ###
+            if ro:
+                with _RO_LOCK:
+                    READ_ONLY_SEEN.append(ro)
+                raise ReadOnlyFileError(e.errno, READ_ONLY_TEXT, ro) from e
             if i == tries - 1:
                 raise PermissionError(e.errno, "another program is holding the file; run the action again", path) from e
             time.sleep(wait)
@@ -847,7 +931,7 @@ def find_ffmpeg_ffprobe(custom_dir="", deep=False):
             return hit
     if os.name == "nt":
         for cand in _iter_globs(FFMPEG_GLOBS_WIN):
-            hit = _pair(os.path.dirname(cand), "known install folder")
+            hit = _pair(os.path.dirname(cand), _i18n.t("uf.known_install_folder_7272"))
             if hit:
                 return hit
         if deep:
@@ -858,7 +942,7 @@ def find_ffmpeg_ffprobe(custom_dir="", deep=False):
                         subdirs[:] = []
                         continue
                     if ffn.lower() in (f.lower() for f in files):
-                        hit = _pair(cur, "found by scan")
+                        hit = _pair(cur, _i18n.t("uf.found_by_scan_99a3"))
                         if hit:
                             return hit
     FFMPEG_FOUND.update(how="not found", dir="")
@@ -878,7 +962,7 @@ def test_ffmpeg(ff_path, fp_path):
     """
     def _run(path):
         if not path or not os.path.isfile(path):
-            return False, "Executable not found"
+            return False, _i18n.t("uf.executable_not_found_f672")
         try:
             r = subprocess.run(
                 [path, "-version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10,
@@ -886,9 +970,9 @@ def test_ffmpeg(ff_path, fp_path):
             if r.returncode == 0 and (
                     "ffmpeg" in r.stdout.lower() or "ffprobe" in r.stdout.lower()):
                 return True, "OK"
-            return False, f"Unexpected output (exit {r.returncode})"
+            return False, _i18n.t("uf.unexpected_output_exit_aaef", returncode=r.returncode)
         except subprocess.TimeoutExpired:
-            return False, "Timed out"
+            return False, _i18n.t("au.timed_out")
         except Exception as e:
             return False, str(e)
 
@@ -1319,7 +1403,7 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
     Returns (restored_paths, errors, safety_folder)."""
     m = read_manifest(folder)
     if not m:
-        return [], ["No manifest — this backup can only be restored by hand."], None
+        return [], [_i18n.t("uf.no_manifest_this_backup_a2e8")], None
     todo = [f for f in m["files"] if f["original"] not in set(skip)]
     ref = [None]
     restored, errors = [], []
@@ -1569,10 +1653,7 @@ def backup_run_size_warning(run_bytes, settings):               ### NEW v0.19.4 
     if (not settings.get("backup_cleanup_enabled", True) or not isinstance(max_mb, (int, float))
             or isinstance(max_mb, bool) or max_mb <= 0 or run_bytes <= max_mb * 1024 * 1024):
         return None
-    return (f"⚠ This run backs up {_fmt_mb(run_bytes)}, more than the backup size limit "
-            f"({max_mb} MB, Settings → Backup).\nThe backup is kept anyway: backups from this session "
-            f"and from the last {BACKUP_PROTECT_DAYS} days are never deleted automatically, so the "
-            f"backup folder will be larger than the limit for a while.")
+    return (_i18n.t("uf.this_run_backs_up_3d31", fmt_mb=_fmt_mb(run_bytes), max_mb=max_mb, backup_protect_days=BACKUP_PROTECT_DAYS))
 
 
 def clean_backup_folder_if_needed(backup_root, settings, active_folder=None,

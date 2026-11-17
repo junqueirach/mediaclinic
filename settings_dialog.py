@@ -100,6 +100,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import subprocess
 from settings_context import SettingsContext, run_async   # NEW v0.14.0
+import mc_i18n as _i18n                                     ### NEW v0.20.0 UI1a ###
 from settings_model import (                                         ### ADDED_BY_CLAUDE_v18.2 ###
     VIDEO_QUALITY_LEVELS, POSTER_QUALITY_LEVELS, FANART_QUALITY_LEVELS,
     AUDIO_LANGUAGES, SUBTITLE_LANGUAGES,
@@ -186,6 +187,25 @@ class DialogBase(tk.Toplevel):                                      ### NEW v0.1
         return "break"
 
 
+def programs_info_text(programs, mode):                              ### NEW v0.20.0 F3a-2 / 6g ###
+    """The line under the program tick boxes (Settings → Health Rules and the first-start window): the files checked
+    and the names a fix writes for *programs* in health mode *mode* (or why there are none)."""
+    import media_profiles as _mpf
+    ps = _mpf.clean_programs(programs)
+    lines = [_i18n.t("f3.files", mode=_i18n.t(f"f3.mode.{mode}"))]
+    if not ps:
+        lines.append(_i18n.t("f3.none"))
+    else:
+        ext = {"nfo": "", "poster": ".jpg", "fanart": ".jpg"}
+        names = [_mpf.expand(n, "<video>") + ext[k] for k, n in _mpf.write_names(ps).items() if n]
+        if names:
+            lines.append(_i18n.t("f3.names", names=", ".join(names)))
+        bad = _mpf.conflicts(ps)
+        if bad:
+            lines.append(_i18n.t("f3.conflict", kinds=", ".join(_i18n.t(f"f3.kind.{k}") for k in bad)))
+    return "\n".join(lines)
+
+
 class DialogFrame(DialogBase):                                       ### NEW v0.19.4 L4 / I15a ###
     """The one dialog frame: an optional heading, ``self.body`` and a button
     row packed first at the bottom (a tall body never pushes it out).
@@ -256,20 +276,94 @@ HEALTH_MODE_IDS = tuple(m[0] for m in HEALTH_MODES)
 HEALTH_MODE_NOTE = ("Kodi, Jellyfin, Emby, Plex and Infuse read the .nfo files (made by tinyMediaManager, Radarr, MediaElch, …):\n"
                     "MediaClinic checks and repairs the NFO and ignores movie.xml. The old Windows media centers use movie.xml.\n"
                     "Changing the mode offers a new scan of the libraries.")
-HEALTH_MODE_PATH = "Settings → Health Rules → Health mode"
+HEALTH_MODE_PATH = "Settings → Health Rules → Which programs play your movies?"   # v0.20.0 F3: the tick boxes replace the three buttons
 
 ### NEW v0.19.6 TR1c — the four sections of the Health Rules tab and the health modes that use each ###
 HEALTH_RULE_SECTIONS = (
-    ("general", "General rules", ("nfo", "nfo_xml", "xml"), "every health mode"),
-    ("nfo", "NFO rules", ("nfo", "nfo_xml"), "modes 1 and 2"),
-    ("xml", "movie.xml rules", ("nfo_xml", "xml"), "modes 2 and 3"),
-    ("both", "NFO ↔ movie.xml comparisons", ("nfo_xml",), "mode 2"),
+    ("general", "General rules", ("nfo", "nfo_xml", "xml"), "every program"),          # v0.20.0 F3: no mode numbers
+    ("nfo", "NFO rules", ("nfo", "nfo_xml"), "programs that read the NFO"),
+    ("xml", "movie.xml rules", ("nfo_xml", "xml"), "MediaBrowser / Media Center Master"),
+    ("both", "NFO ↔ movie.xml comparisons", ("nfo_xml",), "NFO + movie.xml"),
 )
 HEALTH_RULE_SECTION_OFF = {
-    "nfo": "Not used in mode 3 (movie.xml only). Choose mode 1 or 2 to use them.",
-    "xml": "Not used in mode 1. Choose mode 2 or 3 to use them.",
-    "both": "They compare the NFO with movie.xml: used in mode 2 only.",
+    "nfo": "Not used: only MediaBrowser / Media Center Master is ticked (movie.xml only). Tick a program that reads the NFO to use them.",
+    "xml": "Not used: no ticked program reads movie.xml. Tick MediaBrowser / Media Center Master to use them.",
+    "both": "They compare the NFO with movie.xml: used when MediaBrowser / Media Center Master and a program that reads the NFO are both ticked.",
 }
+
+
+_TAB_KEYS = {                                                    ### NEW v0.20.0 UI1d — the shown tab names ###
+    "Editor & FFmpeg": "settings.tab.editor", "API Keys": "settings.tab.api_keys", "Browser": "settings.tab.browser",
+    "Language": "settings.tab.language", "Improvements": "settings.tab.improvements",
+    "Image Sizes": "settings.tab.image_sizes", "Ratings": "settings.tab.ratings", "Genres": "settings.tab.genres",
+    "NFO / XML": "settings.tab.nfo_xml", "User Interface": "settings.tab.ui", "Health Rules": "settings.tab.health",
+    "Backup": "settings.tab.backup"}
+
+
+def tab_title(name):                                             ### NEW v0.20.0 UI1d ###
+    """A tab's shown name in the interface language; the registry name (*name*) stays the id."""
+    return _i18n.t(_TAB_KEYS[name]) if name in _TAB_KEYS else name
+
+
+def parse_number(text):                                          ### NEW v0.20.0 UI1d (plan UI1 point 6) ###
+    """A number typed in a box: "1.5" and "1,5" are both 1.5 (a comma is the decimal mark when there is no dot);
+    settings.json stores the plain number.  Raises ValueError for text."""
+    s = str(text).strip().replace(" ", "").replace(" ", "")
+    ### NEW v0.20.0 AU7 (pre-build audit) ### a thousands separator: "2.000" in Portuguese / Spanish and "2,000" in
+    # English were read as 2 — a backup size limit of 2 MB, and the cleanup then deleted the older backups
+    _grp = "," if _i18n.current() == "en" else "."
+    if re.fullmatch(rf"\d{{1,3}}(?:{re.escape(_grp)}\d{{3}})+", s):
+        return float(s.replace(_grp, ""))
+    if "," in s and "." not in s and s.count(",") == 1:
+        s = s.replace(",", ".")
+    return float(s)
+
+
+def lang_name(iso, english):                                     ### NEW v0.20.0 UI1d ###
+    """A language's name in the interface language ("PT" → "Português"); unknown codes keep the English name."""
+    k = "lang." + str(iso).lower()
+    if _i18n.current() == "en" and english != iso:              # English keeps each list's own wording ("Mandarin Chinese")
+        return english
+    return _i18n.t(k) if _i18n.has(k) else english
+
+
+def shown_combo(parent, var, codes, label_of, **kw):             ### NEW v0.20.0 UI1d ###
+    """A read-only combo box that shows label_of(code) while *var* keeps the code (what is saved never changes)."""
+    labels = [label_of(c) for c in codes]
+    shown = tk.StringVar(value=label_of(var.get()) if var.get() in codes else var.get())
+
+    def _to_code(*_):
+        s = shown.get()
+        if s in labels and var.get() != codes[labels.index(s)]:
+            var.set(codes[labels.index(s)])
+
+    def _to_label(*_):
+        if var.get() in codes and shown.get() != label_of(var.get()):
+            shown.set(label_of(var.get()))
+    shown.trace_add("write", _to_code)
+    var.trace_add("write", _to_label)
+    cb = ttk.Combobox(parent, textvariable=shown, values=labels, **kw)
+    cb._mc_shown = shown
+    return cb
+
+
+_ISO3 = {"ENG": "en", "POR": "pt", "SPA": "es", "FRE": "fr", "GER": "de", "ITA": "it", "JPN": "ja", "KOR": "ko",
+         "ZHO": "zh", "RUS": "ru", "ARA": "ar", "HIN": "hi", "NLD": "nl", "POL": "pl", "TUR": "tr"}   ### NEW v0.20.0 UI1d ###
+_YESNO = lambda c: _i18n.t("set.opt.yes") if c == "Yes" else _i18n.t("set.opt.no")
+
+
+def relabel():                                                   ### NEW v0.20.0 UI1d ###
+    """The import-time texts of this module in the interface language (the main script calls it from
+    _i18n_refresh); ids and the order stay the same."""
+    g = globals()
+    g["HEALTH_MODES"] = tuple((mid, _i18n.t(f"hm.{mid}"), _i18n.t(f"hm.{mid}.sub")) for mid, _t, _s in HEALTH_MODES)
+    g["HEALTH_MODE_NOTE"] = _i18n.t("hm.note")
+    g["HEALTH_MODE_PATH"] = _i18n.t("hm.path")
+    g["HEALTH_RULE_SECTIONS"] = tuple((sid, _i18n.t(f"hr.sec.{sid}"), modes, _i18n.t(f"hr.sec.{sid}.modes"))
+                                      for sid, _t, modes, _m in HEALTH_RULE_SECTIONS)
+    for k in list(HEALTH_RULE_SECTION_OFF):
+        HEALTH_RULE_SECTION_OFF[k] = _i18n.t(f"hr.off.{k}")
+    g["SETTINGS_NOT_SAVED_TEXT"] = _i18n.t("set.not_saved")
 
 
 def health_section_on(section, mode):
@@ -300,11 +394,10 @@ def backup_usage_text(total_bytes, max_mb):                         ### NEW v0.1
     """Backup tab: the folder's size, and by how much the limit is passed."""
     mb = total_bytes / (1024 * 1024)
     if not isinstance(max_mb, (int, float)) or max_mb <= 0:
-        return f"Backup folder size now: {mb:.1f} MB (no limit)"
+        return _i18n.t("uf.backup_folder_size_now_bcec", mb=format(mb, '.1f'))
     if mb <= max_mb:
-        return f"Backup folder size now: {mb:.1f} MB of {max_mb} MB"
-    return (f"Backup folder size now: {mb:.1f} MB, {mb - max_mb:.1f} MB over the {max_mb} MB limit\n"
-            f"(backups from this session and from the last {BACKUP_PROTECT_DAYS} days are kept)")
+        return _i18n.t("uf.backup_folder_size_now_21aa", mb=format(mb, '.1f'), max_mb=max_mb)
+    return (_i18n.t("uf.backup_folder_size_now_689e", mb=format(mb, '.1f'), v=format(mb - max_mb, '.1f'), max_mb=max_mb, backup_protect_days=BACKUP_PROTECT_DAYS))
 
 # ── Module-level globals (populated by _inject_globals at import time) ────────
 # These are set by the main module after import so that settings_dialog.py
@@ -522,7 +615,7 @@ class SettingsDialog(DialogBase):
         super().__init__(parent)
         # Store context — fall back to module-level _ctx for compatibility
         self._ctx = ctx if ctx is not None else _ctx
-        self.title(f"Settings — {self._ctx.app_name if self._ctx else _APP_NAME}")
+        self.title(_i18n.t("set.settings_92d4", v=self._ctx.app_name if self._ctx else _APP_NAME))
         self.geometry("940x720")   ### MODIFIED v0.18.4 ###
         self.minsize(760, 480)     ### NEW v0.18.4 ###
         self.configure(bg="#1e1e2e")
@@ -548,15 +641,13 @@ class SettingsDialog(DialogBase):
         bf = tk.Frame(self, bg="#1e1e2e")
         bf.pack(side="bottom", fill="x", pady=(6, 12))
         inner_bf = tk.Frame(bf, bg="#1e1e2e"); inner_bf.pack()
-        tk.Button(inner_bf, text="  Save & Apply  ", font=("Helvetica", 10, "bold"),
+        tk.Button(inner_bf, text=_i18n.t("set.save_apply_2f67"), font=("Helvetica", 10, "bold"),
                   bg="#a6e3a1", fg="#1e1e2e", relief="flat", cursor="hand2",
                   command=self._save_close).pack(side="left", padx=(0, 8))
-        tk.Button(inner_bf, text="  Cancel  ", font=("Helvetica", 10, "bold"),
+        tk.Button(inner_bf, text=_i18n.t("set.cancel_2fee"), font=("Helvetica", 10, "bold"),
                   bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
                   command=self._cancel_close).pack(side="left")          ### MODIFIED v0.19.2 B44 — asks before discarding ###
-        tk.Label(bf, text="Save & Apply writes settings.json, recomputes the health status "
-                          "when rules changed, and offers an Update Scan when scan "
-                          "settings changed.",
+        tk.Label(bf, text=_i18n.t("set.save_apply_writes_settings_539d"),
                  font=("Helvetica", 8), bg="#1e1e2e", fg="#6c7086").pack(pady=(4, 0))
         self.bind("<Escape>", lambda e: self._cancel_close())           ### MODIFIED v0.19.2 B44 ###
         self.protocol("WM_DELETE_WINDOW", self._cancel_close)           ### NEW v0.19.2 B44 — [X] too ###
@@ -628,13 +719,13 @@ class SettingsDialog(DialogBase):
         except Exception:
             how, d = "", ""
         if not how:
-            return "FFmpeg: not searched yet"
-        return f"FFmpeg: {d}  ({how})" if d else "FFmpeg: not found — install it or click Search again"
+            return _i18n.t("uf.ffmpeg_not_searched_yet_819b")
+        return f"FFmpeg: {d}  ({how})" if d else _i18n.t("uf.ffmpeg_not_found_install_c78e")
 
     def _ffmpeg_search_again(self):                                   ### NEW v0.19.2 B58 ###
         if not (self._ctx and self._ctx.ffmpeg_finder):
             return
-        self._ff_how_lbl.configure(text="Searching…")
+        self._ff_how_lbl.configure(text=_i18n.t("set.searching_1f68"))
         finder, path = self._ctx.ffmpeg_finder, self._ffmpeg_var.get().strip()
         def _work():
             try:
@@ -676,6 +767,45 @@ class SettingsDialog(DialogBase):
                     pass
         return st
 
+    # ── v0.20.0 CF1 — the collection folder: shown in NFO / XML, set in the Libraries window ──
+    def _show_coll_folder(self):
+        cf = self._coll_folder_var.get()
+        if hasattr(self, "_coll_folder_lbl"):
+            self._coll_folder_lbl.configure(text=cf or _i18n.t("cf.none"), fg="#cdd6f4" if cf else "#f9e2af")
+
+    def _coll_folder_from_app(self):
+        """After the Libraries window or the prompt: the stored folder; not an unsaved change of this window."""
+        if not hasattr(self.master, "_collection_folder"):
+            return
+        cf = self.master._collection_folder()
+        self._coll_folder_var.set(cf)
+        self._s["collection_folder"] = cf
+        snap = getattr(self, "_widget_snapshot", None)
+        if isinstance(snap, dict) and "_coll_folder_var" in snap:
+            snap["_coll_folder_var"] = cf
+
+    def _open_libraries_for_collections(self):
+        if hasattr(self.master, "_open_libraries"):
+            self.master._open_libraries(owner=self)
+            try:
+                self.grab_set()
+            except tk.TclError:
+                pass
+            self._coll_folder_from_app()
+            return
+        p = filedialog.askdirectory(parent=self, title=_i18n.t("set.collection_folder_583e"))   # no app (the harness)
+        if p:
+            self._coll_folder_var.set(os.path.normpath(p))
+
+    def _group_coll_ticked(self):
+        if self._group_coll_var.get() and not self._coll_folder_var.get() and hasattr(self.master, "_ask_collection_folder"):
+            self.master._ask_collection_folder(parent=self)
+            try:
+                self.grab_set()
+            except tk.TclError:
+                pass
+            self._coll_folder_from_app()
+
     def _has_changes(self):                                           ### NEW v0.19.2 B44 ###
         snap = getattr(self, "_widget_snapshot", None)
         return snap is not None and self._widget_state() != snap
@@ -684,9 +814,8 @@ class SettingsDialog(DialogBase):
         """Esc / Cancel / [X]: unchanged → close; changed → ask (default No).
         Nothing is saved either way; Save & Apply is unchanged."""
         if self._has_changes() and not messagebox.askyesno(
-                "Discard your changes?",
-                "You changed settings in this window.\n\n"
-                "Close without saving them?", icon="warning", default="no", parent=self):
+                _i18n.t("set.discard_your_changes_945f"),
+                _i18n.t("set.you_changed_settings_in_331e"), icon="warning", default="no", parent=self):
             return
         self.destroy()
 
@@ -695,42 +824,53 @@ class SettingsDialog(DialogBase):
     @staticmethod
     def _num(var, default):
         """Value of a Tk numeric variable, or *default* when the spinbox is blank
-        or holds text (v.get() raises TclError in that case).  ### NEW v0.18.4 ###"""
+        or holds text (v.get() raises TclError in that case).  ### NEW v0.18.4 ###
+        ### MODIFIED v0.20.0 UI1d ### "1,5" is read as 1.5 (Portuguese / Spanish decimal comma)."""
         try:
-            v = var.get()
+            try:                                                  # v0.20.0 RV2: the typed text first — IntVar.get()
+                v = var._tk.globalgetvar(var._name)               # read "2.000" as 2 without an error (PT / ES)
+                if not isinstance(v, str):
+                    v = var.get()
+            except tk.TclError:                                   # a typed variable holding "1,5" or text
+                v = str(var._tk.globalgetvar(var._name) or "")
             if isinstance(v, str):
                 v = v.strip()
                 if v == "":
                     return default
-                return float(v) if isinstance(default, float) else int(float(v))
+                f = parse_number(v)
+                return f if isinstance(default, float) else int(f)
             return v
-        except (tk.TclError, ValueError, TypeError):
+        except (tk.TclError, ValueError, TypeError, AttributeError):
             return default
 
     def _check_number_fields(self):                               ### NEW v0.19.5 SH-E9 ###
         """Text in a number box is refused by name, as Help says. A blank box still means the default."""
-        fields = [("Max NFO size", "_max_nfo_kb_var"), ("Max XML size", "_max_xml_kb_var"), ("Minimum poster KB", "_min_poster_kb_var"),
-                  ("Minimum folder image KB", "_min_folder_kb_var"), ("Minimum fanart KB", "_min_fanart_kb_var"), ("Backdrops to extract", "_backdrop_count_var"),
-                  ("Scan workers", "_scan_workers_var"), ("Seconds per frame", "_ffmpeg_frame_timeout_var"), ("Seconds per run", "_ffmpeg_run_budget_var"), ("FFprobe processes", "_ffprobe_workers_var")]
+        _T = _i18n.t                                               # v0.20.0 AU23: the field names in the interface language
+        fields = [(_T("au.f.max_nfo"), "_max_nfo_kb_var"), (_T("au.f.max_xml"), "_max_xml_kb_var"), (_T("au.f.min_poster"), "_min_poster_kb_var"),
+                  (_T("au.f.min_folder"), "_min_folder_kb_var"), (_T("au.f.min_fanart"), "_min_fanart_kb_var"), (_T("au.f.backdrops"), "_backdrop_count_var"),
+                  (_T("au.f.workers"), "_scan_workers_var"), (_T("au.f.sec_frame"), "_ffmpeg_frame_timeout_var"), (_T("au.f.sec_run"), "_ffmpeg_run_budget_var"),
+                  (_T("au.f.ffprobe"), "_ffprobe_workers_var")]
         pairs = [(lbl, getattr(self, attr)) for lbl, attr in fields if hasattr(self, attr)]
         for src in ("_hr_int_vars", "_hr_flt_vars"):
-            pairs += [(f"Health rule {k}", v) for k, v in getattr(self, src, {}).items()]
+            pairs += [(_i18n.t("au.f.rule", k=k), v) for k, v in getattr(self, src, {}).items()]
         for lbl, var in pairs:
-            try:
-                raw = var.get()
+            try:                                                  # v0.20.0 RV2: the typed text first (see _num)
+                raw = self.tk.globalgetvar(str(var))
+                if not isinstance(raw, str):
+                    raw = var.get()
             except tk.TclError:                                   # a typed variable holding text; a blank one is fine
                 raw = str(self.tk.globalgetvar(str(var)) or "")
             if isinstance(raw, str) and raw.strip():
                 try:
-                    float(raw.strip())
+                    parse_number(raw)                             # v0.20.0 UI1d: 1.5 and 1,5
                 except ValueError:
-                    raise SettingsFieldError(lbl, None, f"'{raw.strip()}' is not a number") from None
+                    raise SettingsFieldError(lbl, None, _i18n.t("au.not_number", v=raw.strip())) from None
 
     def _scrollable_tab(self, nb, label):
         """Add a tab whose content scrolls vertically (mouse wheel while the
         pointer is over it).  Returns the inner frame to pack widgets into.
         Replaces three copy-pasted canvas blocks.                ### NEW v0.18.4 ###"""
-        outer = tk.Frame(nb, bg="#1e1e2e"); nb.add(outer, text=label)
+        outer = tk.Frame(nb, bg="#1e1e2e"); nb.add(outer, text=tab_title(label))
         canvas = tk.Canvas(outer, bg="#1e1e2e", highlightthickness=0)
         sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=sb.set)
@@ -763,15 +903,14 @@ class SettingsDialog(DialogBase):
         tk.Entry(r, textvariable=var, font=("Consolas", 9),
                  bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
                  relief="flat", width=50).pack(side="left", fill="x", expand=True, ipady=4)
-        tk.Button(r, text="Browse…", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
+        tk.Button(r, text=_i18n.t("set.browse_1bd8"), font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
                   relief="flat", cursor="hand2",
                   command=lambda: self._browse_file(var, title, filetypes)
                   ).pack(side="left", padx=(6, 0))
         return r
 
-    @staticmethod
-    def _browse_file(var, title, filetypes):
-        p = filedialog.askopenfilename(title=title, filetypes=filetypes)
+    def _browse_file(self, var, title, filetypes):              # v0.20.0 AU19: parent=self (it opened behind Settings)
+        p = filedialog.askopenfilename(parent=self, title=title, filetypes=filetypes)
         if p: var.set(p)
 
     # ── Tab 0: Tools ──────────────────────────────────────────────────────────
@@ -780,11 +919,10 @@ class SettingsDialog(DialogBase):
         f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # Text editor
-        self._section(f, "Text Editor (for NFO / XML files)")
-        self._note(f, "Notepad++ is auto-detected. File path is passed BEFORE -lxml flag.\n"
-                      "If left blank, falls back to OS default editor.")
+        self._section(f, _i18n.t("set.text_editor_for_nfo_7468"))
+        self._note(f, _i18n.t("set.notepad_is_auto_detected_1286"))
         self._editor_var = tk.StringVar(value=self._s.get("text_editor", ""))
-        r = self._file_entry_row(f, self._editor_var, "Select text editor",
+        r = self._file_entry_row(f, self._editor_var, _i18n.t("set.select_text_editor_1d5d"),
                                  [("Executables", "*.exe"), ("All", "*.*")])
         ### MODIFIED_BY_CLAUDE_v18 — run notepadpp_finder on daemon thread to avoid blocking UI ###
         def _npp_done(npp):
@@ -795,15 +933,14 @@ class SettingsDialog(DialogBase):
                     snap["_editor_var"] = npp
         if self._ctx and self._ctx.notepadpp_finder:
             run_async(self._ctx.notepadpp_finder, callback=_npp_done, root=self)
-        tk.Button(r, text="Test", font=("Helvetica", 9), bg="#45475a", fg="#a6e3a1",
+        tk.Button(r, text=_i18n.t("set.test_0cbc"), font=("Helvetica", 9), bg="#45475a", fg="#a6e3a1",
                   relief="flat", cursor="hand2",
                   command=lambda: self._test_editor(self._editor_var)
                   ).pack(side="left", padx=(4, 0))
 
         # FFmpeg
         self._section(f, "FFmpeg / FFprobe")
-        self._note(f, "Point to the folder containing ffmpeg.exe and ffprobe.exe.\n"
-                      "Leave blank to use system PATH.")
+        self._note(f, _i18n.t("set.point_to_the_folder_da55"))
         self._ffmpeg_var = tk.StringVar(value=self._s.get("ffmpeg_path", ""))
         _ff_found = tk.Label(f, text="", font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", anchor="w")   # F18
         if not self._ffmpeg_var.get() and self._ctx and self._ctx.ffmpeg_finder:
@@ -814,8 +951,8 @@ class SettingsDialog(DialogBase):
                 import os
                 try:
                     ff = (res or (None, None))[0]
-                    _ff_found.configure(text=(f"Found (used while the box is empty): {os.path.dirname(ff)}" if ff
-                                              else "FFmpeg not found on the PATH — choose its folder."))
+                    _ff_found.configure(text=(_i18n.t("set.found_used_while_the_193a", ff=os.path.dirname(ff)) if ff
+                                              else _i18n.t("set.ffmpeg_not_found_on_c84d")))
                 except Exception:
                     pass
             run_async(lambda: _finder(""), callback=_found, root=self)
@@ -824,15 +961,15 @@ class SettingsDialog(DialogBase):
                  bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
                  relief="flat", width=50).pack(side="left", fill="x", expand=True, ipady=4)
         _ff_found.pack(anchor="w", padx=16)                       # F18
-        tk.Button(r, text="Browse…", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
+        tk.Button(r, text=_i18n.t("set.browse_1bd8"), font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
                   relief="flat", cursor="hand2",
                   command=lambda: self._ffmpeg_var.set(
-                      filedialog.askdirectory(title="FFmpeg folder") or self._ffmpeg_var.get())
+                      filedialog.askdirectory(parent=self, title=_i18n.t("set.ffmpeg_folder_3cae")) or self._ffmpeg_var.get())
                   ).pack(side="left", padx=(6, 0))
         self._ff_status_lbl = tk.Label(r, text="", font=("Helvetica", 9),
                                        bg="#1e1e2e", fg="#a6adc8")
         self._ff_status_lbl.pack(side="left", padx=(8, 0))
-        tk.Button(r, text="Test FFmpeg", font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
+        tk.Button(r, text=_i18n.t("set.test_ffmpeg_114b"), font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
                   relief="flat", cursor="hand2",
                   command=self._test_ffmpeg_btn).pack(side="left", padx=(4, 0))
         # NEW v0.19.2 B58 — where FFmpeg was found, and a deeper search
@@ -840,27 +977,25 @@ class SettingsDialog(DialogBase):
         self._ff_how_lbl = tk.Label(r_how, text=self._ffmpeg_found_text(), font=("Helvetica", 9),
                                     bg="#1e1e2e", fg="#a6adc8", anchor="w", justify="left")
         self._ff_how_lbl.pack(side="left")
-        tk.Button(r_how, text="Search again", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
+        tk.Button(r_how, text=_i18n.t("set.search_again_3b30"), font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
                   relief="flat", cursor="hand2",
                   command=self._ffmpeg_search_again).pack(side="left", padx=(8, 0))
         # NEW v0.19.1 I5 — FFprobe result cache
         self._ffprobe_cache_var = tk.BooleanVar(value=bool(self._s.get("ffprobe_cache_enabled", True)))
-        tk.Checkbutton(f, text="Remember FFprobe results (ffprobe_cache.json): unchanged videos are not probed again",
+        tk.Checkbutton(f, text=_i18n.t("set.remember_ffprobe_results_ffprobe_189f"),
                        variable=self._ffprobe_cache_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=(4, 0))
         # NEW v0.19.2 B28 — limits for "Frames from movie" (FFmpeg runs in the background)
-        self._note(f, "Frames from movie: FFmpeg runs at background priority and is stopped\n"
-                      "when one frame or the whole run takes longer than this.\n"
-                      "Seconds per run also limits an AI upscale (at least 60 s).")
+        self._note(f, _i18n.t("set.frames_from_movie_ffmpeg_0b5f"))
         r = self._row(f)
-        tk.Label(r, text="Seconds per frame:", font=("Helvetica", 10),
+        tk.Label(r, text=_i18n.t("set.seconds_per_frame_f2c2"), font=("Helvetica", 10),
                  bg="#1e1e2e", fg="#cdd6f4", width=26, anchor="w").pack(side="left")
         self._ffmpeg_frame_timeout_var = tk.IntVar(value=self._s.get("ffmpeg_frame_timeout_sec", 20))
         tk.Spinbox(r, from_=5, to=300, textvariable=self._ffmpeg_frame_timeout_var, width=6,
                    font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
                    buttonbackground="#45475a", relief="flat").pack(side="left")
-        tk.Label(r, text="   Seconds per run:", font=("Helvetica", 10),
+        tk.Label(r, text=_i18n.t("set.seconds_per_run_4ef3"), font=("Helvetica", 10),
                  bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self._ffmpeg_run_budget_var = tk.IntVar(value=self._s.get("ffmpeg_run_budget_sec", 180))
         tk.Spinbox(r, from_=30, to=1800, increment=30, textvariable=self._ffmpeg_run_budget_var, width=6,
@@ -868,10 +1003,10 @@ class SettingsDialog(DialogBase):
                    buttonbackground="#45475a", relief="flat").pack(side="left", padx=(6, 0))
 
         # Backdrop count
-        self._section(f, "Backdrop Extraction")
-        self._note(f, "Default number of backdrop frames to extract per movie.")
+        self._section(f, _i18n.t("set.backdrop_extraction_96e5"))
+        self._note(f, _i18n.t("set.default_number_of_backdrop_4101"))
         r = self._row(f)
-        tk.Label(r, text="Default frame count:", font=("Helvetica", 10),
+        tk.Label(r, text=_i18n.t("set.default_frame_count_7eaf"), font=("Helvetica", 10),
                  bg="#1e1e2e", fg="#cdd6f4", width=26, anchor="w").pack(side="left")
         self._backdrop_count_var = tk.IntVar(value=self._s.get("backdrop_count", 10))
         tk.Spinbox(r, from_=1, to=50, textvariable=self._backdrop_count_var, width=6,
@@ -879,46 +1014,47 @@ class SettingsDialog(DialogBase):
                    buttonbackground="#45475a", relief="flat").pack(side="left")
 
         # Parallel scanning (v0.18.4)                                ### NEW v0.18.4 ###
-        self._section(f, "Parallel Scanning")
-        self._note(f, "Workers used by Full Scan / Quick Scan. More workers help most on\n"
-                      "network shares; keep FFprobe processes low (each one is a video decode).")
+        self._section(f, _i18n.t("set.parallel_scanning_c1b0"))
+        self._note(f, _i18n.t("set.workers_used_by_full_7947"))
         r = self._row(f)
-        tk.Label(r, text="Folder / image / metadata workers:", font=("Helvetica", 10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=32, anchor="w").pack(side="left")
+        tk.Label(r, text=_i18n.t("set.folder_image_metadata_workers_5976"), font=("Helvetica", 10),
+                 bg="#1e1e2e", fg="#cdd6f4", width=max(32, len(_i18n.t("set.folder_image_metadata_workers_5976")) + 3),
+                 anchor="w").pack(side="left")                                     # v0.20.0 UI1e
         self._scan_workers_var = tk.IntVar(value=self._s.get("scan_workers", 6))
         tk.Spinbox(r, from_=1, to=16, textvariable=self._scan_workers_var, width=5,
                    font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
                    buttonbackground="#45475a", relief="flat").pack(side="left")
-        tk.Label(r, text="   (default 6)", font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086").pack(side="left")
+        tk.Label(r, text=_i18n.t("set.default_cfd0"), font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086").pack(side="left")
         r = self._row(f)
-        tk.Label(r, text="FFprobe processes in parallel:", font=("Helvetica", 10),
-                 bg="#1e1e2e", fg="#cdd6f4", width=32, anchor="w").pack(side="left")
+        tk.Label(r, text=_i18n.t("set.ffprobe_processes_in_parallel_779a"), font=("Helvetica", 10),
+                 bg="#1e1e2e", fg="#cdd6f4", width=max(32, len(_i18n.t("set.folder_image_metadata_workers_5976")) + 3),
+                 anchor="w").pack(side="left")                                     # v0.20.0 UI1e: the two boxes stay aligned
         self._ffprobe_workers_var = tk.IntVar(value=self._s.get("ffprobe_workers", 2))
         tk.Spinbox(r, from_=1, to=8, textvariable=self._ffprobe_workers_var, width=5,
                    font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
                    buttonbackground="#45475a", relief="flat").pack(side="left")
-        tk.Label(r, text="   (default 2)", font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086").pack(side="left")
+        tk.Label(r, text=_i18n.t("set.default_28f9"), font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086").pack(side="left")
 
         # Metadata source / scraper
-        self._section(f, "Video Scraper / Metadata Source")
-        self._note(f, "\nScraper executable (optional — launched with movie folder as argument):")
+        self._section(f, _i18n.t("set.video_scraper_metadata_source_073a"))
+        self._note(f, _i18n.t("set.scraper_executable_optional_launched_58c1"))
         self._scraper_var = tk.StringVar(value=self._s.get("scraper_path", ""))
-        self._file_entry_row(f, self._scraper_var, "Select scraper",
+        self._file_entry_row(f, self._scraper_var, _i18n.t("set.select_scraper_e674"),
                              [("Executables", "*.exe"), ("All", "*.*")])
 
     def _test_editor(self, var):
         path = var.get().strip()
         if not path:
-            messagebox.showwarning("Not set", "No editor path set.", parent=self); return
+            messagebox.showwarning(_i18n.t("set.not_set_9ba6"), _i18n.t("set.no_editor_path_set_b258"), parent=self); return
         import os
         if not os.path.isfile(path):
-            messagebox.showerror("Not found", f"File not found:\n{path}", parent=self); return
+            messagebox.showerror(_i18n.t("set.not_found_9e07"), _i18n.t("set.file_not_found_ab28", path=path), parent=self); return
         try:
             subprocess.Popen([path],
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            messagebox.showinfo("Test", f"Editor launched:\n{path}", parent=self)
+            messagebox.showinfo(_i18n.t("set.test_0cbc"), _i18n.t("set.editor_launched_82cb", path=path), parent=self)
         except Exception as e:
-            messagebox.showerror("Launch failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("set.launch_failed_722c"), str(e), parent=self)
 
     def _test_ffmpeg_btn(self):
         ### NEW v0.14.0 — subprocess runs on daemon thread; never blocks UI ###
@@ -926,7 +1062,7 @@ class SettingsDialog(DialogBase):
         if not ctx or not ctx.ffmpeg_finder or not ctx.ffmpeg_tester:
             return
         path = self._ffmpeg_var.get().strip()
-        self._ff_status_lbl.configure(text="Testing…", fg="#a6adc8")
+        self._ff_status_lbl.configure(text=_i18n.t("set.testing_1e97"), fg="#a6adc8")
 
         def _work():
             ff, fp = ctx.ffmpeg_finder(path)
@@ -935,7 +1071,7 @@ class SettingsDialog(DialogBase):
         def _done(result):
             ff_ok, fp_ok, ff_msg, fp_msg = result
             if ff_ok and fp_ok:
-                self._ff_status_lbl.configure(text="✓ Both OK", fg="#a6e3a1")
+                self._ff_status_lbl.configure(text=_i18n.t("set.both_ok_db50"), fg="#a6e3a1")
             else:
                 msgs = []
                 if not ff_ok: msgs.append(f"ffmpeg: {ff_msg}")
@@ -951,10 +1087,8 @@ class SettingsDialog(DialogBase):
         f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # TMDb
-        self._section(f, "TMDB API Key (The Movie Database)")
-        self._note(f, "Required for fetching ratings and metadata from TMDB.\n"
-                      "Your key is stored locally in settings.json and never shared.\n"
-                      "Free key — no subscription required.")
+        self._section(f, _i18n.t("set.tmdb_api_key_the_8454"))
+        self._note(f, _i18n.t("set.required_for_fetching_ratings_b38e"))
         self._tmdb_var = tk.StringVar(value=self._s.get("tmdb_api_key", ""))
         r = self._row(f)
         self._tmdb_entry = tk.Entry(r, textvariable=self._tmdb_var, font=("Consolas", 9),
@@ -965,7 +1099,7 @@ class SettingsDialog(DialogBase):
                   relief="flat", cursor="hand2", width=2,
                   command=lambda: self._toggle_show(self._tmdb_entry)
                   ).pack(side="left", padx=(4, 0))
-        tk.Button(r, text="Validate", font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
+        tk.Button(r, text=_i18n.t("set.validate_ad3d"), font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
                   relief="flat", cursor="hand2",
                   command=self._validate_tmdb).pack(side="left", padx=(4, 0))
         self._tmdb_status = tk.Label(r, text="", font=("Helvetica", 9),
@@ -974,29 +1108,22 @@ class SettingsDialog(DialogBase):
         self._tmdb_status.pack(side="left", padx=(6, 0))
 
         r2 = self._row(f)
-        tk.Label(r2, text="No key yet?", font=("Helvetica", 9),
+        tk.Label(r2, text=_i18n.t("set.no_key_yet_6248"), font=("Helvetica", 9),
                  bg="#1e1e2e", fg="#a6adc8").pack(side="left")
-        lnk1 = tk.Label(r2, text=" ➜ Click here to get your free TMDB API key",
+        lnk1 = tk.Label(r2, text=_i18n.t("set.click_here_to_get_a347"),
                          font=("Helvetica", 9, "underline"), bg="#1e1e2e", fg="#89b4fa",
                          cursor="hand2")
         lnk1.pack(side="left")
         lnk1.bind("<Button-1>", lambda e: self._open_url_fn("https://www.themoviedb.org/settings/api")
                   if self._open_url_fn else None)
 
-        self._note(f, "\nHow to get a TMDB key:\n"
-                      "  1. Create a free account at themoviedb.org\n"
-                      "  2. Go to Settings → API (left sidebar)\n"
-                      "  3. Click 'Request an API Key' → choose Developer\n"
-                      "  4. Fill in the form and your key appears immediately\n"
-                      "  5. Copy the 'API Key (v3 auth)' value here")
+        self._note(f, _i18n.t("set.how_to_get_a_45a4"))
 
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(12, 0))
 
         # OMDb
-        self._section(f, "OMDb API Key (IMDb data via OMDb)")
-        self._note(f, "Required for fetching IMDb ratings via the OMDb API.\n"
-                      "Your key is stored locally and never shared.\n"
-                      "Free tier: 1,000 requests/day.")
+        self._section(f, _i18n.t("set.omdb_api_key_imdb_34e0"))
+        self._note(f, _i18n.t("set.required_for_fetching_imdb_1254"))
         self._omdb_var = tk.StringVar(value=self._s.get("omdb_api_key", ""))
         r = self._row(f)
         self._omdb_entry = tk.Entry(r, textvariable=self._omdb_var, font=("Consolas", 9),
@@ -1007,7 +1134,7 @@ class SettingsDialog(DialogBase):
                   relief="flat", cursor="hand2", width=2,
                   command=lambda: self._toggle_show(self._omdb_entry)
                   ).pack(side="left", padx=(4, 0))
-        tk.Button(r, text="Validate", font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
+        tk.Button(r, text=_i18n.t("set.validate_ad3d"), font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
                   relief="flat", cursor="hand2",
                   command=self._validate_omdb).pack(side="left", padx=(4, 0))
         self._omdb_status = tk.Label(r, text="", font=("Helvetica", 9),
@@ -1016,27 +1143,21 @@ class SettingsDialog(DialogBase):
         self._omdb_status.pack(side="left", padx=(6, 0))
 
         r3 = self._row(f)
-        tk.Label(r3, text="No key yet?", font=("Helvetica", 9),
+        tk.Label(r3, text=_i18n.t("set.no_key_yet_6248"), font=("Helvetica", 9),
                  bg="#1e1e2e", fg="#a6adc8").pack(side="left")
-        lnk2 = tk.Label(r3, text=" ➜ Click here to get your free OMDb API key",
+        lnk2 = tk.Label(r3, text=_i18n.t("set.click_here_to_get_cedf"),
                          font=("Helvetica", 9, "underline"), bg="#1e1e2e", fg="#89b4fa",
                          cursor="hand2")
         lnk2.pack(side="left")
         lnk2.bind("<Button-1>", lambda e: self._open_url_fn("https://www.omdbapi.com/apikey.aspx")
                   if self._open_url_fn else None)
 
-        self._note(f, "\nHow to get an OMDb key:\n"
-                      "  1. Go to omdbapi.com/apikey.aspx\n"
-                      "  2. Choose 'FREE' (1,000 req/day) and fill in your email\n"
-                      "  3. Check your inbox for the activation email\n"
-                      "  4. Click the activation link and copy your key here")
+        self._note(f, _i18n.t("set.how_to_get_an_045b"))
 
         ### NEW v0.19.1 I10 — fanart.tv (second image source in the Fetch dialogs) ###
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(12, 0))
-        self._section(f, "fanart.tv API Key (artwork)")
-        self._note(f, "Optional. Adds fanart.tv posters and backgrounds to Fetch Poster/Folder,\n"
-                      "Fetch Fanart, Fetch Backdrops and Replace All Backdrops.\n"
-                      "Your key is stored locally and never shared. Free personal key.")
+        self._section(f, _i18n.t("set.fanart_tv_api_key_176a"))
+        self._note(f, _i18n.t("set.optional_adds_fanart_tv_4864"))
         self._fanarttv_var = tk.StringVar(value=self._s.get("fanarttv_api_key", ""))
         r = self._row(f)
         self._fanarttv_entry = tk.Entry(r, textvariable=self._fanarttv_var, font=("Consolas", 9),
@@ -1047,7 +1168,7 @@ class SettingsDialog(DialogBase):
                   relief="flat", cursor="hand2", width=2,
                   command=lambda: self._toggle_show(self._fanarttv_entry)
                   ).pack(side="left", padx=(4, 0))
-        tk.Button(r, text="Validate", font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
+        tk.Button(r, text=_i18n.t("set.validate_ad3d"), font=("Helvetica", 9), bg="#45475a", fg="#f9e2af",
                   relief="flat", cursor="hand2",
                   command=self._validate_fanarttv).pack(side="left", padx=(4, 0))
         self._fanarttv_status = tk.Label(r, text="", font=("Helvetica", 9),
@@ -1056,17 +1177,17 @@ class SettingsDialog(DialogBase):
         self._fanarttv_status.pack(side="left", padx=(6, 0))
 
         r4 = self._row(f)
-        tk.Label(r4, text="No key yet?", font=("Helvetica", 9),
+        tk.Label(r4, text=_i18n.t("set.no_key_yet_6248"), font=("Helvetica", 9),
                  bg="#1e1e2e", fg="#a6adc8").pack(side="left")
-        self._fanarttv_link = tk.Label(r4, text=" ➜ Click here to get your free fanart.tv API key",
+        self._fanarttv_link = tk.Label(r4, text=_i18n.t("set.click_here_to_get_68ae"),
                          font=("Helvetica", 9, "underline"), bg="#1e1e2e", fg="#89b4fa",
                          cursor="hand2")
         self._fanarttv_link.pack(side="left")
         self._fanarttv_link.bind("<Button-1>", lambda e: self._open_url_fn(FANARTTV_KEY_URL)
                                  if self._open_url_fn else None)
-        self._note(f, "The page asks you to log in or create a free fanart.tv account first.")
+        self._note(f, _i18n.t("set.the_page_asks_you_cc7f"))
 
-        tk.Label(f, text="Client (VIP) key", font=("Helvetica", 9, "bold"),
+        tk.Label(f, text=_i18n.t("set.client_vip_key_1f71"), font=("Helvetica", 9, "bold"),
                  bg="#1e1e2e", fg="#cdd6f4").pack(anchor="w", padx=24, pady=(8, 0))
         self._fanarttv_client_var = tk.StringVar(value=self._s.get("fanarttv_client_key", ""))
         r5 = self._row(f)
@@ -1078,7 +1199,7 @@ class SettingsDialog(DialogBase):
                   relief="flat", cursor="hand2", width=2,
                   command=lambda: self._toggle_show(self._fanarttv_client_entry)
                   ).pack(side="left", padx=(4, 0))
-        self._note(f, "Optional — only for fanart.tv VIP members (newer images sooner).")
+        self._note(f, _i18n.t("set.optional_only_for_fanart_ed90"))
 
     @staticmethod
     def _toggle_show(entry):
@@ -1087,13 +1208,13 @@ class SettingsDialog(DialogBase):
     def _validate_tmdb(self):
         key = self._tmdb_var.get().strip()
         if not key:
-            self._tmdb_status.configure(text="No key entered", fg="#f38ba8"); return
-        self._tmdb_status.configure(text="Testing…", fg="#a6adc8")
+            self._tmdb_status.configure(text=_i18n.t("set.no_key_entered_42de"), fg="#f38ba8"); return
+        self._tmdb_status.configure(text=_i18n.t("set.testing_1e97"), fg="#a6adc8")
         self.update_idletasks()
         def _worker():  # MODIFIED_BY_CLAUDE_v18 - migrated from threading.Thread to run_async
             import urllib.request, urllib.error, gzip as _gzip
             ok = False
-            msg = "✗ Invalid or network error"
+            msg = _i18n.t("set.invalid_or_network_error_995c")
             try:
                 url = f"https://api.themoviedb.org/3/configuration?api_key={key}"
                 req = urllib.request.Request(url, headers={
@@ -1110,7 +1231,7 @@ class SettingsDialog(DialogBase):
                 except UnicodeDecodeError:
                     data = json.loads(raw.decode("latin-1"))
                 ok = "images" in data
-                msg = "✓ Valid" if ok else "✗ Unexpected response"
+                msg = _i18n.t("set.valid_3af4") if ok else _i18n.t("set.unexpected_response_a399")
             except urllib.error.HTTPError as e:
                 try:
                     import gzip as _gzip2
@@ -1123,11 +1244,11 @@ class SettingsDialog(DialogBase):
                     detail = e.reason
                 kind = classify_http_status(e.code, str(detail))      ### MODIFIED v0.19.1 B22 ###
                 msg = (_validate_failure_text("TMDB", kind) if kind
-                       else f"✗ HTTP {e.code}: {detail}")
+                       else _i18n.t("set.http_b2f3", code=e.code, detail=detail))
             except urllib.error.URLError as e:
                 msg = _validate_failure_text("TMDB", classify_network_reason(str(e.reason)))   ### MODIFIED v0.19.1 B22 ###
             except Exception as e:
-                msg = f"✗ Error: {type(e).__name__}: {e}"
+                msg = _i18n.t("set.error_7162", name=type(e).__name__, e=e)
             return (ok, msg)
         def _tmdb_done(result):
             ok, msg = result
@@ -1138,8 +1259,8 @@ class SettingsDialog(DialogBase):
     def _validate_fanarttv(self):                                  ### NEW v0.19.1 I10 ###
         key = self._fanarttv_var.get().strip()
         if not key:
-            self._fanarttv_status.configure(text="No key entered", fg="#f38ba8"); return
-        self._fanarttv_status.configure(text="Testing…", fg="#a6adc8")
+            self._fanarttv_status.configure(text=_i18n.t("set.no_key_entered_42de"), fg="#f38ba8"); return
+        self._fanarttv_status.configure(text=_i18n.t("set.testing_1e97"), fg="#a6adc8")
         self.update_idletasks()
         def _worker():
             import urllib.request, urllib.error
@@ -1150,8 +1271,8 @@ class SettingsDialog(DialogBase):
                 with urllib.request.urlopen(req, timeout=8) as resp:
                     data = json.loads(resp.read())
                 if isinstance(data, dict) and (data.get("tmdb_id") or data.get("name")):
-                    return True, "✓ Valid"
-                return False, "✗ Unexpected response"
+                    return True, "✓ " + _i18n.t("au.valid")
+                return False, "✗ " + _i18n.t("au.unexpected")
             except urllib.error.HTTPError as e:
                 try:
                     _b = json.loads(e.read() or b"{}")
@@ -1164,7 +1285,7 @@ class SettingsDialog(DialogBase):
             except urllib.error.URLError as e:
                 return False, _validate_failure_text(lbl, classify_network_reason(str(e.reason)))
             except Exception as e:
-                return False, f"✗ Error: {type(e).__name__}"
+                return False, "✗ " + _i18n.t("au.error_x", x=type(e).__name__)
         def _done(result):
             ok, msg = result
             msg = redact_key_text(msg, key)                     ### NEW v0.19.4 B96d ###
@@ -1174,13 +1295,13 @@ class SettingsDialog(DialogBase):
     def _validate_omdb(self):
         key = self._omdb_var.get().strip()
         if not key:
-            self._omdb_status.configure(text="No key entered", fg="#f38ba8"); return
-        self._omdb_status.configure(text="Testing…", fg="#a6adc8")
+            self._omdb_status.configure(text=_i18n.t("set.no_key_entered_42de"), fg="#f38ba8"); return
+        self._omdb_status.configure(text=_i18n.t("set.testing_1e97"), fg="#a6adc8")
         self.update_idletasks()
         def _worker():  # MODIFIED_BY_CLAUDE_v18 - migrated from threading.Thread to run_async
             ### MODIFIED v0.19.1 B22 — the same messages + advice as the main window ###
             import urllib.request, urllib.error
-            lbl = "OMDb (IMDb data)"
+            lbl = _i18n.t("uf.omdb_imdb_data_5eaf")
             try:
                 url = f"https://www.omdbapi.com/?apikey={key}&t=test&type=movie"
                 req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})   ### MODIFIED v0.19.4 B96d ###
@@ -1188,22 +1309,22 @@ class SettingsDialog(DialogBase):
                     data = json.loads(resp.read())
                 err = str(data.get("Error", "")).lower()
                 if data.get("Response") == "False" and "limit" in err:
-                    return False, _validate_failure_text(lbl, "daily_limit", " TMDB ratings still work.")
+                    return False, _validate_failure_text(lbl, "daily_limit", _i18n.t("uf.tmdb_ratings_still_work_c20a"))
                 if data.get("Response") == "False" and ("invalid api key" in err or "unauthorized" in err):
                     return False, _validate_failure_text(lbl, "invalid_key")
-                return True, "✓ Valid"
+                return True, "✓ " + _i18n.t("au.valid")
             except urllib.error.HTTPError as e:
                 try:
                     detail = str(json.loads(e.read() or b"{}").get("Error", ""))
                 except Exception:
                     detail = ""
                 kind = classify_http_status(e.code, detail)
-                return False, (_validate_failure_text(lbl, kind, " TMDB ratings still work.") if kind
+                return False, (_validate_failure_text(lbl, kind, _i18n.t("uf.tmdb_ratings_still_work_c20a")) if kind
                                else f"✗ HTTP {e.code}: {detail}")
             except urllib.error.URLError as e:
                 return False, _validate_failure_text(lbl, classify_network_reason(str(e.reason)))
             except Exception as e:
-                return False, f"✗ Error: {type(e).__name__}"
+                return False, "✗ " + _i18n.t("au.error_x", x=type(e).__name__)
         def _omdb_done(result):
             ok, msg = result
             msg = redact_key_text(msg, key)                     ### NEW v0.19.4 B96d ###
@@ -1218,12 +1339,10 @@ class SettingsDialog(DialogBase):
         '(selected)' suffix); unselected options dimmed. ###
         ### NEW v0.14.0 — browser detection runs on daemon thread via run_async ###
         """
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
 
-        self._section(f, "Default Browser for External Links")
-        self._note(f, "Used when opening IMDb, TMDB, OpenSubtitles, or any other URL.\n"
-                      "Leave on 'System Default' to let Windows decide.\n"
-                      "Detected browsers are listed automatically.")
+        self._section(f, _i18n.t("set.default_browser_for_external_bc5d"))
+        self._note(f, _i18n.t("set.used_when_opening_imdb_70e6"))
 
         self._browser_var = tk.StringVar(value=self._s.get("default_browser", ""))
 
@@ -1252,7 +1371,7 @@ class SettingsDialog(DialogBase):
                 rb      = _radio_btns[idx]
                 if is_sel:
                     row_f.configure(bg=_BG_SELECTED)
-                    lv.set(f"{base_label} (selected)")
+                    lv.set(base_label + _i18n.t("set.selected_suffix"))   # v0.20.0 UI1e
                     rb.configure(
                         bg=_BG_SELECTED,
                         fg=_FG_SELECTED,
@@ -1316,20 +1435,20 @@ class SettingsDialog(DialogBase):
 
         ### NEW v0.14.0 — detect browsers on daemon thread; populate on callback ###
         _detecting_lbl = tk.Label(options_frame,
-                                  text="Detecting browsers…",
+                                  text=_i18n.t("set.detecting_browsers_3208"),
                                   font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086")
         _detecting_lbl.pack(anchor="w", pady=2)
 
         def _populate_browsers(detected):
             """Called on main thread after browser detection completes."""
             _detecting_lbl.destroy()
-            options = [("System Default (recommended)", "")]
+            options = [(_i18n.t("set.browser_default"), "")]
             for name, path in (detected or []):
                 options.append((name, path))
             _build_radio_buttons(options)
             if not detected:
                 tk.Label(options_frame,
-                         text="No additional browsers detected in standard locations.",
+                         text=_i18n.t("set.no_additional_browsers_detected_71c7"),
                          font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086"
                          ).pack(anchor="w", pady=4)
             # Run initial highlight so the current saved value is shown correctly
@@ -1342,18 +1461,18 @@ class SettingsDialog(DialogBase):
         else:
             _populate_browsers([])
 
-        self._section(f, "Or Enter Browser Path Manually")
-        self._note(f, "Browse to any browser executable not listed above.")
+        self._section(f, _i18n.t("set.or_enter_browser_path_abb9"))
+        self._note(f, _i18n.t("set.browse_to_any_browser_7994"))
         r = self._row(f)
         tk.Entry(r, textvariable=self._browser_var, font=("Consolas", 9),
                  bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
                  relief="flat", width=50).pack(side="left", fill="x", expand=True, ipady=4)
-        tk.Button(r, text="Browse…", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
+        tk.Button(r, text=_i18n.t("set.browse_1bd8"), font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4",
                   relief="flat", cursor="hand2",
                   command=lambda: self._browse_file(self._browser_var, "Select browser",
                                                     [("Executables", "*.exe"), ("All", "*.*")])
                   ).pack(side="left", padx=(6, 0))
-        tk.Button(r, text="Test", font=("Helvetica", 9), bg="#45475a", fg="#a6e3a1",
+        tk.Button(r, text=_i18n.t("set.test_0cbc"), font=("Helvetica", 9), bg="#45475a", fg="#a6e3a1",
                   relief="flat", cursor="hand2",
                   command=self._test_browser).pack(side="left", padx=(4, 0))
 
@@ -1361,36 +1480,33 @@ class SettingsDialog(DialogBase):
         import os
         p = self._browser_var.get().strip()
         if not p:
-            messagebox.showinfo("System Default",
-                                "Using system default browser — no path to test.", parent=self)
+            messagebox.showinfo(_i18n.t("set.system_default_750a"),
+                                _i18n.t("set.using_system_default_browser_3771"), parent=self)
             return
         if not os.path.isfile(p):
-            messagebox.showerror("Not found", f"File not found:\n{p}", parent=self); return
+            messagebox.showerror(_i18n.t("set.not_found_9e07"), _i18n.t("set.file_not_found_5730", p=p), parent=self); return
         try:
             subprocess.Popen([p, "https://www.themoviedb.org"],
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-            messagebox.showinfo("Test", f"Browser launched:\n{p}", parent=self)
+            messagebox.showinfo(_i18n.t("set.test_0cbc"), _i18n.t("set.browser_launched_6346", p=p), parent=self)
         except Exception as e:
-            messagebox.showerror("Launch failed", str(e), parent=self)
+            messagebox.showerror(_i18n.t("set.launch_failed_722c"), str(e), parent=self)
 
     # ── Tab 3: Language OK? ───────────────────────────────────────────────────
 
     def _build_language_tab(self, nb, label="Language"):
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
 
-        tk.Label(f, text="Language OK? Column Target",
+        tk.Label(f, text=_i18n.t("set.language_ok_column_target_95a6"),
                  font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(16, 4))
-        tk.Label(f, text="Select the language for the 'Lang OK?' column.\n"
-                 "The column header and Y/N values will update automatically.\n"
-                 "Sources checked: FFprobe audio, internal subtitles, external subtitles,\n"
-                 "XML LanguageCode, XML Audio/Language, NFO video/language.",
+        tk.Label(f, text=_i18n.t("set.select_the_language_for_8c16"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#a6adc8",
                  justify="left").pack(anchor="w", padx=16, pady=(0, 12))
 
         self._lang_var = tk.StringVar(value=self._s.get("lang_ok_code", "PT"))
         lang_frame = tk.Frame(f, bg="#1e1e2e"); lang_frame.pack(padx=16, fill="x")
-        tk.Label(lang_frame, text="Language:", font=("Helvetica", 10),
+        tk.Label(lang_frame, text=_i18n.t("set.language_0885"), font=("Helvetica", 10),
                  bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self._lang_combo = ttk.Combobox(lang_frame, textvariable=self._lang_var,
                                         values=[iso for iso, _ in self._langs],
@@ -1402,13 +1518,13 @@ class SettingsDialog(DialogBase):
         self._lang_combo.bind("<<ComboboxSelected>>", self._update_lang_desc)
         self._update_lang_desc()
 
-        tk.Label(f, text="\nAvailable languages:",
+        tk.Label(f, text=_i18n.t("set.available_languages_ab4e"),
                  font=("Helvetica", 10, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16)
         grid_f = tk.Frame(f, bg="#1e1e2e"); grid_f.pack(padx=16, fill="x")
         for i, (iso, name) in enumerate(self._langs):
             r = i // 3; c = i % 3
-            tk.Label(grid_f, text=f"{iso} — {name}",
+            tk.Label(grid_f, text=f"{iso} — {lang_name(iso, name)}",
                      font=("Consolas", 9), bg="#1e1e2e", fg="#6c7086",
                      anchor="w", width=22).grid(row=r, column=c, sticky="w", pady=1)
 
@@ -1416,28 +1532,28 @@ class SettingsDialog(DialogBase):
         code = self._lang_var.get().upper()
         for iso, name in self._langs:
             if iso == code:
-                self._lang_desc.configure(text=f"→ {name}")
+                self._lang_desc.configure(text=f"→ {lang_name(iso, name)}")
                 return
         self._lang_desc.configure(text="")
 
     # ── Tab 4: Improvements ───────────────────────────────────────────────────
 
     def _build_improvements_tab(self, nb, label="Improvements"):
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
 
-        tk.Label(f, text="Improvement Checks",
+        tk.Label(f, text=_i18n.t("set.improvement_checks_58c3"),
                  font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(16, 6))
 
         ic = self._s.get("improve_checks", self._defaults.get("improve_checks", {}))  ### FIX v0.15.0 ###
         self._ic_vars = {}
         checks_def = [
-            ("large_xml",    "2.1  Large XML/NFO files (flag files above threshold)"),
-            ("nfo_xml_diff", "2.2  NFO ↔ XML data mismatches"),
-            ("ffprobe_diff", "2.3  FFprobe vs NFO/XML metadata differences"),
-            ("poster_folder","2.4  poster.jpg and folder.jpg size differences"),
-            ("proportions",  "2.5  Image proportion and file size issues"),
-            ("backdrops",    "2.6  Insufficient backdrops"),
+            ("large_xml",    _i18n.t("set.ic.large_xml")),            # v0.20.0 UI1d
+            ("nfo_xml_diff", _i18n.t("set.ic.nfo_xml_diff")),
+            ("ffprobe_diff", _i18n.t("set.ic.ffprobe_diff")),
+            ("poster_folder", _i18n.t("set.ic.poster_folder")),
+            ("proportions",  _i18n.t("set.ic.proportions")),
+            ("backdrops",    _i18n.t("set.ic.backdrops")),
         ]
         for key, label in checks_def:
             v = tk.BooleanVar(value=ic.get(key, True))
@@ -1447,13 +1563,13 @@ class SettingsDialog(DialogBase):
                            selectcolor="#313244", activebackground="#1e1e2e",
                            activeforeground="#cdd6f4").pack(anchor="w", padx=24, pady=2)
 
-        tk.Label(f, text="\nThresholds:", font=("Helvetica", 11, "bold"),
+        tk.Label(f, text=_i18n.t("set.thresholds_1f41"), font=("Helvetica", 11, "bold"),
                  bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=16)
 
         def _spin_row(parent, label, varname, default, from_, to_):
             r = tk.Frame(parent, bg="#1e1e2e"); r.pack(anchor="w", padx=24, pady=2)
             tk.Label(r, text=label, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                     width=36, anchor="w").pack(side="left")
+                     width=max(36, len(label) + 3), anchor="w").pack(side="left")      # v0.20.0 UI1e: PT / ES are longer
             v = tk.IntVar(value=self._s.get(varname, default))
             setattr(self, f"_{varname}_var", v)
             tk.Spinbox(r, from_=from_, to=to_, textvariable=v, width=6,
@@ -1461,8 +1577,8 @@ class SettingsDialog(DialogBase):
                        buttonbackground="#45475a", relief="flat").pack(side="left")
             return v
 
-        _spin_row(f, "Max NFO file size (KB) before flagging:", "max_nfo_kb",  50, 1, 9999)
-        _spin_row(f, "Max XML file size (KB) before flagging:", "max_xml_kb",  25, 1, 9999)
+        _spin_row(f, _i18n.t("set.max_nfo_file_size_0216"), "max_nfo_kb",  50, 1, 9999)
+        _spin_row(f, _i18n.t("set.max_xml_file_size_c4b6"), "max_xml_kb",  25, 1, 9999)
         # min_backdrops removed from UI in v0.18.2 — now lives in Health Rules tab ### MODIFIED_BY_CLAUDE_v18.2 ###
 
     # ── Tab 5: Image Sizes ────────────────────────────────────────────────────
@@ -1473,30 +1589,28 @@ class SettingsDialog(DialogBase):
         f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
 
         # ── Proportion Checks ─────────────────────────────────────────────────
-        self._section(f, "Proportion Checks")
+        self._section(f, _i18n.t("set.proportion_checks_8879"))
 
         ### NEW v0.12.0 — poster/folder 3:4 acceptance toggle (above fanart 16:8) ###
         r_34 = self._row(f)
-        tk.Label(r_34, text="Accept poster.jpg and folder.jpg also in 3:4 (0.75 ratio)?",
+        tk.Label(r_34, text=_i18n.t("set.accept_poster_jpg_and_d329"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=50, anchor="w").pack(side="left")
         self._poster_34_var = tk.StringVar(
             value="Yes" if self._s.get("poster_accept_34", False) else "No")
-        poster_34_cb = ttk.Combobox(r_34, textvariable=self._poster_34_var,
-                                    values=["Yes", "No"], state="readonly",
+        poster_34_cb = shown_combo(r_34, self._poster_34_var, ["Yes", "No"], _YESNO, state="readonly",   # v0.20.0 UI1d
                                     width=6, font=("Helvetica", 10))
         poster_34_cb.pack(side="left", padx=(8, 0))
         poster_34_cb.bind("<<ComboboxSelected>>", self._update_proportion_text)
 
         # Fanart 16:8 acceptance toggle
         r0 = self._row(f)
-        tk.Label(r0, text="Accept fanart.jpg also in 3:2 (1.50 ratio)?",
+        tk.Label(r0, text=_i18n.t("set.accept_fanart_jpg_also_e829"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=50, anchor="w").pack(side="left")
         self._fanart_168_var = tk.StringVar(
             value="Yes" if self._s.get("fanart_accept_168", False) else "No")
-        fanart_168_cb = ttk.Combobox(r0, textvariable=self._fanart_168_var,
-                                     values=["Yes", "No"], state="readonly",
+        fanart_168_cb = shown_combo(r0, self._fanart_168_var, ["Yes", "No"], _YESNO, state="readonly",   # v0.20.0 UI1d
                                      width=6, font=("Helvetica", 10))
         fanart_168_cb.pack(side="left", padx=(8, 0))
         fanart_168_cb.bind("<<ComboboxSelected>>", self._update_proportion_text)
@@ -1512,23 +1626,19 @@ class SettingsDialog(DialogBase):
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(0, 4))
 
         # ── Minimum Image Quality (Resolution-driven) ─────────────────────────
-        self._section(f, "Minimum Image Quality (Resolution-driven)")
+        self._section(f, _i18n.t("set.minimum_image_quality_resolution_39e8"))
         self._note(f,                                             ### MODIFIED v0.19.0 ###
-            "Choose the minimum acceptable quality for each image type.\n"
-            "Images below the selected tier are flagged as WARNINGS (Health Rules:\n"
-            "'Poster/folder quality below minimum' and 'Fanart quality below minimum').\n"
-            "These boxes and the Health Rules tab are the same setting; poster and folder\n"
-            "share one value.  Tolerance: ±5% for compression and aspect variations.")
+            _i18n.t("set.choose_the_minimum_acceptable_af0c"))
 
         # ──────────── Poster / Folder ─────────────────────────────────────────
-        tk.Label(f, text="POSTER / FOLDER  (2:3 portrait ratio)",
+        tk.Label(f, text=_i18n.t("set.poster_folder_portrait_ratio_07ee"),
                  font=("Helvetica", 10, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(10, 2))
 
         poster_tiers = [t[0] for t in self._poster_tiers]
         # Info table for poster
         hdr_f = tk.Frame(f, bg="#1e1e2e"); hdr_f.pack(anchor="w", padx=24)
-        for col, w in [("Quality", 18), ("Resolution", 14), ("Total Pixels", 14), ("Est. File Size", 16)]:
+        for col, w in [(_i18n.t("set.tbl.quality"), 18), (_i18n.t("set.tbl.resolution"), 14), (_i18n.t("set.tbl.pixels"), 14), (_i18n.t("set.tbl.size"), 16)]:
             tk.Label(hdr_f, text=col, font=("Consolas", 8, "bold"),
                      bg="#1e1e2e", fg="#89b4fa", width=w, anchor="w").pack(side="left")
         for label, mw, mh, tp, esz in self._poster_tiers:
@@ -1543,7 +1653,7 @@ class SettingsDialog(DialogBase):
                      bg="#1e1e2e", fg="#a6adc8", width=16, anchor="w").pack(side="left")
 
         r1 = self._row(f)
-        tk.Label(r1, text="Minimum quality — poster.jpg:",
+        tk.Label(r1, text=_i18n.t("set.minimum_quality_poster_jpg_1dea"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=36, anchor="w").pack(side="left")
         _hr_now = self._s.get("health_rules") or {}                ### NEW v0.19.0 — Health Rules are authoritative ###
@@ -1554,7 +1664,7 @@ class SettingsDialog(DialogBase):
                      width=18, font=("Helvetica", 10)).pack(side="left", padx=(8, 0))
 
         r2 = self._row(f)
-        tk.Label(r2, text="Minimum quality — folder.jpg:",
+        tk.Label(r2, text=_i18n.t("set.minimum_quality_folder_jpg_a8f9"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=36, anchor="w").pack(side="left")
         self._folder_ql_var = tk.StringVar(                         ### MODIFIED v0.19.0 — same value as poster ###
@@ -1566,13 +1676,13 @@ class SettingsDialog(DialogBase):
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(10, 4))
 
         # ──────────── Fanart ──────────────────────────────────────────────────
-        tk.Label(f, text="FANART  (16:9 or 3:2 landscape ratio)",
+        tk.Label(f, text=_i18n.t("set.fanart_or_landscape_ratio_add3"),
                  font=("Helvetica", 10, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(10, 2))
 
         fanart_tiers = [t[0] for t in self._fanart_tiers]
         hdr_f2 = tk.Frame(f, bg="#1e1e2e"); hdr_f2.pack(anchor="w", padx=24)
-        for col, w in [("Quality", 22), ("Resolution", 14), ("Total Pixels", 14), ("Est. File Size", 16)]:
+        for col, w in [(_i18n.t("set.tbl.quality"), 22), (_i18n.t("set.tbl.resolution"), 14), (_i18n.t("set.tbl.pixels"), 14), (_i18n.t("set.tbl.size"), 16)]:
             tk.Label(hdr_f2, text=col, font=("Consolas", 8, "bold"),
                      bg="#1e1e2e", fg="#89b4fa", width=w, anchor="w").pack(side="left")
         for label, mw, mh, tp, esz in self._fanart_tiers:
@@ -1587,7 +1697,7 @@ class SettingsDialog(DialogBase):
                      bg="#1e1e2e", fg="#a6adc8", width=16, anchor="w").pack(side="left")
 
         r3 = self._row(f)
-        tk.Label(r3, text="Minimum quality — fanart.jpg:",
+        tk.Label(r3, text=_i18n.t("set.minimum_quality_fanart_jpg_045c"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  width=36, anchor="w").pack(side="left")
         self._fanart_ql_var = tk.StringVar(                         ### MODIFIED v0.19.0 — mirrors Health Rules ###
@@ -1599,26 +1709,25 @@ class SettingsDialog(DialogBase):
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(10, 4))
 
         # ── Legacy KB minimums (kept for additional safety net) ───────────────
-        self._section(f, "Legacy File Size Minimums (KB)")
+        self._section(f, _i18n.t("set.legacy_file_size_minimums_043a"))
         self._note(f,
-            "Secondary check — files below this size are flagged as WARNINGS\n"   ### MODIFIED v0.19.0 ###
-            "(Health Rule 'Image file below minimum size').  Set to 0 to skip.")
+            _i18n.t("set.secondary_check_files_below_0ccc"))
 
         def _sz_row(parent, label, varname, default):
             r = tk.Frame(parent, bg="#1e1e2e"); r.pack(anchor="w", padx=24, pady=2)
             tk.Label(r, text=label, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                     width=34, anchor="w").pack(side="left")
+                     width=max(34, len(label) + 3), anchor="w").pack(side="left")      # v0.20.0 UI1e
             v = tk.IntVar(value=self._s.get(varname, default))
             setattr(self, f"_{varname}_var", v)
             tk.Spinbox(r, from_=0, to=9999, textvariable=v, width=6,
                        font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
                        buttonbackground="#45475a", relief="flat").pack(side="left")
-            tk.Label(r, text=" KB   (0 = skip check)", font=("Helvetica", 9),
+            tk.Label(r, text=_i18n.t("set.kb_skip_check_86c6"), font=("Helvetica", 9),
                      bg="#1e1e2e", fg="#6c7086").pack(side="left", padx=(6, 0))
 
-        _sz_row(f, "poster.jpg minimum size:", "min_poster_kb", 100)
-        _sz_row(f, "folder.jpg minimum size:", "min_folder_kb", 100)
-        _sz_row(f, "fanart.jpg minimum size:", "min_fanart_kb", 200)
+        _sz_row(f, _i18n.t("set.poster_jpg_minimum_size_bb70"), "min_poster_kb", 100)
+        _sz_row(f, _i18n.t("set.folder_jpg_minimum_size_e524"), "min_folder_kb", 100)
+        _sz_row(f, _i18n.t("set.fanart_jpg_minimum_size_e282"), "min_fanart_kb", 200)
 
     def _bind_quality_mirrors(self):                               ### NEW v0.19.0 ###
         """One minimum-quality setting shown in two tabs: the Image Sizes
@@ -1661,51 +1770,39 @@ class SettingsDialog(DialogBase):
 
         if not accept_168 and not accept_34:
             text = (
-                "Wrong proportions are flagged as warnings, not errors.\n"
-                "Acceptable proportions are:\n"
-                " - Poster/Folder: 2:3 (~0.67 ratio)\n"
-                " - Fanart: 16:9 (~1.78 ratio)"
+                _i18n.t("set.wrong_proportions_are_flagged_753e")
             )
         elif accept_168 and not accept_34:
             text = (
-                "Wrong proportions are flagged as warnings, not errors.\n"
-                "Acceptable proportions are:\n"
-                " - Poster/Folder: 2:3 (~0.67 ratio)\n"
-                " - Fanart: 16:9 (~1.78 ratio) and 16:8 (~1.50 ratio)"
+                _i18n.t("set.wrong_proportions_are_flagged_e99f")
             )
         elif not accept_168 and accept_34:
             text = (
-                "Wrong proportions are flagged as warnings, not errors.\n"
-                "Acceptable proportions are:\n"
-                " - Poster/Folder: 2:3 (~0.67 ratio) and 3:4 (0.75 ratio)\n"
-                " - Fanart: 16:9 (~1.78 ratio)"
+                _i18n.t("set.wrong_proportions_are_flagged_b9c0")
             )
         else:  # both Yes
             text = (
-                "Wrong proportions are flagged as warnings, not errors.\n"
-                "Acceptable proportions are:\n"
-                " - Poster/Folder: 2:3 (~0.67 ratio) and 3:4 (0.75 ratio)\n"
-                " - Fanart: 16:9 (~1.78 ratio) and 16:8 (~1.50 ratio)"
+                _i18n.t("set.wrong_proportions_are_flagged_daa4")
             )
         self._prop_text_var.set(text)
 
     # ── Tab 6: Genres ─────────────────────────────────────────────────────────
     # ── Tab 10: Ratings ─────────────────────────────────────────────────────── ### NEW v0.15.0 ###
     def _build_ratings_tab(self, nb, label="Ratings"):           ### NEW v0.15.0 ###
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)   ### NEW v0.15.0 ###
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))   ### NEW v0.15.0 ###
                                                                   ### NEW v0.15.0 ###
-        tk.Label(f, text="Ratings Synchronization Options",      ### NEW v0.15.0 ###
+        tk.Label(f, text=_i18n.t("set.ratings_synchronization_options_b8b3"),      ### NEW v0.15.0 ###
                  font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa" ### NEW v0.15.0 ###
                  ).pack(anchor="w", padx=16, pady=(16, 6))       ### NEW v0.15.0 ###
                                                                   ### NEW v0.15.0 ###
-        tk.Label(f, text="These settings control the default behaviour of the Ratings Sync popup.", ### NEW v0.15.0 ###
+        tk.Label(f, text=_i18n.t("set.these_settings_control_the_16aa"), ### NEW v0.15.0 ###
                  bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9) ### NEW v0.15.0 ###
                  ).pack(anchor="w", padx=16, pady=(0, 12))       ### NEW v0.15.0 ###
                                                                   ### NEW v0.15.0 ###
         apply_val = self._s.get("rating_apply_all_movies",       ### NEW v0.15.0 ###
                                  self._defaults.get("rating_apply_all_movies", False)) ### NEW v0.15.0 ###
         self._rating_apply_all_var = tk.BooleanVar(value=apply_val) ### NEW v0.15.0 ###
-        tk.Checkbutton(f, text="Apply this choice to all remaining movies", ### NEW v0.15.0 ###
+        tk.Checkbutton(f, text=_i18n.t("set.apply_this_choice_to_0a3e"), ### NEW v0.15.0 ###
                        variable=self._rating_apply_all_var,      ### NEW v0.15.0 ###
                        bg="#1e1e2e", fg="#cdd6f4", activebackground="#1e1e2e", ### NEW v0.15.0 ###
                        selectcolor="#313244", font=("Helvetica", 10) ### NEW v0.15.0 ###
@@ -1714,7 +1811,7 @@ class SettingsDialog(DialogBase):
         votes_val = self._s.get("rating_use_more_votes",         ### NEW v0.15.0 ###
                                  self._defaults.get("rating_use_more_votes", False)) ### NEW v0.15.0 ###
         self._rating_use_more_votes_var = tk.BooleanVar(value=votes_val) ### NEW v0.15.0 ###
-        tk.Checkbutton(f, text="Use the source with more votes", ### NEW v0.15.0 ###
+        tk.Checkbutton(f, text=_i18n.t("set.use_the_source_with_5be2"), ### NEW v0.15.0 ###
                        variable=self._rating_use_more_votes_var, ### NEW v0.15.0 ###
                        bg="#1e1e2e", fg="#cdd6f4", activebackground="#1e1e2e", ### NEW v0.15.0 ###
                        selectcolor="#313244", font=("Helvetica", 10) ### NEW v0.15.0 ###
@@ -1722,12 +1819,10 @@ class SettingsDialog(DialogBase):
 
 
     def _build_genres_tab(self, nb, label="Genres"):
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
 
-        self._section(f, "Standard Genre List")
-        self._note(f, "One genre per line. Based on TMDB's official genre list.\n"
-                      "Add your own custom genres — they will be treated as valid.\n"
-                      "Blank lines are removed automatically on save.")
+        self._section(f, _i18n.t("set.standard_genre_list_79c8"))
+        self._note(f, _i18n.t("set.one_genre_per_line_5242"))
 
         fr = tk.Frame(f, bg="#1e1e2e"); fr.pack(fill="both", expand=True, padx=16, pady=(4, 4))
         self._genres_text = tk.Text(fr, wrap="word", bg="#313244", fg="#cdd6f4",
@@ -1743,7 +1838,7 @@ class SettingsDialog(DialogBase):
         self._genres_text.insert("1.0", cleaned)
 
         br = tk.Frame(f, bg="#1e1e2e"); br.pack(fill="x", padx=16, pady=(0, 4))
-        tk.Button(br, text="Reset to TMDB defaults", font=("Helvetica", 9),
+        tk.Button(br, text=_i18n.t("set.reset_to_tmdb_defaults_f247"), font=("Helvetica", 9),
                   bg="#45475a", fg="#f38ba8", relief="flat", cursor="hand2",
                   command=self._reset_genres).pack(side="left")
 
@@ -1754,19 +1849,16 @@ class SettingsDialog(DialogBase):
     # ── Tab 7: NFO-XML Tags ───────────────────────────────────────────────────
 
     def _build_tags_tab(self, nb, label="NFO / XML"):
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
 
         # v0.19.6 TR1b — whether movie.xml is used at all is the health mode (Health Rules tab)
-        tk.Label(f, text=f"movie.xml is used only in the health modes for the old Windows media centers ({HEALTH_MODE_PATH}).",
+        tk.Label(f, text=_i18n.t("set.movie_xml_is_used_239c", health_mode_path=HEALTH_MODE_PATH),
                  font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", justify="left").pack(anchor="w", padx=16, pady=(12, 0))
 
-        tk.Label(f, text="NFO ↔ XML Tag Comparison Pairs",
+        tk.Label(f, text=_i18n.t("set.nfo_xml_tag_comparison_4720"),
                  font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(16, 4))
-        tk.Label(f, text="Format: NFO_tag  →  XML_tag  (one pair per line, tab or spaces separated)\n"
-                 "Use dot notation for nested tags: fileinfo.streamdetails.video.width\n"
-                 "Add optional tolerance% at end: fileinfo.streamdetails.video.durationinseconds  "
-                 "MediaInfo.Video.DurationSeconds  Duration  5",
+        tk.Label(f, text=_i18n.t("set.format_nfo_tag_xml_e87f"),
                  font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086",
                  justify="left").pack(anchor="w", padx=16, pady=(0, 8))
 
@@ -1788,7 +1880,7 @@ class SettingsDialog(DialogBase):
         self._tags_text.insert("1.0", "\n".join(lines))
 
         br = tk.Frame(f, bg="#1e1e2e"); br.pack(fill="x", padx=16, pady=(0, 4))
-        self._tags_reset_btn = tk.Button(br, text="Reset to defaults", font=("Helvetica", 9),
+        self._tags_reset_btn = tk.Button(br, text=_i18n.t("set.reset_to_defaults_21e2"), font=("Helvetica", 9),
                   bg="#45475a", fg="#f38ba8", relief="flat", cursor="hand2",
                   command=self._reset_tags)
         self._tags_reset_btn.pack(side="left")
@@ -1796,43 +1888,37 @@ class SettingsDialog(DialogBase):
         self._tags_note.pack(side="left", padx=12)
 
         # ── NEW v0.19.4 B110g — Collections: Kodi's movie set information folder ──
-        tk.Label(f, text="Collections", font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
+        tk.Label(f, text=_i18n.t("set.collections_a9fc"), font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(10, 2))
         cr_ = tk.Frame(f, bg="#1e1e2e"); cr_.pack(fill="x", padx=16)
-        tk.Label(cr_, text="Collection folder", font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        tk.Label(cr_, text=_i18n.t("set.collection_folder_583e"), font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        ### MODIFIED v0.20.0 CF1 — shown here, set in the Libraries window (the user, 2026-11-15) ###
         self._coll_folder_var = tk.StringVar(value=self._s.get("collection_folder", ""))
-        tk.Entry(cr_, textvariable=self._coll_folder_var, font=("Consolas", 9), bg="#313244", fg="#cdd6f4",
-                 insertbackground="#cdd6f4", relief="flat", width=50).pack(side="left", fill="x", expand=True,
-                                                                           padx=(8, 0), ipady=3)
-        tk.Button(cr_, text="Browse…", font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
-                  command=lambda: self._coll_folder_var.set(
-                      filedialog.askdirectory(title="Collection folder") or self._coll_folder_var.get())
-                  ).pack(side="left", padx=(6, 0))
-        tk.Label(f, text="The same folder as Kodi's Settings → Media → Videos → Movie set information folder. "
-                         "If Kodi reaches it as smb://…, choose the same share here (e.g. \\\\NAS\\Movies\\Sets "
-                         "or Z:\\Sets). Empty = off.",
-                 font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", wraplength=720, justify="left"
-                 ).pack(anchor="w", padx=16, pady=(2, 4))
+        self._coll_folder_lbl = tk.Label(cr_, text="", font=("Consolas", 9), bg="#313244", fg="#cdd6f4", anchor="w", padx=6)
+        self._coll_folder_lbl.pack(side="left", fill="x", expand=True, padx=(8, 0), ipady=3)
+        tk.Button(cr_, text=_i18n.t("cf.libraries_btn"), font=("Helvetica", 9), bg="#45475a", fg="#cdd6f4", relief="flat",
+                  cursor="hand2", command=self._open_libraries_for_collections).pack(side="left", padx=(6, 0))
+        tk.Label(f, text=_i18n.t("cf.set_in_lib"), font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", wraplength=720,
+                 justify="left").pack(anchor="w", padx=16, pady=(2, 4))
+        self._coll_folder_var.trace_add("write", lambda *_: self._show_coll_folder())
+        self._show_coll_folder()
         self._group_coll_var = tk.BooleanVar(value=bool(self._s.get("group_by_collection", False)))   # NEW v0.19.4 B110h
-        tk.Checkbutton(f, text="Group the movie table by collection (also in the toolbar; view only)",
+        tk.Checkbutton(f, text=_i18n.t("set.group_the_movie_table_9afd"),
                        variable=self._group_coll_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                       selectcolor="#313244", activebackground="#1e1e2e", activeforeground="#cdd6f4"
-                       ).pack(anchor="w", padx=12, pady=(0, 4))
+                       selectcolor="#313244", activebackground="#1e1e2e", activeforeground="#cdd6f4",
+                       command=self._group_coll_ticked).pack(anchor="w", padx=12, pady=(0, 4))
         # ── NEW v0.19.4 P4 — the collection name's language ──
         lr_ = tk.Frame(f, bg="#1e1e2e"); lr_.pack(fill="x", padx=16, pady=(0, 2))
-        tk.Label(lr_, text="Collection name language", font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
+        tk.Label(lr_, text=_i18n.t("set.collection_name_language_e44d"), font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4").pack(side="left")
         self._coll_lang_codes = ["auto", "en", "pt", "es", "fr", "de", "it", "nl", "sv", "pl", "tr", "ja", "ko", "zh", "ru"]
-        _coll_lang_names = ["Automatic", "English", "Portuguese", "Spanish", "French", "German", "Italian", "Dutch",
-                            "Swedish", "Polish", "Turkish", "Japanese", "Korean", "Chinese", "Russian"]
+        _coll_lang_names = [lang_name(c, c) for c in self._coll_lang_codes]   # v0.20.0 UI1d: shown names; the code is saved
         self._coll_lang_names = _coll_lang_names
         _cur = str(self._s.get("collection_name_lang") or "auto").split("-")[0].lower()
         self._coll_lang_var = tk.StringVar(value=_coll_lang_names[self._coll_lang_codes.index(_cur)]
-                                           if _cur in self._coll_lang_codes else "Automatic")
+                                           if _cur in self._coll_lang_codes else _coll_lang_names[0])
         ttk.Combobox(lr_, textvariable=self._coll_lang_var, values=_coll_lang_names, state="readonly",
                      width=16).pack(side="left", padx=(8, 0))
-        tk.Label(f, text="Automatic: the English name, unless more than half of a collection's movies have their local "
-                         "title in another language — then that language's name. A fixed language: every collection "
-                         "gets TMDB's name in it (English when TMDB has none).",
+        tk.Label(f, text=_i18n.t("set.automatic_the_english_name_2a6c"),
                  font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", wraplength=720, justify="left"
                  ).pack(anchor="w", padx=16, pady=(0, 10))
 
@@ -1866,71 +1952,73 @@ class SettingsDialog(DialogBase):
 
     def _build_ui_prefs_tab(self, nb, label="User Interface"):
         """User Interface preferences tab — v0.12.0 replacement."""  ### NEW v0.12.0 ###
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
 
-        tk.Label(f, text="User Interface Settings",
+        tk.Label(f, text=_i18n.t("set.user_interface_settings_69c7"),
                  font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(16, 4))
 
+        self._build_ui_language_box(f)                              ### NEW v0.20.0 UI1a ###
+
         # ── Show image size? ──────────────────────────────────────────────────
-        self._section(f, "Compact Mode")
-        self._note(f, "When Yes, reduces vertical spacing between rows in the main table.")
+        self._section(f, _i18n.t("set.compact_mode_e9d2"))
+        self._note(f, _i18n.t("set.when_yes_reduces_vertical_7752"))
         r2 = self._row(f)
-        tk.Label(r2, text="Enable compact mode?", font=("Helvetica", 10),
+        tk.Label(r2, text=_i18n.t("set.enable_compact_mode_bb2b"), font=("Helvetica", 10),
                  bg="#1e1e2e", fg="#cdd6f4", width=28, anchor="w").pack(side="left")
         self._compact_mode_var = tk.BooleanVar(value=self._s.get("compact_mode", False))
-        for val, lbl in [(True, "Yes"), (False, "No")]:
+        for val, lbl in [(True, _i18n.t("set.opt.yes")), (False, _i18n.t("set.opt.no"))]:
             tk.Radiobutton(r2, text=lbl, variable=self._compact_mode_var, value=val,
                            font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                            selectcolor="#313244", activebackground="#1e1e2e",
                            activeforeground="#cdd6f4").pack(side="left", padx=(0, 12))
 
         # ── Enable dark theme? ────────────────────────────────────────────────
-        self._section(f, "Right-click Menu")
-        self._note(f, "\"Repeat\" runs the last menu action again on the current selection.")
+        self._section(f, _i18n.t("set.right_click_menu_f16e"))
+        self._note(f, _i18n.t("set.repeat_runs_the_last_0200"))
         r4b = self._row(f)
         self._ctx_repeat_var = tk.BooleanVar(value=bool(self._s.get("ctx_repeat_last", True)))   ### NEW v0.19.2 B57 ###
-        tk.Checkbutton(r4b, text="Show 'Repeat: <last action>' at the top of the right-click menu",
+        tk.Checkbutton(r4b, text=_i18n.t("set.show_repeat_last_action_b2eb"),
                        variable=self._ctx_repeat_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(side="left")
 
         # ── Title bars (v0.19.2 B51) ─────────────────────────────────────────
-        self._section(f, "Title Bars")
-        self._note(f, "Windows draws title bars light; MediaClinic can make them dark like the window.")
+        self._section(f, _i18n.t("set.title_bars_b397"))
+        self._note(f, _i18n.t("set.windows_draws_title_bars_daaf"))
         r4d = self._row(f)
         self._dark_title_var = tk.BooleanVar(value=bool(self._s.get("dark_title_bar", True)))   ### NEW v0.19.2 B51 ###
-        tk.Checkbutton(r4d, text="Dark title bars (applied when you save)",
+        tk.Checkbutton(r4d, text=_i18n.t("set.dark_title_bars_applied_2e15"),
                        variable=self._dark_title_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(side="left")
 
         # ── Updates (v0.19.2 B50) ────────────────────────────────────────────
-        self._section(f, "Updates")
-        self._note(f, "Asks GitHub for the latest release; nothing else is sent and nothing is downloaded.")
+        self._section(f, _i18n.t("set.updates_9ac4"))
+        self._note(f, _i18n.t("set.asks_github_for_the_2360"))
         r4e = self._row(f)
         self._check_updates_var = tk.BooleanVar(value=bool(self._s.get("check_updates", False)))   ### NEW v0.19.2 B50 ###
-        tk.Checkbutton(r4e, text="Check for updates at start (at most once a day)",
+        tk.Checkbutton(r4e, text=_i18n.t("set.check_for_updates_at_2954"),
                        variable=self._check_updates_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(side="left")
 
         # ── Ignored folders (v0.19.2 B53) ────────────────────────────────────
-        self._section(f, "Ignored Folders")
-        self._note(f, "Folders that are not movies (TV series, folders of folders …) get no row.")
+        self._section(f, _i18n.t("set.ignored_folders_70f8"))
+        self._note(f, _i18n.t("set.folders_that_are_not_8d94"))
         r4c = self._row(f)
         self._scan_ignored_report_var = tk.BooleanVar(value=bool(self._s.get("scan_ignored_report", True)))   ### NEW v0.19.2 B53 ###
-        tk.Checkbutton(r4c, text="Show the Ignored folders window after a scan",
+        tk.Checkbutton(r4c, text=_i18n.t("set.show_the_ignored_folders_ab4e"),
                        variable=self._scan_ignored_report_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(side="left")
 
         # ── Alternating rows (kept from v0.11) ────────────────────────────────
-        self._section(f, "Table Appearance")
-        self._note(f, "Alternating row colors make it easier to follow rows across wide tables.")
+        self._section(f, _i18n.t("set.table_appearance_ae18"))
+        self._note(f, _i18n.t("set.alternating_row_colors_make_7fb1"))
         r5 = self._row(f)
         self._alt_rows_var = tk.BooleanVar(value=self._s.get("alternating_rows", True))
-        tk.Checkbutton(r5, text="Alternating row colors",
+        tk.Checkbutton(r5, text=_i18n.t("set.alternating_row_colors_eecd"),
                        variable=self._alt_rows_var,
                        font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
@@ -1938,11 +2026,71 @@ class SettingsDialog(DialogBase):
 
         r6 = self._row(f)
         self._show_header_tips_var = tk.BooleanVar(value=self._s.get("show_header_tips", True))
-        tk.Checkbutton(r6, text="Show column header tooltips",
+        tk.Checkbutton(r6, text=_i18n.t("set.show_column_header_tooltips_d41c"),
                        variable=self._show_header_tips_var,
                        font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(side="left")
+
+    # ── v0.20.0 UI1a: Interface language (saved at once, used from the next start) ──
+    def ui_language_options(self, windows_code=None):
+        """[(stored code or "", shown label)]: "Same as Windows (…)" first, then each language in its own name."""
+        wc = windows_code or getattr(self._parent, "_windows_ui_code", None) or "en"
+        same = _i18n.t("ui.lang.same_as_windows", name=_i18n.LANGUAGE_NAMES.get(wc, "English"))
+        return [("", same)] + [(c, _i18n.LANGUAGE_NAMES[c]) for c in _i18n.LANGUAGES]
+
+    def _build_ui_language_box(self, f):                            ### NEW v0.20.0 UI1a ###
+        self._section(f, _i18n.t("set.interface_language_11e2"))
+        r = self._row(f)
+        tk.Label(r, text=_i18n.t("ui.lang.label"), font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                 width=28, anchor="w").pack(side="left")
+        opts = self.ui_language_options()
+        stored = self._s.get("ui_language")
+        cur = stored if isinstance(stored, str) and stored in _i18n.CATALOGS else ""   # v0.20.0 RV1
+        self._ui_language_codes = [c for c, _l in opts]
+        self._ui_language_var = tk.StringVar(value=dict(opts)[cur])
+        cb = ttk.Combobox(r, textvariable=self._ui_language_var, values=[l for _c, l in opts], state="readonly",
+                          width=30, font=("Helvetica", 10))
+        cb.pack(side="left")
+        self._ui_language_combo = cb
+        r2 = self._row(f)
+        self._ui_language_note = tk.Label(r2, text=_i18n.t("ui.lang.next_start"), font=("Helvetica", 9, "italic"),
+                                          bg="#1e1e2e", fg="#a6adc8")
+        self._ui_language_note.pack(side="left")
+        self._ui_restart_btn = tk.Button(r2, text=f"  {_i18n.t('ui.lang.restart_now')}  ", font=("Helvetica", 9, "bold"),
+                                         bg="#45475a", fg="#cdd6f4", relief="flat", cursor="hand2",
+                                         command=self._ui_restart_now)
+        self._ui_restart_btn.pack(side="left", padx=(10, 0))
+        cb.bind("<<ComboboxSelected>>", lambda e: self._ui_language_picked())
+
+    def _ui_language_picked(self):                                  ### NEW v0.20.0 UI1a ###
+        """Store the choice at once (the B36 atomic save); "Same as Windows" removes the key. Not an unsaved
+        change for B44's discard question."""
+        labels = list(self._ui_language_combo.cget("values"))
+        try:
+            code = self._ui_language_codes[labels.index(self._ui_language_var.get())]
+        except ValueError:
+            return None
+        if code:
+            self._s["ui_language"] = code
+        else:
+            self._s.pop("ui_language", None)
+        save = (self._ctx.save_settings if self._ctx and getattr(self._ctx, "save_settings", None) else _save_settings_fn)
+        try:
+            if save:
+                save(self._s)
+        except Exception:
+            pass
+        snap = getattr(self, "_widget_snapshot", None)
+        if snap is not None and "_ui_language_var" in snap:
+            snap["_ui_language_var"] = self._ui_language_var.get()
+        return code
+
+    def _ui_restart_now(self):                                      ### NEW v0.20.0 UI1a ###
+        fn = getattr(self._parent, "_restart_now", None)
+        if callable(fn):
+            return fn()
+        return False
 
     # ── Tab 10: Health Rules  (v0.18.2) ─────────────────────────────────────── ### ADDED_BY_CLAUDE_v18.2 ###
 
@@ -1968,15 +2116,48 @@ class SettingsDialog(DialogBase):
                      bg="#1e1e2e", fg="#89b4fa").pack(anchor="w", padx=14, pady=(4, 2))
 
         # ── NEW v0.19.6 TR1b — Health mode (first: it decides which files the rules below look at) ──
-        _section("Health mode — which program plays your movies?")
+        # ### MODIFIED v0.20.0 F3a-2 (the user's mock-up A, 2026-11-16) ### the programs as tick boxes replace the three
+        # health-mode buttons: the ticks set the health mode (media_profiles.health_mode_for); nothing ticked keeps the
+        # mode as it was.  _health_mode_var stays the one state the sections, the preset and Save read.
+        import media_profiles as _mpf
+        _section(_i18n.t("f3.title"))
         self._health_mode_initial = health_mode_of(self._s)
         self._health_mode_var = tk.StringVar(value=self._health_mode_initial)
-        for _i, (_mid, _title, _sub) in enumerate(HEALTH_MODES, 1):
-            tk.Radiobutton(f, text=f"{_i}.  {_title}   ({_sub})", value=_mid, variable=self._health_mode_var,
+        _have = set(_mpf.clean_programs(self._s.get("media_programs") or ()))
+        self._program_vars = {p: tk.BooleanVar(value=p in _have) for p in _mpf.PROGRAMS}
+        self._programs_initial = _mpf.clean_programs(_have)
+        _pg = tk.Frame(f, bg="#1e1e2e")
+        _pg.pack(anchor="w", padx=22, pady=(2, 0))
+        for _i, _p in enumerate(_mpf.PROGRAMS):
+            tk.Checkbutton(_pg, text=_mpf.PROGRAM_LABEL[_p], variable=self._program_vars[_p],
+                           command=self._programs_changed, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                           selectcolor="#313244", activebackground="#1e1e2e", activeforeground="#cdd6f4"
+                           ).grid(row=_i // 4, column=_i % 4, columnspan=1 if _i < 4 else 2, sticky="w", padx=(0, 18))
+        self._programs_info = tk.Label(f, text="", font=("Helvetica", 10), bg="#1e1e2e", fg="#a6e3a1", justify="left")
+        self._programs_info.pack(anchor="w", padx=42, pady=(4, 0))
+        tk.Label(f, text=_i18n.t("f3.note"), font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086",
+                 justify="left").pack(anchor="w", padx=42, pady=(2, 4))
+        # ### NEW v0.20.0 6h ### Plex reads no NFO: with only Plex ticked, its NFO / collection checks (asked once)
+        self._plex_nfo_initial = self._s.get("plex_nfo_checks") or ""
+        self._plex_nfo_var = tk.BooleanVar(value=self._plex_nfo_initial != "off")
+        self._plex_nfo_cb = tk.Checkbutton(f, text=_i18n.t("px.set"), variable=self._plex_nfo_var, font=("Helvetica", 10),
+                       bg="#1e1e2e", fg="#cdd6f4", selectcolor="#313244", activebackground="#1e1e2e",
+                       activeforeground="#cdd6f4", disabledforeground="#6c7086")
+        self._plex_nfo_cb.pack(anchor="w", padx=38, pady=(0, 4))
+        self._health_mode_var.trace_add("write", lambda *_: self._programs_info_update())
+        self._programs_info_update()
+
+        # ── NEW v0.20.0 HP1d — Health preset (how strict): sets every rule below at once; "Custom" after a manual change.
+        # What is shown always comes from the rule values (matching_health_preset), so it cannot drift from them.
+        import settings_model as _smp
+        _section(_i18n.t("hp.title"))
+        self._health_preset_var = tk.StringVar(value=_smp.matching_health_preset(hr_current, self._health_mode_initial))
+        self._hp_last, self._hp_busy = [self._health_preset_var.get()], [False]
+        for _pid in ("easy", "medium", "tight", "custom"):
+            tk.Radiobutton(f, text=f"{_i18n.t('hp.' + _pid)}   —   {_i18n.t('hp.' + _pid + '.d')}", value=_pid,
+                           variable=self._health_preset_var, command=lambda p=_pid: self._health_preset_chosen(p),
                            font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4", selectcolor="#313244",
                            activebackground="#1e1e2e", activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=1)
-        tk.Label(f, text=HEALTH_MODE_NOTE, font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086",
-                 justify="left").pack(anchor="w", padx=42, pady=(2, 4))
 
         # ── v0.19.6 TR1c: the current section and level (the rows below pack into it) ──
         self._hr_sections = {}
@@ -1985,7 +2166,7 @@ class SettingsDialog(DialogBase):
         def _level_tag(row, key):
             if _sec[0]:
                 self._hr_sections[_sec[0]]["keys"].append(key)
-            tk.Label(row, text=_lvl[0], font=("Helvetica", 9), bg="#1e1e2e",
+            tk.Label(row, text=_i18n.t("set.lvl." + _lvl[0]), font=("Helvetica", 9), bg="#1e1e2e",
                      fg="#f38ba8" if _lvl[0] == "error" else "#f9e2af").pack(side="right", padx=(8, 24))
 
         # ── Helper: plain checkbox row ─────────────────────────────────────────
@@ -2096,7 +2277,7 @@ class SettingsDialog(DialogBase):
                                 activeforeground="#cdd6f4")
             cb.pack(side="left")
             codes   = [code for code, _ in lang_list]
-            names   = {code: name for code, name in lang_list}
+            names   = {code: lang_name(_ISO3.get(code, code), name) for code, name in lang_list}   # v0.20.0 UI1d
             combo   = ttk.Combobox(row, textvariable=sv, values=codes,
                                    state="readonly" if b_val else "disabled",
                                    width=6, font=("Helvetica", 10))
@@ -2124,12 +2305,12 @@ class SettingsDialog(DialogBase):
             _sec[0] and self._hr_sections[_sec[0]]["keys"].append(str_key)
             tk.Label(row, text=label_text, font=("Helvetica", 10), bg="#1e1e2e",
                      fg="#cdd6f4").pack(side="left")
-            ttk.Combobox(row, textvariable=sv, values=("error", "warning", "off"),
-                         state="readonly", width=9, font=("Helvetica", 10)).pack(side="left", padx=(6, 0))
+            shown_combo(row, sv, ["error", "warning", "off"], lambda c: _i18n.t("set.lvl." + c),   # v0.20.0 UI1d
+                        state="readonly", width=12, font=("Helvetica", 10)).pack(side="left", padx=(6, 0))
             return sv
 
         # ── Helper: one value from a short list, shown by label ── ### NEW v0.19.3 B60 ###
-        def _choice_row(str_key, label_text, options, default_str):
+        def _choice_row(str_key, label_text, options, default_str, width=18):   # width: v0.20.0 RD12
             row = tk.Frame(_cur[0], bg="#1e1e2e"); row.pack(fill="x", padx=22, pady=1)
             keys = [k for k, _l in options]
             s_val = hr_current.get(str_key, hr_defaults.get(str_key, default_str))
@@ -2142,15 +2323,14 @@ class SettingsDialog(DialogBase):
             tk.Label(row, text=label_text, font=("Helvetica", 10), bg="#1e1e2e",
                      fg="#cdd6f4").pack(side="left")
             cb = ttk.Combobox(row, textvariable=shown, values=[l for _k, l in options],
-                              state="readonly", width=18, font=("Helvetica", 10))
+                              state="readonly", width=width, font=("Helvetica", 10))
             cb.pack(side="left", padx=(6, 0))
             cb.bind("<<ComboboxSelected>>", lambda e: sv.set(keys[[l for _k, l in options].index(shown.get())]))
             sv.trace_add("write", lambda *_: shown.set(dict(options).get(sv.get(), shown.get())))
             return sv
 
         # ── Intro and reset button ─────────────────────────────────────────────
-        tk.Label(f, text="Health Rules control which conditions affect each movie's\n"
-                         "health status. Rules that are OFF are ignored and treated as OK.",
+        tk.Label(f, text=_i18n.t("set.health_rules_control_which_5d03"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  justify="left").pack(anchor="w", padx=14, pady=(14, 4))
 
@@ -2165,7 +2345,7 @@ class SettingsDialog(DialogBase):
             for k, v in self._hr_str_vars.items():
                 v.set(hrd.get(k, ""))
 
-        tk.Button(f, text="  Reset to defaults  ",
+        tk.Button(f, text=_i18n.t("set.reset_to_defaults_eba1"),
                   font=("Helvetica", 9, "bold"), bg="#45475a", fg="#cdd6f4",
                   relief="flat", cursor="hand2",
                   command=_reset_defaults).pack(anchor="w", padx=14, pady=(0, 8))
@@ -2191,130 +2371,227 @@ class SettingsDialog(DialogBase):
                      fg="#fab387").pack(anchor="w", padx=18, pady=(10, 1))
 
         _rules_section("general")
-        _sub("Video and audio")                                    # v0.19.6 TR1d
+        _sub(_i18n.t("set.video_and_audio_02d4"))                                    # v0.19.6 TR1d
         _level("error")
-        _check_row("missing_video_file", "Missing video file")
-        _check_row("no_audio_tracks",    "No audio tracks detected")
+        _check_row("missing_video_file", _i18n.t("set.missing_video_file_f2dc"))
+        _check_row("no_audio_tracks",    _i18n.t("set.no_audio_tracks_detected_1b07"))
         _check_combo_row("video_quality_minimum", "video_quality_minimum_level",
-                         "Video quality below minimum:",
+                         _i18n.t("set.video_quality_below_minimum_50f7"),
                          VIDEO_QUALITY_LEVELS, "720p", combo_width=12)
         _level("warning")
-        _check_row("multiple_video_files",   "Multiple video files in same folder  (default: OFF)")
+        _check_row("multiple_video_files",   _i18n.t("set.multiple_video_files_in_1676"))
         _check_lang_row("required_audio_language", "required_audio_language_code",
-                        "Required audio language missing:", AUDIO_LANGUAGES, "ENG")
+                        _i18n.t("set.required_audio_language_missing_abf4"), AUDIO_LANGUAGES, "ENG")
         _check_lang_row("required_subtitle_language", "required_subtitle_language_code",
-                        "Required subtitle language missing:", SUBTITLE_LANGUAGES, "POR")
-        _check_row("lang_not_ok",            "Target language not found (Lang OK? column)")
-        _sub("Movie IDs (IMDb / TMDB)")                                    # v0.19.6 TR1d
+                        _i18n.t("set.required_subtitle_language_missing_ca1d"), SUBTITLE_LANGUAGES, "POR")
+        _check_row("lang_not_ok",            _i18n.t("set.target_language_not_found_61ca"))
+        _sub(_i18n.t("set.movie_ids_imdb_tmdb_4f07"))                                    # v0.19.6 TR1d
         _level("error")
-        _check_row("missing_imdb_id",    "Missing IMDb ID (no tag, or all tags empty)")
-        _check_row("corrupt_imdb_id",    "IMDb ID conflict between tags, or tag empty in one file")
-        _check_row("missing_tmdb_id",    "Missing TMDB ID (no tag, or all tags empty)")
+        _check_row("missing_imdb_id",    _i18n.t("set.missing_imdb_id_no_5def"))
+        _check_row("corrupt_imdb_id",    _i18n.t("set.imdb_id_conflict_between_4886"))
+        _check_row("missing_tmdb_id",    _i18n.t("set.missing_tmdb_id_no_ef15"))
         # ### NEW v0.19.1 B24 ### how a missing ID is reported (when the boxes above are ticked)
         _level_row("single_source_level",
-                   "  ↳ Movie with ONE source only (IMDb or TMDB) — report as:", "error")
+                   _i18n.t("set.movie_with_one_source_b62e"), "error")
         _level_row("no_source_level",
-                   "  ↳ Movie with NO source (no IMDb, no TMDB) — report as:", "error")
-        _check_row("corrupt_tmdb_id",    "TMDB ID conflict between tags, or tag empty in one file")
+                   _i18n.t("set.movie_with_no_source_8cc9"), "error")
+        _check_row("corrupt_tmdb_id",    _i18n.t("set.tmdb_id_conflict_between_0829"))
         _level("warning")
-        _check_row("id_format_invalid",      "IMDb / TMDB ID not valid (tt + 7–9 digits / digits; Auto Repair trims 'tt0133093/')")
-        _check_row("duplicate_movie",        "Possible duplicate (same IMDb/TMDB ID or title + year in another folder)")  # NEW v0.18.4
-        _sub("Title, year and genres")                                    # v0.19.6 TR1d
+        _check_row("id_format_invalid",      _i18n.t("set.imdb_tmdb_id_not_f6f8"))
+        _check_row("duplicate_movie",        _i18n.t("set.possible_duplicate_same_imdb_54b6"))  # NEW v0.18.4
+        _sub(_i18n.t("set.title_year_and_genres_4e30"))                                    # v0.19.6 TR1d
         _level("error")
-        _check_row("missing_movie_year", "Missing movie year in NFO/XML")
-        _check_row("genre_missing",      "Missing genre information")
+        _check_row("missing_movie_year", _i18n.t("set.missing_movie_year_in_8bbd"))
+        _check_row("genre_missing",      _i18n.t("set.missing_genre_information_e201"))
         _level("warning")
-        _check_row("missing_movie_title",    "Missing movie title in NFO/XML")
-        _check_row("year_out_of_range",      "Year out of range (before 1888 or after next year)")
-        _check_row("folder_name_mismatch",   "Folder name doesn't match movie title  (default: OFF)")
-        _check_row("genre_warning",          "Genre issues detected (non-standard genres)")
-        _sub("Rating and votes")                                    # v0.19.6 TR1d
+        _check_row("missing_movie_title",    _i18n.t("set.missing_movie_title_in_b46d"))
+        _check_row("year_out_of_range",      _i18n.t("set.year_out_of_range_f6e4"))
+        _check_row("folder_name_mismatch",   _i18n.t("set.folder_name_doesn_t_dc1e"))
+        _check_row("genre_warning",          _i18n.t("set.genre_issues_detected_non_36c9"))
+        _sub(_i18n.t("set.rating_and_votes_d7ff"))                                    # v0.19.6 TR1d
         _level("error")
-        _check_row("rating_conflict",    "Rating conflict (NFO and XML differ, or inside one file)")
+        _check_row("rating_conflict",    _i18n.t("set.rating_conflict_nfo_and_a4a4"))
         _level("warning")
-        _check_row("missing_rating",     "Missing rating")
-        _check_row("rating_warning",     "Rating tag unreadable (non-numeric value)")
+        _check_row("missing_rating",     _i18n.t("set.missing_rating_3bc5"))
+        _check_row("rating_warning",     _i18n.t("set.rating_tag_unreadable_non_e12a"))
         _check_spin_flt_row("suspicious_rating", "suspicious_rating_threshold",
-                            "Suspicious rating value (below):", 1.0, 0.0, 10.0, incr=0.1, width=5)
-        _check_row("missing_votes",          "Missing votes count")
-        _check_row("votes_warning",          "Votes tag unreadable (non-numeric value)")
-        _sub("Images: poster, fanart, folder")                                    # v0.19.6 TR1d
+                            _i18n.t("set.suspicious_rating_value_below_d943"), 1.0, 0.0, 10.0, incr=0.1, width=5)
+        _check_row("missing_votes",          _i18n.t("set.missing_votes_count_7d34"))
+        _check_row("votes_warning",          _i18n.t("set.votes_tag_unreadable_non_778c"))
+        _sub(_i18n.t("set.images_poster_fanart_folder_bfdb"))                                    # v0.19.6 TR1d
         _level("error")
-        _check_row("corrupt_poster",     "Corrupt poster image")
-        _check_row("corrupt_fanart",     "Corrupt fanart image")
-        _check_row("corrupt_folder",     "Corrupt folder image")
+        _check_row("corrupt_poster",     _i18n.t("set.corrupt_poster_image_1247"))
+        _check_row("corrupt_fanart",     _i18n.t("set.corrupt_fanart_image_9d2b"))
+        _check_row("corrupt_folder",     _i18n.t("set.corrupt_folder_image_d416"))
         _level("warning")
-        _check_row("missing_poster",         "Missing poster")
+        _check_row("missing_poster",         _i18n.t("set.missing_poster_6d24"))
         _check_row("poster_missing_with_folder",                              # NEW v0.19.2 F5
-                   "  ↳ also when folder.jpg exists (servers use it as the poster; default: OFF)")
-        _check_row("missing_fanart",         "Missing fanart")
-        _check_row("missing_folder",         "Missing folder image  (off by default — no media server needs it)")   # v0.19.2 B35
+                   _i18n.t("set.also_when_folder_jpg_e5e2"))
+        _check_row("missing_fanart",         _i18n.t("set.missing_fanart_c8a6"))
+        _check_row("missing_folder",         _i18n.t("set.missing_folder_image_off_795e"))   # v0.19.2 B35
+        _check_row("missing_logo_disc",      _i18n.t("rd.set.logo_disc"))                    # v0.20.0 RD8
+        _check_row("profile_names_unread",   _i18n.t("f3.set.names_unread"))                 # v0.20.0 F3c
         _check_row("folder_optional_with_kodi_poster",                        # NEW v0.19.1 B23
-                   "  ↳ folder.jpg optional when a Kodi poster (<video>-poster.jpg, .tbn) exists")
-        _check_row("poster_proportion",      "Poster has wrong proportions")
-        _check_row("fanart_proportion",      "Fanart has wrong proportions")
-        _check_row("folder_proportion",      "Folder image has wrong proportions")
+                   _i18n.t("set.folder_jpg_optional_when_4dbf"))
+        _check_row("poster_proportion",      _i18n.t("set.poster_has_wrong_proportions_34dc"))
+        _check_row("fanart_proportion",      _i18n.t("set.fanart_has_wrong_proportions_9429"))
+        _check_row("folder_proportion",      _i18n.t("set.folder_image_has_wrong_fa26"))
         _check_combo_row("poster_folder_quality_minimum", "poster_folder_quality_level",
-                         "Poster/folder quality below minimum:",
+                         _i18n.t("set.poster_folder_quality_below_5700"),
                          POSTER_QUALITY_LEVELS, "1080p", combo_width=10)
         _check_combo_row("fanart_quality_minimum", "fanart_quality_level_minimum",
-                         "Fanart quality below minimum:",
+                         _i18n.t("set.fanart_quality_below_minimum_89f7"),
                          FANART_QUALITY_LEVELS, "1080p", combo_width=10)
-        _check_row("image_file_too_small",   "Image file below minimum size (KB limits from the Image Sizes tab)")   # NEW v0.19.0
-        _check_row("image_format_mismatch",  "Image format differs from its extension (e.g. a PNG named poster.jpg)")  # NEW v0.19.0
-        _check_row("poster_folder_identical",  "Poster and folder image are different  (off by default — no media server needs it)")   # v0.19.2 B35
-        _sub("Backdrops")                                    # v0.19.6 TR1d
+        _check_row("image_file_too_small",   _i18n.t("set.image_file_below_minimum_7530"))   # NEW v0.19.0
+        _check_row("image_format_mismatch",  _i18n.t("set.image_format_differs_from_18a4"))  # NEW v0.19.0
+        _check_row("poster_folder_identical",  _i18n.t("set.poster_and_folder_image_cf5a"))   # v0.19.2 B35
+        _sub(_i18n.t("set.backdrops_29d7"))                                    # v0.19.6 TR1d
         _level("warning")
         _check_spin_int_row("insufficient_backdrops", "backdrop_min_count",
-                            "Backdrop images below minimum:", 5, 1, 50, width=4)
+                            _i18n.t("set.backdrop_images_below_minimum_b6fd"), 5, 1, 50, width=4)
         _check_spin_int_row("backdrop_too_small", "backdrop_min_avg_kb",
-                            "Backdrop images suspiciously small (avg KB below):", 20, 1, 500, width=5)
-        _sub("File content (NFO / XML)")                                    # v0.19.6 TR1d
+                            _i18n.t("set.backdrop_images_suspiciously_small_7744"), 20, 1, 500, width=5)
+        _sub(_i18n.t("set.file_content_nfo_xml_ceae"))                                    # v0.19.6 TR1d
         _level("warning")
         # ### NEW v0.19.3 I8 ### content of the NFO / XML (warnings)
-        _check_row("numeric_field_invalid",  "Runtime / votes not a whole number, rating not 0–10")
-        _check_row("duplicate_single_tag",   "A tag that belongs once appears twice (<title>, <year> …)")
-        _check_row("empty_required_tag",     "Empty <title> / <plot> / <Overview>  (default: OFF)")
-        _check_row("unexpected_root",        "NFO root is not <movie> / XML root is not <Item> or <Title>")
-        _check_row("nfo_xml_too_large",      "NFO or XML file too large (uses max KB from Improvements tab)")
+        _check_row("numeric_field_invalid",  _i18n.t("set.runtime_votes_not_a_ff7f"))
+        _check_row("duplicate_single_tag",   _i18n.t("set.a_tag_that_belongs_7a13"))
+        _check_row("empty_required_tag",     _i18n.t("set.empty_title_plot_overview_7b20"))
+        _check_row("unexpected_root",        _i18n.t("set.nfo_root_is_not_7660"))
+        _check_row("nfo_xml_too_large",      _i18n.t("set.nfo_or_xml_file_3caa"))
 
         _rules_section("nfo")
         _level("error")
-        _check_row("missing_nfo",        "Missing NFO file")
-        _check_row("corrupt_nfo",        "Corrupt NFO file (XML parse error)")
+        _check_row("missing_nfo",        _i18n.t("set.missing_nfo_file_181d"))
+        _check_row("corrupt_nfo",        _i18n.t("set.corrupt_nfo_file_xml_2703"))
         _level("warning")
         _check_row("nfo_name_not_kodi",                                       # NEW v0.19.1 B23
-                   "NFO named after the folder, not read by Kodi (<video>.nfo / movie.nfo)")
+                   _i18n.t("set.nfo_named_after_the_ff92"))
+        _check_row("id_not_kodi", _i18n.t("kr.set.id_not_kodi"))             # NEW v0.20.0 KR1.1
+        _choice_row("nfo_id_tags", _i18n.t("rd12.set.label"),                # NEW v0.20.0 RD12 (tester Lins_Oz)
+                    (("all", _i18n.t("rd12.opt.all")), ("kodi", _i18n.t("rd12.opt.kodi"))), "all",
+                    width=max(18, max(len(_i18n.t(k)) for k in ("rd12.opt.all", "rd12.opt.kodi")) + 2))
         _check_row("nfo_unescaped_amp",                                       # NEW v0.19.2 B33
-                   "NFO has an unescaped '&' (Jellyfin may ignore the NFO; Auto Repair fixes it)")
+                   _i18n.t("set.nfo_has_an_unescaped_f0c6"))
         _check_row("multiple_nfo_files",                                      # NEW v0.19.2 F5
-                   "More than one NFO the servers read (movie.nfo + <video>.nfo …)")
-        _check_row("genre_nfo_wrong_tags",   "NFO uses non-Kodi genre tags (<Genres>/<Genre>)")            # NEW v0.19.1
-        _check_row("year_premiered_differ",  "NFO <year> and the year of <premiered> differ")
-        _check_row("collection_mismatch",    "Collection missing or different from TMDB (Tools → Check Collections Online)")   # NEW v0.19.4 B110c
-        _check_row("collection_artwork",     "Collection folder / poster / fanart missing (only with a collection folder, NFO / XML tab)")   # NEW v0.19.4 B110g
+                   _i18n.t("set.more_than_one_nfo_fc7b"))
+        _check_row("nfo_online_art_links", _i18n.t("rd9.set"))                # NEW v0.20.0 RD9
+        _check_row("genre_nfo_wrong_tags",   _i18n.t("set.nfo_uses_non_kodi_f853"))            # NEW v0.19.1
+        _check_row("year_premiered_differ",  _i18n.t("set.nfo_year_and_the_8282"))
+        _check_row("collection_mismatch",    _i18n.t("set.collection_missing_or_different_e522"))   # NEW v0.19.4 B110c
+        _check_row("collection_artwork",     _i18n.t("set.collection_folder_poster_fanart_63a3"))   # NEW v0.19.4 B110g
         _rules_section("xml")
         _level("error")
-        _check_row("missing_xml",        "Missing movie.xml")
-        _check_row("corrupt_xml",        "Corrupt movie.xml (XML parse error)")
-        _check_row("votes_conflict",     "Votes conflict (NFO <votes> and XML <Votes>, or inside movie.xml)")
+        _check_row("missing_xml",        _i18n.t("set.missing_movie_xml_1aff"))
+        _check_row("corrupt_xml",        _i18n.t("set.corrupt_movie_xml_xml_4e03"))
+        _check_row("votes_conflict",     _i18n.t("set.votes_conflict_nfo_votes_26be"))
+        _level("warning")                                                     # NEW v0.20.0 KR1.4
+        _check_row("xml_tags_old_readers", _i18n.t("kr.set.xml_tags_old"))
         _rules_section("both")
         _level("warning")
-        _check_row("imdb_id_partial",        "IMDb ID present in one file only (NFO or XML)")   # NEW v0.18.3
-        _check_row("tmdb_id_partial",        "TMDB ID present in one file only (NFO or XML)")   # NEW v0.18.3
-        _check_row("genre_only_in_xml",      "Genres only in the XML (NFO has no <genre> tags)")          # NEW v0.19.1
-        _check_row("genre_only_in_nfo",      "Genres only in the NFO (XML has no <Genre> tags)")          # NEW v0.19.1
-        _check_row("title_mismatch",         "Title mismatch between NFO and XML")
+        _check_row("imdb_id_partial",        _i18n.t("set.imdb_id_present_in_90a0"))   # NEW v0.18.3
+        _check_row("tmdb_id_partial",        _i18n.t("set.tmdb_id_present_in_52a7"))   # NEW v0.18.3
+        _check_row("genre_only_in_xml",      _i18n.t("set.genres_only_in_the_c198"))          # NEW v0.19.1
+        _check_row("genre_only_in_nfo",      _i18n.t("set.genres_only_in_the_d7cf"))          # NEW v0.19.1
+        _check_row("title_mismatch",         _i18n.t("set.title_mismatch_between_nfo_7545"))
         # ### NEW v0.19.3 B60 ### Repair All, when it cannot tell which local title is right
-        _choice_row("title_sync_default", "  ↳ When Repair All cannot tell the right local title:",
-                    (("nfo", "keep the NFO title"), ("skip", "skip and report")), "nfo")
+        _choice_row("title_sync_default", _i18n.t("set.when_repair_all_cannot_c45e"),
+                    (("nfo", _i18n.t("set.title_keep_nfo")), ("skip", _i18n.t("set.title_skip"))), "nfo")
 
         # gray the sections the health mode does not use, at once when the mode changes (before Save)
         self._health_mode_var.trace_add("write", lambda *_: self._apply_health_sections())
         self._apply_health_sections()
+        # v0.20.0 HP1d — a manual change shows "Custom"; a mode change keeps the preset's by-mode value (folder.jpg)
+        for _m in (self._hr_vars, self._hr_int_vars, self._hr_flt_vars, self._hr_str_vars):
+            for _v in _m.values():
+                _v.trace_add("write", self._hp_sync)
+        self._health_mode_var.trace_add("write", self._hp_mode_changed)
+        self._hp_sync()
 
         # bottom padding
         tk.Frame(f, bg="#1e1e2e", height=16).pack()
+
+    # ── v0.20.0 HP1d — health presets ──────────────────────────────────────────────────────────────────
+    def _hp_rule_values(self):
+        """The rule values the Health Rules widgets hold now (as they would be saved)."""
+        hr = {k: v.get() for k, v in self._hr_vars.items()}
+        for m, cast in ((self._hr_int_vars, int), (self._hr_flt_vars, lambda x: round(float(x), 2))):
+            for k, v in m.items():
+                try:
+                    hr[k] = cast(v.get())
+                except (ValueError, tk.TclError):
+                    hr[k] = None
+        hr.update({k: v.get() for k, v in self._hr_str_vars.items()})
+        return hr
+
+    def _hp_set(self, values):
+        self._hp_busy[0] = True
+        try:
+            for k, v in values.items():
+                for m in (self._hr_vars, self._hr_int_vars, self._hr_flt_vars, self._hr_str_vars):
+                    if k in m:
+                        m[k].set(v)
+                        break
+        finally:
+            self._hp_busy[0] = False
+
+    def _hp_sync(self, *_):
+        if not hasattr(self, "_health_preset_var") or self._hp_busy[0]:
+            return
+        import settings_model as _smp
+        p = _smp.matching_health_preset(self._hp_rule_values(), self._health_mode_var.get())
+        if self._health_preset_var.get() != p:
+            self._health_preset_var.set(p)
+        self._hp_last[0] = p
+
+    def _ticked_programs(self):                                    ### NEW v0.20.0 F3a-2 ###
+        import media_profiles as _mpf
+        return _mpf.clean_programs(p for p, v in getattr(self, "_program_vars", {}).items() if v.get())
+
+    def _programs_changed(self):                                   ### NEW v0.20.0 F3a-2 ###
+        """A tick changed: the health mode follows the ticked programs; nothing ticked gives back the mode the
+        window opened with (today's behaviour for a user who never ticks)."""
+        import media_profiles as _mpf
+        m = _mpf.health_mode_for(self._ticked_programs()) or self._health_mode_initial
+        if self._health_mode_var.get() != m:
+            self._health_mode_var.set(m)                           # the sections, the preset and Save follow it
+        self._programs_info_update()
+
+    def _programs_info_update(self):                               ### NEW v0.20.0 F3a-2 ###
+        """The line under the tick boxes: the files checked and the names a fix writes (or why there are none)."""
+        import media_profiles as _mpf
+        if not hasattr(self, "_programs_info"):
+            return
+        text = programs_info_text(self._ticked_programs(), self._health_mode_var.get())
+        try:
+            self._programs_info.configure(text=text)
+            if hasattr(self, "_plex_nfo_cb"):                      # v0.20.0 AU22: it only applies with ONLY Plex ticked
+                self._plex_nfo_cb.configure(state="normal" if list(self._ticked_programs()) == ["plex"] else "disabled")
+        except tk.TclError:
+            pass
+
+    def _health_preset_chosen(self, preset):
+        """Easy / Medium / Tight: every rule of the preset at once; own changes are replaced only after a yes."""
+        import settings_model as _smp
+        if preset not in _smp.HEALTH_PRESET_IDS:                 # "Custom" is shown, not chosen
+            self._hp_sync()
+            return
+        mode = self._health_mode_var.get()
+        if self._hp_last[0] == "custom" and not messagebox.askyesno(
+                _i18n.t("hp.ask.t"), _i18n.t("hp.ask", preset=_i18n.t("hp." + preset)), parent=self):
+            self._health_preset_var.set("custom")
+            return
+        self._hp_set(_smp.health_preset_values(preset, mode))
+        self._hp_sync()
+
+    def _hp_mode_changed(self, *_):
+        """A preset follows the health mode (missing folder.jpg: Off in mode 1, On in modes 2 and 3)."""
+        import settings_model as _smp
+        prev = self._hp_last[0]
+        if prev in _smp.HEALTH_PRESET_IDS:
+            vals = _smp.health_preset_values(prev, self._health_mode_var.get())
+            self._hp_set({k: v for k, v in vals.items() if k in _smp.HEALTH_PRESET_BY_MODE})
+        self._hp_sync()
 
     def _apply_health_sections(self):                           ### NEW v0.19.6 TR1c ###
         """Gray the rule sections the chosen health mode does not use: visible, not clickable, their values kept
@@ -2339,7 +2616,7 @@ class SettingsDialog(DialogBase):
             if hasattr(self, "_tags_reset_btn"):
                 self._tags_reset_btn.configure(state="normal" if on else "disabled")
             if hasattr(self, "_tags_note"):
-                self._tags_note.configure(text="" if on else "Used in health mode 2 only (" + HEALTH_MODE_PATH + ").")
+                self._tags_note.configure(text="" if on else _i18n.t("set.used_in_health_mode_a487", health_mode_path=HEALTH_MODE_PATH))
 
     @staticmethod
     def _set_tree_state(w, on, skip=()):                        ### NEW v0.19.6 TR1c ###
@@ -2368,40 +2645,36 @@ class SettingsDialog(DialogBase):
         """
         import os, shutil as _shutil
 
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=label)
+        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
 
-        tk.Label(f, text="Backup Folder Maintenance",
+        tk.Label(f, text=_i18n.t("set.backup_folder_maintenance_058b"),
                  font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
                  ).pack(anchor="w", padx=16, pady=(16, 4))
 
-        self._section(f, "Automatic Cleanup")
+        self._section(f, _i18n.t("set.automatic_cleanup_8b63"))
         self._note(f,
-            "When the total size of the backup folder exceeds the limit,\n"
-            "the oldest backup subfolders (backup_*) are deleted automatically.\n"
-            f"Backups from this session and from the last {BACKUP_PROTECT_DAYS} days are never deleted\n"   ### MODIFIED v0.19.4 B75 (D2) ###
-            "automatically, so the folder can be larger than the limit for a while.\n"
-            "Backup History shows the backups the cleanup removed.\n"
-            "Set to 0 to disable automatic cleanup.")
+            _i18n.t("set.when_the_total_size_08d2", backup_protect_days=BACKUP_PROTECT_DAYS))
 
         r1 = self._row(f)
-        tk.Label(r1, text="Maximum backup folder size (MB):",
+        tk.Label(r1, text=_i18n.t("set.maximum_backup_folder_size_a0a3"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
-                 width=34, anchor="w").pack(side="left")
+                 width=max(34, len(_i18n.t("set.maximum_backup_folder_size_a0a3")) + 3),
+                 anchor="w").pack(side="left")                                      # v0.20.0 UI1e: ES is longer
         _s = self._ctx.settings if self._ctx else self._s
         self._max_backup_mb_var = tk.IntVar(value=_s.get("max_backup_size_mb", 500))
         tk.Spinbox(r1, from_=0, to=99999, textvariable=self._max_backup_mb_var, width=8,
                    font=("Helvetica", 10), bg="#313244", fg="#cdd6f4",
                    buttonbackground="#45475a", relief="flat").pack(side="left")
-        tk.Label(r1, text=" MB   (0 = disabled)", font=("Helvetica", 9),
+        tk.Label(r1, text=_i18n.t("set.mb_disabled_f7ae"), font=("Helvetica", 9),
                  bg="#1e1e2e", fg="#6c7086").pack(side="left", padx=(6, 0))
         # ### NEW v0.19.3 I12 ### the switch existed in settings.json but had no widget and no effect
         self._backup_cleanup_var = tk.BooleanVar(value=bool(_s.get("backup_cleanup_enabled", True)))
-        tk.Checkbutton(f, text="Delete the oldest backups automatically when the folder is larger than this",
+        tk.Checkbutton(f, text=_i18n.t("set.delete_the_oldest_backups_f2dd"),
                        variable=self._backup_cleanup_var, font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                        selectcolor="#313244", activebackground="#1e1e2e",
                        activeforeground="#cdd6f4").pack(anchor="w", padx=22, pady=(4, 0))
         # ### NEW v0.19.4 B75 (D2) ### the folder's size, measured in a worker; the Tk thread polls
-        self._backup_usage_lbl = tk.Label(f, text="Backup folder size now: measuring…", font=("Helvetica", 9),
+        self._backup_usage_lbl = tk.Label(f, text=_i18n.t("set.backup_folder_size_now_d9ea"), font=("Helvetica", 9),
                                           bg="#1e1e2e", fg="#a6adc8", justify="left")
         self._backup_usage_lbl.pack(anchor="w", padx=22, pady=(4, 0))
         _root_bk = (self._ctx.backup_root if self._ctx else _BACKUP_ROOT_PATH) or ""
@@ -2438,16 +2711,15 @@ class SettingsDialog(DialogBase):
             threading.Thread(target=_measure, daemon=True).start()
             _timer_owner.after(200, _poll)
         else:
-            self._backup_usage_lbl.configure(text="Backup folder size now: 0.0 MB (no backups yet)")
+            self._backup_usage_lbl.configure(text=_i18n.t("set.backup_folder_size_now_5b36"))
 
         tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(14, 8))
 
-        self._section(f, "Manual Cleanup")
-        self._note(f, "Delete ALL backup subfolders (backup_*) inside the backup folder.\n"
-                      "The backup folder itself is kept. This action cannot be undone.")
+        self._section(f, _i18n.t("set.manual_cleanup_950c"))
+        self._note(f, _i18n.t("set.delete_all_backup_subfolders_6308"))
 
         r2 = self._row(f)
-        tk.Button(r2, text="  Delete all backup folders  ",
+        tk.Button(r2, text=_i18n.t("set.delete_all_backup_folders_fc7e"),
                   font=("Helvetica", 10, "bold"),
                   bg="#f38ba8", fg="#1e1e2e", relief="flat", cursor="hand2",
                   command=self._delete_all_backups).pack(side="left")
@@ -2455,7 +2727,7 @@ class SettingsDialog(DialogBase):
         # Show current backup folder path for reference
         backup_path = (self._ctx.backup_root if self._ctx else _BACKUP_ROOT_PATH) or ""
         if backup_path:
-            tk.Label(f, text=f"Backup folder: {backup_path}",
+            tk.Label(f, text=_i18n.t("set.backup_folder_9be6", backup_path=backup_path),
                      font=("Consolas", 8), bg="#1e1e2e", fg="#45475a",
                      justify="left").pack(anchor="w", padx=16, pady=(12, 0))
 
@@ -2469,12 +2741,10 @@ class SettingsDialog(DialogBase):
         backup_root = (self._ctx.backup_root if self._ctx else _BACKUP_ROOT_PATH) or ""
         _log = (self._ctx.logger if self._ctx else _logger)
         if not backup_root or not os.path.isdir(backup_root):
-            _mb.showinfo("No Backups", "Backup folder not found or empty.", parent=self)
+            _mb.showinfo(_i18n.t("set.no_backups_266b"), _i18n.t("set.backup_folder_not_found_0092"), parent=self)
             return
-        if not _mb.askyesno("Delete All Backups",
-                "Are you sure you want to delete ALL backup folders?\n"
-                "This action cannot be undone.\n\n"
-                "The backups made since MediaClinic started are kept (Undo may still need them).",
+        if not _mb.askyesno(_i18n.t("set.delete_all_backups_77c0"),
+                _i18n.t("set.are_you_sure_you_b0cd"),
                 icon="warning", parent=self):
             return
         try:                                                     ### NEW v0.19.4 P3 (F22) — this session's runs stay ###
@@ -2503,10 +2773,10 @@ class SettingsDialog(DialogBase):
 
         def _done(result):
             deleted, errors = result
-            msg = f"Deleted {deleted} backup folder(s)."
+            msg = _i18n.t("set.deleted_backup_folder_s_04bb", deleted=deleted)
             if errors:
-                msg += f"\n\nErrors ({len(errors)}):\n" + "\n".join(errors[:3])
-            _mb.showinfo("Backups Deleted", msg, parent=self)
+                msg += _i18n.t("set.errors_a7d6", n=len(errors), join="\n".join(errors[:3]))
+            _mb.showinfo(_i18n.t("set.backups_deleted_50f5"), msg, parent=self)
 
         run_async(_do_delete, callback=_done, root=self)
 
@@ -2658,6 +2928,11 @@ class SettingsDialog(DialogBase):
             for k, v in self._hr_flt_vars.items():  curr_hr[k] = round(self._num(v, float(snap_hr.get(k, 0.0))), 2)
             for k, v in self._hr_str_vars.items():  curr_hr[k] = v.get()
             hr_changed = (curr_hr != snap_hr)
+        # v0.20.0 6h — the program ticks and the Plex NFO tick switch rules on / off too (profile_rules_off)
+        if hasattr(self, "_program_vars") and tuple(self._ticked_programs()) != getattr(self, "_programs_initial", ()):
+            hr_changed = True
+        if hasattr(self, "_plex_nfo_var") and self._plex_nfo_var.get() != (getattr(self, "_plex_nfo_initial", "") != "off"):
+            hr_changed = True
         changed["health_rules"] = hr_changed
 
         # v0.19.6 TR1 — movie.xml on / off: health at once, then a new scan reads or drops the XML data
@@ -2678,7 +2953,7 @@ class SettingsDialog(DialogBase):
             return
 
         dlg = tk.Toplevel(parent_app)
-        dlg.title("Update Scan?")
+        dlg.title(_i18n.t("set.update_scan_c023"))
         dlg.configure(bg="#1e1e2e")
         dlg.transient(parent_app)
         modal(dlg)                                                  ### MODIFIED v0.19.4 B98 ###
@@ -2689,8 +2964,7 @@ class SettingsDialog(DialogBase):
         outer.pack(fill="both", expand=True, padx=20, pady=(20, 12))
 
         tk.Label(outer,
-                 text="Settings that affect scan results have changed.\n"
-                      "Would you like to update the current scan?",
+                 text=_i18n.t("set.settings_that_affect_scan_9a34"),
                  font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
                  justify="center").pack(pady=(0, 16))
 
@@ -2710,15 +2984,15 @@ class SettingsDialog(DialogBase):
                 elif hasattr(parent_app, "_scan"):
                     parent_app._scan()
 
-        tk.Button(bf, text="  Update Scan (no FFprobe)  ",
+        tk.Button(bf, text=_i18n.t("set.update_scan_no_ffprobe_32a6"),
                   font=("Helvetica", 10, "bold"), bg="#89b4fa", fg="#1e1e2e",
                   relief="flat", cursor="hand2",
                   command=lambda: _choose("no_ff")).pack(side="left", padx=(0, 6))
-        tk.Button(bf, text="  Update Scan (with FFprobe)  ",
+        tk.Button(bf, text=_i18n.t("set.update_scan_with_ffprobe_866d"),
                   font=("Helvetica", 10, "bold"), bg="#a6e3a1", fg="#1e1e2e",
                   relief="flat", cursor="hand2",
                   command=lambda: _choose("with_ff")).pack(side="left", padx=(0, 6))
-        tk.Button(bf, text="  Skip  ",
+        tk.Button(bf, text=_i18n.t("set.skip_1908"),
                   font=("Helvetica", 10, "bold"), bg="#45475a", fg="#cdd6f4",
                   relief="flat", cursor="hand2",
                   command=lambda: _choose("skip")).pack(side="left")
@@ -2789,8 +3063,7 @@ class SettingsDialog(DialogBase):
             if hasattr(self, "_coll_folder_var"):                   # NEW v0.19.4 B110g
                 _cf = self._coll_folder_var.get().strip()                   # F19: not found → ask
                 if _cf and not os.path.isdir(_cf) and _cf != (self._s.get("collection_folder") or "") and not messagebox.askyesno(
-                        "Collection folder", f"The collection folder was not found:\n{_cf}\n\n"
-                        "(A share that is not connected now?)  Save it anyway?", parent=self):
+                        _i18n.t("set.collection_folder_583e"), _i18n.t("set.the_collection_folder_was_6345", cf=_cf), parent=self):
                     raise SettingsFieldError("Collection folder", None, f"not found: {_cf}")
                 _s["collection_folder"] = _cf
             if hasattr(self, "_group_coll_var"):                    # NEW v0.19.4 B110h
@@ -2856,6 +3129,12 @@ class SettingsDialog(DialogBase):
                 _s["scan_ignored_report"] = bool(self._scan_ignored_report_var.get())
             if hasattr(self, "_health_mode_var"):                           ### NEW v0.19.6 TR1b ###
                 _s["health_mode"] = health_mode_of({"health_mode": self._health_mode_var.get()})
+            if hasattr(self, "_program_vars"):                              ### NEW v0.20.0 F3a-2 ###
+                _s["media_programs"] = list(self._ticked_programs())
+            if hasattr(self, "_plex_nfo_var"):                              ### NEW v0.20.0 6h ###
+                _pv = "on" if self._plex_nfo_var.get() else "off"
+                if not (self._plex_nfo_initial == "" and _pv == "on"):     # untouched and never asked: stays ""
+                    _s["plex_nfo_checks"] = _pv
             if hasattr(self, "_max_backup_mb_var"):
                 _s["max_backup_size_mb"] = max(0, self._num(self._max_backup_mb_var, int(_s.get("max_backup_size_mb", 500) or 0)))   # F20
             if hasattr(self, "_backup_cleanup_var"):                        ### NEW v0.19.3 I12 ###
@@ -2873,6 +3152,8 @@ class SettingsDialog(DialogBase):
                 for k, v in self._hr_int_vars.items():  hr[k] = max(1, self._num(v, _hrd.get(k, 1)))
                 for k, v in self._hr_flt_vars.items():  hr[k] = round(max(0.0, self._num(v, float(_hrd.get(k, 0.0)))), 2)
                 for k, v in self._hr_str_vars.items():  hr[k] = v.get()
+                if hasattr(self, "_health_preset_var"):          ### NEW v0.20.0 HP1d ###
+                    _s["health_preset"] = self._health_preset_var.get()
                 # v0.19.0 — Image Sizes quality keys are mirrors of the Health
                 # Rules values (one authoritative source).   ### NEW v0.19.0 ###
                 _s["poster_quality_level"] = _s["folder_quality_level"] = \
@@ -2894,7 +3175,7 @@ class SettingsDialog(DialogBase):
             if _ok is False:
                 if _log:
                     _log.error("Settings not saved — settings.json could not be written; nothing applied")
-                messagebox.showerror("Settings not saved", SETTINGS_NOT_SAVED_TEXT, parent=self)
+                messagebox.showerror(_i18n.t("set.settings_not_saved_79cb"), SETTINGS_NOT_SAVED_TEXT, parent=self)
                 return
             live.update(_s)                                     ### NEW v0.19.4 B94b — applied only now ###
 
@@ -2911,14 +3192,13 @@ class SettingsDialog(DialogBase):
             if _log:
                 _log.error(f"Settings not saved: {fe}")
             self._focus_field(fe.widget)
-            messagebox.showerror("Settings not saved", f"{fe}\n\nNothing was changed: correct it and "
-                                 "press Save & Apply again.", parent=self)
+            messagebox.showerror(_i18n.t("set.settings_not_saved_79cb"), _i18n.t("set.nothing_was_changed_correct_9056", fe=fe), parent=self)
             return
         except Exception as e:
             _log = (ctx.logger if ctx else _logger)
             if _log:
                 _log.error(f"Settings save error: {e}")
-            messagebox.showerror("Save error", str(e), parent=self)
+            messagebox.showerror(_i18n.t("set.save_error_3e90"), str(e), parent=self)
             return
 
         parent_app = self._parent if hasattr(self, "_parent") else None
@@ -2947,7 +3227,7 @@ class SettingsDialog(DialogBase):
                         parent_app._apply_health_rules_inplace()
                         try:
                             parent_app._incremental_save(parent_app._results)
-                            parent_app._sb_action.configure(text="  Last: Health rules applied")
+                            parent_app._sb_action.configure(text=_i18n.t("set.last_health_rules_applied_953a"))
                         except Exception:
                             pass
                     _lg = (ctx.logger if ctx else _logger)

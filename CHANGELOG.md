@@ -2,6 +2,54 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.20.0 — 2026-11-17
+
+Windows build and source. Three interface languages, the programs that play your movies, and what the Reddit testers
+of v0.19.6 found.
+
+### Added
+- **Interface language:** the whole app, including the Help and About, in English, Portuguese (Brazil) and Spanish.
+  Until you choose, it follows the Windows display language; *Settings → User Interface → Interface language* changes it
+  (*Restart now* applies it). Files, settings, backups and logs are written the same in every language.
+- **The programs that play your movies:** tick Kodi, Plex, Jellyfin, Emby, Infuse or MediaBrowser / Media Center Master
+  (at the first start, in *Settings → Health Rules*, or per library in *Libraries… → Programs…*). The ticks decide which
+  files are checked and the names a fix writes; checks a ticked program does not need are switched off. Based on tests
+  with marked files on real Plex, Emby and Jellyfin servers and Infuse on an Apple TV. With only Plex ticked (Plex reads
+  no NFO), a pop-up asks once whether to switch the NFO and collection checks off.
+- **Rename Files for My Programs** (a file a ticked program does not read, e.g. `movie.nfo` for Infuse) and
+  **Convert movie.xml → NFO**, both with a preview, a backup and Undo.
+- **First-start window:** one page for the language, your movies folder, your programs, the strictness and FFprobe.
+  Existing users see the programs question once.
+- **Health presets:** Easy, Medium and Tight set every rule at once; a new user starts with Tight.
+- **What Kodi really reads:** an ID only in `<imdbid>` / `<tmdbid>` is reported (Kodi reads `<uniqueid>`) and Auto
+  Repair adds the `<uniqueid>`; `<premiered>` counts as the year; a folder's only NFO is read whatever its name;
+  multi-part movies (`Movie-CD1.mkv` + `Movie-CD2.mkv` with `Movie.nfo`) find their NFO and artwork and show
+  "— Part 1 + Part 2"; new files get Kodi's recommended names (`<video>.nfo`, `<video>-poster.jpg`, `<video>-fanart.jpg`).
+- `movie.xml`: the ID and vote tags old programs read (`<IMDbId>`, `<TMDbId>`, `<VoteCount>`) are reported and added by
+  Auto Repair.
+- *Settings → Health Rules → NFO → ID tags written in the NFO*: every tag style, or `<uniqueid>` only (for hand-trimmed
+  NFOs).
+- **Remove online artwork links** from NFOs (only for artwork the folder has as files), **Check Genres Against TMDB**,
+  **Export → HTML** (one page with filter, sorting and optional poster thumbnails), a rule for missing clear logo and disc
+  art (Tight preset), a library can be turned off without removing it, and Kodi's collection folder is set in the
+  Libraries window.
+
+### Fixed
+- A value that is not an ID in an ID tag (a TMDB number in an IMDb tag) was taken as the ID: it is now reported, Auto
+  Repair looks up the right one, *Enter ID* cleans what is typed, and the rows of the TMDB chooser can be clicked.
+- A read-only file is named in the error, with *Clear read-only*; *Auto-size Columns* is fast on a large library;
+  *Ignored Folders* says why each folder was skipped; *Fix image* fixes a different `folder.jpg` on its own.
+- Switching the health mode to NFO + `movie.xml` no longer marks every movie "Missing XML file".
+- A pre-build review: ID writers touch only the movie's own tags (an actor's `<tmdbid>` stays), NFOs with a bare `&` or a
+  non-UTF-8 header are written, scans and restarts keep the rows of every library, a title starting with `=` is text in
+  exports, a settings file saved with a BOM loads, and many texts are translated that were still English.
+
+### Build
+- Compiled with Nuitka. VirusTotal: 0 of 70 for the exe. Acceptance tests on the unpacked zip: 120 of 120; self-test
+  about 1,700 checks.
+- A Linux build workflow (`.github/workflows/linux-build.yml`) builds a Linux binary as a test artifact; it is not
+  published as a download yet.
+
 ## v0.19.6 — 2026-11-13
 
 Windows build and source. What the first outside testers of v0.19.4 found.

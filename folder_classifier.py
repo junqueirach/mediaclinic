@@ -26,6 +26,7 @@
 import re
 
 import naming_catalog as _nc
+import mc_i18n as _i18n                                           ### NEW v0.20.0 UI1d — the shown words (pure) ###
 
 VIDEO_EXTS = {'.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.flv',      # = the main script's
               '.ts', '.m2ts', '.mpg', '.mpeg', '.divx', '.ogm', '.webm'}     # VIDEO_EXTENSIONS
@@ -45,7 +46,7 @@ KINDS = ("series", "container", "loose_videos", "no_media", "unreadable", "syste
 IGNORED_KINDS = ("series", "container", "loose_videos", "no_media", "unreadable", "system")
 KIND_LABEL = {
     "series":        "TV series",
-    "container":     "Holding other folders",
+    "container":     "Too deep (folders of folders)",   # v0.20.0 RD4: folders of folders are searched since v0.19.6 TR5
     "loose_videos":  "Several videos",
     "no_media":      "No media",
     "unreadable":    "Could not be read",
@@ -54,7 +55,7 @@ KIND_LABEL = {
 }
 KIND_REASON = {
     "series":        "TV series (MediaClinic handles movies; the Series tab is planned)",
-    "container":     "Holds other movie / series folders — this library may be one level too high",
+    "container":     "Holds other movie folders that were not searched (too deep below the library)",   # v0.20.0 RD4
     "loose_videos":  "Several separate videos, not one movie — give each movie its own folder",
     "no_media":      "No video, NFO or XML",
     "unreadable":    "Could not be read",
@@ -63,7 +64,7 @@ KIND_REASON = {
 }
 KIND_GROUP = {      # group headings of the TXT export
     "series":        "TV series ({n}) — MediaClinic handles movies; the Series tab is planned",
-    "container":     "Holding other folders ({n}) — this library may be one level too high",
+    "container":     "Folders of folders not searched ({n}) — too deep below the library",   # v0.20.0 RD4
     "loose_videos":  "Several separate videos ({n}) — give each movie its own folder",
     "no_media":      "No video, NFO or XML ({n})",
     "unreadable":    "Could not be read ({n})",
@@ -73,12 +74,44 @@ KIND_GROUP = {      # group headings of the TXT export
 ROOT_VIDEOS_GROUP = "Videos directly in the library folder, not in their own folder ({n})"
 _COUNT_WORD = {     # the counts line: "21 TV series · 9 holding other folders …"
     "series":        "{n} TV series",
-    "container":     "{n} holding other folders",
+    "container":     "{n} too deep to search",                      # v0.20.0 RD4
     "loose_videos":  "{n} with several separate videos",
     "no_media":      "{n} with no video, NFO or XML",
     "unreadable":    "{n} could not be read",
     "system":        "{n} system folder{s}",
 }
+
+
+_EN_REASON = dict(KIND_REASON)                                    ### NEW v0.20.0 UI1d — the stored (English) reasons ###
+_TOO_DEEP_RE = re.compile(r"^Too deep: this folder is (\d+) levels below the library .* down to (\d+) levels")
+
+
+def relabel():                                                   ### NEW v0.20.0 UI1d ###
+    """The shown words in the interface language.  KIND_REASON stays English: it is stored with every item
+    (last_ignored.json) and shown through shown_reason()."""
+    for k in KIND_LABEL:
+        KIND_LABEL[k] = _i18n.t("ig.label." + k)
+    for k in KIND_GROUP:
+        KIND_GROUP[k] = _i18n.t("ig.group." + k)
+    globals()["ROOT_VIDEOS_GROUP"] = _i18n.t("ig.group.root_videos")
+
+
+def shown_reason(reason, kind=None):                            ### NEW v0.20.0 UI1d ###
+    """A stored (English) reason in the interface language; an unknown text is shown as stored."""
+    if not reason:
+        return ""
+    for k, v in _EN_REASON.items():
+        if reason == v:
+            return _i18n.t("ig.reason." + k)
+    m = _TOO_DEEP_RE.match(reason)
+    if m:
+        return _i18n.t("ig.too_deep", level=m.group(1), max=m.group(2))
+    return reason
+
+
+def _count_part(k, n):                                          ### NEW v0.20.0 UI1d ###
+    key = "ig.count." + k
+    return _i18n.tn(key, n, as_text=_fmt_n(n)) if isinstance(_i18n.EN.get(key), dict) else _i18n.t(key, n=_fmt_n(n))
 
 
 def _ext(name):
@@ -204,7 +237,7 @@ def classify_folder(listing, peek=None, nfo_root=None, video_exts=None):
 # ── Report text ───────────────────────────────────────────────────────────────
 
 def _fmt_n(n):
-    return f"{n:,}"
+    return _i18n.num(n)                                          # v0.20.0 UI1d: 1,204 / 1.204
 
 
 def counts_by_kind(items):
@@ -218,22 +251,22 @@ def summary_line(n_movies, items):
     """'Scan finished: 1,204 movies. 37 folders were not added: 21 TV series · …'"""
     c = counts_by_kind(items)
     n_ign = sum(v for k, v in c.items() if k in IGNORED_KINDS)
-    head = f"Scan finished: {_fmt_n(n_movies)} movie{'s' if n_movies != 1 else ''}."
+    head = _i18n.tn("ig.finished", n_movies, as_text=_fmt_n(n_movies))             # v0.20.0 UI1d
     if n_ign:
-        parts = [_COUNT_WORD[k].format(n=_fmt_n(c[k]), s="s" if c[k] != 1 else "") for k in IGNORED_KINDS if c.get(k)]
-        head += f" {_fmt_n(n_ign)} folder{'s were' if n_ign != 1 else ' was'} not added: " + " · ".join(parts) + "."
+        parts = [_count_part(k, c[k]) for k in IGNORED_KINDS if c.get(k)]
+        head += _i18n.tn("ig.not_added", n_ign, as_text=_fmt_n(n_ign)) + " · ".join(parts) + "."
     else:
-        head += " Every folder was added."
+        head += _i18n.t("ig.every_added")
     if c.get("metadata_only"):
         n = c["metadata_only"]
-        head += f" · {_fmt_n(n)} movie{'s' if n != 1 else ''} with NFO/XML but no video {'are' if n != 1 else 'is'} in the table."
+        head += _i18n.tn("ig.meta_rows", n, as_text=_fmt_n(n))
     return head
 
 
 def hint_line(items, root_videos=None, roots_all_ignored=()):
     """One hint when one kind dominates (more than half of the ignored folders)."""
     if roots_all_ignored:
-        return "This looks like a single movie folder — choose its parent folder as the library."
+        return _i18n.t("ig.hint_single")
     c = counts_by_kind([i for i in items if i["kind"] in IGNORED_KINDS and i["kind"] != "system"])
     total = sum(c.values())
     if not total:
@@ -241,14 +274,7 @@ def hint_line(items, root_videos=None, roots_all_ignored=()):
     k, n = max(c.items(), key=lambda t: t[1])
     if n * 2 <= total:
         return ""
-    return {
-        "series": "Most folders here are TV series. MediaClinic handles movies; series support is planned.",
-        "container": "Your movies seem to be one level deeper. Add the folders listed below as libraries "
-                     "(the Libraries… button).",
-        "loose_videos": "Several folders hold many separate videos. Give each movie its own folder.",
-        "no_media": "Many folders hold no video, NFO or XML. Check that this is the right library folder.",
-        "unreadable": "Many folders could not be read. Check the permissions of the library folder.",
-    }.get(k, "")
+    return _i18n.t("ig.hint." + k) if k in ("series", "container", "loose_videos", "no_media", "unreadable") else ""   # v0.20.0 UI1d
 
 
 def report_text(data, app_version="", movies=0, kept=()):
@@ -257,10 +283,10 @@ def report_text(data, app_version="", movies=0, kept=()):
     kept: the "metadata without video" items (rows in the table)."""
     items = [i for i in data.get("items", []) if i["kind"] in IGNORED_KINDS]
     kept = list(kept)
-    lines = [f"MediaClinic {app_version} — folders not added as movies".replace("  ", " "),
-             f"Scan: {data.get('scan_date', '')} ({data.get('scan_kind', 'Scan')}) · Libraries: "
-             + "; ".join(data.get("libraries", [])),
-             f"Movies added: {_fmt_n(movies)} · Folders not added: {_fmt_n(len(items))}", ""]
+    lines = [_i18n.t("ig.rep_title", version=app_version).replace("  ", " "),          # v0.20.0 UI1d
+             _i18n.t("ig.rep_scan", date=data.get("scan_date", ""), kind=data.get("scan_kind", "Scan"),
+                     libs="; ".join(data.get("libraries", []))),
+             _i18n.t("ig.rep_counts", movies=_fmt_n(movies), folders=_fmt_n(len(items))), ""]
     for k in IGNORED_KINDS:
         grp = sorted((i for i in items if i["kind"] == k), key=lambda i: i["path"].lower())
         if not grp:
@@ -268,7 +294,7 @@ def report_text(data, app_version="", movies=0, kept=()):
         lines.append(KIND_GROUP[k].format(n=_fmt_n(len(grp))))
         for i in grp:
             lines.append(f"  {i['path']}" + (f"    {i['detail']}" if i.get("detail") else "")
-                         + (f"    ({i['reason']})" if k == "unreadable" and i.get("reason") else ""))
+                         + (f"    ({shown_reason(i['reason'], k)})" if k in ("unreadable", "container") and i.get("reason") else ""))   # RD4
         lines.append("")
     rv = [(root, n) for root, names in sorted((data.get("root_videos") or {}).items()) for n in sorted(names)]
     if rv:

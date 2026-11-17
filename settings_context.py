@@ -126,9 +126,40 @@ def run_async(fn, callback=None, root=None):
     if callback is not None and root is None:
         raise ValueError("run_async: root must be supplied when callback is not None")
 
+    ### MODIFIED v0.20.0 AU13 (pre-build audit) ### the worker no longer calls root.after() itself (Tk only on the Tk
+    # thread, CLAUDE.md rule 4): it puts the result on a queue that the Tk thread polls; a window closed meanwhile
+    # (Settings closed during Validate / Test FFmpeg) is skipped instead of raising TclError on its widgets.
+    import queue as _queue
+    import tkinter as _tk
+    q = _queue.Queue()
+
     def _worker():
-        result = fn()
-        if callback is not None:
-            root.after(0, lambda: callback(result))
+        try:
+            q.put(("ok", fn()))
+        except Exception as ex:                                  # the callback is not called (as before), but logged
+            q.put(("err", ex))
+
+    def _poll():
+        try:
+            if not root.winfo_exists():
+                return
+        except _tk.TclError:
+            return
+        try:
+            kind, result = q.get_nowait()
+        except _queue.Empty:
+            _main.after(50, _poll)
+            return
+        if kind == "err":
+            import logging
+            logging.getLogger("MediaClinic").warning(f"run_async: {result}")
+            return
+        try:
+            callback(result)
+        except _tk.TclError:
+            pass                                                 # a widget of the callback is gone
 
     threading.Thread(target=_worker, daemon=True).start()
+    if callback is not None:
+        _main = root._root() if hasattr(root, "_root") else root     # the timer lives on the main window: a dialog's
+        _main.after(50, _poll)                                       # own after() dies with it ("invalid command name")

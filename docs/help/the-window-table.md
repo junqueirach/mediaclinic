@@ -16,7 +16,7 @@ Select one movie and the panel shows its poster, year, genres, rating, library a
 - **Hide ›** or `Ctrl+B` hides the panel; the slim **‹** strip at the right edge shows it again. Drag the divider to change its width; a double-click on the divider resets it. Both are remembered.
 
 ## Columns
-| Movie Name | NFO <title>, then XML <LocalTitle>, original titles, the folder name. Hover: the folder, its library, the date added and every health reason. Double-click opens the folder.
+| Movie Name | NFO <title>, then XML <LocalTitle>, original titles, the folder name. Hover: the folder, its library, the date added and every health reason. Double-click opens the folder. A multi-part movie (Movie-CD1.mkv + Movie-CD2.mkv) is shown as "Name — Part 1 + Part 2"; only the display changes, not the files.
 | Year | NFO <year> or XML <ProductionYear>.
 | Genres | NFO <genre> tags; when the NFO has none, the XML <Genres> (the tooltip names the source).
 | Rating | NFO <rating> (or Kodi's <ratings> block), XML <IMDBrating> / <Rating>. Hover: value, votes, source.

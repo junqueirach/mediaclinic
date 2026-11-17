@@ -8,10 +8,10 @@
 | Browser | the browser for web links
 | Language | the ISO 639-1 code of the Language OK column (default PT)
 | Improvements | the checks of the Improvements report and the NFO / XML maximum sizes
-| Image Sizes | minimum quality tier (the same value as Health Rules), 3:4 and 16:8 acceptance, minimum file sizes
+| Image Sizes | minimum quality tier (the same value as Health Rules), 3:4 and 3:2 acceptance, minimum file sizes
 | Ratings | the defaults of the Ratings Sync checkboxes
 | Genres | the standard genre list, one per line
-| NFO / XML | the tag pairs of the Improvements Check; **Collections**: the collection folder and **Group the movie table by collection**
-| User Interface | alternating row colours, header tooltips, compact mode, the Repeat line, the Ignored folders window after a scan, dark title bars, "Check for updates at start"
-| Health Rules | **Health mode** (which program plays your movies: the NFO, NFO + movie.xml, or movie.xml only; changing it offers a new scan); the rules in four sections — **General**, **NFO**, **movie.xml** and **NFO ↔ movie.xml comparisons** — each rule with its checkbox, threshold and level (error / warning). The sections the health mode does not use stay visible but gray and cannot be changed; their settings are kept for when you switch back. **Reset to defaults**
+| NFO / XML | the tag pairs of the Improvements Check; **Collections**: the collection folder (shown here, set in **Libraries…**) and **Group the movie table by collection**
+| User Interface | **Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it), alternating row colours, header tooltips, compact mode, the Repeat line, the Ignored folders window after a scan, dark title bars, "Check for updates at start"
+| Health Rules | **Health preset** (Easy / Medium / Tight sets every rule at once; Custom after your own changes; a new user starts with Tight, and choosing a preset after your own changes asks first), **Health mode** (which program plays your movies: the NFO, NFO + movie.xml, or movie.xml only; changing it offers a new scan); the rules in four sections — **General**, **NFO**, **movie.xml** and **NFO ↔ movie.xml comparisons** — each rule with its checkbox, threshold and level (error / warning). The sections the health mode does not use stay visible but gray and cannot be changed; their settings are kept for when you switch back. **Reset to defaults**
 | Backup | the size limit, automatic deletion of the oldest backups, **Delete all backup folders**

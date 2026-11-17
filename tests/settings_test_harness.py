@@ -53,6 +53,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("TestHarness")
 
+os.environ["MEDIACLINIC_TEST_DEFAULTS"] = "1"     # v0.20.0 HP1d: today's rule defaults, not the Tight preset of a first start
+
 # ── Import subsystem ──────────────────────────────────────────────────────────
 from settings_model import (
     DEFAULT_SETTINGS, DEFAULT_TAG_PAIRS, WORLD_LANGUAGES,
@@ -367,7 +369,10 @@ def run_all():
                   "nfo_unescaped_amp",                                                # v0.19.2 B33
                   "multiple_nfo_files", "poster_missing_with_folder",                 # v0.19.2 F5
                   "id_format_invalid", "year_out_of_range", "numeric_field_invalid",  # v0.19.3 I8
-                  "duplicate_single_tag", "empty_required_tag", "unexpected_root")
+                  "duplicate_single_tag", "empty_required_tag", "unexpected_root",
+                  "id_not_kodi", "xml_tags_old_readers",                              # v0.20.0 KR1.1 / KR1.4
+                  "missing_logo_disc", "nfo_online_art_links",                        # v0.20.0 RD8 / RD9
+                  "profile_names_unread")                                             # v0.20.0 F3c
     try:
         dlg14 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
         missing = [k for k in _NEW_RULES if k not in dlg14._hr_vars]
@@ -411,6 +416,58 @@ def run_all():
                f"present={present25} saved={fake_settings['health_rules'].get('title_sync_default')}")
     except Exception as e:
         _check("T25 title_sync_default", False, traceback.format_exc())
+
+    # ── Test 49: RD12 — "ID tags written in the NFO" (every tag style / <uniqueid> only) ── ### NEW v0.20.0 RD12 ###
+    try:
+        dlg49 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
+        hv49 = dlg49._hr_str_vars
+        present49 = "nfo_id_tags" in hv49 and hv49["nfo_id_tags"].get() == "all"
+        hv49["nfo_id_tags"].set("kodi")
+        dlg49._save_close(); root.update()
+        _check("T49 'ID tags written in the NFO' exists (default: every tag style) and saves '<uniqueid> only'",
+               present49 and fake_settings["health_rules"].get("nfo_id_tags") == "kodi",
+               f"present={present49} saved={fake_settings['health_rules'].get('nfo_id_tags')}")
+        fake_settings["health_rules"]["nfo_id_tags"] = "all"
+    except Exception as e:
+        _check("T49 nfo_id_tags", False, traceback.format_exc())
+
+    # ── Test 50: F3 — the programs that play the movies (tick boxes) set and save the health mode ── ### NEW v0.20.0 F3a-2 ###
+    try:
+        _keep50 = (fake_settings.get("health_mode"), fake_settings.get("media_programs"))
+        dlg50 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
+        none50 = not any(v.get() for v in dlg50._program_vars.values())
+        dlg50._program_vars["kodi"].set(True); dlg50._program_vars["mb_mcm"].set(True); dlg50._programs_changed()
+        dlg50._save_close(); root.update()
+        _check("T50 the program tick boxes start empty; Kodi + MediaBrowser / MCM saves media_programs and health_mode 'nfo_xml'",
+               none50 and fake_settings.get("media_programs") == ["kodi", "mb_mcm"] and fake_settings.get("health_mode") == "nfo_xml",
+               f"none={none50} saved={fake_settings.get('media_programs')} mode={fake_settings.get('health_mode')}")
+        fake_settings["health_mode"], fake_settings["media_programs"] = _keep50[0] or "nfo", _keep50[1] or []
+    except Exception as e:
+        _check("T50 media_programs", False, traceback.format_exc())
+
+    # ── Test 51: 6h — the Plex NFO tick box: untouched keeps "not asked", untick saves "off" and recomputes health ── ### NEW v0.20.0 6h ###
+    try:
+        _keep51 = fake_settings.get("plex_nfo_checks")
+        fake_settings.pop("plex_nfo_checks", None)
+        dlg51 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
+        start51 = dlg51._plex_nfo_var.get()
+        unchanged51 = dlg51._rescan_changed()["health_rules"]
+        dlg51._save_close(); root.update()
+        kept51 = fake_settings.get("plex_nfo_checks", "")
+        dlg51b = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
+        dlg51b._plex_nfo_var.set(False)
+        changed51 = dlg51b._rescan_changed()["health_rules"]
+        dlg51b._save_close(); root.update()
+        _check("T51 the Plex NFO tick box starts ticked; Save untouched keeps 'not asked'; unticking counts as a health change and saves 'off'",
+               start51 is True and unchanged51 is False and kept51 == "" and changed51 is True
+               and fake_settings.get("plex_nfo_checks") == "off",
+               f"start={start51} unchanged={unchanged51} kept={kept51!r} changed={changed51} saved={fake_settings.get('plex_nfo_checks')!r}")
+        if _keep51 is None:
+            fake_settings.pop("plex_nfo_checks", None)
+        else:
+            fake_settings["plex_nfo_checks"] = _keep51
+    except Exception as e:
+        _check("T51 plex_nfo_checks", False, traceback.format_exc())
 
     # ── Test 26: B63 — sort_spec / sort_presets survive Save & Apply ─────────── ### NEW v0.19.3 B63 ###
     try:
@@ -693,6 +750,81 @@ def run_all():
                and fake_settings.get("group_by_collection") is False, f"{_vals42} → {fake_settings.get('collection_folder')!r}")
     except Exception:
         _check("T38-T42 B110 keys", False, traceback.format_exc())
+
+    # T44–T46: v0.20.0 UI1a — Interface language (saved at once, not an unsaved change, Restart now)  ### NEW v0.20.0 UI1a ###
+    try:
+        import mc_i18n as _i18n44
+        _saved44 = []
+        _orig44 = ctx.save_settings
+        ctx.save_settings = lambda s: (_saved44.append(dict(s)), True)[1]
+        fake_settings.pop("ui_language", None)
+        dlg44 = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+        _opts44 = dlg44.ui_language_options("pt_BR")
+        _first44 = dlg44._ui_language_var.get()
+        _labels44 = list(dlg44._ui_language_combo.cget("values"))
+        dlg44._ui_language_var.set(_labels44[2]); _c44 = dlg44._ui_language_picked()          # Português (Brasil)
+        _after_pick44 = (fake_settings.get("ui_language"), len(_saved44), _saved44[-1].get("ui_language") if _saved44 else None)
+        _changes44 = dlg44._has_changes()
+        dlg44._ui_language_var.set(_labels44[0]); dlg44._ui_language_picked()                 # Same as Windows
+        _after_same44 = ("ui_language" in fake_settings, len(_saved44))
+        _check("T44 Interface language: 'Same as Windows (…)' first, then English / Português (Brasil) / Español; a pick is saved at once",
+               [c for c, _l in _opts44] == ["", "en", "pt_BR", "es"] and _opts44[0][1] == "Same as Windows (Português (Brasil))"
+               and _opts44[2][1] == "Português (Brasil)" and _opts44[3][1] == "Español" and _first44 == _labels44[0]
+               and _c44 == "pt_BR" and _after_pick44 == ("pt_BR", 1, "pt_BR") and _after_same44 == (False, 2),
+               f"opts={_opts44} first={_first44!r} pick={_after_pick44} same={_after_same44}")
+        _check("T45 Interface language: a pick is not an unsaved change (no discard question); the note and Restart now are shown",
+               _changes44 is False and dlg44._ui_language_note.cget("text") == _i18n44.t("ui.lang.next_start")
+               and "Restart now" in dlg44._ui_restart_btn.cget("text"), f"changes={_changes44}")
+        dlg44._s["ui_language"] = "es"
+        dlg44._save_close(); root.update()
+        _kept44 = fake_settings.get("ui_language")
+        fake_settings.pop("ui_language", None)
+        dlg44b = _in_loop(lambda: SettingsDialog(root, tab=9, ctx=ctx)); root.update()
+        dlg44b._save_close(); root.update()
+        _check("T46 Save & Apply keeps a stored ui_language and never writes one by itself (no saved default)",
+               _kept44 == "es" and "ui_language" not in fake_settings and "ui_language" not in DEFAULT_SETTINGS,
+               f"kept={_kept44!r} after={fake_settings.get('ui_language')!r}")
+        ctx.save_settings = _orig44
+    except Exception:
+        _check("T44-T46 Interface language", False, traceback.format_exc())
+
+    # T47–T48: v0.20.0 HP1d — health presets at the top of Health Rules  ### NEW v0.20.0 HP1d ###
+    try:
+        import settings_model as _smh
+        from tkinter import messagebox as _mbh
+        _ask_h, _asked_h = _mbh.askyesno, []
+        _mbh.askyesno = lambda *a, **k: (_asked_h.append(a[:1]), True)[1]
+        _keep_h = (dict(fake_settings.get("health_rules") or {}), fake_settings.get("health_preset"), fake_settings.get("health_mode"))
+        dlg47 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx)); root.update()
+        _mode47 = dlg47._health_mode_var.get()
+        _start47 = dlg47._health_preset_var.get()
+        dlg47._health_preset_var.set("easy"); dlg47._health_preset_chosen("easy"); root.update()
+        _easy47 = (dlg47._health_preset_var.get(), all(dlg47._hp_rule_values().get(k) == v
+                                                        for k, v in _smh.health_preset_values("easy", _mode47).items()))
+        _n_ask1 = len(_asked_h)
+        dlg47._hr_vars["missing_video_file"].set(False); root.update()
+        _custom47 = dlg47._health_preset_var.get()
+        dlg47._health_preset_var.set("tight"); dlg47._health_preset_chosen("tight"); root.update()
+        _tight47 = (dlg47._health_preset_var.get(), len(_asked_h) - _n_ask1, dlg47._hr_str_vars["video_quality_minimum_level"].get())
+        _other_mode = "nfo_xml" if _mode47 != "nfo_xml" else "nfo"
+        dlg47._health_mode_var.set(_other_mode); root.update()
+        _mode_follow47 = (dlg47._health_preset_var.get(), dlg47._hr_vars["missing_folder"].get(),
+                          _smh.HEALTH_PRESET_BY_MODE["missing_folder"][_other_mode])
+        dlg47._save_close(); root.update()
+        _check("T47 Health preset: Easy sets every rule of the table (no question when the rules equal a preset); one manual "
+               "change shows Custom; Tight then asks once and sets 1080p; a health-mode change keeps Tight (folder.jpg by mode)",
+               _easy47 == ("easy", True) and _custom47 == "custom" and _tight47 == ("tight", 1, "1080p")
+               and _mode_follow47[0] == "tight" and _mode_follow47[1] == _mode_follow47[2],
+               f"start={_start47} easy={_easy47} asks1={_n_ask1} custom={_custom47} tight={_tight47} mode={_mode_follow47}")
+        _check("T48 Save & Apply stores health_preset and the preset's rules", fake_settings.get("health_preset") == "tight"
+               and (fake_settings.get("health_rules") or {}).get("video_quality_minimum_level") == "1080p",
+               f"{fake_settings.get('health_preset')}")
+        fake_settings["health_rules"], fake_settings["health_preset"], fake_settings["health_mode"] = _keep_h
+        if _keep_h[1] is None:
+            fake_settings.pop("health_preset", None)
+        _mbh.askyesno = _ask_h
+    except Exception:
+        _check("T47-T48 Health preset", False, traceback.format_exc())
 
     # T34: a wrongly typed key in settings.json gets its default on load (and saves again)
     try:
