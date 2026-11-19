@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "pre-*"]   # pre-<version>: the new source is tested BEFORE the exe is compiled (PR1, v0.20.1)
   pull_request:
+  workflow_dispatch:            # start a run by hand (Actions -> CI -> Run workflow)
 
 jobs:
   test:
@@ -24,6 +25,7 @@ jobs:
       - name: Run tests
         run: python -m pytest tests -v
       - name: Run end-to-end self-test (virtual display)
-        run: xvfb-run -a python -u tests/selftest_v0_20_0.py
+        # the newest tests/selftest_v*.py, so the file name need not change with every version
+        run: xvfb-run -a python -u "$(ls tests/selftest_v*.py | sort -V | tail -n 1)"
       - name: Run settings test harness (virtual display)
         run: PYTHONPATH=. xvfb-run -a python -u tests/settings_test_harness.py
