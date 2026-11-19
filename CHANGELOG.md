@@ -61,6 +61,8 @@ menu, and warnings that say what to do.
 - **Shortcuts** (F3, Alt+P, Ctrl+C …) work right after you pick a library in the library filter.
 - **Export window:** the Path / Folder Name / Library ticks are remembered separately for HTML and for the other formats.
 - **Backup History** does not restore while a poster review is open.
+- **Help:** the topics in the contents list start in one column ("Settings" and "About" sat further right).
+- The panel on the right says "No movie selected" from the start (it was empty until the first click).
 
 ### Build
 - Compiled with Nuitka. Self-test about 1,780 checks; 46 unit tests for the new modules; CI on Python 3.10 and 3.12.

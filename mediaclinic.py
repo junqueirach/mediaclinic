@@ -11171,6 +11171,15 @@ class CustomGenreDialog(_DialogBase):                           ### NEW v0.15.0 
 #   7  NFO-XML Tags   Tag comparison pairs
 # Phase C: tab 8 = Series settings
 
+def split_icon_label(label):                                    ### NEW v0.20.1 — the Help contents list ###
+    """"<icon>  <text>" → (icon, text); a label without an icon → ("", text). The list shows them in two columns: emoji
+    have different widths ("⚙️" and "ℹ️" pushed their texts to the right), and Tk measures them differently than it draws."""
+    m = re.match(r"\s*(\S+)\s{2,}(.*\S)\s*$", label)      # an icon is followed by two spaces ("ℹ" counts as a letter)
+    if m:
+        return m.group(1), m.group(2)
+    return "", label.strip()
+
+
 class HelpDialog(_DialogBase):
     """
     Full application help — rebuilt for v0.15.0.      ### NEW v0.15.0 ###
@@ -11192,11 +11201,14 @@ class HelpDialog(_DialogBase):
 
         ### MODIFIED v0.19.4 B74 — 13 topics do not fit a tab row: a contents list on the left drives the notebook ###
         body = tk.Frame(self, bg=C_BG); body.pack(fill="both", expand=True)
-        self._toc = tk.Listbox(body, bg=C_BG, fg=C_TEXT, selectbackground=C_SURFACE2, selectforeground=C_ACCENT,
-                               font=("Helvetica", 10), relief="flat", highlightthickness=0, activestyle="none",
-                               exportselection=False,
-                               width=max(28, max(len(l) for l, _t in _help.tabs()) + 1))   # v0.20.0 UI1e: PT / ES names are longer (English stays 28)
-        self._toc.pack(side="left", fill="y", padx=(8, 0), pady=8)
+        ### MODIFIED v0.20.1 ### two columns: the icons (narrow, not focusable) and the texts, so every text starts at the same place
+        _lb_opts = dict(bg=C_BG, fg=C_TEXT, selectbackground=C_SURFACE2, selectforeground=C_ACCENT, font=("Helvetica", 10),
+                        relief="flat", highlightthickness=0, activestyle="none", exportselection=False, borderwidth=0)
+        self._toc_icons = tk.Listbox(body, width=4, takefocus=0, justify="center", **_lb_opts)
+        self._toc_icons.pack(side="left", fill="y", padx=(8, 0), pady=8)
+        self._toc = tk.Listbox(body, width=max(25, max(len(split_icon_label(l)[1]) for l, _t in _help.tabs()) + 2),   # v0.20.0 UI1e: PT / ES names are longer
+                               **_lb_opts)
+        self._toc.pack(side="left", fill="y", pady=8)
         style = ttk.Style()
         style.layout("Help.TNotebook.Tab", [])                    # the tab row is hidden; the list shows the topics
         nb = ttk.Notebook(body, style="Help.TNotebook")
@@ -11215,8 +11227,11 @@ class HelpDialog(_DialogBase):
         self._add_about_tab(nb)
         self._nb = nb
         for _x in nb.tabs():                                       ### NEW v0.19.4 B74 — the contents list ###
-            self._toc.insert("end", "  " + nb.tab(_x, "text"))
-        self._toc.bind("<<ListboxSelect>>", lambda e: self._toc.curselection() and self.select_tab(self._toc.curselection()[0]))
+            _ic, _tx = split_icon_label(nb.tab(_x, "text"))
+            self._toc_icons.insert("end", _ic.replace(chr(0xFE0F), ""))   # the emoji selector draws as a blank: off-centre
+            self._toc.insert("end", " " + _tx)
+        for _lb in (self._toc, self._toc_icons):                   # a click on the icon selects the topic too
+            _lb.bind("<<ListboxSelect>>", lambda e, lb=_lb: lb.curselection() and self.select_tab(lb.curselection()[0]))
         nb.bind("<<NotebookTabChanged>>", lambda e: self._toc_follow(), add="+")
 
         # Select requested tab (0-based index)               ### NEW v0.16.0 ###
@@ -11234,7 +11249,8 @@ class HelpDialog(_DialogBase):
     def _toc_follow(self):                                       ### NEW v0.19.4 B74 ###
         try:
             i = self._nb.index(self._nb.select())
-            self._toc.selection_clear(0, "end"); self._toc.selection_set(i); self._toc.see(i)
+            for _lb in (self._toc, self._toc_icons):               # v0.20.1: both columns show the selection
+                _lb.selection_clear(0, "end"); _lb.selection_set(i); _lb.see(i)
         except tk.TclError:
             pass
 
@@ -21673,6 +21689,7 @@ class App(tk.Tk):
         ### NEW v0.19.1 B21 — "N selected" + Ctrl+A ###
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._update_sel_count(), add="+")
         self.tree.bind("<<TreeviewSelect>>", lambda e: self._panel_schedule(), add="+")   ### NEW v0.19.4 L3 ###
+        self._panel_schedule()                                   # v0.20.1: "No movie selected" + the hint from the start (it was empty)
         for _k in ("<Control-a>", "<Control-A>"):
             self.bind(_k, lambda e: self._select_all_visible(e) if self._part == "movies" else None)   ### I14 ###
             # in the Filter box Ctrl+A keeps selecting its TEXT (Tk's default

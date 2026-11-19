@@ -12715,8 +12715,13 @@ for _l9, _sc9 in (("pt_BR", 1.0), ("es", 1.0), ("pt_BR", 1.5), ("es", 1.25)):
                 h = mc.HelpDialog(app9, tab=0)
                 try:
                     _settle_help(h, 900)
-                    out = {"help_toc": [s.strip() for s in h._toc.get(0, "end")],
-                           "help_tabs": [h._nb.tab(x, "text") for x in h._nb.tabs()],
+                    _ic9, _tx9l = list(h._toc_icons.get(0, "end")), list(h._toc.get(0, "end"))
+                    _nv9 = lambda s: " ".join(s.replace(chr(0xFE0F), "").split())
+                    out = {"help_toc": [_nv9(a + " " + b) for a, b in zip(_ic9, _tx9l)],
+                           "help_tabs_nv": [_nv9(h._nb.tab(x, "text")) for x in h._nb.tabs()],
+                           "help_toc_x": (len(_ic9) == len(_tx9l) and all(_ic9) and all(t[:1] == " " and t[1:2].isalnum() for t in _tx9l),
+                                          h._toc_icons.curselection() == h._toc.curselection() != ()),
+                           "help_tabs": [" ".join(h._nb.tab(x, "text").split()) for x in h._nb.tabs()],
                            "help_texts": [tx.get("1.0", "end") for tx in h._texts],
                            "help_about": h._about_text.get("1.0", "end"),
                            "help_menu": _menu_labels(app9._menus["help"], [], set())}
@@ -12866,12 +12871,16 @@ for (_l9, _sc9), _r9 in _res9.items():
     _kmiss9 = sorted(k for k in _keys9e if k not in _htext9)
     check(f"UI1e ({_tag9}): every shortcut of the action registry appears in the Help (keys are the same in every language)",
           not _kmiss9, _kmiss9)
-    _tabs9 = [lb for lb, _t in _ht9.tabs(_l9)] + [_ht9.about_label(_l9)]
-    _hm9 = [x.replace("   (F1)", "") for x in _r9.get("help_menu", [])]
+    _tabs9 = [" ".join(lb.split()) for lb, _t in _ht9.tabs(_l9)] + [" ".join(_ht9.about_label(_l9).split())]
+    check(f"Help ({_tag9}): the contents list has the icons in their own column, so every text starts at the same place "
+          "('Settings' and 'About' sat further right); both columns show the selected topic",
+          _r9.get("help_toc_x") == (True, True), _r9.get("help_toc_x"))
+    _hm9 = [" ".join(x.replace("   (F1)", "").split()) for x in _r9.get("help_menu", [])]
     check(f"UI1e ({_tag9}): the Help window, its contents list and the Help menu show the topics in the language "
           "(13 topics + About, the English order)",
-          _r9.get("help_tabs") == _tabs9 == _r9.get("help_toc") and _tabs9[:-1] == _hm9[:13] and len(_tabs9) == 14
-          and _tabs9 != [lb for lb, _t in _ht9.HELP_TABS] + [_ht9.ABOUT_LABEL], (_r9.get("help_tabs"), _hm9[:3]))
+          _r9.get("help_tabs") == _tabs9 and _r9.get("help_tabs_nv") == _r9.get("help_toc") and _tabs9[:-1] == _hm9[:13] and len(_tabs9) == 14
+          and _tabs9 != [" ".join(lb.split()) for lb, _t in _ht9.HELP_TABS] + [" ".join(_ht9.ABOUT_LABEL.split())],
+          (_r9.get("help_tabs"), _hm9[:3]))
     _ab9 = _r9.get("help_about", "")
     _abeng9 = [x for x in ("Created by", "What it does", "Version history", "Questions, ideas", "Keeps KODI", "Contact\t",
                            "Website\t", "Releases page", "a GitHub issue") + tuple(mc.ABOUT_FEATURES) if x in _ab9]
