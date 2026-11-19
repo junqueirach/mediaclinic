@@ -8,9 +8,17 @@
 | FFprobe switch | in the status bar: when On, scans also read the video resolution, the audio tracks and the embedded subtitles. A scan without FFprobe keeps the previous FFprobe data.
 | Cancel / Esc | stops a running scan; the movies read so far are kept.
 A scan never writes to your files. While it runs, the actions that change files wait for it (the status bar says so).
+- After an update, the movies saved by the older version are read again in the background: the list is shown first and can be used meanwhile (the status bar counts "k of n"). A scan or closing the app stops the re-read; it continues at the next start.
 
 ## Libraries
-You can scan several root folders. **Browse…** adds one folder; **Libraries…** adds, removes and orders them. After the list changes the app offers Full Scan, Quick Scan or Not now. **Active / off** turns a library off without removing it: it is not scanned (its drive is not touched) and its movies leave the table and the counters, but they are kept; turned on again, they are back at once (a Quick Scan updates them). The collection folder part sets the one folder Kodi reads collection artwork from: **Choose…**, **Create…** (makes "Sets" next to the first library, after a yes) or **Clear**. Scans never list it as a movie or an ignored folder.
+You can scan several root folders.
+- **Browse…** adds one folder; **Libraries…** adds, removes and orders them.
+- After the list changes the app offers Full Scan, Quick Scan or Not now.
+- **Active / off** turns a library off without removing it:
+-- it is not scanned (its drive is not touched);
+-- its movies leave the table and the counters, but they are kept;
+-- turned on again, they are back at once (a Quick Scan updates them).
+- The collection folder part sets the one folder Kodi reads collection artwork from: **Choose…**, **Create…** (makes "Sets" next to the first library, after a yes) or **Clear**. Scans never list it as a movie or an ignored folder.
 - All libraries share one table; the **Library** column and the Movie Name tooltip show where a movie lives.
 - The library box chooses what the table shows and what the scans cover ("All libraries" or one of them).
 - A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)". A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
@@ -23,13 +31,20 @@ A scan adds a row only for movie folders. These are not added:
 - Folders of folders 5 levels below the library: their movies would sit deeper than the scan looks (5 levels). The row says how deep the folder is; add it as a library to include its movies.
 - Folders with several separate videos: give each movie its own folder.
 - Folders with no video, NFO or XML, system folders ($RECYCLE.BIN, @eaDir …) and folders that could not be read.
-A folder with movie metadata is always a movie, and so is a folder with one video and no NFO. After a scan the **Ignored Folders of the Last Scan…** window opens when something was left out (filter, sort, double-click to open, **Export to TXT…**, **Copy All**); turn that off with "Show this window after a scan". **Tools → Ignored Folders of the Last Scan…** opens it at any time.
+A folder with movie metadata is always a movie, and so is a folder with one video and no NFO. After a scan the **Ignored Folders of the Last Scan…** window opens when something was left out (filter, sort, double-click to open, **Export to TXT…**, **Copy All**); turn that off with "Show this window after a scan". **Tools → Reports → Ignored Folders of the Last Scan…** opens it at any time.
 
 ## Updating single movies
 Right-click → **Update (no FFprobe)** (`Ctrl+R`) re-reads the movie or the selection; **Update (with FFprobe)** (`Ctrl+Shift+R`) also probes the video (one movie: a status line; several: a progress window with Cancel). After every repair, sync, fetch or delete the affected rows refresh by themselves.
 
 ## Movies that disappear
 When a movie folder was deleted, Update or the automatic refresh removes its row. Right-click → **Remove from list** drops rows without touching any file; the next scan brings back movies that still exist.
+
+## Closing MediaClinic
+Closing the window while a scan or an action runs asks first, then stops it.
+- A stopped scan: the folders it had not finished keep their previous results.
+- A stopped action: the movie it was working on can be left with one file changed; **Backup History / Undo** can put it back.
+- A stopped image fix changes nothing.
+- The program then ends completely: nothing keeps reading from a network share after the window is gone.
 
 ## Saving and loading scans
 - The last scan is saved in last_results.json and loaded in the background at the start ("⏳ Loading last scan…"); the health rules are applied again, so changed rules never leave old reasons behind.

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mediaclinic-settings-v0.20.0",
+  "$id": "mediaclinic-settings-v0.20.1",
   "title": "MediaClinic Settings",
   "description": "Schema for settings.json written by mediaclinic/settings_controller.py",
   "type": "object",
@@ -214,6 +214,28 @@
       "description": "Last choices of the Export Movie List dialog (v0.18.3): preset, fields, format, scope",
       "additionalProperties": true
     },
+    "columns_introduced": {
+      "type": "array",
+      "items": {"type": "string"},
+      "default": [],
+      "description": "v0.20.1 AC1: the columns new in a version whose default visibility was already decided once (the Actors column: visible only with Kodi ticked)"
+    },
+    "artwork_language": {
+      "type": "string",
+      "default": "library",
+      "description": "v0.20.1 TF3: the language artwork is fetched in — 'library' (the Lang OK? language) or an ISO 639-1 code"
+    },
+    "artwork_language_mode": {
+      "type": "string",
+      "enum": ["prefer", "only"],
+      "default": "prefer",
+      "description": "v0.20.1 TF3: prefer the language (then no text, English, the rest) or only that language"
+    },
+    "artwork_textless_backgrounds": {
+      "type": "boolean",
+      "default": true,
+      "description": "v0.20.1 TF3: fanart and backdrops without text first, then the artwork language"
+    },
     "image_fix_prefs": {
       "type": "object",
       "default": {},
@@ -254,7 +276,8 @@
         "missing_poster":                  { "type": "boolean", "default": true },
         "missing_fanart":                  { "type": "boolean", "default": true },
         "profile_names_unread":            { "type": "boolean", "default": true, "description": "v0.20.0 F3c: with programs ticked (Settings → Health Rules), warn when the NFO, poster or fanart has a name a ticked program does not read (e.g. Infuse and poster.jpg); on in every preset" },
-        "missing_logo_disc":               { "type": "boolean", "default": false, "description": "v0.20.0 RD8: warn when the movie folder has no clear logo (clearlogo / logo) or no disc art (disc / discart / cdart); on only in the Tight preset" },
+        "no_actor_info":                   { "type": "boolean", "default": false, "description": "v0.20.1 AC2: warn when the NFO has no actor information (with Kodi: only web links for the photos); on only in the Tight preset" },
+        "collection_set_nfo":              { "type": "boolean", "default": true, "description": "v0.20.1 CF2: check each collection folder's set.nfo (Kodi); off in the Easy preset" },
         "missing_folder":                  { "type": "boolean", "default": false, "description": "v0.19.2 B35: off by default (no media server needs folder.jpg)" },
         "folder_optional_with_kodi_poster": { "type": "boolean", "default": true, "description": "v0.19.1: no 'Missing folder image' when a Kodi-style poster (<video>-poster.jpg/png, .tbn) exists" },
         "xml_tags_old_readers":            { "type": "boolean", "default": true, "description": "v0.20.0 KR1.4: warn when movie.xml has an IMDb / TMDB ID or the votes only in tags the MediaBrowser / Emby parser ignores (<IMDB_ID>, <TMDB>, <Votes>); Auto Repair adds <IMDbId> / <TMDbId> / <VoteCount>" },
@@ -302,7 +325,7 @@
         "collection_artwork":             { "type": "boolean", "default": true, "description": "v0.19.4 B110g: collection folder / poster / fanart missing (only while a collection folder is set)" },
         "collection_mismatch":            { "type": "boolean", "default": true, "description": "v0.19.4 B110c: TMDB lists a collection the NFO misses or names differently; one collection written two ways" },
         "title_sync_default":              { "type": "string", "enum": ["nfo", "skip"], "default": "nfo", "description": "v0.19.3 B60: Repair All, when it is unclear which local title is right: keep the NFO title, or skip and report" },
-        "nfo_id_tags":                     { "type": "string", "enum": ["all", "kodi"], "default": "all", "description": "v0.20.0 RD12: the ID tags written in the NFO: every tag style (<id>, <uniqueid>, <imdbid>, <id moviedb>), or <uniqueid> only (the ID tags the NFO has are still corrected, none is added, no empty placeholder); movie.xml is not affected" },
+        "nfo_id_tags":                     { "type": "string", "enum": ["all", "kodi"], "default": "kodi", "description": "v0.20.0 RD12: the ID tags written in the NFO: every tag style (<id>, <uniqueid>, <imdbid>, <id moviedb>), or <uniqueid> only (the ID tags the NFO has are still corrected, none is added, no empty placeholder); movie.xml is not affected" },
         "id_format_invalid":              { "type": "boolean", "default": true, "description": "v0.19.3 I8: an IMDb ID that is not tt + 7-9 digits, or a TMDb ID that is not a number" },
         "year_premiered_differ":          { "type": "boolean", "default": true, "description": "v0.19.5 B126: NFO year against the year of premiered" },
         "year_out_of_range":              { "type": "boolean", "default": true, "description": "v0.19.3 I8: a year before 1888 or after next year + 1" },

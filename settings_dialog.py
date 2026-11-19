@@ -1583,10 +1583,41 @@ class SettingsDialog(DialogBase):
 
     # ── Tab 5: Image Sizes ────────────────────────────────────────────────────
 
+    def _build_artwork_language_section(self, f):                ### NEW v0.20.1 TF3 ###
+        """Settings → Images & Artwork → Artwork language: language, Prefer / Only, textless backgrounds first."""
+        import artwork_online as _ao
+        self._section(f, _i18n.t("art.section"))
+        lib_iso = str(self._s.get("lang_ok_code", "EN") or "EN")
+        codes = ["library"] + [c for c, _n in _ao.LANGUAGES]
+        cur = self._s.get("artwork_language", "library") or "library"
+        if cur not in codes:
+            codes.append(cur)
+        self._art_lang_var = tk.StringVar(value=cur)
+        r = self._row(f)
+        tk.Label(r, text=_i18n.t("art.language"), bg="#1e1e2e", fg="#cdd6f4", width=36, anchor="w").pack(side="left")
+        shown_combo(r, self._art_lang_var, codes,
+                    lambda c: (_i18n.t("art.lang_library", name=_ao.language_name(lib_iso)) if c == "library"
+                               else f"{_ao.language_name(c)} ({c})"),
+                    state="readonly", width=40).pack(side="left", padx=(8, 0))
+        self._art_mode_var = tk.StringVar(value=_ao.settings_mode(self._s))
+        r2 = self._row(f)
+        tk.Label(r2, text=_i18n.t("art.mode"), bg="#1e1e2e", fg="#cdd6f4", width=36, anchor="w").pack(side="left")
+        for code in ("prefer", "only"):
+            tk.Radiobutton(r2, text=_i18n.t("art.mode." + code), variable=self._art_mode_var, value=code, bg="#1e1e2e",
+                           fg="#cdd6f4", selectcolor="#313244", activebackground="#1e1e2e").pack(side="left", padx=(8, 0))
+        self._art_textless_var = tk.BooleanVar(value=_ao.settings_textless(self._s))
+        r3 = self._row(f)
+        tk.Checkbutton(r3, text=_i18n.t("art.textless"), variable=self._art_textless_var, bg="#1e1e2e", fg="#cdd6f4",
+                       selectcolor="#313244", activebackground="#1e1e2e").pack(side="left")
+        tk.Label(f, text=_i18n.t("art.hint"), bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 8), justify="left",
+                 wraplength=640).pack(anchor="w", padx=16, pady=(2, 8))
+        tk.Frame(f, bg="#45475a", height=1).pack(fill="x", padx=16, pady=(0, 4))
+
     def _build_image_sizes_tab(self, nb, label="Image Sizes"):
         """Image quality and proportion settings.          ### NEW v0.11.0 ###"""
 
         f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.18.4 ###
+        self._build_artwork_language_section(f)                 ### NEW v0.20.1 TF3 — at the top: the most used choice ###
 
         # ── Proportion Checks ─────────────────────────────────────────────────
         self._section(f, _i18n.t("set.proportion_checks_8879"))
@@ -2429,7 +2460,7 @@ class SettingsDialog(DialogBase):
                    _i18n.t("set.also_when_folder_jpg_e5e2"))
         _check_row("missing_fanart",         _i18n.t("set.missing_fanart_c8a6"))
         _check_row("missing_folder",         _i18n.t("set.missing_folder_image_off_795e"))   # v0.19.2 B35
-        _check_row("missing_logo_disc",      _i18n.t("rd.set.logo_disc"))                    # v0.20.0 RD8
+        _check_row("no_actor_info",          _i18n.t("ac.set.rule"))                         # v0.20.1 AC2
         _check_row("profile_names_unread",   _i18n.t("f3.set.names_unread"))                 # v0.20.0 F3c
         _check_row("folder_optional_with_kodi_poster",                        # NEW v0.19.1 B23
                    _i18n.t("set.folder_jpg_optional_when_4dbf"))
@@ -2468,7 +2499,7 @@ class SettingsDialog(DialogBase):
         _check_row("nfo_name_not_kodi",                                       # NEW v0.19.1 B23
                    _i18n.t("set.nfo_named_after_the_ff92"))
         _check_row("id_not_kodi", _i18n.t("kr.set.id_not_kodi"))             # NEW v0.20.0 KR1.1
-        _choice_row("nfo_id_tags", _i18n.t("rd12.set.label"),                # NEW v0.20.0 RD12 (tester Lins_Oz)
+        _choice_row("nfo_id_tags", _i18n.t("rd12.set.label"),                # NEW v0.20.0 RD12 (a tester)
                     (("all", _i18n.t("rd12.opt.all")), ("kodi", _i18n.t("rd12.opt.kodi"))), "all",
                     width=max(18, max(len(_i18n.t(k)) for k in ("rd12.opt.all", "rd12.opt.kodi")) + 2))
         _check_row("nfo_unescaped_amp",                                       # NEW v0.19.2 B33
@@ -2480,6 +2511,7 @@ class SettingsDialog(DialogBase):
         _check_row("year_premiered_differ",  _i18n.t("set.nfo_year_and_the_8282"))
         _check_row("collection_mismatch",    _i18n.t("set.collection_missing_or_different_e522"))   # NEW v0.19.4 B110c
         _check_row("collection_artwork",     _i18n.t("set.collection_folder_poster_fanart_63a3"))   # NEW v0.19.4 B110g
+        _check_row("collection_set_nfo",     _i18n.t("cf2.set.rule"))                                # NEW v0.20.1 CF2
         _rules_section("xml")
         _level("error")
         _check_row("missing_xml",        _i18n.t("set.missing_movie_xml_1aff"))
@@ -3107,6 +3139,10 @@ class SettingsDialog(DialogBase):
                 _s["fanart_accept_168"] = (self._fanart_168_var.get() == "Yes")
             if hasattr(self, "_poster_34_var"):
                 _s["poster_accept_34"] = (self._poster_34_var.get() == "Yes")
+            if hasattr(self, "_art_lang_var"):                  ### NEW v0.20.1 TF3 ###
+                _s["artwork_language"] = self._art_lang_var.get() or "library"
+                _s["artwork_language_mode"] = self._art_mode_var.get() if self._art_mode_var.get() in ("prefer", "only") else "prefer"
+                _s["artwork_textless_backgrounds"] = bool(self._art_textless_var.get())
             if hasattr(self, "_show_header_tips_var"):
                 _s["show_header_tips"] = self._show_header_tips_var.get()
             if hasattr(self, "_alt_rows_var"):

@@ -10,7 +10,12 @@
 - **The status bar** (bottom): the counters (click **Errors** or **Warnings** to show only those rows), the selection count, the last action, and the **FFmpeg ✓ | FFprobe** switch.
 
 ## The selected-movie panel
-Select one movie and the panel shows its poster, year, genres, rating, library and a health badge; then **ISSUES** (every health reason), **FIXES** (each fixable problem with its **Fix** button), **FILES** (NFO, XML, poster, folder, fanart, video: ✓ or ✕) and **ACTIONS** (**Open Folder**, **Edit NFO**, **Fetch Poster…**, **Search Sources**, **Update**). **All actions ▾** opens the full right-click menu.
+Select one movie and the panel shows its poster, year, genres, rating, library and a health badge, then four parts:
+- **ISSUES**: every health reason.
+- **FIXES**: each fixable problem with its **Fix** button.
+- **FILES**: NFO, XML, poster, folder, fanart, video (✓ or ✕).
+- **ACTIONS**: **Open Folder**, **Edit NFO**, **Fetch Poster…**, **Search Sources**, **Update**.
+- **All actions ▾** opens the full right-click menu.
 - Several movies selected: "N movies selected", the actions that work on several, and the fixes with how many movies have each problem.
 - A collection row (grouped view) shows the collection panel (Collections tab).
 - **Hide ›** or `Ctrl+B` hides the panel; the slim **‹** strip at the right edge shows it again. Drag the divider to change its width; a double-click on the divider resets it. Both are remembered.
@@ -32,7 +37,11 @@ Select one movie and the panel shows its poster, year, genres, rating, library a
 | Subtitles | embedded tracks (FFprobe) and external files.
 | Library | the library (root folder). Hidden by default.
 | Collection | the movie's collection (NFO <set>). Hidden by default.
-**Tools → Choose Columns…** shows or hides columns; the choice is kept. Drag a heading edge to resize a column, double-click a heading to fit it, or use **↔ Auto-size Columns**. **↺ Default Widths** puts every column back to its original width after a resize went wrong. In the grouped view the Year column widens for a collection's years ("1979–1986") and gets your width back when you ungroup. Widths, window sizes and positions are remembered.
+**Tools → Choose Columns…** shows or hides columns; the choice is kept.
+- Drag a heading edge to resize a column, double-click a heading to fit it, or use **↔ Auto-size Columns**.
+- **↺ Default Widths** puts every column back to its original width after a resize went wrong.
+- In the grouped view the Year column widens for a collection's years ("1979–1986") and gets your width back when you ungroup.
+- Widths, window sizes and positions are remembered.
 
 ## Filter
 Type in the **Filter** box (`Ctrl+F`) to keep the movies whose name, year, genre, language, quality, health status, health reason or collection matches — "backdrops" lists every backdrop issue. `Esc` clears it.
@@ -50,4 +59,8 @@ The sort row reads "Sort by [column] [direction]"; **+ then by** adds up to two 
 - The sort is kept after a scan and after a restart.
 
 ## Duplicates
-Movies that share an IMDb ID, a TMDB ID, or a title + year are a "Possible duplicate" (the same title + year with two different IMDb IDs are not: a remake or a namesake). Right-click → **✔ Not a duplicate…** remembers your answer in not_duplicates.json, so the warning stays gone; a new third copy is still found. **↺ Undo 'not a duplicate'** takes it back; **Tools → Manage 'Not a duplicate' marks…** lists every pair. **Tools → Duplicate Movies Report** lists them all.
+Movies that share an IMDb ID, a TMDB ID, or a title + year are a "Possible duplicate". The same title + year with two different IMDb IDs are not: a remake or a namesake.
+- Right-click → **✔ Not a duplicate…** remembers your answer in not_duplicates.json, so the warning stays gone; a new third copy is still found.
+- **↺ Undo 'not a duplicate'** takes it back.
+- **Tools → Manage 'Not a duplicate' marks…** lists every pair.
+- **Tools → Reports → Duplicate Movies Report** lists them all.

@@ -6,9 +6,11 @@
 
 <p align="center"><img src="docs/screenshots/mediaclinic.png" alt="MediaClinic screenshot" width="900"></p>
 
-**Download for Windows:** get `MediaClinic-0.20.0-win64.zip` (about 33 MB) from the [latest release](https://github.com/junqueirach/mediaclinic/releases/latest). Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
+**Download for Windows:** get `MediaClinic-0.20.1-win64.zip` (about 33 MB) from the [latest release](https://github.com/junqueirach/mediaclinic/releases/latest). Unzip it to a folder you can write to (not `C:\Program Files`), open the `MediaClinic` folder and double-click `MediaClinic.exe`. No Python needed. The SHA-256 checksum is in the release notes.
 
-**New in v0.20.0:** the whole app in English, Portuguese (Brazil) and Spanish (*Settings → User Interface → Interface language*). Health presets (Easy / Medium / Tight) set every rule at once. The checks follow what Kodi really reads (`<uniqueid>`, multi-part movies such as `Movie-CD1.mkv` + `Movie-CD2.mkv` with `Movie.nfo`, a folder's only NFO), and a tag holding something that is not an ID is reported and repaired. New tools: remove the online artwork links from an NFO (only for artwork you have as files), check your genres against TMDB, export the movie list as one HTML page with poster thumbnails, and turn a library off without removing it. If you trim your NFOs by hand, *Settings → Health Rules → NFO → ID tags written in the NFO → <uniqueid> only* keeps the app from adding other ID tags. **Tick the programs that play your movies** (Kodi, Plex, Jellyfin, Emby, Infuse, MediaBrowser / Media Center Master): the checks and the file names a fix writes follow them, based on tests on real Plex, Emby and Jellyfin servers and Infuse on an Apple TV; **Rename Files for My Programs** and **Convert movie.xml → NFO** do the switch for you, with Undo. A one-page window at the first start asks for the language, your movies folder, your programs, the strictness and FFprobe. Many fixes from the Reddit testers. See the [changelog](CHANGELOG.md).
+**New in v0.20.1:** warnings that say what to do, and a fix behind every one. A TMDB number in an IMDb field (Emby and FileBot write this) is one clear warning with the right ID, and **Fix Wrong IMDb / TMDB IDs** corrects it for one movie, a selection or the whole library without adding a tag. The **Tools menu is grouped** (Reports, IDs, Ratings & Genres, Collections, NFO & File Names, Artwork), with **Fix one issue — All Movies**, **Add `<uniqueid>` for Kodi**, a tick box per Auto Repair step, and Pause in the bulk tools. Posters: **Replace Low-Resolution Posters**, **Review Posters One by One** and an artwork language setting. For Kodi: actor photos in `.actors`, an Extra art column and `set.nfo` for collections. The **HTML export** is a new page with five layouts, six themes, search, filters and a phone layout. Keyboard shortcuts for the everyday actions (Alt+P, Alt+I, F3, Ctrl+Z …; *Help → Shortcuts*), a Help that is easier to read, and three fixes from a tester with a NAS: Check for Updates from the Help window, the start-up after an update, and the program ending completely when you close it. The default for ID tags in the NFO is now `<uniqueid>` only. See the [changelog](CHANGELOG.md).
+
+**In v0.20.0:** the whole app in English, Portuguese (Brazil) and Spanish (*Settings → User Interface → Interface language*). Health presets (Easy / Medium / Tight) set every rule at once. The checks follow what Kodi really reads (`<uniqueid>`, multi-part movies such as `Movie-CD1.mkv` + `Movie-CD2.mkv` with `Movie.nfo`, a folder's only NFO), and a tag holding something that is not an ID is reported and repaired. New tools: remove the online artwork links from an NFO (only for artwork you have as files), check your genres against TMDB, export the movie list as one HTML page with poster thumbnails, and turn a library off without removing it. If you trim your NFOs by hand, *Settings → Health Rules → NFO → ID tags written in the NFO → <uniqueid> only* keeps the app from adding other ID tags. **Tick the programs that play your movies** (Kodi, Plex, Jellyfin, Emby, Infuse, MediaBrowser / Media Center Master): the checks and the file names a fix writes follow them, based on tests on real Plex, Emby and Jellyfin servers and Infuse on an Apple TV; **Rename Files for My Programs** and **Convert movie.xml → NFO** do the switch for you, with Undo. A one-page window at the first start asks for the language, your movies folder, your programs, the strictness and FFprobe. Many fixes from the Reddit testers.
 
 > **Windows SmartScreen:** the file is not code-signed, so Windows may show "Windows protected your PC". Click **More info**, then **Run anyway**. You can also run the app from source (see Quick start) and read every line of the code first.
 >
@@ -33,6 +35,8 @@ The result is a library that can look fine on screen while the files underneath 
 
 - **Wrong or missing IDs**
   - **Verify IMDb/TMDb IDs** against TMDb (title in any translation, year ±1) with a sortable report
+  - **Fix Wrong IMDb / TMDB IDs**: a TMDB number in an IMDb field (Emby and FileBot write this) is one warning that names the right ID; the fix replaces only the wrong values in the tags the file already has, from the same file or from TMDB, for one movie, a selection or the whole library
+  - **Add `<uniqueid>` for Kodi**: adds only the `<uniqueid>` lines Kodi reads and leaves every other tag as it is
   - **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to the NFO (and `movie.xml` when it is used); a page address or an IMDb number without `tt` is cleaned
   - **Auto Repair** writes the IDs, including the `<uniqueid>` tags Kodi reads and the `movie.xml` ID tags old programs read
 - **Inconsistent metadata**
@@ -42,6 +46,8 @@ The result is a library that can look fine on screen while the files underneath 
   - **Remove online artwork links** from the NFO: the web addresses scrapers leave in `<thumb>` tags are removed only for the artwork the folder has as a file, after a count; actor images and every other tag stay
   - **Movie collections**: a *Group by collection* view with one row per collection, *Check Collections Online* (TMDB), Fix, Set, Rename, Join and Remove from Collection, *Collection Artwork* to choose the set's poster and fanart, and Kodi's movie set information folder; a renamed collection takes its folder and images along, and Undo puts everything back
   - **Auto Repair** for one movie, a selection or the whole library, with a dry-run preview: IDs, ratings, genres, year, titles, collections and a bare `&` in the NFO; a movie's own artwork is never touched
+  - **Fix one issue — All Movies**: runs one automatic fix on every movie that needs it; Auto Repair has a tick box per step, and the bulk tools can be paused
+  - **set.nfo for Kodi collections**: checked, written with each new collection folder, and *Check / Write set.nfo* for one collection or all
 - **Names and formats that not every program reads**
   - **Rename Files for My Programs**: gives the NFO, poster and fanart the names every ticked program reads (for example `movie.nfo` → `<video>.nfo` for Infuse), with a preview, a backup and Undo; the video is never renamed
   - **Convert movie.xml → NFO**: for movies that have only a Media Center Master / MediaBrowser `movie.xml`, writes an NFO with title, year, rating, IDs, actors and genres; `movie.xml` stays, Undo removes the NFO
@@ -49,17 +55,19 @@ The result is a library that can look fine on screen while the files underneath 
 - **Artwork**
   - **Fetch Poster, Fanart and Backdrops** from TMDB or fanart.tv with thumbnails, or pick **frames from the video** with FFmpeg; new files follow the folder's naming style (Kodi or Emby)
   - **Fix image proportions / size**: for one movie or a batch, with a before/after preview and a backup first; an optional AI upscale is downloaded on request and checked by SHA-256
+  - **Replace Low-Resolution Posters** with the best online poster in your artwork language, and **Review Posters One by One**: per movie, use an online poster, fix the proportions or upscale, with one Undo for the session
+  - **Actor photos for Kodi**: *Download Actor Photos* into `.actors`, with the file names Kodi looks for; an Extra art column (clear logo, disc art, banner …) and *Convert extrafanart → fanart1, 2…*
 - **Duplicates and folders that are not movies**
   - A Duplicate Movies Report, **Not a duplicate** marks for movies wrongly flagged, and an "Ignored folders" window for what is not a movie
 - **Finding the problems in a large library**
   - A health table with a **panel for the selected movie** (poster, its issues with Fix buttons, files and actions; Ctrl+B hides it), clickable Errors/Warnings counters, *Problems only*, a column chooser, Library Statistics, parallel scanning and a Quick Scan that re-reads only what changed
   - **Sort builder** with up to three levels, presets, and the sort kept between sessions
   - **Several libraries** in one table (*Libraries…* dialog and library filter); an offline drive keeps its cached rows; a library can be turned off without removing it (not scanned, hidden, kept); Kodi's collection folder is set in the same window
-  - **Export Movie List** to CSV, text, Excel or one self-contained HTML page (filter, sorting, optional poster thumbnails), with column presets (including *Identify*: IMDB and TMDB links plus outline) and the option to export only the filtered view
+  - **Export Movie List** to CSV, text, Excel or one self-contained HTML page (five layouts, six themes, search, filters, a detail view; posters inside the file, in a folder, as links or none), with column presets (including *Identify*: IMDB and TMDB links plus outline) and the option to export only the filtered view
 - **Safe edits**
   - **Backup History / Undo**: every backup records what it changed, and a whole run can be restored
   - Every NFO/XML is backed up silently and written atomically, TMDb/OMDb calls are rate-limited and retried, API keys are kept out of the log, with automatic backup folder maintenance; rows refresh automatically after each change
-  - Keyboard shortcuts, jump-to-letter, sortable columns, remembered window sizes and positions, rotating logs
+  - Keyboard shortcuts for the everyday actions (a Shortcuts tab in the Help lists them), jump-to-letter, sortable columns, remembered window sizes and positions, rotating logs
 
 See [What it checks](#what-it-checks) for every rule behind these findings.
 

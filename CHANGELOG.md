@@ -2,6 +2,63 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.20.1 — (release date)
+
+Windows build and source. What the testers of v0.20.0 asked for: better tools for posters and IDs, a grouped Tools
+menu, and warnings that say what to do.
+
+### Added
+- **Fix Wrong IMDb / TMDB IDs:** a TMDB number in an IMDb field (Emby and FileBot write this) is now ONE warning that
+  names the right ID ("IMDb field holds the TMDB number (27759) — the IMDb ID is tt0056800"). Its fix replaces only
+  the wrong values in the tags the file already has; the right ID comes from the same file (Emby's `<imdb id="tt…">`
+  line) or from TMDB. For one movie, a selection or all movies (*Tools → IDs*).
+- **Add `<uniqueid>` for Kodi** as its own tool (*Tools → IDs*, right-click, the warning's Fix): it adds only the
+  `<uniqueid>` lines and nothing else.
+- **Fix one issue — All Movies:** run one automatic fix on every movie that needs it. **Auto Repair** has a tick box per step.
+- **Tools menu in groups:** Reports, IDs, Ratings & Genres, Collections, NFO & File Names, Artwork.
+- **Posters:** *Replace Low-Resolution Posters* (also corrupt ones) with the best online poster, *Review Posters One by
+  One* (use an online poster, fix the proportions or upscale, movie by movie, one Undo), and an **artwork language**
+  setting (*Settings → Images & Artwork*: prefer or only your language; backdrops without text first). The bulk image
+  fix explains what it skipped and can use the AI upscaler. After a change, a note says how each program shows the new image.
+- **Keyboard shortcuts** for the everyday actions (Alt+P fetch poster, Alt+I fix image, F3 next problem, Ctrl+Z undo the
+  last run …) and a **Shortcuts** tab in the Help.
+- **Actor photos for Kodi:** an Actors column, *Download Actor Photos* into `.actors`, *Rename actor photos for Kodi*.
+- **Extra art** column (clear logo, clear art, disc art, banner, landscape, keyart; information only), *Rename extra
+  artwork for Kodi*, *Convert extrafanart → fanart1, 2…*.
+- **set.nfo** for Kodi collections: checked, written with each new collection folder, and *Check / Write set.nfo*
+  (*Tools → Collections*, or the button in a collection's panel).
+- **HTML export, new page:** five layouts (table with posters, poster wall, shelves, catalogue, checklist), six themes,
+  light / dark, search, filters, a detail view, "What should we watch?", media flags, a phone layout and printing.
+  Images inside the file, in a folder next to it, as online links, or none. Paths are private columns (off for HTML).
+- Bulk tools can be **paused** and resumed.
+
+### Changed
+- **Every warning leads to a fix that can solve it.** No Fix entry opens a report any more; existing tools are offered
+  by name (Convert movie.xml → NFO, Normalize Genres, Fill Genres / Year from TMDB, Update with FFprobe, Replace
+  Low-Resolution Posters); warnings say what to do; entries that need one movie are greyed for several.
+- **Verify IMDb/TMDB IDs** has a result of its own for a wrong value in a field (it used to say OK), its Fix writes the
+  right ID, and a greyed Fix says why. A bad Verify result is shown as a warning on the movie.
+- **New default: ID tags written in the NFO = `<uniqueid>` only** (no `<id>` / `<id moviedb>` lines, no empty
+  placeholder tags). If you saved Settings in v0.20.0 your stored choice stays: change it in *Settings → Health Rules → NFO*.
+- TMDB posters are listed in the artwork language first (they were sorted by size only).
+- The clear logo / disc art rule of v0.20.0 is gone: extra artwork is information, never a warning.
+- The Help is restructured in all three languages (shorter paragraphs, tables, steps) and has "New in v0.20.1".
+
+### Fixed
+- **Check for Updates** opened from *Help → About* did not react to any button, also not Close.
+- **Start-up on a NAS:** after an update the list is shown at once; the movies saved by the older version are read again
+  in the background (it looked frozen while the drives spun up).
+- **Closing the app** stops every running scan, tool and FFprobe and ends the program, so no connection to a network
+  share stays open.
+- The `<uniqueid>` step no longer writes `<id moviedb>` or empty placeholder tags into the NFO, and is about five times faster.
+- The Health report's "Most common issues" list was English in Portuguese and Spanish.
+- An actor name that ends with a dot ("Robert Downey Jr.") gets the file name Kodi looks for.
+- A pre-release review: 40 smaller fixes (see `CHECKUP_v0.20.1` in the project notes).
+
+### Build
+- Compiled with Nuitka. Self-test about 1,780 checks; 46 unit tests for the new modules; CI on Python 3.10 and 3.12.
+- The Actors and Extra art columns fill at the next **Full Scan**.
+
 ## v0.20.0 — 2026-11-17
 
 Windows build and source. Three interface languages, the programs that play your movies, and what the Reddit testers

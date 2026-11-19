@@ -1,0 +1,113 @@
+# =============================================================================
+# pyver_guard.py — Python 3.10 / 3.11 syntax guard for the app's modules
+# MediaClinic v0.20.1 BF5                                        ### NEW v0.20.1 BF5 ###
+#
+# The app supports Python 3.10 and newer (CI runs 3.10 and 3.12). Python 3.12
+# (PEP 701) accepts f-strings that 3.10 / 3.11 reject; v0.20.0 shipped two such
+# lines in the source and the app did not load on 3.10 / 3.11 at all.
+#
+# Two layers, both pure (no Tk, no files written):
+#   * compile_errors(): compile every module with the running interpreter
+#     (on 3.10 / 3.11 this catches the problem directly);
+#   * pep701_findings(): on 3.12+, where f-strings are tokenized into parts,
+#     find what 3.10 / 3.11 would reject inside a replacement field:
+#       - a string that uses the enclosing f-string's quote,
+#       - a nested f-string that uses the enclosing quote,
+#       - a backslash (in a string literal or as an operator).
+#     On 3.10 / 3.11 the tokenizer keeps an f-string as one token, so this
+#     layer returns nothing there and compile_errors() does the work.
+# =============================================================================
+from __future__ import annotations
+
+import io
+import os
+import sys
+import tokenize
+from typing import Iterable, NamedTuple
+
+
+class Finding(NamedTuple):
+    """One problem: the file, its line and what is wrong."""
+    path: str
+    line: int
+    text: str
+
+
+def _quote_of(token_text: str) -> str:
+    """The opening quote of a string or f-string token: ', ", ''' or \"\"\"."""
+    s = token_text.lstrip("rRbBuUfFtT")
+    return s[:3] if s[:3] in ('"""', "'''") else s[:1]
+
+
+def _same_quote(inner: str, outer: str) -> bool:
+    """True when *inner* would end an f-string opened with *outer* on Python < 3.12."""
+    if len(outer) == 3:
+        return inner == outer
+    return inner[:1] == outer
+
+
+def pep701_findings(source: str, path: str = "<source>") -> list[Finding]:
+    """Constructs inside f-string replacement fields that Python 3.10 / 3.11 cannot parse.
+
+    Works on Python 3.12+ only (FSTRING_START tokens); returns [] on older versions."""
+    if not hasattr(tokenize, "FSTRING_START"):
+        return []
+    out: list[Finding] = []
+    stack: list[str] = []                      # quotes of the f-strings that are open
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, SyntaxError) as e:
+        return [Finding(path, getattr(e, "lineno", 0) or 0, f"cannot tokenize: {e}")]
+    for tok in tokens:
+        if tok.type == tokenize.FSTRING_START:
+            q = _quote_of(tok.string)
+            if any(_same_quote(q, o) for o in stack):
+                out.append(Finding(path, tok.start[0], f"nested f-string uses the enclosing quote {q}"))
+            stack.append(q)
+        elif tok.type == tokenize.FSTRING_END:
+            if stack:
+                stack.pop()
+        elif stack and tok.type == tokenize.STRING:
+            q = _quote_of(tok.string)
+            if any(_same_quote(q, o) for o in stack):
+                out.append(Finding(path, tok.start[0], f"string {tok.string[:30]!r} inside an f-string with the same quote {stack[-1]}"))
+            if "\\" in tok.string:
+                out.append(Finding(path, tok.start[0], f"backslash in an f-string expression: {tok.string[:30]!r}"))
+        elif stack and tok.type == tokenize.OP and tok.string == "\\":
+            out.append(Finding(path, tok.start[0], "backslash in an f-string expression"))
+    return out
+
+
+def compile_errors(source: str, path: str = "<source>") -> list[Finding]:
+    """[] when the running interpreter compiles *source*, else the syntax error."""
+    try:
+        compile(source, path, "exec", dont_inherit=True)
+    except SyntaxError as e:
+        return [Finding(path, e.lineno or 0, f"SyntaxError on Python {sys.version_info[0]}.{sys.version_info[1]}: {e.msg}")]
+    return []
+
+
+def app_modules(app_dir: str) -> list[str]:
+    """The app's .py files: the top level of *app_dir* (main file and modules), not tests or tools."""
+    return sorted(os.path.join(app_dir, f) for f in os.listdir(app_dir)
+                  if f.endswith(".py") and not f.startswith(("selftest", "test_", "settings_test_harness")))
+
+
+def scan(paths: Iterable[str]) -> list[Finding]:
+    """Both layers over every file in *paths*."""
+    found: list[Finding] = []
+    for p in paths:
+        with open(p, encoding="utf-8") as f:
+            src = f.read()
+        name = os.path.basename(p)
+        found += compile_errors(src, name) + pep701_findings(src, name)
+    return found
+
+
+if __name__ == "__main__":                       # python tools/pyver_guard.py [app folder]
+    _dir = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _hits = scan(app_modules(_dir))
+    for h in _hits:
+        print(f"{h.path}:{h.line}: {h.text}")
+    print(f"{len(_hits)} finding(s)")
+    sys.exit(1 if _hits else 0)

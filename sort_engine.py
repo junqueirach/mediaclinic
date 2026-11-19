@@ -56,6 +56,8 @@ COLUMNS = [
     ("subs", "Subtitles", "presence"),
     ("library", "Library", "text"),
     ("collection", "Collection", "text"),                            # v0.19.4 B110a
+    ("actors", "Actors", "text"),                                    # v0.20.1 AC1
+    ("extra_art", "Extra art", "count"),                             # v0.20.1 EA4
 ]
 MORE = [
     ("health", "Health", "health"),                                  # v0.19.3 B69 — short label, first in the list

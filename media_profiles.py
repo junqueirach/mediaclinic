@@ -81,7 +81,7 @@ READS = {
 NAME_CHECKED = ("infuse",)
 
 # The order a name is preferred in when more than one is read by every ticked program.
-# ### MODIFIED v0.20.0 KN1 (user decision 2026-11-17, MEDIA_SERVERS_REFERENCE §4.1) ### the long names first: Kodi's
+# ### MODIFIED v0.20.0 KN1 (user decision 2026-11-17, Media Servers Reference §4.1, in Workbench\) ### the long names first: Kodi's
 # docs recommend <video>.nfo / <video>-poster.jpg, they work with every Kodi source setting (movie.nfo and poster.jpg
 # need "Movies are in separate folders…") and every other program reads them.  Only NEW files get these names: a folder
 # whose own names every ticked program reads keeps them; with no video name (disc folder without one) the short names.

@@ -9,7 +9,7 @@ MediaClinic reads every name Kodi uses and shows the file Kodi would pick, in Ko
 | NFO | movie.nfo, <video>.nfo, <stack>.nfo for a multi-part movie (Movie.nfo for Movie-CD1.mkv + Movie-CD2.mkv; Jellyfin reads movie.nfo instead), and the folder's only NFO whatever its name when it holds <movie> (a release-info .nfo is ignored)
 | Extra fanart | fanart1.jpg…, <video>-fanart1.jpg… (the extrafanart folder is for Jellyfin and Emby)
 <video> is the video's file name without its extension. The tooltips say which file was found. Fetch Poster/Folder, Fetch Fanart and Copy poster → folder write in the style the folder already uses: a Kodi folder gets <video>-poster.jpg. Copy poster → folder also makes a folder.jpg in a folder that has none. New backdrops follow the same rule.
-- **Rename NFO for Kodi…**: Kodi reads "<video>.nfo" or "movie.nfo", not an NFO named after the folder (unless it is the only NFO). It offers both names (the recommended one selected); **Tools → Rename NFOs for Kodi — All Movies with a folder-named NFO…** shows a preview. A name that exists is never overwritten; Undo puts the old name back.
+- **Rename NFO for Kodi…**: Kodi reads "<video>.nfo" or "movie.nfo", not an NFO named after the folder (unless it is the only NFO). It offers both names (the recommended one selected); **Tools → NFO & File Names → Rename NFOs for Kodi…** shows a preview. A name that exists is never overwritten; Undo puts the old name back.
 - DVD and Blu-ray folders: a VIDEO_TS or BDMV structure is the movie; VIDEO_TS-poster.jpg, VIDEO_TS.nfo, index-poster.jpg and index.nfo are read too. FFprobe and frames use the largest .VOB / .m2ts file.
 - Collections: Kodi's movie set information folder — Collections tab.
 

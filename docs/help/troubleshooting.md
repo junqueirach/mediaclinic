@@ -6,7 +6,7 @@
 ### The Audio column is empty
 Switch FFprobe On and run Update (with FFprobe).
 ### A health reason no longer applies
-Tools → Recompute Health Status (no rescan) — also done at every start.
+Tools → Scan Results → Recompute Health Status (no rescan) — also done at every start.
 ### Source shows ✕ although the movie has an ID
 Some tags are empty (e.g. <TMDB></TMDB>) while others hold the ID; Normalize Sources fills them.
 ### Backdrop extraction makes no files
@@ -14,7 +14,7 @@ Check FFmpeg in Settings → Editor & FFmpeg (**Test FFmpeg**) and raise **Per-f
 ### Excel opens the CSV in one column
 Export with "CSV — semicolon separated" or as .xlsx.
 ### Collections show no warning
-Run **Tools → Check Collections Online — All Movies…** first (the rules need TMDB's collection data); the collection artwork rule needs the collection folder (Libraries…).
+Run **Tools → Collections → Check All Collections Online…** first (the rules need TMDB's collection data); the collection artwork rule needs the collection folder (Libraries…).
 
 ## When TMDB or OMDb do not answer
 IMDb is never asked directly: IMDb ratings come through OMDb, IMDb IDs through TMDB. The message names the cause and what to do.
@@ -28,7 +28,12 @@ IMDb is never asked directly: IMDb ratings come through OMDb, IMDb IDs through T
 **Help → Open Logs Folder** opens logs\ with app.log selected. Every unexpected error is written there (API keys never): attach it to a bug report.
 
 ## Updates
-**Help → Check for Updates…** (or the button in About) asks GitHub for the latest release; nothing else is sent. A new version can be opened on GitHub or skipped. The Windows program can also download and install it (a Linux build only opens the download page): the package is checked against its SHA-256 and unpacked next to the current version, which is never changed. Your settings, results and backups are kept (they live in %APPDATA%). Settings → User Interface → "Check for updates at start" (off by default) checks once a day and only shows a link in the status bar.
+**Help → Check for Updates…** (or the button in About) asks GitHub for the latest release; nothing else is sent.
+- A new version can be opened on GitHub or skipped.
+- The Windows program can also download and install it (a Linux build only opens the download page).
+-- The package is checked against its SHA-256 and unpacked next to the current version, which is never changed.
+-- Your settings, results and backups are kept (they live in %APPDATA%).
+- Settings → User Interface → "Check for updates at start" (off by default) checks once a day and only shows a link in the status bar.
 
 ## One window at a time
 MediaClinic runs once: starting it again brings the running window to the front.

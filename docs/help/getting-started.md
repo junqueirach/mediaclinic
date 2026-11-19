@@ -2,6 +2,18 @@
 
 # Getting Started
 
+## New in v0.20.1
+- The Tools menu is grouped into submenus (Bulk Tools & Auto Repair tab).
+- Posters: Replace Low-Resolution Posters, Review Posters One by One and an artwork language setting (Images tab).
+- IDs: Fix Wrong IMDb / TMDB IDs and Add <uniqueid> for Kodi (Ratings, Genres & IDs tab).
+- Auto Repair lets you untick steps; Fix one issue runs a single fix on all movies; long runs can be paused.
+- Warnings say what is wrong and what to do, and every Fix leads to a tool that can solve it.
+- Actors and Extra art columns, and actor photos for Kodi (Images tab).
+- set.nfo for Kodi collections (Collections tab).
+- Export: an HTML page with five layouts and six themes.
+- More keyboard shortcuts (Shortcuts tab).
+- Start-up shows the last list at once; closing the app stops what is running (it asks first).
+
 ## What this app does
 Metadata & MediaClinic audits and repairs Kodi, Jellyfin, Emby and Plex movie libraries. It scans your library folders, checks every artwork file, metadata file and video, and shows a colour-coded health table, so you see at a glance what is missing or broken. Most problems can be fixed from the same table.
 
@@ -22,12 +34,34 @@ The Media Servers tab lists every name the servers read.
 3. Each row shows the health of one movie: green = no rule triggered, yellow = warnings, red = errors.
 4. Select a movie: the panel on the right shows its poster, its issues with a **Fix** button each, its files and the common actions.
 5. The last scan is saved and restored at the next start.
-6. At the first start one window asks for the language, your movies folder, **Which programs play your movies?** (tick every one you use; nothing ticked is fine too), the strictness (Tight, Medium, Easy) and FFprobe (optional: nothing is included or downloaded for you; **Choose folder…** or **Download page**). Only **Start** saves the answers; closing the window brings it back at the next start. Pick the language first: **Restart now** shows the window again in that language. Someone updating from an older version sees only the programs question once, with **Not now**. The ticked programs set the **health mode**: it decides which files MediaClinic checks and repairs.
-- **Kodi, Plex, Jellyfin, Emby, Infuse** (NFO only; Plex itself reads no NFO, only the artwork — see below): the .nfo files, as tinyMediaManager, Radarr or MediaElch make them. movie.xml is ignored (not read, not checked, not written; no .xml column).
-- **One of them + MediaBrowser / Media Center Master** (NFO and movie.xml): the NFO and movie.xml, every check and fix of both.
-- **MediaBrowser / Media Center Master alone** (movie.xml only): movie.xml only. The NFO is ignored (not read, not checked, never written; no .nfo column). Title, year, rating, IDs and genres come from movie.xml, and the fixes write movie.xml. Collections, Rename NFO for Kodi and the **&** fix work on the NFO, so they are not offered.
-Change it later in **Settings → Health Rules → Which programs play your movies?**: tick every program you use (Kodi, Plex, Jellyfin, Emby, Infuse, MediaBrowser / Media Center Master). The ticks set the health mode, and the line under them shows the files checked and the names a fix writes: a name every ticked program reads: <video>.nfo, <video>-poster.jpg and <video>-fanart.jpg, the names Kodi recommends, which work with every Kodi setting and are read by every other program too (movie.nfo and poster.jpg work in Kodi only with the source setting "Movies are in separate folders that match the movie title"). A folder whose own names every ticked program reads keeps them. Nothing ticked keeps the mode as it was and each folder's own names. Reading never changes: every name these programs accept is still read. A library played by other programs gets its own choice in **Libraries… → Programs…** (it replaces that library's **NFO only** mark). A change between NFO and movie.xml offers a new scan.
-7. In the mode **NFO and movie.xml**, a library where no movie has a movie.xml gets one more question after its scan: **NFO-only library?** **Yes, NFO only** switches the XML checks off for that library alone (no "Missing XML file" error, no NFO / XML comparison; the XML column shows —). Change it later in **Libraries…** with the **NFO only** button.
+
+## The welcome window
+At the first start one window asks five things. Only **Start** saves the answers; closing the window brings it back at the next start.
+| Language | pick it first: **Restart now** shows the window again in that language
+| Movies folder | add it now, or later with **Browse…** or **Libraries…**
+| Which programs play your movies? | tick every one you use (nothing ticked is fine too)
+| Strictness | Tight, Medium or Easy
+| FFprobe | optional: nothing is included or downloaded for you; **Choose folder…** or **Download page**
+Someone updating from an older version sees only the programs question once, with **Not now**.
+
+## Which programs play your movies?
+The ticked programs set the **health mode**: it decides which files MediaClinic checks and repairs.
+| NFO only | Ticked: **Kodi, Plex, Jellyfin, Emby, Infuse** (any of them). MediaClinic works on the .nfo files, as tinyMediaManager, Radarr or MediaElch make them. movie.xml is ignored (not read, not checked, not written; no .xml column). Plex itself reads no NFO, only the artwork.
+| NFO and movie.xml | Ticked: **One of them + MediaBrowser / Media Center Master**. The NFO and movie.xml, every check and fix of both.
+| movie.xml only | Ticked: **MediaBrowser / Media Center Master alone**. The NFO is ignored (not read, not checked, never written; no .nfo column). Title, year, rating, IDs and genres come from movie.xml, and the fixes write movie.xml. Collections, Rename NFO for Kodi and the **&** fix work on the NFO, so they are not offered.
+Change it later in **Settings → Health Rules → Which programs play your movies?**: tick every program you use (Kodi, Plex, Jellyfin, Emby, Infuse, MediaBrowser / Media Center Master).
+- The line under the ticks shows the files checked and the names a fix writes.
+- A fix writes a name every ticked program reads: <video>.nfo, <video>-poster.jpg and <video>-fanart.jpg. These are the names Kodi recommends; they work with every Kodi setting and are read by every other program too. (movie.nfo and poster.jpg work in Kodi only with the source setting "Movies are in separate folders that match the movie title".)
+- A folder whose own names every ticked program reads keeps them.
+- Nothing ticked keeps the mode as it was and each folder's own names.
+- Reading never changes: every name these programs accept is still read.
+- A library played by other programs gets its own choice in **Libraries… → Programs…** (it replaces that library's **NFO only** mark).
+- A change between NFO and movie.xml offers a new scan.
+
+## A library without movie.xml
+In the mode **NFO and movie.xml**, a library where no movie has a movie.xml gets one more question after its scan: **NFO-only library?**
+- **Yes, NFO only** switches the XML checks off for that library alone: no "Missing XML file" error, no NFO / XML comparison; the XML column shows —.
+- Change it later in **Libraries…** with the **NFO only** button.
 
 ## Quick-start checklist
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
@@ -54,4 +88,4 @@ Change it later in **Settings → Health Rules → Which programs play your movi
 | no_collection.json | the movies you marked "not in a collection"
 | backup_cleanup_log.json | the backup runs the size cleanup removed (Backup History lists them)
 | logs/app.log | the log next to the program; API keys are never written to it (**Help → Open Logs Folder**)
-| backup/ | the automatic backups (same folder; moved there from the program folder once — an update keeps them)
+| backup/ | the automatic backups (same folder; an update keeps them)

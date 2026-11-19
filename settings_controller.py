@@ -400,7 +400,8 @@ def reset_wrong_types(merged):
 # never overridden.  The App shows the notice once, through after().
 _MIGRATIONS = ("b35_folder_rules_off", "b55_library_filter_reset", "b110_collection_column_hidden",
                "tr1_xml_integration_kept", "tr1b_health_mode",  # v0.19.6 TR1, TR1b
-               "hp1_health_preset")                                  # v0.20.0 HP1d
+               "hp1_health_preset",                                  # v0.20.0 HP1d
+               "v0201_new_rules")                                    # v0.20.1 (checkup)
 SETTINGS_MIGRATION_NOTICES = []                                  # one message box each (B35)
 SETTINGS_MIGRATION_STATUS = []                                   # one status-bar line each (B55)
 B55_STATUS = "Library filter reset to 'All libraries' — every library is shown again"
@@ -461,6 +462,17 @@ def _run_settings_migrations(merged):
         # no rule changes: the preset the rules already equal, else "custom" (the user's rules stay as they are)
         merged["health_preset"] = _sm.matching_health_preset(merged.get("health_rules") or {}, _mode_of(merged))
         _log.info(f"Settings migration hp1_health_preset: {merged['health_preset']} (rules unchanged)")
+    if "v0201_new_rules" in todo:                                ### NEW v0.20.1 — AC2 / CF2 rules follow the user's preset ###
+        # a rule new in a version got its plain default for an existing user (set.nfo ON in Easy, actors OFF in Tight)
+        # and the preset then showed as Custom; RD8's rule is gone
+        hr = merged.get("health_rules")
+        pre = merged.get("health_preset")
+        if isinstance(hr, dict):
+            hr.pop("missing_logo_disc", None)
+            if pre in _sm.HEALTH_PRESETS:
+                for k in ("no_actor_info", "collection_set_nfo"):
+                    hr[k] = _sm.HEALTH_PRESETS[pre][k]
+                _log.info(f"Settings migration v0201_new_rules: the two new rules follow the {pre} preset")
     merged["settings_migrations"] = done + todo
     save_settings(merged)                                        # once: the markers are on disk now
 

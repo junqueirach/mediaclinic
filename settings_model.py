@@ -113,6 +113,10 @@ DEFAULT_SETTINGS = {
     "check_updates":           False,    # NEW v0.19.2 B50: ask GitHub for a new release at start (once a day)
     "last_update_check":       "",       # NEW v0.19.2 B50: date of the last automatic check (YYYY-MM-DD)
     "skipped_version":         "",       # NEW v0.19.2 B50: "Skip this version" — no status-bar link for it
+    "columns_introduced":      [],          # NEW v0.20.1 AC1 / RV12: new columns whose default visibility was decided once
+    "artwork_language":        "library",   # NEW v0.20.1 TF3: "library" (the Lang OK? language) or an ISO 639-1 code
+    "artwork_language_mode":   "prefer",    # NEW v0.20.1 TF3: "prefer" | "only"
+    "artwork_textless_backgrounds": True,   # NEW v0.20.1 TF3: fanart / backdrops without text first
     "image_fix_prefs":         {},       # NEW v0.19.2 F4: last choices of Fix image proportions / size (method per kind, ai_upscale, AI test result)
     "library_kinds":           {},       # NEW v0.19.4 I19: {library path: "movies" | "series"}; absent = "movies" (series from v0.22)
     "health_mode":             "nfo",    # NEW v0.19.6 TR1b: "nfo" (Kodi, Jellyfin, Emby, Plex, Infuse…), "nfo_xml" (+ movie.xml), "xml" (movie.xml only); existing users: "nfo_xml" by a migration
@@ -162,7 +166,7 @@ DEFAULT_SETTINGS = {
         "missing_poster":                  True,
         "missing_fanart":                  True,
         "profile_names_unread":            True,      ### NEW v0.20.0 F3c — a file in a name a ticked program does not read (only with programs ticked) ###
-        "missing_logo_disc":               False,     ### NEW v0.20.0 RD8 — clear logo / disc art (Tight preset only) ###
+        "no_actor_info":                   False,     ### NEW v0.20.1 AC2 — no actor information (Tight preset only; a warning) ###
         "missing_folder":                  False,     ### MODIFIED v0.19.2 B35 — default OFF: no media server needs folder.jpg ###
         "folder_optional_with_kodi_poster": True,     ### NEW v0.19.1 B23 — no folder.jpg warning when a Kodi "<video>-poster" exists ###
         "xml_tags_old_readers":            True,      ### NEW v0.20.0 KR1.4 — movie.xml: an ID / the votes only in tags the old programs ignore ###
@@ -206,9 +210,10 @@ DEFAULT_SETTINGS = {
         "missing_movie_title":             True,
         "title_mismatch":                  True,
         "collection_artwork":              True,      ### NEW v0.19.4 B110g — set folder / poster / fanart (only with a collection folder) ###
+        "collection_set_nfo":              True,      ### NEW v0.20.1 CF2 — set.nfo missing / with a mistake (collection only; Kodi; a collection folder) ###
         "collection_mismatch":             True,      ### NEW v0.19.4 B110c — missing / different collection (TMDB) ###
         "title_sync_default":              "nfo",     ### NEW v0.19.3 B60 — Repair All, unclear title: "nfo" keeps the NFO title, "skip" reports ###
-        "nfo_id_tags":                     "all",     ### NEW v0.20.0 RD12 — IDs written in the NFO: "all" (every tag style) / "kodi" (<uniqueid> only; existing ID tags still corrected) ###
+        "nfo_id_tags":                     "kodi",     ### NEW v0.20.0 RD12 — IDs written in the NFO: "all" (every tag style) / "kodi" (<uniqueid> only; existing ID tags still corrected) ###
         "id_format_invalid":               True,      ### NEW v0.19.3 I8 — IMDb tt + 7–9 digits, TMDb digits ###
         "year_premiered_differ":           True,      ### NEW v0.19.5 B126 ###
         "year_out_of_range":               True,      ### NEW v0.19.3 I8 — 1888 … next year + 1 ###
@@ -526,8 +531,8 @@ HEALTH_PRESET_DEFAULT = "tight"                 # a new user starts here (the us
 HEALTH_PRESET_BY_MODE = {'missing_folder': {'nfo': False, 'nfo_xml': True, 'xml': True}}
 HEALTH_PRESETS = {
     'easy': {
-        'xml_tags_old_readers': False, 'missing_logo_disc': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
-        'backdrop_too_small': False, 'collection_artwork': False, 'collection_mismatch': False,
+        'xml_tags_old_readers': False, 'no_actor_info': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'backdrop_too_small': False, 'collection_artwork': False, 'collection_set_nfo': False, 'collection_mismatch': False,
         'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True, 'corrupt_nfo': True,
         'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True, 'duplicate_movie': False,
         'duplicate_single_tag': False, 'empty_required_tag': False, 'fanart_proportion': False,
@@ -548,8 +553,8 @@ HEALTH_PRESETS = {
         'votes_conflict': False, 'votes_warning': False, 'year_out_of_range': True, 'year_premiered_differ': False,
     },
     'medium': {
-        'xml_tags_old_readers': True, 'missing_logo_disc': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
-        'backdrop_too_small': False, 'collection_artwork': False, 'collection_mismatch': False,
+        'xml_tags_old_readers': True, 'no_actor_info': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'backdrop_too_small': False, 'collection_artwork': False, 'collection_set_nfo': True, 'collection_mismatch': False,
         'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True, 'corrupt_nfo': True,
         'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True, 'duplicate_movie': True,
         'duplicate_single_tag': True, 'empty_required_tag': False, 'fanart_proportion': True,
@@ -572,8 +577,8 @@ HEALTH_PRESETS = {
         'votes_warning': True, 'year_out_of_range': True, 'year_premiered_differ': True,
     },
     'tight': {
-        'xml_tags_old_readers': True, 'missing_logo_disc': True, 'nfo_online_art_links': False, 'profile_names_unread': True,
-        'backdrop_min_avg_kb': 20, 'backdrop_min_count': 5, 'backdrop_too_small': True, 'collection_artwork': True,
+        'xml_tags_old_readers': True, 'no_actor_info': True, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'backdrop_min_avg_kb': 20, 'backdrop_min_count': 5, 'backdrop_too_small': True, 'collection_artwork': True, 'collection_set_nfo': True,
         'collection_mismatch': True, 'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True,
         'corrupt_nfo': True, 'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True,
         'duplicate_movie': True, 'duplicate_single_tag': True, 'empty_required_tag': True, 'fanart_proportion': True,

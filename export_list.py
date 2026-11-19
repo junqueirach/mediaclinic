@@ -19,7 +19,6 @@
 #   • CSV is written with a UTF-8 BOM so Excel detects accented characters.
 # =============================================================================
 
-import base64                                                    ### NEW v0.20.0 I38 ###
 import csv
 import html
 import io
@@ -126,6 +125,20 @@ def _tmdb_link(row):
     return f"https://www.themoviedb.org/movie/{v}" if v else ""
 
 
+def _extra_art_count(row):                                       ### v0.20.1 EA4 (checkup: it read a key no row has) ###
+    import extra_art as _ea
+    names = row.get("extra_art") or []
+    return str(_ea.summary(names, row.get("extra_art_alpha") or {})["count"]) if names else ""
+
+
+def _actors_text(row):                                           ### v0.20.1 AC1 — in the interface language ###
+    st = row.get("actors_state") or ""
+    c = row.get("actors_counts") or {}
+    if st == "local":
+        return _i18n.t("ac.cell.local", n=c.get("local", 0), t=c.get("total", 0))
+    return _i18n.t("ac.cell." + st) if st in ("links", "none") else ""
+
+
 # ── Field registry: (key, column header, getter(row) -> str) ─────────────────
 EXPORT_FIELDS = [
     ("movie_name",    "Movie Name",     lambda r: r.get("movie_name") or r.get("subfolder", "")),
@@ -143,6 +156,8 @@ EXPORT_FIELDS = [
     ("folder_img",    "Folder",         lambda r: _img_cell(r, "folder")),
     ("fanart",        "Fanart",         lambda r: _img_cell(r, "fanart")),
     ("backdrops",     "Backdrops",      lambda r: str(r.get("backdrop_count", 0))),
+    ("extra_art",     "Extra art",      lambda r: _extra_art_count(r)),                                   # v0.20.1 EA4
+    ("actors",        "Actors",         lambda r: _actors_text(r)),                                       # v0.20.1 AC1
     ("nfo",           "NFO",            lambda r: _file_status(r, "nfo")),
     ("nfo_errors",    "NFO Errors",     lambda r: _errors_text(r, "nfo")),
     ("xml",           "XML",            lambda r: _file_status(r, "xml")),
@@ -279,19 +294,20 @@ def _xl_text(v):                                                 # v0.20.0 AU8: 
     return v
 
 
-def export_rows(rows, field_keys, fmt, path, posters=False, progress=None, cancelled=None, when=None, app_version=""):
+def export_rows(rows, field_keys, fmt, path, posters=False, progress=None, cancelled=None, when=None, app_version="",
+                html_prefs=None):
     """
     Write *rows* (list of scan-result dicts) to *path* in format *fmt*.
     Returns the number of movies written.  Raises on I/O error or when
     fmt == 'xlsx' and openpyxl is unavailable.
-    v0.20.0 I38: fmt 'html' — one page (posters: small thumbnails embedded; progress / cancelled for a worker).
+    fmt 'html' (v0.20.0 I38; v0.20.1 TF7): the page of html_export with *html_prefs* (layout, theme, images …);
+    without them, *posters* chooses embedded posters or none. progress / cancelled for a worker.
     """
-    if fmt == "html":
-        page = html_page(rows, field_keys, posters=posters, progress=progress, cancelled=cancelled,
-                         when=when, app_version=app_version)
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(page)
-        return len(rows)
+    if fmt == "html":                                            ### MODIFIED v0.20.1 TF7 — the new page ###
+        import html_export as _hx
+        prefs = dict(html_prefs) if html_prefs is not None else {"images": "embed" if posters else "none"}
+        return _hx.write_export(rows, field_keys, path, prefs, progress=progress, cancelled=cancelled, when=when,
+                                app_version=app_version)
 
     keys = [k for k in field_keys if k in _FIELD_MAP] or ["movie_name"]
     headers, data = build_table(rows, keys)
@@ -349,12 +365,7 @@ def export_rows(rows, field_keys, fmt, path, posters=False, progress=None, cance
     raise ValueError(f"Unknown export format: {fmt}")
 
 
-# ── v0.20.0 I38: HTML page (tester TR3) — one self-contained file, optional poster thumbnails ──
-HTML_THUMB_WIDTH = 120                     # pixels stored (shown at 60 × 90: sharp on a 200 % screen)
-_NUM_KEYS = ("year", "rating", "votes", "backdrops")
-_LINK_KEYS = ("imdb_link", "tmdb_link")
-
-
+# ── v0.20.0 I38 / v0.20.1 TF7: the HTML page is html_export.py; posters need Pillow ──
 def pil_available():
     """True when Pillow can be imported (poster thumbnails need it)."""
     try:
@@ -362,117 +373,6 @@ def pil_available():
         return True
     except Exception:
         return False
-
-
-def poster_data_uri(path, width=HTML_THUMB_WIDTH):
-    """A small JPEG of the poster as a data: URI ("" when it cannot be read)."""
-    if not path or not os.path.isfile(path):
-        return ""
-    try:
-        from PIL import Image
-        with Image.open(path) as im:
-            im = im.convert("RGB")
-            im.thumbnail((width, width * 2))
-            buf = io.BytesIO()
-            im.save(buf, "JPEG", quality=80, optimize=True)
-        return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
-    except Exception:
-        return ""
-
-
-_HTML_CSS = """
-:root{--bg:#ffffff;--fg:#1b1d22;--dim:#5f6570;--line:#d9dce2;--head:#f1f3f6;--link:#1a5fb4;--ok:#2e7d32;--warn:#a15c00;--err:#c62828;--hover:#f6f8fb}
-@media (prefers-color-scheme:dark){:root{--bg:#16181d;--fg:#e6e8ec;--dim:#9aa1ad;--line:#2c3038;--head:#1f2229;--link:#8ab4f8;--ok:#81c784;--warn:#ffb74d;--err:#ef9a9a;--hover:#1c1f25}}
-*{box-sizing:border-box}
-body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-h1{font-size:20px;margin:0 0 4px}
-.meta{color:var(--dim);margin:0 0 12px}
-#q{width:100%;max-width:420px;padding:7px 10px;margin:0 0 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
-.wrap{overflow-x:auto}
-table{border-collapse:collapse;width:100%}
-th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-th{position:sticky;top:0;background:var(--head);cursor:pointer;white-space:nowrap;user-select:none}
-th[aria-sort=ascending]::after{content:" \\25B2";font-size:10px}
-th[aria-sort=descending]::after{content:" \\25BC";font-size:10px}
-th.nosort{cursor:default}
-tbody tr:hover{background:var(--hover)}
-td.num{text-align:right;font-variant-numeric:tabular-nums}
-td.poster{width:68px}
-td.poster img{width:60px;height:90px;object-fit:cover;border-radius:3px;display:block}
-a{color:var(--link)}
-.h-ok{color:var(--ok)} .h-warning{color:var(--warn)} .h-error{color:var(--err)}
-#none{display:none;color:var(--dim);padding:12px 0}
-"""
-
-_HTML_JS = """
-(function(){
-var t=document.getElementById('t'),b=t.tBodies[0],q=document.getElementById('q'),none=document.getElementById('none');
-var rows=Array.prototype.slice.call(b.rows);
-q.addEventListener('input',function(){var s=q.value.toLowerCase(),n=0;
-rows.forEach(function(r){var on=!s||r.textContent.toLowerCase().indexOf(s)>=0;r.style.display=on?'':'none';if(on)n++;});
-none.style.display=n?'none':'block';});
-Array.prototype.forEach.call(t.tHead.rows[0].cells,function(th,i){if(th.classList.contains('nosort'))return;
-th.addEventListener('click',function(){var asc=th.getAttribute('aria-sort')!=='ascending';
-Array.prototype.forEach.call(t.tHead.rows[0].cells,function(o){o.removeAttribute('aria-sort');});
-th.setAttribute('aria-sort',asc?'ascending':'descending');var num=th.dataset.num==='1';
-rows.sort(function(a,c){var x=a.cells[i].dataset.v!==undefined?a.cells[i].dataset.v:a.cells[i].textContent,
-y=c.cells[i].dataset.v!==undefined?c.cells[i].dataset.v:c.cells[i].textContent;
-if(num){x=parseFloat(x);y=parseFloat(y);x=isNaN(x)?-1e18:x;y=isNaN(y)?-1e18:y;return asc?x-y:y-x;}
-return asc?x.localeCompare(y):y.localeCompare(x);});
-rows.forEach(function(r){b.appendChild(r);});});});
-})();
-"""
-
-
-def _e(s):
-    return html.escape("" if s is None else str(s), quote=True)
-
-
-def html_page(rows, field_keys, posters=False, progress=None, cancelled=None, title=None, when=None, app_version=""):
-    """The whole HTML page as text (pure apart from reading the posters).  *progress(i)* after each movie;
-    *cancelled()* → True stops with RuntimeError (no file is written)."""
-    keys = [k for k in field_keys if k in _FIELD_MAP] or ["movie_name"]
-    headers, data = build_table(rows, keys)
-    lang = {"pt_BR": "pt-BR"}.get(_i18n.current(), _i18n.current())
-    title = title or _i18n.t("ex.html.title")
-    meta = _i18n.tn("ex.html.count", len(data), as_text=_i18n.num(len(data)))
-    if when:
-        meta += " · " + _i18n.t("ex.html.made", when=when, version=app_version)
-    out = ['<!DOCTYPE html>', f'<html lang="{_e(lang)}">', '<head>', '<meta charset="utf-8">',
-           '<meta name="viewport" content="width=device-width, initial-scale=1">',
-           f'<title>{_e(title)}</title>', '<style>' + _HTML_CSS + '</style>', '</head>', '<body>',
-           f'<h1>{_e(title)}</h1>', f'<p class="meta">{_e(meta)}</p>',
-           f'<input id="q" type="search" placeholder="{_e(_i18n.t("ex.html.filter"))}" aria-label="{_e(_i18n.t("ex.html.filter"))}">',
-           '<div class="wrap"><table id="t"><thead><tr>']
-    if posters:
-        out.append(f'<th class="nosort">{_e(_i18n.t("ex.html.poster"))}</th>')
-    for k, h in zip(keys, headers):
-        num_attr = ' data-num="1"' if k in _NUM_KEYS else ""
-        out.append(f'<th{num_attr}>{_e(h)}</th>')
-    out.append('</tr></thead><tbody>')
-    for i, (r, values) in enumerate(zip(rows, data)):
-        if cancelled and cancelled():
-            raise RuntimeError(_i18n.t("ex.html.cancelled"))
-        cells = []
-        if posters:
-            uri = poster_data_uri(r.get("poster_path")) if r.get("poster_exists") else ""
-            img = ('<img src="' + uri + '" alt="" loading="lazy">') if uri else ""
-            cells.append('<td class="poster">' + img + '</td>')
-        for k, v in zip(keys, values):
-            if k in _LINK_KEYS and v:
-                cells.append(f'<td><a href="{_e(v)}" target="_blank" rel="noopener">{_e(v)}</a></td>')
-            elif k in _NUM_KEYS:
-                cells.append(f'<td class="num" data-v="{_e(v)}">{_e(v)}</td>')
-            elif k == "health":
-                cells.append(f'<td class="h-{_e(r.get("health_status") or "")}">{_e(v)}</td>')
-            else:
-                cells.append(f'<td>{_e(v)}</td>')
-        out.append('<tr>' + ''.join(cells) + '</tr>')
-        if progress:
-            progress(i + 1)
-    out += ['</tbody></table></div>', f'<p id="none">{_e(_i18n.t("ex.html.none"))}</p>',
-            '<script>' + _HTML_JS + '</script>', '</body>', '</html>', '']
-    return "\n".join(out)
 
 
 def suggested_filename(fmt, folder_name=""):

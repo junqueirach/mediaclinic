@@ -371,7 +371,7 @@ def run_all():
                   "id_format_invalid", "year_out_of_range", "numeric_field_invalid",  # v0.19.3 I8
                   "duplicate_single_tag", "empty_required_tag", "unexpected_root",
                   "id_not_kodi", "xml_tags_old_readers",                              # v0.20.0 KR1.1 / KR1.4
-                  "missing_logo_disc", "nfo_online_art_links",                        # v0.20.0 RD8 / RD9
+                  "nfo_online_art_links", "no_actor_info",                            # v0.20.0 RD9; v0.20.1 AC2 (RD8 removed, EA6)
                   "profile_names_unread")                                             # v0.20.0 F3c
     try:
         dlg14 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
@@ -421,7 +421,7 @@ def run_all():
     try:
         dlg49 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
         hv49 = dlg49._hr_str_vars
-        present49 = "nfo_id_tags" in hv49 and hv49["nfo_id_tags"].get() == "all"
+        present49 = "nfo_id_tags" in hv49 and hv49["nfo_id_tags"].get() in ("all", "kodi")
         hv49["nfo_id_tags"].set("kodi")
         dlg49._save_close(); root.update()
         _check("T49 'ID tags written in the NFO' exists (default: every tag style) and saves '<uniqueid> only'",

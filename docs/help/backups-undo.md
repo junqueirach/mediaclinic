@@ -3,7 +3,9 @@
 # Backups & Undo
 
 ## Automatic backups
-Before the app changes a .nfo, .xml or image file, it copies the original to backup\backup_<Movie>_<date>_<time>\ in %APPDATA%\MediaMetadataClinic (with the settings, so an update keeps them). One run (a batch, or one action on one movie) is one backup folder with a manifest.json (where every file came from, which action made it). Every NFO / XML write is atomic: a failed write never leaves a half-written file, and the file's encoding, BOM and line endings are kept.
+Before the app changes a .nfo, .xml or image file, it copies the original to backup\backup_<Movie>_<date>_<time>\ in %APPDATA%\MediaMetadataClinic (with the settings, so an update keeps them).
+- One run (a batch, or one action on one movie) is one backup folder with a manifest.json (where every file came from, which action made it).
+- Every NFO / XML write is atomic: a failed write never leaves a half-written file, and the file's encoding, BOM and line endings are kept.
 > If a backup cannot be made, the change does not happen — the movie is reported as failed.
 
 ## Backup History / Undo

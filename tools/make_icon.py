@@ -158,7 +158,7 @@ def verify_ico(path, sizes, tile=True):
 def make_sheet(tile, small, out):
     """Comparison sheet: sizes on light / grey / dark, 4× zoom of the grid sizes,
     the small title-bar icon, and a taskbar row next to the sibling apps."""
-    phy = os.path.dirname(os.path.dirname(APP_DIR))          # …\Downloads\Phyton
+    phy = os.path.dirname(os.path.dirname(APP_DIR))          # the folder that holds the app folders
     siblings = [("MD Converter", os.path.join(phy, "MD Converter", "v.0.3.0", "assets", "icon-256.png")),
                 ("RadioSave", os.path.join(phy, "RadioSave", "v.0.4.0", "assets", "icon-256.png")),
                 ("TranscriptLab", os.path.join(phy, "TranscriptLab", "v.0.16.8", "assets", "app_icon_256.png"))]

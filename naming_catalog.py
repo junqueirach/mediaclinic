@@ -33,7 +33,7 @@ SOURCES = {
             "Naming and Organizing your Movie Media Files; Using NFO Metadata Files",
 }
 # ### MODIFIED v0.20.0 6h ### the movie names were checked on real Plex, Emby and Jellyfin servers and Infuse (2026-11-17;
-# MediaClinic\MEDIA_SERVERS_REFERENCE.md): Plex reads no NFO, Plex reads <video>-poster, Emby reads <video>-fanart.
+# MediaClinic\Workbench\MediaClinic - Media Servers Reference.md): Plex reads no NFO, Plex reads <video>-poster, Emby reads <video>-fanart.
 TO_VERIFY = ("Emby external subtitle names (no official article; treated like Jellyfin)",)
 
 # ── Image extensions ─────────────────────────────────────────────────────────
