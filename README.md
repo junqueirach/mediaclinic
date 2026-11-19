@@ -14,6 +14,55 @@
 >
 > **VirusTotal:** a tester found two engines flagging the earlier exe with generic names. The flagged part was the PyInstaller loader that every Python exe built that way starts with, not the app: its code was byte-identical to the loader published on PyPI, the archive held only Python's standard library, the app's own modules, Pillow and openpyxl, and VirusTotal's sandboxes saw no network traffic or dropped files. Since the third build of v0.19.5 the exe is compiled with Nuitka (the Python code becomes C), which has no such loader: that build scored 0 of 69 on VirusTotal, the v0.19.6 exe 0 of 71 and the v0.20.0 exe 0 of 70. The release notes carry the SHA-256 of the zip and of the exe.
 
+## Why MediaClinic exists
+
+MediaClinic is a **library management tool**: it scans your movie library, finds what is wrong, and repairs what it can. It works on the files in your movie folders (the `.nfo` and `movie.xml` metadata, the artwork and the video's own tags), so it does not matter whether Kodi, Plex, Emby, Jellyfin or Infuse plays them. It is not a scraper and it never opens a media server's database.
+
+**Why a library needs managing.** With a streaming service such as Netflix, the company looks after the catalogue: every title has its artwork, description, genres and ratings, and someone keeps them right. A library of your own has no one doing that. Its metadata comes from scrapers, from different programs over the years and from your own edits, and these are the problems that build up:
+
+- **Missing or wrong IDs.** An IMDb or TMDb ID that points to another film, an ID in the wrong tag (a TMDB number in an IMDb tag), an ID only one file has, or one a program cannot read (Kodi reads `<uniqueid>`; some old programs read only `movie.xml`). The server then matches the wrong film, or none.
+- **Inconsistent metadata.** Genres merged into one tag (`Family/Fantasy`) or non-standard, a rating with 0 votes, a missing year, a title that differs between the NFO and the XML, collections named in different ways, a bare `&` that breaks the file, web links left in the NFO by a scraper.
+- **Names and formats that not every program reads.** Kodi, Plex, Emby, Jellyfin and Infuse read different NFO and artwork names, and older Windows media centers read `movie.xml` instead of an NFO. A movie can look complete in one program and incomplete in another.
+- **Artwork that is missing, corrupt, too small or in the wrong proportions.** On a high-definition TV a low-resolution poster or fanart is scaled up and looks soft or pixelated, and a library full of them looks poor even when the metadata is perfect.
+- **Duplicates, and folders that are not movies.** The same film twice, or series, empty folders and loose files mixed into a movie library.
+- **Edits nobody remembers.** Scraper bugs and hand edits make it impossible to know which of your hundreds or thousands of movies are still consistent.
+
+The result is a library that can look fine on screen while the files underneath are not, and an experience that is less than ideal: wrong matches, missing or blurry artwork, odd genres and ratings, movies that appear differently in different programs. MediaClinic shows every such problem across the whole library at once, so you manage it as a whole instead of opening folders one by one. The scan only reads; nothing is written until you run a fix, every NFO/XML is backed up first, and every check is a rule you can switch off, so it does not object to a field you trimmed on purpose.
+
+### What it fixes, by problem
+
+- **Wrong or missing IDs**
+  - **Verify IMDb/TMDb IDs** against TMDb (title in any translation, year ±1) with a sortable report
+  - **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to the NFO (and `movie.xml` when it is used); a page address or an IMDb number without `tt` is cleaned
+  - **Auto Repair** writes the IDs, including the `<uniqueid>` tags Kodi reads and the `movie.xml` ID tags old programs read
+- **Inconsistent metadata**
+  - **Normalize Genres** and **Normalize Sources**: written to the NFO and, when it is used, the `movie.xml`; movies without genres can get them from TMDb or OMDb after a preview; **Check Genres Against TMDB** lists the movies whose genres differ from TMDB's and writes TMDB's only for the ones you tick
+  - **Sync Ratings** from TMDb and OMDb (you supply your own free API keys); a movie with only an IMDb ID is looked up on TMDb by that ID, and the end message names any movie that was skipped and why
+  - **Make titles the same** (NFO and XML) and rename an NFO to the name Kodi expects, with a preview for the whole library
+  - **Remove online artwork links** from the NFO: the web addresses scrapers leave in `<thumb>` tags are removed only for the artwork the folder has as a file, after a count; actor images and every other tag stay
+  - **Movie collections**: a *Group by collection* view with one row per collection, *Check Collections Online* (TMDB), Fix, Set, Rename, Join and Remove from Collection, *Collection Artwork* to choose the set's poster and fanart, and Kodi's movie set information folder; a renamed collection takes its folder and images along, and Undo puts everything back
+  - **Auto Repair** for one movie, a selection or the whole library, with a dry-run preview: IDs, ratings, genres, year, titles, collections and a bare `&` in the NFO; a movie's own artwork is never touched
+- **Names and formats that not every program reads**
+  - **Rename Files for My Programs**: gives the NFO, poster and fanart the names every ticked program reads (for example `movie.nfo` → `<video>.nfo` for Infuse), with a preview, a backup and Undo; the video is never renamed
+  - **Convert movie.xml → NFO**: for movies that have only a Media Center Master / MediaBrowser `movie.xml`, writes an NFO with title, year, rating, IDs, actors and genres; `movie.xml` stays, Undo removes the NFO
+  - **Copy poster.jpg → folder.jpg** where the two differ, for one movie, a selection or the whole library
+- **Artwork**
+  - **Fetch Poster, Fanart and Backdrops** from TMDB or fanart.tv with thumbnails, or pick **frames from the video** with FFmpeg; new files follow the folder's naming style (Kodi or Emby)
+  - **Fix image proportions / size**: for one movie or a batch, with a before/after preview and a backup first; an optional AI upscale is downloaded on request and checked by SHA-256
+- **Duplicates and folders that are not movies**
+  - A Duplicate Movies Report, **Not a duplicate** marks for movies wrongly flagged, and an "Ignored folders" window for what is not a movie
+- **Finding the problems in a large library**
+  - A health table with a **panel for the selected movie** (poster, its issues with Fix buttons, files and actions; Ctrl+B hides it), clickable Errors/Warnings counters, *Problems only*, a column chooser, Library Statistics, parallel scanning and a Quick Scan that re-reads only what changed
+  - **Sort builder** with up to three levels, presets, and the sort kept between sessions
+  - **Several libraries** in one table (*Libraries…* dialog and library filter); an offline drive keeps its cached rows; a library can be turned off without removing it (not scanned, hidden, kept); Kodi's collection folder is set in the same window
+  - **Export Movie List** to CSV, text, Excel or one self-contained HTML page (filter, sorting, optional poster thumbnails), with column presets (including *Identify*: IMDB and TMDB links plus outline) and the option to export only the filtered view
+- **Safe edits**
+  - **Backup History / Undo**: every backup records what it changed, and a whole run can be restored
+  - Every NFO/XML is backed up silently and written atomically, TMDb/OMDb calls are rate-limited and retried, API keys are kept out of the log, with automatic backup folder maintenance; rows refresh automatically after each change
+  - Keyboard shortcuts, jump-to-letter, sortable columns, remembered window sizes and positions, rotating logs
+
+See [What it checks](#what-it-checks) for every rule behind these findings.
+
 ## How it works
 
 <p align="center"><img src="docs/screenshots/how-it-works.png" alt="How it works" width="900"></p>
@@ -55,30 +104,6 @@ It is most useful on a large library built over years with different tools: it t
 | Video (FFprobe) | Resolution class, audio tracks and languages, embedded subtitles, hard-coded subtitles you mark by hand, required language. *Language OK* counts audio and subtitle tracks only: the metadata language tags of the NFO and XML do not count. One probe per video, cached |
 
 Every check is a **health rule** you can switch on or off, or tune, in *Settings → Health Rules*, in four parts: general rules, NFO rules, `movie.xml` rules and NFO-against-`movie.xml` comparisons. Parts your health mode does not use stay visible but grayed. Three presets set them all at once: **Easy** (only what Kodi needs to show and play the movie), **Medium** (plus a clean library: ratings, IDs, 720p) and **Tight** (everything the app checks, 1080p; a new user starts here). Changing a rule by hand shows *Custom*.
-
-## What it fixes
-
-- **Normalize Genres** and **Normalize Sources**: written to the NFO and, when it is used, the `movie.xml`; movies without genres can get them from TMDb or OMDb after a preview; **Check Genres Against TMDB** lists the movies whose genres differ from TMDB's and writes TMDB's only for the ones you tick
-- **Remove online artwork links** from the NFO: the web addresses scrapers leave in `<thumb>` tags are removed only for the artwork the folder has as a file, after a count; actor images and every other tag stay
-- **Sync Ratings** from TMDb and OMDb (you supply your own free API keys); a movie with only an IMDb ID is looked up on TMDb by that ID, and the end message names any movie that was skipped and why
-- **Verify IMDb/TMDb IDs** against TMDb (title in any translation, year ±1) with a sortable report
-- **Movie collections**: a *Group by collection* view with one row per collection, *Check Collections Online* (TMDB), Fix, Set, Rename, Join and Remove from Collection, *Collection Artwork* to choose the set's poster and fanart, and Kodi's movie set information folder; a renamed collection takes its folder and images along, and Undo puts everything back
-- **Panel for the selected movie**: poster, its issues with Fix buttons, files and actions (Ctrl+B hides it)
-- **Auto Repair** for one movie, a selection or the whole library, with a dry-run preview: IDs (including the `<uniqueid>` tags Kodi reads and the `movie.xml` ID tags old programs read), ratings, genres, year, titles, collections and a bare `&` in the NFO; a movie's own artwork is never touched
-- **Fetch Poster, Fanart and Backdrops** from TMDB or fanart.tv with thumbnails, or pick **frames from the video** with FFmpeg; new files follow the folder's naming style (Kodi or Emby)
-- **Enter ID…**: type an IMDb or TMDb ID by hand, check the film it points to, and write it to the NFO (and `movie.xml` when it is used); a page address or an IMDb number without `tt` is cleaned
-- **Backup History / Undo**: every backup records what it changed, and a whole run can be restored
-- **Fix image proportions / size**: for one movie or a batch, with a before/after preview and a backup first; an optional AI upscale is downloaded on request and checked by SHA-256
-- **Make titles the same** (NFO and XML) and rename an NFO to the name Kodi expects, with a preview for the whole library
-- **Rename Files for My Programs**: gives the NFO, poster and fanart the names every ticked program reads (for example `movie.nfo` → `<video>.nfo` for Infuse), with a preview, a backup and Undo; the video is never renamed
-- **Convert movie.xml → NFO**: for movies that have only a Media Center Master / MediaBrowser `movie.xml`, writes an NFO with title, year, rating, IDs, actors and genres; `movie.xml` stays, Undo removes the NFO
-- **Sort builder** with up to three levels, presets, and the sort kept between sessions; **Not a duplicate** marks for movies wrongly flagged as duplicates
-- **Copy poster.jpg → folder.jpg** where the two differ, for one movie, a selection or the whole library
-- **Export Movie List** to CSV, text, Excel or one self-contained HTML page (filter, sorting, optional poster thumbnails), with column presets (including *Identify*: IMDB and TMDB links plus outline) and the option to export only the filtered view
-- **Several libraries** in one table (*Libraries…* dialog and library filter); an offline drive keeps its cached rows; a library can be turned off without removing it (not scanned, hidden, kept); Kodi's collection folder is set in the same window
-- **Large libraries**: parallel scanning, clickable Errors/Warnings counters, *Problems only*, a column chooser, Library Statistics and a Duplicate Movies Report
-- **Safe edits**: every NFO/XML is backed up silently and written atomically, TMDb/OMDb calls are rate-limited and retried, API keys are kept out of the log, with automatic backup folder maintenance; rows refresh automatically after each change
-- Keyboard shortcuts, jump-to-letter, sortable columns, a Quick Scan that re-reads only what changed, remembered window sizes and positions, rotating logs
 
 ## Quick start
 
