@@ -743,7 +743,7 @@ The steps, in this order:
 | Images | **Inside the page** (one file, about 30 KB per poster), **In a folder next to the page** (posters and fanart; send both), **Online links from the NFOs** (the images load from the internet when the page opens) or **None**
 | Include | plot, director and cast, ratings, media flags
 ### Private columns
-- **Path, Folder Name and Library are private** (🔒): choosing HTML unticks them, because the page may be shared; tick them again only for yourself.
+- **Path, Folder Name and Library are private** (🔒): choosing HTML unticks them, because the page may be shared; tick them again only for yourself. The ticks are remembered separately for HTML and for the other formats.
 - Nothing else in the page asks the internet for anything, and no movie text can run as a script.
 """
 
@@ -805,7 +805,7 @@ Three rules in Settings → Health Rules, all warnings:
 ## set.nfo (Kodi's collection information)
 > New in v0.20.1. Checked only with a collection folder set and Kodi ticked.
 Each collection's folder should hold a set.nfo: title = the collection name in the NFOs, overview in the app's TMDB language.
-- A collection whose set.nfo is missing or has a mistake (no title / overview, a title other than the name in the NFOs, an overview in another language) shows "⚠ set.nfo" on its row (Group by collection) and in its panel. The movies' own health is unchanged; the Health report lists these collections.
+- A collection whose set.nfo is missing or has a mistake (no title, no overview although TMDB has one, a title other than the name in the NFOs, an overview in another language) shows "⚠ set.nfo" on its row (Group by collection) and in its panel. The movies' own health is unchanged; the Health report lists these collections.
 - Creating a collection folder writes its set.nfo at once.
 - **Tools → Collections → Check / Write set.nfo…** (one collection: the **Write set.nfo** button in its panel) writes the missing files and fills empty tags. Where a text differs it shows both, and you tick "Use TMDB's" per collection.
 - A backup comes first, and Backup History / Undo puts the old file back.

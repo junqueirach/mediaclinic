@@ -57,7 +57,7 @@ Three rules in Settings → Health Rules, all warnings:
 ## set.nfo (Kodi's collection information)
 > New in v0.20.1. Checked only with a collection folder set and Kodi ticked.
 Each collection's folder should hold a set.nfo: title = the collection name in the NFOs, overview in the app's TMDB language.
-- A collection whose set.nfo is missing or has a mistake (no title / overview, a title other than the name in the NFOs, an overview in another language) shows "⚠ set.nfo" on its row (Group by collection) and in its panel. The movies' own health is unchanged; the Health report lists these collections.
+- A collection whose set.nfo is missing or has a mistake (no title, no overview although TMDB has one, a title other than the name in the NFOs, an overview in another language) shows "⚠ set.nfo" on its row (Group by collection) and in its panel. The movies' own health is unchanged; the Health report lists these collections.
 - Creating a collection folder writes its set.nfo at once.
 - **Tools → Collections → Check / Write set.nfo…** (one collection: the **Write set.nfo** button in its panel) writes the missing files and fills empty tags. Where a text differs it shows both, and you tick "Use TMDB's" per collection.
 - A backup comes first, and Backup History / Undo puts the old file back.

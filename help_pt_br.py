@@ -641,7 +641,7 @@ As etapas, nesta ordem:
 | Imagens | **Dentro da página** (um só arquivo, cerca de 30 KB por pôster), **Numa pasta ao lado da página** (pôsteres e fanart; envie os dois), **Links online dos NFOs** (as imagens carregam da internet quando a página abre) ou **Nenhuma**
 | Incluir | sinopse, direção e elenco, notas, selos de mídia
 ### Colunas privadas
-- **Caminho, Nome da pasta e Biblioteca são privados** (🔒): escolher HTML os desmarca, porque a página pode ser compartilhada; marque-os de novo só para uso próprio.
+- **Caminho, Nome da pasta e Biblioteca são privados** (🔒): escolher HTML os desmarca, porque a página pode ser compartilhada; marque-os de novo só para uso próprio. As marcações são lembradas separadamente para HTML e para os outros formatos.
 - Nada mais na página pede algo à internet, e nenhum texto de filme pode rodar como script.
 """
 
@@ -703,7 +703,7 @@ Três regras em Configurações → Regras de saúde, todas avisos:
 ## set.nfo (as informações de coleção do Kodi)
 > Novo na v0.20.1. Só é verificado com uma pasta de coleções definida e o Kodi marcado.
 A pasta de cada coleção deve ter um set.nfo: título = o nome da coleção nos NFOs, sinopse no idioma do TMDB do app.
-- Uma coleção cujo set.nfo falta ou tem erro (sem título / sinopse, um título diferente do nome nos NFOs, uma sinopse em outro idioma) mostra "⚠ set.nfo" na sua linha (Agrupar por coleção) e no seu painel. A saúde dos filmes não muda; o Relatório de saúde lista essas coleções.
+- Uma coleção cujo set.nfo falta ou tem erro (sem título, sem sinopse embora o TMDB tenha uma, um título diferente do nome nos NFOs, uma sinopse em outro idioma) mostra "⚠ set.nfo" na sua linha (Agrupar por coleção) e no seu painel. A saúde dos filmes não muda; o Relatório de saúde lista essas coleções.
 - Criar uma pasta de coleção já grava o seu set.nfo.
 - **Ferramentas → Coleções → Verificar / gravar set.nfo…** (uma coleção: o botão **Gravar set.nfo** no painel dela) grava os arquivos que faltam e preenche tags vazias. Onde um texto difere, mostra os dois, e você marca "Usar o do TMDB" por coleção.
 - Um backup vem primeiro, e Histórico de backups / Desfazer devolve o arquivo antigo.

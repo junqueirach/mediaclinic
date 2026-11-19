@@ -63,7 +63,8 @@ def check(existing: Optional[dict], name: str, overviews: dict, lang: str) -> di
         mistakes.append("title_differs")
     ov = existing.get("overview") or ""
     if not ov:
-        mistakes.append("no_overview")
+        if want:                       # nothing to write yet (never checked online, or TMDB has no text): no warning
+            mistakes.append("no_overview")
     else:
         others = {k: v for k, v in (overviews or {}).items() if k != lg and v}
         if lg in (overviews or {}) and any(_norm(ov) == _norm(v) for v in others.values()):

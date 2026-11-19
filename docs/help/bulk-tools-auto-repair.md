@@ -102,5 +102,5 @@ The steps, in this order:
 | Images | **Inside the page** (one file, about 30 KB per poster), **In a folder next to the page** (posters and fanart; send both), **Online links from the NFOs** (the images load from the internet when the page opens) or **None**
 | Include | plot, director and cast, ratings, media flags
 ### Private columns
-- **Path, Folder Name and Library are private** (🔒): choosing HTML unticks them, because the page may be shared; tick them again only for yourself.
+- **Path, Folder Name and Library are private** (🔒): choosing HTML unticks them, because the page may be shared; tick them again only for yourself. The ticks are remembered separately for HTML and for the other formats.
 - Nothing else in the page asks the internet for anything, and no movie text can run as a script.

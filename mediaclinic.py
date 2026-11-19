@@ -6979,9 +6979,22 @@ def set_nfo_overview(cid, settings=None):                         ### NEW v0.20.
 def write_set_nfo(path, text):                                   ### NEW v0.20.1 CF2 ###
     """Write a set.nfo atomically (temp file + replace). A collection folder is outside the libraries, so the NFO
     writers' health-mode guard does not apply here."""
+    ### MODIFIED v0.20.1 B16 ### an existing file keeps its BOM and its line endings (a new one: LF, no BOM)
+    bom, nl = b"", "\n"
+    try:
+        with open(path, "rb") as f:
+            head = f.read(1 << 16)
+        bom = _UTF8_BOM if head.startswith(_UTF8_BOM) else b""
+        nl = "\r\n" if b"\r\n" in head else "\n"
+    except OSError:
+        pass
+    text = text.replace("\r\n", "\n").replace("\r", "\n").lstrip("\ufeff")
+    # the bytes are UTF-8: a prolog that names another encoding would make Kodi read "AmÃ©lie" (as AU2 for the NFO)
+    text = re.sub(r"""\A(<\?xml\b[^>]*?\bencoding=)(["'])(?!utf-?8\2)[^"']*\2""",
+                  lambda m: f"{m.group(1)}{m.group(2)}UTF-8{m.group(2)}", text, count=1, flags=re.I)
     tmp = path + ".mctmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        f.write(text)
+    with open(tmp, "wb") as f:
+        f.write(bom + text.replace("\n", nl).encode("utf-8"))
     _sc._replace_retry(tmp, path)
     _cache_forget(path)
 
@@ -15457,16 +15470,20 @@ class _BatchJob:                                                 ### NEW v0.19.3
 
     def cancel_note(self):                                      ### NEW v0.19.4 B83 ###
         """For the result message: "" or "Cancelled after k of n …"."""
+        ### MODIFIED v0.20.1 B20 ### also the lines of a service that stopped answering in this run (once, at the end)
+        svc = getattr(self, "service_notes", None) or []
+        tail = ("\n\n" + "\n".join(svc)) if svc else ""
         if not self.was_cancelled:
-            return ""
+            return tail
         n = len(self.items)
-        return (_i18n.t("uf.cancelled_after_of_left_cf3d", processed=self.processed, n=n, v=n - self.processed))
+        return (_i18n.t("uf.cancelled_after_of_left_cf3d", processed=self.processed, n=n, v=n - self.processed)) + tail
 
     def backup(self, name, *paths):
         return _batch_backup_ok(name, self.ref, *paths)
 
     def cancelled(self):
-        return bool(self.prog and self.prog.cancelled) or APP_CLOSING.is_set()   # v0.20.1 T9: closing stops a batch
+        # v0.20.1 T9: closing stops a batch; B20: so does Cancel in the "service is not answering" dialog (same thread)
+        return bool(self.prog and self.prog.cancelled) or APP_CLOSING.is_set() or _service_run_cancelled()
 
     def paused(self):                                           ### NEW v0.20.1 RV13 ###
         return bool(self.prog and getattr(self.prog, "paused", False))
@@ -15484,6 +15501,7 @@ class _BatchJob:                                                 ### NEW v0.19.3
         self.done, self.processed, self.was_cancelled = res.done, res.processed, res.cancelled
         self.errors.extend(res.errors)
         self.skipped, self.skipped_items = res.skipped, res.skipped_items
+        self.service_notes = _service_run_summary()               # v0.20.1 B20: read before the service run ends
         if getattr(self, "after_steps", None):                   ### NEW v0.19.4 fix 15 — same worker, same backup run ###
             try:
                 self.after_steps(self)
@@ -15641,6 +15659,14 @@ class BackupHistoryDialog(_DialogBase):                          ### NEW v0.19.1
         r = self.selected_run()
         if not r or r["legacy"] or r.get("removed") or getattr(self, "_restoring", False):   ### MODIFIED v0.19.4 B75 ###
             return                                              # v0.20.0 AU12: one restore at a time
+        _rv = getattr(self._app, "_review_win", None)            ### NEW v0.20.1 A29 — the review's own run is still open ###
+        try:
+            _rv_open = _rv is not None and bool(_rv.winfo_exists())
+        except tk.TclError:
+            _rv_open = False
+        if _rv_open:
+            messagebox.showinfo(_i18n.t("mc.restore_this_run_e863"), _i18n.t("bh.review_open"), parent=self)
+            return
         skip = set()
         if r["changed"]:
             skip = self.ask_skip_changed(r["changed"])
@@ -19014,6 +19040,10 @@ class ExportListDialog(_DialogBase):
         self.resizable(False, False)
 
         prefs   = SETTINGS.get("export_prefs") or {}
+        ### NEW v0.20.1 A28 ### the private columns the user ticked for HTML, and the ticks of the other formats
+        self._priv_html = set(prefs.get("private_html") or [])
+        self._priv_other = set(prefs["private_other"]) if isinstance(prefs.get("private_other"), list) else None
+        self._was_html = None
         preset  = prefs.get("preset", "Basic")
         if preset not in list(_export.PRESETS) + ["Custom"]:
             preset = "Basic"
@@ -19202,10 +19232,22 @@ class ExportListDialog(_DialogBase):
             for k in _hx.PRIVATE_FIELDS:
                 if k in self._field_cbs:
                     self._field_cbs[k].configure(text=labels[k] + (" 🔒" if is_html else ""))
-            if is_html and not getattr(self, "_was_html", False):
+            ### MODIFIED v0.20.1 A28 ### HTML has its own ticks for the private columns (none by default); leaving HTML
+            # puts back the ticks of the other formats
+            was = self._was_html
+            cur = {k for k in _hx.PRIVATE_FIELDS if k in self._field_vars and self._field_vars[k].get()}
+            want = None
+            if is_html and not was:
+                if was is not None:
+                    self._priv_other = cur
+                want = self._priv_html
+            elif was and not is_html:
+                self._priv_html = cur
+                want = self._priv_other
+            if want is not None and want != cur:
                 for k in _hx.PRIVATE_FIELDS:
                     if k in self._field_vars:
-                        self._field_vars[k].set(False)
+                        self._field_vars[k].set(k in want)
                 self._on_field_toggle()
         except tk.TclError:
             pass
@@ -19274,8 +19316,12 @@ class ExportListDialog(_DialogBase):
         if not path:
             return
         hp = self.html_prefs()                                   ### MODIFIED v0.20.1 TF7 — the page options replace "posters" ###
+        _priv_now = sorted(k for k in _hx.PRIVATE_FIELDS if k in fields)   # v0.20.1 A28
         SETTINGS["export_prefs"] = {"preset": self._preset_var.get(), "fields": fields,
-                                    "format": fmt, "scope": self._scope_var.get(), "html": hp}
+                                    "format": fmt, "scope": self._scope_var.get(), "html": hp,
+                                    "private_html": _priv_now if fmt == "html" else sorted(self._priv_html),
+                                    "private_other": (sorted(self._priv_other) if self._priv_other is not None else None)
+                                                     if fmt == "html" else None}
         _save_settings(SETTINGS)
         _when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         if fmt == "html":                                        # NFOs and images are read in a worker (a NAS can be slow)
@@ -26263,7 +26309,7 @@ class App(tk.Tk):
                 write_set_nfo(path, _sn.build(name, f["want_overview"]))
                 _sc.note_created(_BACKUP_ROOT, name, job.ref, path, None, logger=logger)
                 return True
-            old = _read_text(path) or ""
+            old = _read_for_edit(path)[0]                          # v0.20.1 B16: strict — not UTF-8 → listed, not written
             new = _sn.fill(old, name, f["want_overview"])
             if key in use_tmdb:
                 if "title_differs" in f["mistakes"]:
@@ -28241,7 +28287,15 @@ class App(tk.Tk):
             w = self.focus_get()
         except (KeyError, tk.TclError):
             return False
-        return bool(w) and w.winfo_class() in ("Entry", "TEntry", "Text", "Spinbox", "TSpinbox", "TCombobox")
+        if not w:
+            return False
+        cls = w.winfo_class()
+        if cls == "TCombobox":                                   # v0.20.1 B22: a read-only list takes no typing
+            try:
+                return str(w.cget("state")) != "readonly"
+            except tk.TclError:
+                return True
+        return cls in ("Entry", "TEntry", "Text", "Spinbox", "TSpinbox")
 
     def _kb_rows(self):                                            ### NEW v0.20.1 TF4 ###
         """The selected movies for a table shortcut, or None (typing in a text box, or nothing selected: a status line)."""

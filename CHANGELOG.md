@@ -54,6 +54,13 @@ menu, and warnings that say what to do.
 - The Health report's "Most common issues" list was English in Portuguese and Spanish.
 - An actor name that ends with a dot ("Robert Downey Jr.") gets the file name Kodi looks for.
 - A pre-release review: 40 smaller fixes (see `CHECKUP_v0.20.1` in the project notes).
+- **Cancel in the "service is not answering" window** now stops Fix one issue, Replace Low-Resolution Posters and
+  Download Actor Photos, and the end message says which service stopped answering.
+- **set.nfo:** a file with no overview is flagged only when the app has a text to write; a set.nfo of your own keeps
+  its line endings, and one that is not UTF-8 is left as it is.
+- **Shortcuts** (F3, Alt+P, Ctrl+C …) work right after you pick a library in the library filter.
+- **Export window:** the Path / Folder Name / Library ticks are remembered separately for HTML and for the other formats.
+- **Backup History** does not restore while a poster review is open.
 
 ### Build
 - Compiled with Nuitka. Self-test about 1,780 checks; 46 unit tests for the new modules; CI on Python 3.10 and 3.12.

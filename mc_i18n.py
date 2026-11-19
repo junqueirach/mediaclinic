@@ -7919,6 +7919,7 @@ EN.update({
     'ea.planning': 'Convert extrafanart: reading the folders of {n}…',
     'reason.no_actor_photos': 'The actors in the NFO have no photos (no links, no local photos)',
     'tf5.already_open': 'A poster review is already open. Finish or stop it first; then start the new one.',
+    'bh.review_open': 'A poster review is open. Finish or stop it first; its changes can be undone here afterwards.',
 })
 PT_BR.update({
     'bulk.pause': '⏸ Pausar',
@@ -8288,6 +8289,7 @@ PT_BR.update({
     'ea.planning': 'Converter extrafanart: lendo as pastas de {n}…',
     'reason.no_actor_photos': 'Os atores do NFO não têm fotos (sem links, sem fotos locais)',
     'tf5.already_open': 'Uma revisão de pôsteres já está aberta. Termine ou pare essa primeiro; depois comece a nova.',
+    'bh.review_open': 'Uma revisão de pôsteres está aberta. Termine ou pare essa primeiro; depois as mudanças dela podem ser desfeitas aqui.',
 })
 ES.update({
     'bulk.pause': '⏸ Pausar',
@@ -8657,4 +8659,5 @@ ES.update({
     'ea.planning': 'Convertir extrafanart: leyendo las carpetas de {n}…',
     'reason.no_actor_photos': 'Los actores del NFO no tienen fotos (sin enlaces, sin fotos locales)',
     'tf5.already_open': 'Ya hay una revisión de pósteres abierta. Termínela o deténgala primero; luego empiece la nueva.',
+    'bh.review_open': 'Hay una revisión de pósteres abierta. Termínela o deténgala primero; después sus cambios se pueden deshacer aquí.',
 })

@@ -37,6 +37,7 @@ def test_check():
     good = {"title": "C", "overview": OV["pt"]}
     assert sn.check(good, "C", OV, "pt-BR") == {"mistakes": [], "notes": [], "want_overview": OV["pt"]}
     assert sn.check({"title": "", "overview": ""}, "C", OV, "pt")["mistakes"] == ["no_title", "no_overview"]
+    assert sn.check({"title": "C", "overview": ""}, "C", {}, "pt")["mistakes"] == []      # nothing to write yet: no mistake
     assert sn.check({"title": "Other", "overview": OV["pt"]}, "C", OV, "pt")["mistakes"] == ["title_differs"]
     assert sn.check({"title": "C", "overview": OV["en"]}, "C", OV, "pt")["mistakes"] == ["other_language"]
     r = sn.check({"title": "C", "overview": "My own text."}, "C", OV, "pt")

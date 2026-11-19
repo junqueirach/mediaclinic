@@ -5795,6 +5795,24 @@ def ui_tests():
               (_st38, _st38b, _boxes, len(_ht38), _hp38))
         mc.SETTINGS["export_prefs"] = dict(mc.SETTINGS["export_prefs"], format="csv_semicolon")
 
+        # v0.20.1 A28: the private columns have their own ticks for HTML; the other formats get theirs back
+        dlg28 = on_ui(lambda: mc.ExportListDialog(app, app._results, [], "Filmes"))
+        def _a28():
+            _pv = lambda: (dlg28._field_vars["path"].get(), dlg28._field_vars["folder_name"].get())
+            dlg28._fmt_var.set("csv_comma"); dlg28._field_vars["path"].set(True); dlg28._field_vars["folder_name"].set(False)
+            dlg28._fmt_var.set("html"); a = _pv()
+            dlg28._field_vars["folder_name"].set(True)
+            dlg28._fmt_var.set("csv_comma"); b = _pv()
+            dlg28._fmt_var.set("html"); c = _pv()
+            return a, b, c
+        try:
+            _r28 = on_ui(_a28)
+        finally:
+            on_ui(lambda: dlg28.winfo_exists() and dlg28.destroy())
+        check("A28: Export window — HTML starts with the private columns unticked, a tick made there is kept for HTML, "
+              "and the other formats get their own ticks back",
+              _r28 == ((False, False), (True, False), (False, True)), _r28)
+
         # ── v0.20.0 I36: Check Genres Against TMDB — review (nothing ticked), only the ticked movie is written ──
         _d36 = []
         for _n36, _g36 in (("Genre One (2001)", ("Drama",)), ("Genre Two (2002)", ("Drama", "Comedy"))):
@@ -13206,6 +13224,59 @@ check("checkup: a wrong value with no valid ID of that kind keeps the level a mi
 check("checkup: no double ellipsis in a submenu label; Ctrl+Z / Ctrl+C also with Caps Lock",
       mc.short_label_text("Convert extrafanart → fanart1, 2… — All Movies…") == "Convert extrafanart → fanart1, 2…"
       and "<Control-Z>" in mc.ACTIONS["kb_undo_last"]["keys"] and "<Control-C>" in mc.ACTIONS["kb_copy_titles"]["keys"])
+
+# ### NEW v0.20.1 checkup 2 (B14, B16, B20, B22, A29) ### — no window
+check("B14: a set.nfo without overview is no mistake while there is no text to write (never checked online); "
+      "with a text it is",
+      mc._sn.check({"title": "C", "overview": ""}, "C", {}, "pt")["mistakes"] == []
+      and mc._sn.check({"title": "C", "overview": ""}, "C", {"pt": "Texto."}, "pt")["mistakes"] == ["no_overview"])
+_b16 = os.path.join(_TMP, "b16"); os.makedirs(_b16, exist_ok=True)
+_b16a = os.path.join(_b16, "set.nfo")
+io.open(_b16a, "wb").write(b"\xef\xbb\xbf<set>\r\n  <title>Am\xc3\xa9lie</title>\r\n  <overview></overview>\r\n</set>\r\n")
+mc.write_set_nfo(_b16a, mc._sn.fill(mc._read_for_edit(_b16a)[0], "Amélie", "Olá"))
+_b16raw = io.open(_b16a, "rb").read()
+_b16b = os.path.join(_b16, "latin.nfo"); io.open(_b16b, "wb").write("<set><title>Amélie</title></set>".encode("latin-1"))
+try:
+    mc._read_for_edit(_b16b); _b16err = False
+except mc.NotUtf8Error:
+    _b16err = True
+_b16c = os.path.join(_b16, "iso.nfo")
+io.open(_b16c, "wb").write(b'<?xml version="1.0" encoding="ISO-8859-1"?>\n<set><title>Alien</title><overview></overview></set>\n')
+mc.write_set_nfo(_b16c, mc._sn.fill(mc._read_for_edit(_b16c)[0], "Alien", "Ol\u00e1"))
+_b16craw = io.open(_b16c, "rb").read()
+check("B16: set.nfo keeps its BOM and CRLF line endings when a tag is filled; a file that is not UTF-8 is refused, not "
+      "converted; a prolog that names another encoding says UTF-8 after the write",
+      _b16raw.startswith(b"\xef\xbb\xbf<set>\r\n") and b"<overview>Ol\xc3\xa1</overview>\r\n" in _b16raw
+      and b"\r\r" not in _b16raw and _b16raw.count(b"\n") == _b16raw.count(b"\r\n") == 4 and _b16err
+      and _b16craw.startswith(b'<?xml version="1.0" encoding="UTF-8"?>\n') and b"Ol\xc3\xa1" in _b16craw
+      and b"\r" not in _b16craw, (_b16raw, _b16craw))
+_j20 = mc._BatchJob(None, [{"movie_name": "a"}], "B20")
+mc._service_run_begin()
+_c20a = _j20.cancelled(); mc._RUN.cancelled = True; _c20b = _j20.cancelled()
+mc._service_run_end()
+_j20.service_notes = ["TMDB unavailable"]
+check("B20: Cancel in the 'service is not answering' dialog stops a batch job; the service line reaches the end message",
+      not _c20a and _c20b and not _j20.cancelled() and _j20.cancel_note() == "\n\nTMDB unavailable", (_c20a, _c20b, _j20.cancel_note()))
+import types as _ty22
+_fw22 = lambda cls, state=None: _ty22.SimpleNamespace(focus_get=lambda: _ty22.SimpleNamespace(
+    winfo_class=lambda: cls, cget=lambda k: state))
+check("B22: a read-only list (library filter) is not 'typing' for the table shortcuts; a text box and an editable list are",
+      not mc.App._kb_typing(_fw22("TCombobox", "readonly")) and mc.App._kb_typing(_fw22("TCombobox", "normal"))
+      and mc.App._kb_typing(_fw22("TEntry")) and not mc.App._kb_typing(_fw22("Treeview")))
+_bx29 = []
+_o29 = (mc.messagebox.showinfo, mc.messagebox.askyesno)
+mc.messagebox.showinfo = lambda *a, **k: _bx29.append(a[1])
+mc.messagebox.askyesno = lambda *a, **k: (_bx29.append("ASK"), False)[1]
+try:
+    _run29 = {"legacy": False, "changed": [], "files": [], "action": "x", "created": "y", "folder": "z"}
+    for _open29 in (True, False):
+        mc.BackupHistoryDialog._restore(_ty22.SimpleNamespace(
+            selected_run=lambda: _run29, _restoring=False,
+            _app=_ty22.SimpleNamespace(_review_win=_ty22.SimpleNamespace(winfo_exists=lambda o=_open29: o))))
+finally:
+    mc.messagebox.showinfo, mc.messagebox.askyesno = _o29
+check("A29: Backup History does not restore while a poster review is open (a message); with the review closed it asks as before",
+      _bx29 == [mc._i18n.t("bh.review_open"), "ASK"], _bx29)
 
 # ### NEW v0.20.1 BF1 ### — the Health report's "Most common issues" list in the interface language
 _rows11 = [{"movie_name": f"M{i}", "subfolder": f"M{i}", "subfolder_path": os.path.join(_TMP, f"M{i}"),

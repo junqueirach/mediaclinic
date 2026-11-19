@@ -641,7 +641,7 @@ Los pasos, en este orden:
 | Imágenes | **Dentro de la página** (un solo archivo, unos 30 KB por póster), **En una carpeta junto a la página** (pósteres y fanart; envíe ambos), **Enlaces en línea de los NFO** (las imágenes se cargan de internet al abrir la página) o **Ninguna**
 | Incluir | sinopsis, dirección y reparto, notas, distintivos de medios
 ### Columnas privadas
-- **Ruta, Nombre de la carpeta y Biblioteca son privadas** (🔒): elegir HTML las desmarca, porque la página puede compartirse; márquelas de nuevo solo para uso propio.
+- **Ruta, Nombre de la carpeta y Biblioteca son privadas** (🔒): elegir HTML las desmarca, porque la página puede compartirse; márquelas de nuevo solo para uso propio. Las marcas se recuerdan por separado para HTML y para los otros formatos.
 - Nada más en la página pide algo a internet, y ningún texto de película puede ejecutarse como script.
 """
 
@@ -703,7 +703,7 @@ Tres reglas en Configuración → Reglas de estado, todas advertencias:
 ## set.nfo (la información de colección de Kodi)
 > Nuevo en la v0.20.1. Se revisa solo con una carpeta de colecciones definida y Kodi marcado.
 La carpeta de cada colección debe tener un set.nfo: título = el nombre de la colección en los NFO, sinopsis en el idioma de TMDB de la app.
-- Una colección cuyo set.nfo falta o tiene un error (sin título / sinopsis, un título distinto del nombre en los NFO, una sinopsis en otro idioma) muestra "⚠ set.nfo" en su fila (Agrupar por colección) y en su panel. El estado de las películas no cambia; el Informe de estado lista estas colecciones.
+- Una colección cuyo set.nfo falta o tiene un error (sin título, sin sinopsis aunque TMDB tenga una, un título distinto del nombre en los NFO, una sinopsis en otro idioma) muestra "⚠ set.nfo" en su fila (Agrupar por colección) y en su panel. El estado de las películas no cambia; el Informe de estado lista estas colecciones.
 - Crear una carpeta de colección escribe su set.nfo de inmediato.
 - **Herramientas → Colecciones → Revisar / escribir set.nfo…** (una colección: el botón **Escribir set.nfo** en su panel) escribe los archivos que faltan y llena las etiquetas vacías. Donde un texto difiere muestra ambos, y usted marca "Usar el de TMDB" por colección.
 - Primero se hace una copia de seguridad, y Copias de seguridad / Deshacer devuelve el archivo anterior.
