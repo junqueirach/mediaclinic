@@ -2,7 +2,7 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
-## v0.20.1 — (release date)
+## v0.20.1 — 2026-11-21
 
 Windows build and source. What the testers of v0.20.0 asked for: better tools for posters and IDs, a grouped Tools
 menu, and warnings that say what to do.
@@ -31,6 +31,10 @@ menu, and warnings that say what to do.
   light / dark, search, filters, a detail view, "What should we watch?", media flags, a phone layout and printing.
   Images inside the file, in a folder next to it, as online links, or none. Paths are private columns (off for HTML).
 - Bulk tools can be **paused** and resumed.
+- **Activity indicator:** while the app writes or reads files again, a ring turns on the poster of the movie or
+  collection it works on, a thin bar moves above the table and the status bar says what it does; then ✓ Done, or
+  ! Not done with the reason. The panel's buttons are grey meanwhile.
+- **Refresh Collection** in a collection's panel and right-click menu, and a **Fix** button beside the set.nfo warning.
 
 ### Changed
 - **Every warning leads to a fix that can solve it.** No Fix entry opens a report any more; existing tools are offered
@@ -43,6 +47,10 @@ menu, and warnings that say what to do.
 - TMDB posters are listed in the artwork language first (they were sorted by size only).
 - The clear logo / disc art rule of v0.20.0 is gone: extra artwork is information, never a warning.
 - The Help is restructured in all three languages (shorter paragraphs, tables, steps) and has "New in v0.20.1".
+- **The Auto Repair line says what it does:** "Fix all 3 at once" or "Fix 3 of 5 at once" with the fixes named; it
+  is not listed when it would only repeat the one fix shown (it said "Auto Repair can fix more" even then).
+- **Text breaks to the window's width** in every window, also when you make the window smaller; report and preview
+  windows wrap long lines.
 
 ### Fixed
 - **Check for Updates** opened from *Help → About* did not react to any button, also not Close.
@@ -63,9 +71,12 @@ menu, and warnings that say what to do.
 - **Backup History** does not restore while a poster review is open.
 - **Help:** the topics in the contents list start in one column ("Settings" and "About" sat further right).
 - The panel on the right says "No movie selected" from the start (it was empty until the first click).
+- **Fix Collection now writes the collection's set.nfo** (it wrote only the names, and a second Fix said "Nothing to
+  change" while set.nfo was missing); after a rename the collection folder is read again, so the panel shows the new
+  state; a set.nfo that is already there is filled, never overwritten.
 
 ### Build
-- Compiled with Nuitka. Self-test about 1,780 checks; 46 unit tests for the new modules; CI on Python 3.10 and 3.12.
+- Compiled with Nuitka. Self-test about 1,810 checks; 46 unit tests for the new modules; CI on Python 3.10 and 3.12.
 - The Actors and Extra art columns fill at the next **Full Scan**.
 
 ## v0.20.0 — 2026-11-17
