@@ -27,7 +27,8 @@ jobs:
       - name: Tests from source (virtual display)
         run: |
           python -m pytest tests -v
-          xvfb-run -a python -u tests/selftest_v0_20_0.py
+          # the newest tests/selftest_v*.py (as in ci.yml), so the file name need not change with every version
+          xvfb-run -a python -u "$(ls tests/selftest_v*.py | sort -V | tail -n 1)"
       - name: Version from the source
         id: v
         run: |

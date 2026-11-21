@@ -1,12 +1,12 @@
 # CLAUDE_RULES.md
 ## MediaClinic — Rules for AI-assisted editing
-### Version: 0.20.0 (rewritten 2026-11-04 from the code, updated 2026-11-07, 2026-11-13 and 2026-11-17; the v0.14.0 version covered only the settings subsystem)
+### Version: 0.20.1 (rewritten 2026-11-04 from the code, updated 2026-11-07, 2026-11-13, 2026-11-17 and 2026-11-21; the v0.14.0 version covered only the settings subsystem)
 
 This file is the guide for any Claude (or human) changing MediaClinic. Read it in full before any change. In the author's working
 folder it adds to the family rules (`CLAUDE.md`: real data, snapshots, editing, builds) and never weakens them; the work order there is
 the roadmap `IMPROVEMENTS_SHORT_TERM R1.md`. Those two files are not published.
 
-Names below were checked against the v0.19.5 source, the v0.19.6 block against the v0.19.6 source and the v0.20.0 notes against the v0.20.0 source. In the source the main file is `mediaclinic_v0_20_0.py`; on GitHub it is
+Names below were checked against the v0.19.5 source, the v0.19.6 block against the v0.19.6 source and the v0.20.0 notes against the v0.20.0 source (the v0.20.1 changes are listed in `CHANGELOG.md`). In the source the main file is `mediaclinic_v0_20_1.py`; on GitHub it is
 `mediaclinic.py`. When a rule and the code disagree, stop and report it. Do not silently follow either.
 
 ---
