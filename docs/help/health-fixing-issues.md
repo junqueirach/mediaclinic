@@ -48,7 +48,9 @@ With several movies selected, each line says how many movies have the problem, a
 | Required subtitle missing | find subtitles (OpenSubtitles)…
 | Subtitles burned into the picture | Hard-coded subtitles…
 | Required audio language missing | needs another copy of the video (no automatic fix)
-| Auto Repair can fix more | Auto Repair
+| Several of the fixes above, or one only Auto Repair does | Auto Repair
+
+The Auto Repair line says how much it does: "Fix all 3 at once" or "Fix 3 of 5 at once" (it never changes images), with the fixes in brackets and each step in its tooltip; with several movies "Auto Repair — 5 fixes on 3 movies". It is first in the list. When it would only do the one fix already listed, it is not shown.
 
 ## The right-click menu
 Right-click a row, or press `Shift+F10` or the Menu key at the selected row. An action that does not apply stays in its place, greyed, with the reason ("missing", "one movie only" …).

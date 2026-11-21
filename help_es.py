@@ -266,7 +266,9 @@ Con varias películas seleccionadas, cada línea dice cuántas películas tienen
 | Falta el subtítulo exigido | buscar subtítulos (OpenSubtitles)…
 | Subtítulos grabados en la imagen | Subtítulos incrustados en la imagen…
 | Falta el idioma de audio exigido | necesita otra copia del vídeo (sin corrección automática)
-| La Reparación automática puede corregir más | Reparación automática
+| Varias de las correcciones de arriba, o una que solo hace la Reparación automática | Reparación automática
+
+La línea de la Reparación automática dice cuánto hace: "Corregir los 3 a la vez" o "Corregir 3 de 5 a la vez" (nunca cambia imágenes), con las correcciones entre paréntesis y cada paso en su ayuda emergente; con varias películas, "Reparación automática — 5 correcciones en 3 películas". Va primera en la lista. Cuando solo haría la corrección que ya está en la lista, no aparece.
 
 ## El menú del clic derecho
 Haga clic derecho en una fila, o pulse [[Shift+F10]] o la tecla Menú en la fila seleccionada. Una acción que no aplica queda en su lugar, en gris, con el motivo ("falta", "solo una película" …).
@@ -672,7 +674,8 @@ Haga clic derecho en una fila de colección, o use **Todas las acciones ▾** en
 | Abrir la carpeta de la colección | abre la carpeta de la colección
 | Abrir la colección en TMDB | la página de la colección (**Buscar la colección en TMDB** cuando no se conoce el ID de TMDB de la colección)
 | Verificar colección en línea | pregunta a TMDB por las películas de esta colección
-El panel muestra la colección: su póster (de la carpeta de la colección), ID de TMDB, años, carpeta, imágenes, sinopsis, sus películas y las correcciones. Sus botones: **Imágenes…**, **Corregir colección…**, **Abrir póster**, **Abrir fanart**, **Abrir carpeta**, **TMDB** (la página de la colección con sus películas, o una búsqueda del nombre en TMDB), **Renombrar / unir…** y **Escribir set.nfo**.
+El panel muestra la colección: su póster (de la carpeta de la colección), ID de TMDB, años, carpeta, imágenes, sinopsis, sus películas y las correcciones. Sus botones: **Imágenes…**, **Corregir colección…**, **Abrir póster**, **Abrir fanart**, **Abrir carpeta**, **TMDB** (la página de la colección con sus películas, o una búsqueda del nombre en TMDB), **Renombrar / unir…**, **Escribir set.nfo** y **Actualizar colección** (lee de nuevo la carpeta de la colección y sus películas, como Actualizar en una película).
+Mientras la app escribe o vuelve a leer archivos, un círculo gira sobre el póster de la película o colección en la que trabaja, una barra fina se mueve encima de la tabla y la barra de estado dice lo que hace. Termina con **✓ Hecho** cuando el panel ya muestra el nuevo estado, o con **! No hecho** y el motivo. Mientras tanto, los botones del panel están en gris.
 
 ## Una colección, un nombre
 Kodi muestra un conjunto por nombre, así que una colección de TMDB recibe UN nombre para todas sus películas.
@@ -705,6 +708,7 @@ Tres reglas en Configuración → Reglas de estado, todas advertencias:
 La carpeta de cada colección debe tener un set.nfo: título = el nombre de la colección en los NFO, sinopsis en el idioma de TMDB de la app.
 - Una colección cuyo set.nfo falta o tiene un error (sin título, sin sinopsis aunque TMDB tenga una, un título distinto del nombre en los NFO, una sinopsis en otro idioma) muestra "⚠ set.nfo" en su fila (Agrupar por colección) y en su panel. El estado de las películas no cambia; el Informe de estado lista estas colecciones.
 - Crear una carpeta de colección escribe su set.nfo de inmediato.
+- **Corregir colección…** también se ocupa de set.nfo: después de escribir los nombres lee de nuevo la carpeta de la colección y escribe un set.nfo que falta / completa las etiquetas vacías. Solo dice "Nada que cambiar" cuando los nombres y set.nfo están bien. En el panel de la colección, el aviso de set.nfo tiene un botón **Corregir** justo al lado.
 - **Herramientas → Colecciones → Revisar / escribir set.nfo…** (una colección: el botón **Escribir set.nfo** en su panel) escribe los archivos que faltan y llena las etiquetas vacías. Donde un texto difiere muestra ambos, y usted marca "Usar el de TMDB" por colección.
 - Primero se hace una copia de seguridad, y Copias de seguridad / Deshacer devuelve el archivo anterior.
 

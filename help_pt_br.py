@@ -266,7 +266,9 @@ Com vários filmes selecionados, cada linha diz quantos filmes têm o problema, 
 | Legenda exigida faltando | procurar legendas (OpenSubtitles)…
 | Legendas gravadas na imagem | Legendas embutidas na imagem…
 | Idioma de áudio exigido faltando | precisa de outra cópia do vídeo (sem correção automática)
-| O Reparo automático pode corrigir mais | Reparo automático
+| Várias das correções acima, ou uma que só o Reparo automático faz | Reparo automático
+
+A linha do Reparo automático diz quanto ele faz: "Corrigir os 3 de uma vez" ou "Corrigir 3 de 5 de uma vez" (ele nunca muda imagens), com as correções entre parênteses e cada passo na dica; com vários filmes, "Reparo automático — 5 correções em 3 filmes". Ela fica no topo da lista. Quando ele faria só a correção que já está listada, a linha não aparece.
 
 ## O menu do botão direito
 Clique com o botão direito numa linha, ou aperte [[Shift+F10]] ou a tecla Menu na linha selecionada. Uma ação que não se aplica fica no seu lugar, acinzentada, com o motivo ("faltando", "só um filme" …).
@@ -672,7 +674,8 @@ Clique com o botão direito numa linha de coleção, ou use **Todas as ações �
 | Abrir a pasta da coleção | abre a pasta da coleção
 | Abrir a coleção no TMDB | a página da coleção (**Procurar a coleção no TMDB** quando o ID da coleção no TMDB não é conhecido)
 | Verificar coleção online | pergunta ao TMDB sobre os filmes desta coleção
-O painel mostra a coleção: seu pôster (da pasta da coleção), ID do TMDB, anos, pasta, imagens, sinopse, seus filmes e as correções. Os botões dele: **Imagens…**, **Corrigir coleção…**, **Abrir pôster**, **Abrir fanart**, **Abrir pasta**, **TMDB** (a página da coleção com seus filmes, ou uma busca no TMDB pelo nome), **Renomear / juntar…** e **Gravar set.nfo**.
+O painel mostra a coleção: seu pôster (da pasta da coleção), ID do TMDB, anos, pasta, imagens, sinopse, seus filmes e as correções. Os botões dele: **Imagens…**, **Corrigir coleção…**, **Abrir pôster**, **Abrir fanart**, **Abrir pasta**, **TMDB** (a página da coleção com seus filmes, ou uma busca no TMDB pelo nome), **Renomear / juntar…**, **Gravar set.nfo** e **Atualizar coleção** (lê de novo a pasta da coleção e os filmes dela, como Atualizar num filme).
+Enquanto o app grava ou lê arquivos de novo, um círculo gira sobre o pôster do filme ou da coleção em que ele trabalha, uma barra fina corre acima da tabela e a barra de status diz o que ele faz. No fim aparece **✓ Pronto** quando o painel já mostra o novo estado, ou **! Não feito** com o motivo. Enquanto isso, os botões do painel ficam cinza.
 
 ## Uma coleção, um nome
 O Kodi mostra um conjunto por nome, então uma coleção do TMDB recebe UM nome para todos os seus filmes.
@@ -705,6 +708,7 @@ Três regras em Configurações → Regras de saúde, todas avisos:
 A pasta de cada coleção deve ter um set.nfo: título = o nome da coleção nos NFOs, sinopse no idioma do TMDB do app.
 - Uma coleção cujo set.nfo falta ou tem erro (sem título, sem sinopse embora o TMDB tenha uma, um título diferente do nome nos NFOs, uma sinopse em outro idioma) mostra "⚠ set.nfo" na sua linha (Agrupar por coleção) e no seu painel. A saúde dos filmes não muda; o Relatório de saúde lista essas coleções.
 - Criar uma pasta de coleção já grava o seu set.nfo.
+- **Corrigir coleção…** também cuida do set.nfo: depois de gravar os nomes, lê de novo a pasta da coleção e grava um set.nfo que falta / preenche tags vazias. Só diz "Nada para mudar" quando os nomes e o set.nfo estão certos. No painel da coleção, o aviso do set.nfo tem um botão **Corrigir** logo ao lado.
 - **Ferramentas → Coleções → Verificar / gravar set.nfo…** (uma coleção: o botão **Gravar set.nfo** no painel dela) grava os arquivos que faltam e preenche tags vazias. Onde um texto difere, mostra os dois, e você marca "Usar o do TMDB" por coleção.
 - Um backup vem primeiro, e Histórico de backups / Desfazer devolve o arquivo antigo.
 

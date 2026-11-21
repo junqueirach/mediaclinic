@@ -1894,7 +1894,7 @@ class SettingsDialog(DialogBase):
                  justify="left").pack(anchor="w", padx=16, pady=(0, 8))
 
         fr = tk.Frame(f, bg="#1e1e2e"); fr.pack(fill="both", expand=True, padx=16, pady=(0, 4))
-        self._tags_text = tk.Text(fr, wrap="none", bg="#313244", fg="#cdd6f4",
+        self._tags_text = tk.Text(fr, wrap="word", bg="#313244", fg="#cdd6f4",   # v0.20.1 SN2: was "none"
                                   font=("Consolas", 9), relief="flat", padx=8, pady=6)
         sb_v = ttk.Scrollbar(fr, orient="vertical",   command=self._tags_text.yview)
         sb_h = ttk.Scrollbar(fr, orient="horizontal", command=self._tags_text.xview)

@@ -5118,7 +5118,6 @@ check("UI1a: ⚠ Fix issues finds the same fixes from the codes as from the Engl
       all(a == b for _n, a, b in _diffK), [d for d in _diffK if d[1] != d[2]])
 check("UI1a: the codes Fix issues reads are rule codes", set(mc._FIX_KEY_BY_CODE) <= {f.__name__[4:] for f in mc.HEALTH_RULES}, set(mc._FIX_KEY_BY_CODE) - {f.__name__[4:] for f in mc.HEALTH_RULES})
 # ── v0.20.0 RD1: a read-only file is not "held by another program" ──────────   ### NEW v0.20.0 RD1 ###
-# (Linux CI: the first three checks are Windows-only — on Linux the owner can replace a read-only file by rename)
 section("2zzj. read-only files (v0.20.0 RD1)")
 import stat as _st1
 _d1 = os.path.join(_TMP, "rd1"); os.makedirs(_d1, exist_ok=True)
@@ -9279,6 +9278,325 @@ def ui_tests():
             mc.COLL_CACHE.clear(); mc.COLL_CACHE.update(_occ_e)
             shutil.rmtree(_de, ignore_errors=True)
 
+        # ── v0.20.1 SN1: the user's steps (2026-11-20) on real temp files — a collection with no set.nfo; Fix Collection
+        # renames it, then the set.nfo must be ON DISK, the panel must say so, and a second Fix must not say "Nothing to
+        # change" while set.nfo is missing ──  ### NEW v0.20.1 SN1 ###
+        _sn_d = tempfile.mkdtemp(prefix="mc_sn1_ui_")
+        _sn_lib, _sn_root = os.path.join(_sn_d, "lib"), os.path.join(_sn_d, "Collection")
+        _sn_old, _sn_new = "Saga Dálmatas (Animação)", "Saga Dalmatians (Animated) Collection"
+        _sn_cdir = os.path.join(_sn_root, _sn_new); os.makedirs(_sn_cdir)
+        open(os.path.join(_sn_cdir, "poster.jpg"), "wb").write(b"jpg")      # the folder exists (an older version made it), no set.nfo
+        _sn_rows = []
+        for _nm_s in ("Saga One (1961)", "Saga Two (2003)"):
+            _p_s = os.path.join(_sn_lib, _nm_s); os.makedirs(_p_s)
+            open(os.path.join(_p_s, _nm_s + ".nfo"), "w", encoding="utf-8").write(
+                f'<movie>\n  <title>{_nm_s[:-7]}</title>\n  <set tmdbcolid="991">\n    <name>{_sn_old}</name>\n  </set>\n</movie>\n')
+            _sn_rows.append({"movie_name": _nm_s[:-7], "subfolder": _nm_s, "subfolder_path": _p_s, "library_root": _sn_lib,
+                             "nfo_exists": True, "nfo_path": os.path.join(_p_s, _nm_s + ".nfo"), "title_langs": ["en"],
+                             "coll_nfo": {"name": _sn_old, "tmdbcolid": "991"},
+                             "coll_tmdb": {"id": 991, "name": _sn_new, "when": time.time()}})
+        _sn_save = (dict(mc.COLL_CACHE), dict(mc.COLL_FOLDERS), mc.SETTINGS.get("collection_folder"), mc.media_programs,
+                    app._schedule_refresh, mc._SetNfoDialog, dict(mc.SETTINGS.get("health_rules") or {}))
+        mc.COLL_CACHE["991"] = {"names": {"en": _sn_new}, "overviews": {"en": "Puppies."}}
+        mc.SETTINGS["collection_folder"] = _sn_root
+        mc.SETTINGS.setdefault("health_rules", {})["collection_set_nfo"] = True
+        mc.media_programs = lambda *a, **k: ("kodi",)
+        app._schedule_refresh = lambda *a, **k: None
+        _sn_dlg = []
+
+        class _SnFakeDlg(tk.Toplevel):                                     # the set.nfo chooser, answered "Run"
+            def __init__(self, parent, groups):
+                super().__init__(parent); self.result = set(); _sn_dlg.append([g[1] for g in groups]); self.after(30, self.destroy)
+        mc._SetNfoDialog = _SnFakeDlg
+        _sn_file = os.path.join(_sn_cdir, "set.nfo")
+
+        def _sn_panel_texts(rows):
+            on_ui(lambda: (setattr(app._movie_panel, "_ph", None),
+                           app._movie_panel.show_collection(mc._cr.group_key(rows[0]), mc.collection_name(rows[0]), list(rows))))
+            out, st = [], [app._movie_panel._body]
+            while st:
+                w = st.pop()
+                st.extend(on_ui(lambda w=w: w.winfo_children()))
+                try:
+                    out.append(str(on_ui(lambda w=w: w.cget("text"))))
+                except Exception:
+                    pass
+            return out
+        try:
+            # step 1: Fix Collection (names wrong + no set.nfo) → names written, then set.nfo written
+            app._coll_write_done = None; app._last_set_nfo = None; _boxes.clear()
+            on_ui(lambda: app._fix_collections_for(list(_sn_rows), preview=False))
+            wait_for(lambda: app._coll_write_done is not None, 15)
+            wait_for(lambda: app._last_set_nfo is not None, 20)
+            _sn_txt = open(_sn_file, encoding="utf-8").read() if os.path.isfile(_sn_file) else ""
+            check("SN1: Fix Collection renames the collection AND writes its set.nfo on disk (title = the new name, TMDB overview)",
+                  app._coll_write_done == (2, []) and app._last_set_nfo == (1, [])
+                  and mc._sn.read(_sn_txt) == {"title": _sn_new, "originaltitle": "", "sorttitle": "", "overview": "Puppies."},
+                  (app._coll_write_done, app._last_set_nfo, _sn_txt, _boxes[-2:]))
+            # the background refresh would now read the NFOs: the rows carry the new name
+            for _r_s in _sn_rows:
+                _r_s["coll_nfo"] = {"name": _sn_new, "tmdbcolid": "991"}
+            _sn_k = mc._cr.group_key(_sn_rows[0])
+            wait_for(lambda: (mc.COLL_FOLDERS.get(_sn_k) or {}).get("set_nfo"), 10)   # the re-read after the write
+            _sn_f = mc.collection_set_nfo_findings(_sn_k, _sn_new, _sn_rows)
+            _sn_p = _sn_panel_texts(_sn_rows)
+            check("SN1: after the fix the app knows the set.nfo (no warning; the panel says fine, no set.nfo Fix entry)",
+                  _sn_f is not None and _sn_f["mistakes"] == [] and ("✓ " + mc._i18n.t("cf2.ok")) in _sn_p
+                  and app._movie_panel.setnfo_fix_button is None, (_sn_f, _sn_p))
+            # step 2: the user's second case — set.nfo missing, names already right → Fix writes set.nfo, never "Nothing to change"
+            os.remove(_sn_file)
+            on_ui(lambda: app._refresh_collection(list(_sn_rows)))
+            wait_for(lambda: getattr(app, "_coll_folders_read", False) and (mc.COLL_FOLDERS.get(_sn_k) or {}).get("set_nfo") is False, 10)
+            _sn_p2 = _sn_panel_texts(_sn_rows)
+            _sn_bt = app._movie_panel.setnfo_fix_button
+            _sn_sib = on_ui(lambda: [str(w.cget("text")) for w in _sn_bt.master.winfo_children()]) if _sn_bt else []
+            check("SN1: Refresh Collection re-reads the folder: a deleted set.nfo shows as missing, with a Fix button right beside the warning",
+                  getattr(app, "_coll_refreshed", 0) == 2 and any(t.startswith("⚠ ") and mc._i18n.t("cf2.m.missing") in t for t in _sn_p2)
+                  and _sn_bt is not None and any(t.startswith("⚠ ") for t in _sn_sib) and mc._i18n.t("panel.fix") in _sn_sib, (_sn_p2, _sn_sib))
+            app._last_set_nfo = None; _boxes.clear()
+            on_ui(lambda: app._fix_collections_for(list(_sn_rows), preview=False))
+            wait_for(lambda: app._last_set_nfo is not None, 20)
+            check("SN1: names already right but no set.nfo → Fix Collection writes it (no 'Nothing to change')",
+                  app._last_set_nfo == (1, []) and os.path.isfile(_sn_file)
+                  and not any("Nothing to change" in str(b) for b in _boxes), (app._last_set_nfo, _boxes[-2:]))
+            # step 3: everything right → "Nothing to change", with the count in words
+            wait_for(lambda: getattr(app, "_coll_folders_read", False) and (mc.COLL_FOLDERS.get(_sn_k) or {}).get("set_nfo"), 10)
+            app._last_set_nfo = None; _boxes.clear()
+            on_ui(lambda: app._fix_collections_for(list(_sn_rows), preview=False))
+            wait_for(lambda: any("Nothing to change" in str(b) for b in _boxes), 10)
+            check("SN1: names and set.nfo right → 'Nothing to change' (counted as movies), nothing written",
+                  app._last_set_nfo is None and any("2 movies" in str(b) for b in _boxes), _boxes[-2:])
+            # the panel's set.nfo Fix entry runs Write set.nfo for this collection
+            os.remove(_sn_file)
+            on_ui(lambda: app._refresh_collection(list(_sn_rows)))
+            wait_for(lambda: getattr(app, "_coll_folders_read", False) and (mc.COLL_FOLDERS.get(_sn_k) or {}).get("set_nfo") is False, 10)
+            _sn_panel_texts(_sn_rows)
+            _sn_bt2 = app._movie_panel.setnfo_fix_button
+            app._last_set_nfo = None
+            if _sn_bt2 is not None:
+                on_ui(lambda: _sn_bt2.invoke())
+            wait_for(lambda: app._last_set_nfo is not None, 20)
+            _sn_fn, _sn_why = on_ui(lambda: app._ctx_fix_action("collection_setnfo", list(_sn_rows)))
+            check("SN1: the Fix button beside the set.nfo warning writes the file (and the fix key works for menus)",
+                  _sn_bt2 is not None and app._last_set_nfo == (1, []) and os.path.isfile(_sn_file) and _sn_fn is not None,
+                  (_sn_why, app._last_set_nfo))
+            # an existing set.nfo the app's state calls "missing" (stale) is completed with a backup, never overwritten
+            open(_sn_file, "w", encoding="utf-8").write('<set>\n  <title>My words</title>\n  <overview>Mine.</overview>\n</set>\n')
+            _sn_g = [(_sn_k, _sn_new, _sn_rows, dict(mc._sn.check(None, _sn_new, {"en": "Puppies."}, "en"), path=_sn_file, existing=None))]
+            app._last_set_nfo = None
+            on_ui(lambda: app._set_nfo_run(_sn_g, set()))
+            wait_for(lambda: app._last_set_nfo is not None, 20)
+            check("SN1: a set.nfo made meanwhile is never overwritten (the user's text stays)",
+                  "My words" in open(_sn_file, encoding="utf-8").read() and "Mine." in open(_sn_file, encoding="utf-8").read(),
+                  open(_sn_file, encoding="utf-8").read())
+        finally:
+            mc.COLL_CACHE.clear(); mc.COLL_CACHE.update(_sn_save[0])
+            mc.SETTINGS["collection_folder"] = _sn_save[2]; mc.media_programs = _sn_save[3]
+            app._schedule_refresh = _sn_save[4]; mc._SetNfoDialog = _sn_save[5]; mc.SETTINGS["health_rules"] = _sn_save[6]
+            wait_for(lambda: getattr(app, "_coll_folders_read", True), 10)
+            mc.COLL_FOLDERS.clear(); mc.COLL_FOLDERS.update(_sn_save[1])
+            _boxes.clear()
+            shutil.rmtree(_sn_d, ignore_errors=True)
+
+        # ── v0.20.1 SN3: the activity indicator (the user, 2026-11-20: "it takes few seconds until the app refresh ... the
+        # user might think it did not solve the problem"; for ALL writes / refreshes) ──  ### NEW v0.20.1 SN3 ###
+        # pure: the state machine (no sleeps — the times are given)
+        def _av(seq, job=False):
+            st, out = {}, []
+            for t, b in seq:
+                out.append(mc.act_visual(b, t, st, job=job))
+            return out
+        _a1 = _av([(0, True), (0.1, True), (0.2, False), (0.3, False), (0.7, False), (1.0, False), (3.0, False)], job=True)
+        _a2 = _av([(0, True), (0.1, True), (0.2, False), (0.7, False), (1.0, False)])
+        _a3 = _av([(0, True), (0.35, True), (0.6, False), (0.8, True), (1.0, False), (1.3, False), (1.6, False), (4.0, False)])
+        _st4 = {}
+        mc.act_visual(True, 0, _st4); mc.act_visual(True, 0.5, _st4); _st4["err"] = "disk full"
+        _a4 = [mc.act_visual(False, t, _st4) for t in (0.6, 1.2, 2.0, 4.0)]
+        check("SN3: the indicator's timing — a quick action of the user still ends in ✓; a quick background re-read shows "
+              "nothing; a long one shows the ring after 0.3 s; a short gap between chained jobs does not end it; an error ends in !",
+              _a1[:2] == ["wait", "wait"] and "done" in _a1 and _a1[-1] == "idle"
+              and set(_a2) == {"wait", "idle"} and _a2[-1] == "idle"
+              and _a3[1] == "busy" and _a3[2] == "busy" and _a3[3] == "busy" and "done" in _a3 and _a3[-1] == "idle"
+              and "error" in _a4 and _a4[-1] == "idle", (_a1, _a2, _a3, _a4))
+        _tp, _tk = mc.act_targets([{"subfolder_path": "Z:/m/A (2001)", "coll_nfo": {"name": "Saga"}},
+                                   ("k", "Other Saga", [{"subfolder_path": "Z:/m/B (2002)"}], {}), "Third Saga"])
+        check("SN3: what a job touches — movie folders from rows, (row, …) tuples and (key, name, rows) groups; collections "
+              "from the rows and from collection names",
+              _tp == {"Z:/m/A (2001)", "Z:/m/B (2002)"} and mc._cr.norm_name("Saga") in _tk and mc._cr.norm_name("Third Saga") in _tk,
+              (_tp, _tk))
+        _e0 = mc._ACT.last_eseq()
+        _tok = mc._ACT.begin("Test job", ("Z:/x",), ())
+        _live = [e["text"] for e in mc._ACT.live()]
+        mc._ACT.end(_tok, "boom")
+        _end = mc._ACT.ended_after(_e0)
+        check("SN3: the registry — a job is live until it ends; its end (with the error) is seen once by the ticker",
+              "Test job" in _live and [e["text"] for e in _end] == ["Test job"] and _end[0]["error"] == "boom"
+              and mc._ACT.ended_after(_end[0]["eseq"]) == [], (_live, _end))
+        _k3 = ("working", "refreshing", "refresh_short", "reading_coll", "on_nas", "on_disk", "done", "failed", "st_done", "st_failed")
+        _miss3 = [(lg, k) for lg, cat in mc._i18n.CATALOGS.items() for k in _k3 if not cat.get("sn3." + k)]
+        check("SN3: the indicator's words are in EN / PT-BR / ES", not _miss3, _miss3)
+
+        # the user's steps on the real app: a collection without set.nfo, the panel's Fix (a slow drive: 1.2 s), the REAL
+        # background re-read — the ring shows while it works, ✓ Done only once the warning is gone, then all is put back
+        _s3d = tempfile.mkdtemp(prefix="mc_sn3_ui_")
+        _s3lib, _s3root, _s3c = os.path.join(_s3d, "lib"), os.path.join(_s3d, "Collection"), "Sky Saga Collection"
+        os.makedirs(os.path.join(_s3root, _s3c))
+        _s3rows = []
+        for _nm3 in ("Sky One (2004)", "Sky Two (2009)"):
+            _p3 = os.path.join(_s3lib, _nm3); os.makedirs(_p3)
+            open(os.path.join(_p3, _nm3 + ".nfo"), "w", encoding="utf-8").write(
+                f"<movie>\n  <title>{_nm3[:-7]}</title>\n  <set>\n    <name>{_s3c}</name>\n  </set>\n</movie>\n")
+            _r3 = mc.scan_one_subfolder(_p3, _nm3, use_ffprobe=False); _r3["library_root"] = _s3lib
+            _s3rows.append(_r3)
+        _s3save = (list(app._results), dict(mc.COLL_FOLDERS), mc.SETTINGS.get("collection_folder"), mc.media_programs,
+                   mc._SetNfoDialog, dict(mc.SETTINGS.get("health_rules") or {}), mc.SETTINGS.get("group_by_collection"),
+                   mc.write_set_nfo)
+        _s3file = os.path.join(_s3root, _s3c, "set.nfo")
+
+        def _s3texts():
+            out, st = [], [app._movie_panel._body]
+            while st:
+                w = st.pop(); st.extend(w.winfo_children())
+                try:
+                    out.append(str(w.cget("text")))
+                except Exception:
+                    pass
+            return out
+
+        def _s3sample():
+            p = app._movie_panel
+            return (getattr(p, "_act_vis", "idle"), any("no set.nfo" in x for x in _s3texts()), bool(app._act_bar.winfo_ismapped()),
+                    app._sb_activity.cget("text"), os.path.isfile(_s3file), p.act_item()[0] if p.act_item() else None,
+                    bool(getattr(p, "_act_btn_state", None)))
+
+        def _s3run(writer, limit=12.0):
+            """Press the panel's set.nfo Fix; sample every 50 ms until the indicator is idle again."""
+            mc.write_set_nfo = writer
+            on_ui(lambda: app._movie_panel.setnfo_fix_button.invoke())
+            log, t0 = [], time.time()
+            while time.time() - t0 < limit:
+                log.append(on_ui(_s3sample))
+                if len(log) > 10 and log[-1][0] == "idle" and not log[-1][3] and on_ui(lambda: app._act_after is None):
+                    break
+                time.sleep(0.05)
+            return log
+
+        try:
+            mc.SETTINGS["collection_folder"] = _s3root
+            mc.SETTINGS.setdefault("health_rules", {})["collection_set_nfo"] = True
+            mc.media_programs = lambda *a, **k: ("kodi",)
+
+            class _S3Run(tk.Toplevel):                                  # the set.nfo window answered "Run"
+                def __init__(self, parent, groups):
+                    super().__init__(parent); self.result = set(); self.after(30, self.destroy)
+            mc._SetNfoDialog = _S3Run
+            on_ui(lambda: (setattr(app, "_results", list(_s3rows)), mc.finalize_results(app._results),
+                           app._group_var.set(True), app._toggle_grouping()))
+            wait_for(lambda: not getattr(app, "_tbl_filling", False), 10)
+            app._coll_folders_read = False
+            on_ui(lambda: app._read_collection_folders())
+            wait_for(lambda: getattr(app, "_coll_folders_read", False), 15)
+            _settle()
+            on_ui(lambda: (app.tree.selection_set(app.tree.get_children()[0]), app.tree.focus(app.tree.get_children()[0])))
+            wait_for(lambda: on_ui(lambda: (app._movie_panel.act_item() or ("",))[0] == "coll"
+                                   and app._movie_panel.setnfo_fix_button is not None), 10)
+            wait_for(lambda: on_ui(lambda: app._act_after is None), 10)
+            _orig_w3 = _s3save[7]
+            _log3 = _s3run(lambda *a, **k: (time.sleep(1.2), _orig_w3(*a, **k))[1])
+            _busy3 = [r for r in _log3 if r[0] == "busy"]
+            _done3 = [r for r in _log3 if r[0] == "done"]
+            check("SN3: Fix set.nfo on a slow drive — the poster shows the ring while it works, with the bar and the status line; "
+                  "the panel's buttons are grey meanwhile",
+                  bool(_busy3) and any(r[2] for r in _busy3) and any(r[6] for r in _busy3)
+                  and any(mc.act_label(mc.SET_NFO_ACTION) in r[3] for r in _busy3), _log3[:12])
+            check("SN3: ✓ Done shows only after the warning is gone and set.nfo is on disk (never while '⚠ no set.nfo' shows)",
+                  bool(_done3) and all(not r[1] and r[4] for r in _done3) and any(r[3].startswith("✓") for r in _log3), _log3[-25:])
+            _after3 = on_ui(lambda: (app._act_after, app._movie_panel._act_on, dict(app._movie_panel._act_btn_state or {}),
+                                     app._act_bar.winfo_ismapped(), app._sb_activity.cget("text"),
+                                     [str(b.cget("state")) for b in app._movie_panel._body.winfo_children() if isinstance(b, tk.Button)]))
+            check("SN3: afterwards the ticker stops, the poster and the buttons are back, the bar and the line are gone",
+                  _after3[0] is None and not _after3[1] and not _after3[2] and not _after3[3] and _after3[4] == "", _after3)
+            # a write that fails: ! Not done (and nothing turning forever)
+            os.remove(_s3file)
+            on_ui(lambda: app._read_collection_folders())
+            wait_for(lambda: on_ui(lambda: app._movie_panel.setnfo_fix_button is not None), 15)
+            wait_for(lambda: on_ui(lambda: app._act_after is None), 10)
+            _boxes.clear()
+
+            def _fail3(*a, **k):
+                time.sleep(0.5)
+                raise OSError("the network drive did not answer")
+            _log3e = _s3run(_fail3)
+            check("SN3: a write that fails ends in '! Not done' with the reason (poster and status line), then stops",
+                  any(r[0] == "error" for r in _log3e) and any(r[3].startswith("!") and "did not answer" in r[3] for r in _log3e)
+                  and _log3e[-1][0] == "idle" and on_ui(lambda: app._act_after is None), _log3e[-20:])
+        finally:
+            def _back3():
+                mc.write_set_nfo = _s3save[7]
+                mc._SetNfoDialog = _s3save[4]; mc.media_programs = _s3save[3]
+                mc.SETTINGS["collection_folder"] = _s3save[2]; mc.SETTINGS["health_rules"] = _s3save[5]
+                mc.SETTINGS["group_by_collection"] = _s3save[6]; app._group_var.set(bool(_s3save[6]))
+                app._results = _s3save[0]
+                mc.COLL_FOLDERS.clear(); mc.COLL_FOLDERS.update(_s3save[1])
+                mc.finalize_results(app._results); app._refresh_table()
+            _settle()
+            on_ui(_back3)
+            _boxes.clear()
+            shutil.rmtree(_s3d, ignore_errors=True)
+
+        # ── v0.20.1 AR2: the Auto Repair line says what it does (the user, 2026-11-20: one problem (no uniqueid) showed
+        # its fix AND "Auto Repair can fix more" — both did the same single fix) ──  ### NEW v0.20.1 AR2 ###
+        _ar2_plan0 = mc._auto_repair_plan
+        _ar2_lang = mc._i18n.current()
+        try:
+            mc._i18n.set_language("en")
+            _plans = {}
+            mc._auto_repair_plan = lambda r, s=None, rules=None: [(c, mc._AR_LABELS.get(c, c)) for c in _plans.get(r["n"], [])]
+            _sum = lambda rows, keys: mc.auto_repair_summary(rows, lambda r: keys[r["n"]])
+            _plans.update({1: ["ids_kodi"], 2: ["ids_kodi", "ratings", "genres"], 3: ["xml_tags"], 4: ["ids_kodi", "xml_tags"],
+                           5: ["ids_resolve", "ids_partial"], 6: ["ids_kodi"]})
+            _r = {i: {"n": i} for i in range(1, 7)}
+            _k = {1: {"uniqueid", "auto", "poster"}, 2: {"uniqueid", "ratings", "genres", "poster", "fanart", "auto"},
+                  3: {"auto"}, 4: {"uniqueid", "auto"}, 5: {"ids_norm", "auto"}, 6: {"uniqueid", "auto"}}
+            _s1, _s2, _s3, _s4 = _sum([_r[1]], _k), _sum([_r[2]], _k), _sum([_r[3]], _k), _sum([_r[4]], _k)
+            _s5, _s16, _s12 = _sum([_r[5]], _k), _sum([_r[1], _r[6]], _k), _sum([_r[1], _r[2]], _k)
+            check("AR2: Auto Repair is not listed when it would only do the one fix already listed (no uniqueid → one line); "
+                  "two steps of one line (Normalize Sources) count once; several movies with only that fix: not listed either",
+                  not _s1["show"] and not _s5["show"] and not _s16["show"], (_s1, _s5, _s16))
+            check("AR2: several fixes → 'Fix 3 of 5 at once → Auto Repair (uniqueid, ratings, genres)', first in the list, each step "
+                  "in its tooltip; when it does every fix → 'Fix all 2 at once'",
+                  _s2["show"] and _s2["first"] and _s2["label"] == "Fix 3 of 5 at once → Auto Repair (uniqueid, ratings, genres)"
+                  and _s2["tip"].count("• ") == 3
+                  and _s4["show"] and _s4["label"].startswith("Fix all 2 at once → Auto Repair (uniqueid, movie.xml tags"), (_s2, _s4))
+            check("AR2: a fix only Auto Repair does is named ('movie.xml tags for old programs → Auto Repair'), never 'more'; "
+                  "several movies → 'Auto Repair — 4 fixes on 2 movies'",
+                  _s3["show"] and _s3["label"] == "movie.xml tags for old programs → Auto Repair" and not _s3["first"]
+                  and _s12["show"] and _s12["label"] == "Auto Repair — 4 fixes on 2 movies"
+                  and "more" not in (_s2["label"] + _s3["label"] + _s4["label"] + _s12["label"]), (_s3, _s12))
+            _miss2 = [(lg, k) for lg, cat in mc._i18n.CATALOGS.items()
+                      for k in ["fix.auto_one", "fix.auto_all", "fix.auto_some", "fix.auto_multi", "n.fix"]
+                      + ["ar.short." + c for c in mc.AR_STEP_ORDER] if not cat.get(k)]
+            check("AR2: the new words are in EN / PT-BR / ES (every Auto Repair step has a short name)", not _miss2, _miss2)
+        finally:
+            mc._auto_repair_plan = _ar2_plan0
+            mc._i18n.set_language(_ar2_lang)
+        # the user's case on a real scanned movie: IDs only in <imdbid> / <tmdbid>, nothing else Auto Repair does
+        _a2d = tempfile.mkdtemp(prefix="mc_ar2_")
+        try:
+            _p2 = os.path.join(_a2d, "Only Uniqueid (1999)"); os.makedirs(_p2)
+            open(os.path.join(_p2, "Only Uniqueid (1999).mkv"), "wb").write(b"\0" * 100)
+            open(os.path.join(_p2, "movie.nfo"), "w", encoding="utf-8").write(
+                "<movie><title>Only Uniqueid</title><year>1999</year><imdbid>tt0133093</imdbid><tmdbid>603</tmdbid>"
+                "<genre>Action</genre><rating>8.7</rating><votes>2000000</votes><plot>x</plot></movie>")
+            _rr2 = mc.scan_one_subfolder(_p2, "Only Uniqueid (1999)", use_ffprobe=False); _rr2["library_root"] = _a2d
+            mc.finalize_results([_rr2])
+            _pl2 = [c for c, _l in mc._auto_repair_plan(_rr2, mc.SETTINGS)]
+            _ln2 = [k for k, _l, _rs in mc.ctx_fix_issues([_rr2], mc.SETTINGS)]
+            check("AR2: the user's movie (only the uniqueid problem) shows 'Add <uniqueid> for Kodi' and no Auto Repair line",
+                  _pl2 == ["ids_kodi"] and "uniqueid" in _ln2 and "auto" not in _ln2, (_pl2, _ln2))
+        finally:
+            shutil.rmtree(_a2d, ignore_errors=True)
+
         # ── v0.19.4 B110f + L4 follow-up: the preview's Run button sits in the button row ──  ### NEW v0.19.4 B110f ###
         _pv_f = on_ui(lambda: mc._PreviewRunDialog(app, "Preview test", "line", run_label="  ▶ Run it  "))
         try:
@@ -9286,6 +9604,79 @@ def ui_tests():
         finally:
             on_ui(lambda: _pv_f.winfo_exists() and _pv_f.destroy())
         check("L4: the preview's Run button is in the bottom button row (right of Close)", _row_f[-2:] == ["Close", "▶ Run it"], _row_f)
+        # ── v0.20.1 SN2: long lines wrap (the user's Fix Collection preview, 2026-11-20) ──  ### NEW v0.20.1 SN2 ###
+        _long_w = "Each NFO and movie.xml is backed up first (Backup History / Undo); movie.xml gets the same collection " * 3
+        _pv_w = on_ui(lambda: mc._PreviewRunDialog(app, "Wrap test", "  101 Dálmatas:  " + _long_w + "\nshort", run_label="Run"))
+        try:
+            on_ui(lambda: (_pv_w.geometry("600x400"), _pv_w.update_idletasks()))
+            _wr_w = on_ui(lambda: (str(_pv_w._txt.cget("wrap")), _pv_w._txt.count("1.0", "2.0", "displaylines"),
+                                   _pv_w._txt.tag_cget("ind2", "lmargin2")))
+        finally:
+            on_ui(lambda: _pv_w.winfo_exists() and _pv_w.destroy())
+        _dl_w = _wr_w[1][0] if isinstance(_wr_w[1], tuple) else _wr_w[1]
+        check("SN2: report / preview windows wrap a long line (no side scrolling); the wrapped part is indented under its line",
+              _wr_w[0] == "word" and (_dl_w or 0) >= 3 and str(_wr_w[2]) not in ("", "0"), _wr_w)
+        _tl_w = on_ui(lambda: tk.Toplevel(app))
+        try:
+            _lb_w = on_ui(lambda: tk.Label(_tl_w, text=_long_w[:105], font=("Helvetica", 9)))   # ~600 px
+            on_ui(lambda: (_lb_w.pack(anchor="w", padx=16), _tl_w.geometry("500x200"), _tl_w.update()))
+            on_ui(lambda: mc.auto_wrap_window(_tl_w))
+            _wl1 = on_ui(lambda: int(_lb_w.winfo_fpixels(_lb_w.cget("wraplength"))))
+            on_ui(lambda: (_tl_w.geometry("1500x200"), _tl_w.update()))
+            on_ui(lambda: mc.auto_wrap_window(_tl_w))
+            _wl2 = on_ui(lambda: int(_lb_w.winfo_fpixels(_lb_w.cget("wraplength"))))
+            # a label with a fixed wraplength in the code follows the window too (the user, 2026-11-20: "The line MUST
+            # BREAK RESPECTING THE SIZE OF THE WINDOW")
+            _own_w = on_ui(lambda: tk.Label(_tl_w, text=_long_w[:105], font=("Helvetica", 9), wraplength=300))
+            on_ui(lambda: (_lb_w.pack_forget(), _own_w.pack(anchor="w"), _tl_w.geometry("400x200"), _tl_w.update(),
+                           mc.auto_wrap_window(_tl_w)))
+            _wl3 = on_ui(lambda: int(_own_w.winfo_fpixels(_own_w.cget("wraplength"))))
+            on_ui(lambda: (_tl_w.geometry("1500x200"), _tl_w.update(), mc.auto_wrap_window(_tl_w)))
+            _wl4 = on_ui(lambda: int(_own_w.winfo_fpixels(_own_w.cget("wraplength"))))
+            # a widget to the right (a Fix button) is left free
+            on_ui(lambda: _own_w.pack_forget())
+            _fr_w = on_ui(lambda: tk.Frame(_tl_w))
+            _bt_w = on_ui(lambda: tk.Button(_fr_w, text="Fix this one"))
+            _lr_w = on_ui(lambda: tk.Label(_fr_w, text=_long_w[:105], font=("Helvetica", 9)))
+            on_ui(lambda: (_fr_w.pack(fill="x"), _bt_w.pack(side="right"), _lr_w.pack(side="left"),
+                           _tl_w.geometry("600x200"), _tl_w.update(), mc.auto_wrap_window(_tl_w)))
+            _wl5 = on_ui(lambda: (int(_lr_w.winfo_fpixels(_lr_w.cget("wraplength"))), _bt_w.winfo_reqwidth()))
+        finally:
+            on_ui(lambda: _tl_w.destroy())
+        # a window nobody resized (it sizes itself to its text) keeps the code's wraplength: no shrink loop
+        _tn_w = on_ui(lambda: tk.Toplevel(app))
+        try:
+            _ln_w = on_ui(lambda: tk.Label(_tn_w, text=_long_w, wraplength=300))
+            on_ui(lambda: (_ln_w.pack(), _tn_w.update(), mc.auto_wrap_window(_tn_w), _tn_w.update(), mc.auto_wrap_window(_tn_w)))
+            _wl6 = on_ui(lambda: int(_ln_w.winfo_fpixels(_ln_w.cget("wraplength"))))
+        finally:
+            on_ui(lambda: _tn_w.destroy())
+        check("SN2: a dialog label wraps at the window's width and follows it when resized (also one with a fixed "
+              "wraplength in the code); a button on its right is left free; an unresized window keeps its own wrap",
+              0 < _wl1 <= 500 - 16 and _wl2 == 0 and 120 <= _wl3 <= 400 - 16 and _wl4 == 0
+              and 120 <= _wl5[0] <= 600 - 16 - _wl5[1] and _wl6 == 300
+              and mc._aw_wanted(100, 400) == 0 and mc._aw_wanted(900, 400) == 400 and mc._aw_wanted(900, 400, 24) == 376,
+              (_wl1, _wl2, _wl3, _wl4, _wl5, _wl6))
+        # the user's window (Check / Write set.nfo, 2026-11-20 screenshot): its intro and its lines follow the width
+        _sd_g = [("k1", "101 Dálmatas (Live-Action)", [], {"mistakes": ["missing"], "notes": [], "existing": None,
+                                                           "want_overview": ""})]
+        _sd_w = on_ui(lambda: mc._SetNfoDialog(app, _sd_g))
+
+        def _sd_all(w):
+            out = [w]
+            for c in w.winfo_children():
+                out += _sd_all(c)
+            return out
+        try:
+            _sd_lbls = lambda: [w for w in _sd_all(_sd_w) if w.winfo_class() == "Label" and len(str(w.cget("text"))) > 80]
+            on_ui(lambda: (_sd_w.geometry("480x420"), _sd_w.update(), mc.auto_wrap_window(_sd_w)))
+            _sd1 = on_ui(lambda: [int(w.winfo_fpixels(w.cget("wraplength"))) for w in _sd_lbls()])
+            on_ui(lambda: (_sd_w.geometry("1800x420"), _sd_w.update(), mc.auto_wrap_window(_sd_w)))
+            _sd2 = on_ui(lambda: [int(w.winfo_fpixels(w.cget("wraplength"))) for w in _sd_lbls()])
+        finally:
+            on_ui(lambda: _sd_w.winfo_exists() and _sd_w.destroy())
+        check("SN2: Check / Write set.nfo: the intro breaks inside a narrow window and is one line in a wide one",
+              bool(_sd1) and all(120 <= v <= 480 - 16 for v in _sd1) and all(v == 0 or v > 1000 for v in _sd2), (_sd1, _sd2))
         # ── v0.19.4 B110g: Create Collection Folders (fake TMDB, fake image writer, temp folders) ──  ### NEW v0.19.4 B110g ###
         _dgu = tempfile.mkdtemp(prefix="mc_b110g_ui_")
         os.makedirs(os.path.join(_dgu, "Kept Saga")); open(os.path.join(_dgu, "Kept Saga", "poster.jpg"), "wb").write(b"old")
@@ -10981,7 +11372,7 @@ def ui_tests():
         _txt49 = on_ui(lambda: _hd49._about_text.get("1.0", "end"))
         check("B49: About shows the version, the four links' texts and not the old address",
               f"Version {mc.APP_VERSION}" in _txt49 and all(x in _txt49 for x in ("www.mediaclinic.dev", "github.com/junqueirach/mediaclinic", "r/MediaClinic", "info@mediaclinic.dev"))
-              and "junqueira.ch@gmail.com" not in _txt49, _txt49[:400])
+              and not re.search(r"[\w.+-]+@gmail\.com", _txt49), _txt49[:400])   # v0.20.1: no personal address literal in the code
         _rows49 = [l for l in _txt49.splitlines() if l.strip().split("\t")[0] in ("Created by", "Website", "GitHub", "Reddit", "Contact")]
         check("B49: every identity row has exactly one tab character (aligned values)", len(_rows49) == 5 and all(l.count("\t") == 1 for l in _rows49), _rows49)
         # ── TR7 (2026-11-07): a Nuitka build defines __compiled__ instead of sys.frozen; both count as the Windows exe ──
@@ -11013,7 +11404,7 @@ def ui_tests():
               on_ui(app.clipboard_get) == mc.version_line() and "running from source" in mc.version_line() and " · Python " in mc.version_line()
               and " · Tk " in mc.version_line() and on_ui(lambda: _hd49._about_update_btn.cget("text")).strip() == "⬆ Check for updates")
         check("B49: the old address is nowhere in the program, README or Help",
-              not any("junqueira.ch@gmail.com" in open(os.path.join(os.path.dirname(mc.__file__), f), encoding="utf-8").read()
+              not any(re.search(r"[\w.+-]+@gmail\.com", open(os.path.join(os.path.dirname(mc.__file__), f), encoding="utf-8").read())
                       for f in (os.path.basename(mc.__file__), "README.md", "help_text.py")))
         on_ui(_hd49._close)
 
@@ -13116,6 +13507,12 @@ check("CF2: the rule is on in Medium and Tight, off in Easy; the tool sits in Co
 _cf_w = os.path.join(_TMP, "cf2", "w.nfo"); mc.write_set_nfo(_cf_w, mc._sn.build("T", "O"))
 check("CF2: write_set_nfo writes a <set> document Kodi reads", mc._sn.read(open(_cf_w, encoding="utf-8").read()) ==
       {"title": "T", "originaltitle": "", "sorttitle": "", "overview": "O"})
+# ### NEW v0.20.1 SN1 ### — the collections a Fix Collection touches, under their name AFTER the fix (pure)
+_sn_a = {"coll_nfo": {"name": "Old Name"}}; _sn_b = {"coll_nfo": {"name": "Old Name"}}; _sn_c = {"coll_nfo": {"name": "Other Set"}}
+_sn_t = mc.collection_fix_targets([_sn_a, _sn_b, _sn_c, {"coll_nfo": None}], [(_sn_a, ("New Name", 5, None))])
+check("SN1: collection_fix_targets groups the rows by the name they get (a renamed row joins its new collection; no-collection rows left out)",
+      [(k, n, len(rs)) for k, n, rs in _sn_t] == [("new name", "New Name", 1), ("old name", "Old Name", 1), ("other set", "Other Set", 1)],
+      _sn_t)
 
 # ### NEW v0.20.1 phase 10b ### — a tester (55 Days at Peking) + the warning → fix audit (no window)
 import test_id_repair as _tir

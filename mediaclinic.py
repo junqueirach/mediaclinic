@@ -901,6 +901,7 @@ import struct
 import subprocess
 import threading
 import time
+import math          # v0.20.1 SN3 — the activity ring
 import webbrowser
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -7098,6 +7099,18 @@ def collection_fix_items(rows, cache=None, lib_lang="en"):        ### NEW v0.19.
     return items, skipped
 
 
+def collection_fix_targets(rows, items):                         ### NEW v0.20.1 SN1 ###
+    """[(group key, name, rows)] — the collections of *rows* under the name they have AFTER the fix *items*
+    [(row, (name, tmdbcolid, overview))]; rows with no collection are left out. Pure."""
+    after = {id(r): t[0] for r, t in items if t and t[0] and t[0] != "title"}
+    by = {}
+    for r in rows:
+        nm = after.get(id(r)) or collection_name(r)
+        if nm:
+            by.setdefault(_cr.norm_name(nm), (nm, []))[1].append(r)
+    return [(k, nm, rs) for k, (nm, rs) in sorted(by.items(), key=lambda kv: kv[1][0].lower())]
+
+
 def collection_siblings(rows, results):                          ### NEW v0.19.4 fix 5 ###
     """*rows* plus every other movie of the same collections (same TMDB collection or same name key): a
     collection fix writes ONE name to all of them."""
@@ -7127,7 +7140,7 @@ def collection_fix_text(items, skipped):                         ### NEW v0.19.4
         cur = (r.get("coll_nfo") or {}).get("name") or "(none)"
         L.append(f"  {r.get('movie_name') or r.get('subfolder')}:  {cur}  →  {name}  (TMDB {cid})")
     if skipped:
-        L += ["", "Not changed:"] + [f"  {k} — {why}" for why, k in sorted(skipped.items())]
+        L += ["", _i18n.t("sn1.not_changed")] + [f"  {_n(k, 'movie')} — {why}" for why, k in sorted(skipped.items())]   # v0.20.1 SN1
     L += ["", _i18n.t("rp.each_nfo_and_movie_ff11")]
     return "\n".join(L)
 
@@ -8982,6 +8995,111 @@ def _clamp_geometry(geom, win):
     return f"{w}x{h}{x:+d}{y:+d}"
 
 
+### NEW v0.20.1 SN2 — every dialog breaks a text line that does not fit (the user, 2026-11-20: "If the size of the
+# window is not enough to put everything in the same line, the app must break the line automatically" and "The line
+# MUST BREAK RESPECTING THE SIZE OF THE WINDOW ... the text adapts to the size of the window").
+# Every Label / Checkbutton / Radiobutton follows the window's width: its line breaks at the space from its left edge
+# to the window's right edge (less what stands to its right: a scroll bar, a button), and it unwraps when that space
+# is wide enough. This includes labels that were given a fixed wraplength in the code: that value is only used while
+# the window still has its natural size (nobody resized it), so a window that sizes itself to its text can never
+# shrink its text in a loop. Once the window is resized (by the user, or by a saved / set geometry), the window's
+# width rules.
+_AW_CLASSES = ("Label", "Checkbutton", "Radiobutton", "TLabel")
+_AW_RIGHT = 16                                                   # px kept free on the right
+
+
+def _aw_wanted(natural, avail, extra=0):
+    """Pure: the wraplength for a text *natural* px wide in *avail* px (0 = no wrap); *extra* = a check box's width."""
+    room = avail - extra
+    return 0 if natural <= room else max(120, int(room))
+
+
+def _aw_right_of(w, top):
+    """Px taken by widgets standing to the right of *w* (or of one of its parents) on the same rows, up to *top*.
+    Uses their requested widths, which do not depend on *w*'s wrap (no feedback loop)."""
+    used = 0
+    while w is not None and w is not top:
+        parent = w.master
+        if parent is None:
+            break
+        try:
+            wx, wy, wh = w.winfo_rootx(), w.winfo_rooty(), w.winfo_height()
+            for s in parent.winfo_children():
+                if s is w or isinstance(s, tk.Toplevel) or not s.winfo_ismapped():
+                    continue
+                sy, sh = s.winfo_rooty(), s.winfo_height()
+                if s.winfo_rootx() > wx and sy < wy + wh and sy + sh > wy:
+                    used += s.winfo_reqwidth()
+        except (tk.TclError, AttributeError):
+            break
+        w = parent
+    return used
+
+
+def auto_wrap_window(top):
+    """Apply the wrap rule to every text widget of the Toplevel *top* (Tk thread)."""
+    try:
+        top._aw_after = None
+        if not top.winfo_exists() or not top.winfo_ismapped():
+            return 0
+        width, tx = top.winfo_width(), top.winfo_rootx()
+        natural_size = not getattr(top, "_aw_sized", False) and abs(width - top.winfo_reqwidth()) <= 1
+        if not natural_size:                     # resized once = the window's width rules from now on
+            top._aw_sized = True
+    except (tk.TclError, AttributeError):
+        return 0
+    if width <= 1:
+        return 0
+    import tkinter.font as _tkf
+    changed, stack = 0, list(top.winfo_children())
+    while stack:
+        c = stack.pop()
+        if isinstance(c, tk.Toplevel):
+            continue
+        try:
+            stack.extend(c.winfo_children())
+            cls = c.winfo_class()
+            if cls not in _AW_CLASSES or not c.winfo_ismapped():
+                continue
+            if not hasattr(c, "_aw_own"):
+                c._aw_own = int(c.winfo_fpixels(c.cget("wraplength") or 0))   # the code's own wrap (px), 0 = none
+            text = str(c.cget("text") or "")
+            if not text.strip():
+                continue
+            if natural_size and c._aw_own:
+                want = c._aw_own                    # the window follows its text: keep the code's width (no loop)
+            else:
+                fnt = _tkf.Font(font=c.cget("font"))
+                try:
+                    pad = 2 * int(c.winfo_fpixels(c.cget("padx") or 0))
+                except tk.TclError:                                    # ttk: no padx
+                    pad = 0
+                natural = max(fnt.measure(line) for line in text.split("\n")) + pad
+                extra = 24 if cls in ("Checkbutton", "Radiobutton") else 0
+                avail = width - (c.winfo_rootx() - tx) - _AW_RIGHT - _aw_right_of(c, top)
+                want = _aw_wanted(natural, avail, extra)
+            if int(c.winfo_fpixels(c.cget("wraplength") or 0)) != want:
+                c.configure(wraplength=want)
+                if want and cls != "TLabel" and str(c.cget("justify")) == "center" and "w" in str(c.cget("anchor")):
+                    c.configure(justify="left")
+                changed += 1
+        except (tk.TclError, AttributeError, ValueError):
+            continue
+    return changed
+
+
+def _aw_on_configure(e):
+    """Toplevel <Configure>: one wrap pass when the window is idle (debounced)."""
+    w = e.widget
+    try:
+        if not isinstance(w, tk.Toplevel) or w.wm_overrideredirect() or getattr(w, "_aw_after", None):
+            return
+        root = w._root()
+        w._aw_after = root.after_idle(lambda: auto_wrap_window(w))
+    except (tk.TclError, AttributeError):
+        pass
+
+
 def _remember_window(win, wid, resizable=True):
     """Restore the saved geometry of window *wid* and keep SETTINGS up to date.
     Call it last in the window's __init__ (after its own geometry/centring)."""
@@ -9506,9 +9624,30 @@ class ReportWindow(DialogFrame):                                 ### NEW v0.19.4
         t = self._txt
         t.configure(state="normal"); t.delete("1.0", "end")
         st = {}
+        ### NEW v0.20.1 SN2 — a line longer than the window wraps (the user, 2026-11-20); the wrapped part starts under
+        # the line's own text (its leading spaces + 2), so lists stay readable ###
+        _wrap = str(t.cget("wrap")) != "none"
+        _cw = 0
+        if _wrap:
+            try:
+                import tkinter.font as _tkf
+                _cw = _tkf.Font(font=t.cget("font")).measure("0")
+            except Exception:
+                _cw = 8
+        _ind = getattr(self, "_ind_tags", None)
+        if _ind is None:
+            _ind = self._ind_tags = set()
         for line in text.splitlines():
             tag = self._classify(line, st)
-            t.insert("end", line + "\n", tag) if tag else t.insert("end", line + "\n")
+            tags = (tag,) if tag else ()
+            if _wrap:
+                n = min(len(line) - len(line.lstrip(" ")), 40)
+                it = f"ind{n}"
+                if it not in _ind:
+                    t.tag_configure(it, lmargin2=_cw * (n + 2))
+                    _ind.add(it)
+                tags += (it,)
+            t.insert("end", line + "\n", tags)
         t.configure(state="disabled")
 
     def _copy(self):
@@ -10516,7 +10655,8 @@ class ImageFixDialog(_DialogBase):                               ### NEW v0.19.2
                         both = _FixWritten(list(w) + list(w2))
                         both.problems = list(getattr(w, "problems", [])) + list(getattr(w2, "problems", []))
                         return both
-                    written = _with_backup_action(IMAGE_FIX_ACTION, _fix_both)
+                    with _activity(act_label(IMAGE_FIX_ACTION), (row.get("subfolder_path"),)):   # v0.20.1 SN3
+                        written = _with_backup_action(IMAGE_FIX_ACTION, _fix_both)
                 _probs = list(getattr(written, "problems", []))          # v0.19.5 WR-B6
                 if up is not None and getattr(up, "failed", None):
                     written = list(written) + [_i18n.t("uf.ai_upscale_failed_the_ba55", v=up.failed[-1])]
@@ -10659,7 +10799,8 @@ class NfoRenameDialog(_DialogBase):                             ### NEW v0.19.3 
 
         def work():
             try:
-                dest = _with_backup_action(NFO_RENAME_ACTION, apply_nfo_rename, plan, mode, name)
+                with _activity(act_label(NFO_RENAME_ACTION), (row.get("subfolder_path"),)):   # v0.20.1 SN3
+                    dest = _with_backup_action(NFO_RENAME_ACTION, apply_nfo_rename, plan, mode, name)
                 err = None
             except Exception as ex:
                 dest, err = None, str(ex)
@@ -15435,23 +15576,289 @@ def all_movies_note(app):                                        ### NEW v0.19.4
     return _i18n.t("uf.this_runs_on_all_09ad", n=_n(n, 'movie'), m=m) if m != n else ""
 
 
+### NEW v0.20.1 SN3 — the activity indicator (the user, 2026-11-20: "something that is missing is an indication of
+# activity ... the user might think it did not solve the problem"; "this shall be applied to ALL disk writing /
+# refresh activities of the app so collection and movies"). Every background write or re-read is registered here
+# (any thread); the Tk thread shows it: a turning ring on the panel's poster when the shown movie / collection is
+# involved, a thin moving bar above the table and a status-bar line for anything, then ✓ Done or ! Not done.
+class _ActivityRegistry:
+    """Thread-safe: what is being written / re-read right now, and what just ended (for ✓ / !)."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._next = 0
+        self._live = {}
+        self._ended = []
+        self._eseq = 0                                            # each end gets the next number (the ticker's cursor)
+        self.waker = None                                         # set by the App: wakes its Tk ticker
+
+    def begin(self, text="", paths=(), keys=()):
+        with self._lock:
+            self._next += 1
+            tok = self._next
+            self._live[tok] = {"text": text or "", "paths": {_pkey(p) for p in (paths or ()) if p},
+                               "keys": set(keys or ()), "t": time.monotonic()}
+        self._wake()
+        return tok
+
+    def end(self, tok, error=None):
+        with self._lock:
+            e = self._live.pop(tok, None)
+            if e is None:
+                return
+            now = time.monotonic()
+            self._eseq += 1
+            e.update(end=now, error=(str(error) if error else None), eseq=self._eseq)
+            self._ended = [x for x in self._ended if now - x["end"] < 60] + [e]
+        self._wake()
+
+    def live(self):
+        with self._lock:
+            return [dict(e) for e in self._live.values()]
+
+    def ended_after(self, eseq):
+        """The entries that ended after the cursor *eseq* (a job can start and end between two ticks)."""
+        with self._lock:
+            return [dict(e) for e in self._ended if e["eseq"] > eseq]
+
+    def last_eseq(self):
+        with self._lock:
+            return self._eseq
+
+    def _wake(self):
+        w = self.waker
+        if w is not None:
+            try:
+                ui_post(w)
+            except (RuntimeError, tk.TclError):
+                pass
+
+
+_ACT = _ActivityRegistry()
+
+
+class _activity:                                                  ### NEW v0.20.1 SN3 ###
+    """with _activity(text, paths, keys): one registered write / re-read (any thread); an exception = "Not done"."""
+
+    def __init__(self, text="", paths=(), keys=()):
+        self.text, self.paths, self.keys, self.error = text, paths, keys, None
+
+    def __enter__(self):
+        self.tok = _ACT.begin(self.text, self.paths, self.keys)
+        return self
+
+    def __exit__(self, et, ev, tb):
+        _ACT.end(self.tok, ev if ev is not None else self.error)
+        return False
+
+
+def act_targets(items, depth=0):                                  ### NEW v0.20.1 SN3 ###
+    """Pure: (movie folders, collection keys) found in a job's items — rows, (row, …) tuples, (key, name, rows, …)
+    groups, collection names. A movie also marks its collection (the collection panel shows its movies)."""
+    paths, keys = set(), set()
+    if depth > 3:
+        return paths, keys
+    for it in items or ():
+        if isinstance(it, dict):
+            if it.get("subfolder_path"):
+                paths.add(it["subfolder_path"])
+                k = _cr.group_key(it)
+                if k:
+                    keys.add(k)
+        elif isinstance(it, (list, tuple, set)):
+            p, k = act_targets(it, depth + 1)
+            paths |= p; keys |= k
+        elif isinstance(it, str) and it.strip() and depth == 0:
+            if os.path.isabs(it):
+                paths.add(it)
+            else:
+                keys.add(_cr.norm_name(it))
+    return paths, keys
+
+
+def act_label(label):                                             ### NEW v0.20.1 SN3 ###
+    """A menu label / backup label → the short name shown while it works ("🗂  Fix Collection…" → "Fix Collection")."""
+    s = shown_action(label) if label else ""
+    s = str(s).split("  ", 1)[-1].strip()
+    return s.rstrip("…").rstrip(".").strip()
+
+
+ACT_SHOW_AFTER, ACT_MIN_SHOW, ACT_SETTLE, ACT_LINGER = 0.3, 0.6, 0.45, 1.6   # seconds (visual only)
+
+
+def act_visual(busy, now, st, job=False):                         ### NEW v0.20.1 SN3 ###
+    """Pure: the indicator's state for one target. *st* (a dict kept between ticks) holds since / shown / last_busy /
+    until / result / err / job. Returns "idle", "wait" (busy, not shown yet: no flash of the ring), "busy", "done" or
+    "error". A short gap between chained jobs (names → folder read → set.nfo → refresh) does not end it (ACT_SETTLE).
+    *job*: an action the user started takes part — it always ends with ✓ / !, even when it was quick; a background
+    re-read alone shows nothing unless it lasts (no ✓ blinking after every scan)."""
+    if busy:
+        st["last_busy"] = now
+        if st.get("since") is None:
+            st.update(since=now, shown=None, until=None, result=None, err=None, _job=False)
+        if job:
+            st["_job"] = True
+        if st.get("shown") is None and now - st["since"] >= ACT_SHOW_AFTER:
+            st["shown"] = now
+        return "busy" if st.get("shown") is not None else "wait"
+    if st.get("since") is not None:
+        shown = st.get("shown")
+        if now - st.get("last_busy", now) < ACT_SETTLE or (shown is not None and now - shown < ACT_MIN_SHOW):
+            return "busy" if shown is not None else "wait"
+        st["since"] = None
+        if shown is None and not st.get("_job") and not st.get("err"):
+            st.update(shown=None, until=None, result=None)
+            return "idle"
+        st.update(shown=None, until=now + ACT_LINGER, result="error" if st.get("err") else "done")
+    if st.get("until") is not None and now < st["until"]:
+        return st["result"]
+    st.update(until=None, result=None, err=None)
+    return "idle"
+
+
+_NET_DRIVES = {}
+
+
+def is_network_path(p):                                           ### NEW v0.20.1 SN3 ###
+    """True for a UNC path or a mapped network drive (Windows); cached per drive."""
+    p = str(p or "")
+    if p.startswith("\\\\") or p.startswith("//"):
+        return True
+    if len(p) < 2 or p[1] != ":":
+        return False
+    d = p[0].upper()
+    if d not in _NET_DRIVES:
+        try:
+            import ctypes
+            _NET_DRIVES[d] = ctypes.windll.kernel32.GetDriveTypeW(f"{d}:\\") == 4   # DRIVE_REMOTE
+        except Exception:
+            _NET_DRIVES[d] = False
+    return _NET_DRIVES[d]
+
+
+_ACT_CACHE = {}
+_ACT_IMG_N = __import__("itertools").count(1)                    # never reused, also after _ACT_CACHE.clear()
+
+
+_ACT_FONTS = {}
+
+
+def _act_font(size):
+    """A PIL font for the poster's lines (loaded once per size)."""
+    f = _ACT_FONTS.get(size)
+    if f is not None:
+        return f
+    from PIL import ImageFont
+    for name in ("segoeui.ttf", "arial.ttf", "DejaVuSans.ttf"):
+        try:
+            f = ImageFont.truetype(name, size)
+            break
+        except Exception:
+            continue
+    else:
+        f = ImageFont.load_default()
+    _ACT_FONTS[size] = f
+    return f
+
+
+def act_poster_frame(base, state, angle, lines, scale=1.0):        ### NEW v0.20.1 SN3 ###
+    """PIL: the poster *base* darkened, with the turning ring (state "busy", *angle* in degrees), a ✓ ("done") or
+    a ! ("error"), and up to 2 short lines below. Drawn 4× and scaled down: smooth edges."""
+    from PIL import Image, ImageDraw
+    w, h = base.size
+    r = max(12, int(round(min(w, h) * 0.15)))
+    cx, cy = w // 2, int(h * 0.42)
+    S = 4
+    lines = tuple(x for x in (lines or ()) if x)[:2]
+    if "_act_n" not in base.info:                                # a number of its own (an id() can be reused)
+        base.info["_act_n"] = next(_ACT_IMG_N)
+    key = ("bg", base.info["_act_n"], w, h, lines, scale)        # the darkened poster with its text: drawn once
+    im = _ACT_CACHE.get(key)
+    if im is None:
+        if len(_ACT_CACHE) > 200:
+            _ACT_CACHE.clear()
+        im = Image.blend(base.convert("RGB"), Image.new("RGB", (w, h), (17, 17, 27)), 0.62)
+        if lines:
+            d = ImageDraw.Draw(im)
+            f1, f2 = _act_font(max(10, int(round(12 * scale)))), _act_font(max(9, int(round(11 * scale))))
+            y = cy + r + int(10 * scale)
+            for i, ln in enumerate(lines):
+                f = f1 if i == 0 else f2
+                words, cur, out = str(ln).split(), "", []
+                for wd in words:                                  # break a line that is wider than the poster
+                    t = (cur + " " + wd).strip()
+                    if cur and d.textlength(t, font=f) > w - 12:
+                        out.append(cur); cur = wd
+                    else:
+                        cur = t
+                if cur:
+                    out.append(cur)
+                for o in out[:2]:
+                    d.text((w // 2, y), o, fill=(235, 235, 245) if i == 0 else (180, 184, 205), font=f, anchor="mt")
+                    y += int((16 if i == 0 else 15) * scale)
+        _ACT_CACHE[key] = im
+    im = im.copy()
+    lkey = ("mark", state, int(angle) if state == "busy" else 0, r)
+    mark = _ACT_CACHE.get(lkey)
+    if mark is None:
+        big = Image.new("RGBA", ((2 * r + 4) * S, (2 * r + 4) * S), (0, 0, 0, 0))
+        d = ImageDraw.Draw(big)
+        c, rr, th = (r + 2) * S, r * S, max(3, int(round(r * 0.18))) * S
+        box = [c - rr, c - rr, c + rr, c + rr]
+        dark_ink = (17, 17, 27, 255)
+        if state == "busy":
+            acc = tuple(int(C_ACCENT.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)) + (255,)
+            d.ellipse(box, outline=(255, 255, 255, 46), width=th)
+            d.arc(box, angle, angle + 100, fill=acc, width=th)
+            for a in (angle, angle + 100):                        # round ends
+                ex, ey = c + (rr - th / 2) * math.cos(math.radians(a)), c + (rr - th / 2) * math.sin(math.radians(a))
+                d.ellipse([ex - th / 2, ey - th / 2, ex + th / 2, ey + th / 2], fill=acc)
+        else:
+            col = C_OK if state == "done" else C_ERR
+            d.ellipse(box, fill=tuple(int(col.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)) + (255,))
+            u = rr / 22.0
+            if state == "done":
+                d.line([(c - 10 * u, c + 1 * u), (c - 3 * u, c + 8 * u), (c + 11 * u, c - 8 * u)], fill=dark_ink,
+                       width=max(S, int(4 * u)), joint="curve")
+            else:
+                d.line([(c, c - 11 * u), (c, c + 3 * u)], fill=dark_ink, width=max(S, int(4 * u)))
+                d.ellipse([c - 2.5 * u, c + 7 * u, c + 2.5 * u, c + 12 * u], fill=dark_ink)
+        mark = big.resize((2 * r + 4, 2 * r + 4), Image.LANCZOS)
+        _ACT_CACHE[lkey] = mark
+    im.paste(mark, (cx - r - 2, cy - r - 2), mark)
+    return im
+
+
 class _AppJobThread(threading.Thread):                           ### NEW v0.19.4 P2 (E15) ###
     """A long background action: counted in app._bg_running while it runs, so a Full / Quick Scan waits for it
-    (a scan replaces every row the action is about to update)."""
+    (a scan replaces every row the action is about to update).
+    ### v0.20.1 SN3 ### also registered in _ACT (act_text / act_paths / act_keys: what the indicator shows)."""
 
-    def __init__(self, app, *a, **k):
+    def __init__(self, app, *a, act_text=None, act_paths=(), act_keys=(), **k):
         k.setdefault("daemon", True)
         super().__init__(*a, **k)
         self._app = app
+        self._act = (act_text, act_paths, act_keys)
+        self._act_tok = None
+        self.act_error = None
 
     def start(self):
         self._app._bg_running = getattr(self._app, "_bg_running", 0) + 1
+        try:
+            self._act_tok = _ACT.begin(self._act[0] or _i18n.t("sn3.working"), self._act[1], self._act[2])
+        except Exception:
+            self._act_tok = None
         super().start()
 
     def run(self):
         try:
             super().run()
+        except BaseException as ex:
+            self.act_error = self.act_error or str(ex) or type(ex).__name__
+            raise
         finally:
+            if self._act_tok is not None:
+                _ACT.end(self._act_tok, self.act_error)
             try:
                 ui_post(self._app._bg_done)
             except (RuntimeError, tk.TclError):
@@ -15525,6 +15932,8 @@ class _BatchJob:                                                 ### NEW v0.19.3
                 self.errors.append(f"{self.label}: {ex}")
         if self.prog:
             self.prog.close()
+        if self.errors and getattr(self, "_thread", None) is not None:   ### NEW v0.20.1 SN3 — "! Not done" ###
+            self._thread.act_error = str(self.errors[0])
         self.app._schedule_refresh(list(dict.fromkeys(self.changed)), need_ffprobe=False)
         self.read_only = _sc.read_only_since(_ro0)              ### NEW v0.20.0 RD1 ###
         ui_post(lambda: (finish(self), self.offer_clear_read_only()))
@@ -15549,7 +15958,13 @@ class _BatchJob:                                                 ### NEW v0.19.3
     def run(self, step, finish):
         _go = lambda: _with_backup_action(self.label, self._work, step, finish)
         _around = getattr(self, "around", None)                   ### NEW v0.20.1 BF3 — e.g. a service run for online steps ###
-        _AppJobThread(self.app, target=(lambda: _around(_go)) if _around else _go).start()   # P2
+        try:                                                      ### NEW v0.20.1 SN3 — what the indicator shows ###
+            _ap, _ak = act_targets(self.items)
+        except Exception:
+            _ap, _ak = set(), set()
+        self._thread = _AppJobThread(self.app, target=(lambda: _around(_go)) if _around else _go,
+                                     act_text=act_label(self.label), act_paths=_ap, act_keys=_ak)
+        self._thread.start()                                      # P2
         return self
 
 
@@ -15578,7 +15993,7 @@ class BackupHistoryDialog(_DialogBase):                          ### NEW v0.19.1
         self._tree.bind("<<TreeviewSelect>>", lambda e: self._show_files())
         tk.Label(self, text=_i18n.t("mc.files_of_the_selected_dcff"), bg=C_BG, fg=C_TEXT,
                  font=("Helvetica", 9, "bold")).pack(anchor="w", padx=14, pady=(8, 2))
-        self._files = tk.Text(self, height=8, bg=C_ROW_ALT, fg=C_TEXT, font=("Consolas", 9), wrap="none")
+        self._files = tk.Text(self, height=8, bg=C_ROW_ALT, fg=C_TEXT, font=("Consolas", 9), wrap="char")   # v0.20.1 SN2: was "none"
         self._files.pack(fill="both", expand=False, padx=12)
         self._status = tk.Label(self, text=_i18n.t("mc.loading_5f02"), bg=C_BG, fg=C_SUBTEXT, font=("Helvetica", 9))
         self._status.pack(anchor="w", padx=14, pady=(4, 0))
@@ -17311,7 +17726,7 @@ class _PosterReviewDialog(_DialogBase):                          ### NEW v0.20.1
 
         def work():
             try:
-                with _IMAGE_FIX_LOCK:                             # one image fix at a time (B62)
+                with _IMAGE_FIX_LOCK, _activity(act_label(REVIEW_POSTERS_ACTION), (r.get("subfolder_path"),)):   # B62; SN3
                     if kind == "online":
                         out = _with_backup_action(REVIEW_POSTERS_ACTION, self._write_online, r, entry)
                     else:
@@ -19406,7 +19821,7 @@ class TextReportDialog(ReportWindow):                            ### MODIFIED v0
         super().__init__(parent, title, text, geometry=f"{width}x{height}",
                          memory_key=f"TextReportDialog:{file_stem}", save_title="Save report",
                          save_name=f"{file_stem}_{datetime.datetime.now().strftime('%Y-%m-%d')}.txt",
-                         wrap="none", classify=_text_report_tag, tags={"h": (C_ACCENT, True)},
+                         wrap="word", classify=_text_report_tag, tags={"h": (C_ACCENT, True)},   # v0.20.1 SN2: was "none"
                          make_modal=False)
 
 class ColumnChooserDialog(_DialogBase):
@@ -20337,13 +20752,90 @@ def _fix_issue_keys(row, settings=None):
     return keys
 
 
-def ctx_fix_issues(rows, settings=None):                        ### NEW v0.19.2 B57 ###
-    """[(key, label, rows_with_that_problem)] in a fixed order, for the menu."""
-    by = {}
+### NEW v0.20.1 AR2 — the Auto Repair line says what it really does (the user, 2026-11-20: with one problem only (no
+# uniqueid) the panel showed that fix AND "Auto Repair can fix more"; both did the same single fix, so "more" was wrong).
+# Each Auto Repair step → the Fix line that does the same job (None: only Auto Repair does it).
+AR_STEP_FIX_KEY = {"ids_wrong": "ids_wrong", "ids_resolve": "ids_norm", "ids_search": "ids_search", "ids_partial": "ids_norm",
+                   "ids_kodi": "uniqueid", "ratings": "ratings", "genres": "genres", "genres_tmdb": "genres_fill",
+                   "year_tmdb": "year_fill", "title_copy": "title", "title_sync": "title", "collection": "collection",
+                   "nfo_name": "nfo_name", "xml_tags": None, "struct_fix": None, "amp_fix": None}
+
+
+def auto_repair_summary(rows, keys_of, settings=None):
+    """Pure: the Auto Repair line for *rows* — {"show", "first", "label", "tip", "rows"}. *keys_of(row)* = the row's
+    Fix-line keys. One unit per Fix line Auto Repair would do (two steps of the same line count once) plus one per
+    step no other line does. Hidden when everything it does is ONE line already listed; with one row it says how many
+    of the movie's fixes it does ("Fix all 3 at once" / "Fix 3 of 5 at once"), with several rows "N fixes on M movies"."""
+    T = _i18n.t
+    per, codes_all = [], []
     for r in rows:
-        for k in _fix_issue_keys(r, settings):
+        try:
+            plan = [c for c, _l in _auto_repair_plan(r, settings)]
+        except Exception:
+            plan = []
+        if not plan:
+            continue
+        keys = set(keys_of(r)) - {"auto"}
+        units, seen = [], set()
+        for c in plan:
+            k = AR_STEP_FIX_KEY.get(c)
+            u = ("line", k) if k and k in keys else ("step", c)
+            if u not in seen:
+                seen.add(u); units.append((u, c))
+        per.append((r, keys, units, plan))
+        codes_all.extend(plan)
+    out = {"show": False, "first": False, "label": "", "tip": "", "rows": [p[0] for p in per]}
+    if not per:
+        return out
+    if all(len(u) == 1 and u[0][0][0] == "line" for _r, _k, u, _p in per) and len({u[0][0] for _r, _k, u, _p in per}) == 1:
+        return out                                                # it would only repeat the one line above it
+    short = lambda c: T("ar.short." + c)
+    if len(per) == 1:
+        _r, keys, units, plan = per[0]
+        n = len(units)
+        m = len(keys) + sum(1 for u, _c in units if u[0] == "step")
+        names = [short(c) for _u, c in units]
+        shown = ", ".join(names[:4]) + (f" +{len(names) - 4}" if len(names) > 4 else "")
+        if n == 1:
+            out["label"] = T("fix.auto_one", what=names[0])
+        elif n >= m:
+            out["label"] = T("fix.auto_all", n=n, names=shown)
+        else:
+            out["label"] = T("fix.auto_some", n=n, m=m, names=shown)
+        out["tip"] = "\n".join("• " + _AR_LABELS.get(c, c) for c in plan)
+        out["first"] = n >= 2
+    else:
+        total = sum(len(u) for _r, _k, u, _p in per)
+        out["label"] = T("fix.auto_multi", fixes=_n(total, "fix"), movies=_n(len(per), "movie", ","))
+        cnt = collections.Counter(codes_all)
+        out["tip"] = "\n".join(f"• {_AR_LABELS.get(c, c)} — {_n(cnt[c], 'movie', ',')}" for c in AR_STEP_ORDER if c in cnt)
+        out["first"] = True
+    out["show"] = True
+    return out
+
+
+def ctx_fix_issues(rows, settings=None):                        ### NEW v0.19.2 B57 ###
+    """[(key, label, rows_with_that_problem)] in a fixed order, for the menu.
+    ### v0.20.1 AR2 ### the Auto Repair line: hidden when it only repeats one line, else first, with what it does."""
+    by, keys_by = {}, {}
+    for r in rows:
+        ks = _fix_issue_keys(r, settings)
+        keys_by[id(r)] = ks
+        for k in ks:
             by.setdefault(k, []).append(r)
-    return [(k, _FIX_ISSUE_LABELS[k], by[k]) for k in _FIX_ISSUE_ORDER if k in by]
+    out = [(k, _FIX_ISSUE_LABELS[k], by[k]) for k in _FIX_ISSUE_ORDER if k in by and k != "auto"]
+    if "auto" in by:
+        s = auto_repair_summary(by["auto"], lambda r: keys_by.get(id(r), ()), settings)
+        if s["show"]:
+            item = ("auto", s["label"], s["rows"] or by["auto"])
+            out = [item] + out if s["first"] else out + [item]
+    return out
+
+
+def ctx_fix_tip(rows, settings=None):                            ### NEW v0.20.1 AR2 ###
+    """The tooltip of the Auto Repair line: each step it runs (and on how many movies)."""
+    keys_by = {id(r): _fix_issue_keys(r, settings) for r in rows}
+    return auto_repair_summary(rows, lambda r: keys_by.get(id(r), ()), settings)["tip"]
 
 
 _TOOLTIP_METHODS = {                                               ### NEW v0.19.3 I7 — column → App method ###
@@ -20880,6 +21372,9 @@ class _MoviePanel(tk.Frame):
     def _clear(self):
         for w in self._body.winfo_children():
             w.destroy()
+        # v0.20.1 SN3: a new poster widget; the App's ticker draws the overlay again on it when still busy
+        self._act_on, self._act_btn_state, self._poster_pil, self._ph = False, {}, None, None
+        self._act_item = None
 
     def _section(self, text):
         tk.Label(self._body, text=text, font=("Helvetica", 9, "bold"), bg=_PANEL_BG, fg=C_ACCENT,
@@ -20936,6 +21431,7 @@ class _MoviePanel(tk.Frame):
                     self._issue_row(key, f"{lbl} — {_n(len(irows), 'movie', ',')}", irows)
             return
         d = rows[0]
+        self._act_item = ("movie", frozenset({_pkey(d.get("subfolder_path", ""))}), _cr.group_key(d))   # v0.20.1 SN3
         yr = d.get("movie_year")
         self._title.configure(text=(d.get("movie_name") or d.get("subfolder", "?")) + (f"  ({yr})" if yr and yr != "-" else "")
                               + stack_parts_label(d))            # v0.20.0 RD10b
@@ -21004,6 +21500,7 @@ class _MoviePanel(tk.Frame):
         app = self.app
         T = _i18n.t                                               # v0.20.0 UI1c
         self._title.configure(text=f"{name}  ({len(rows)})")
+        self._act_item = ("coll", frozenset(_pkey(r.get("subfolder_path", "")) for r in rows), key)   # v0.20.1 SN3
         cid = collection_tmdb_id(rows)
         fst = COLL_FOLDERS.get(key)
         cdir = (fst or {}).get("dir")
@@ -21033,12 +21530,19 @@ class _MoviePanel(tk.Frame):
         else:
             self._poster.configure(text=T("panel.poster.none") if fst else T("panel.poster.folder_not_checked"))
         _sf = collection_set_nfo_findings(key, name, rows)        ### NEW v0.20.1 CF2 ###
+        self.setnfo_fix_button = None                              # v0.20.1 SN1 (read by the self-test)
         if _sf is not None:
             _bad = [T("cf2.m." + m) for m in _sf["mistakes"]]
             tk.Label(info, text="set.nfo", font=("Helvetica", 8), bg=_PANEL_BG, fg=C_DIM, anchor="w").pack(fill="x")
-            tk.Label(info, text="⚠ " + "; ".join(_bad) if _bad else "✓ " + T("cf2.ok"), font=("Helvetica", 9), bg=_PANEL_BG,
+            _sfr = tk.Frame(info, bg=_PANEL_BG); _sfr.pack(fill="x", pady=(0, 3))
+            if _bad:                                               ### NEW v0.20.1 SN1 — Fix right beside the warning (the user, 2026-11-20) ###
+                self.setnfo_fix_button = self._button(_sfr, T("panel.fix"), lambda: app._set_nfo_for(key, name, rows), primary=True)
+                self.setnfo_fix_button.pack(side="right", padx=(4, 0))
+            else:
+                self.setnfo_fix_button = None
+            tk.Label(_sfr, text="⚠ " + "; ".join(_bad) if _bad else "✓ " + T("cf2.ok"), font=("Helvetica", 9), bg=_PANEL_BG,
                      fg=C_WARN if _bad else C_OK, anchor="w", justify="left",
-                     wraplength=px(PANEL_W - self.POSTER[0] - 40)).pack(fill="x", pady=(0, 3))
+                     wraplength=px(PANEL_W - self.POSTER[0] - (100 if _bad else 40))).pack(side="left", fill="x", expand=True)
         ov_text = collection_overview(rows, cid)                  ### MODIFIED v0.19.4 fix 12 — the files' overview first ###
         if ov_text:
             self._section(T("panel.overview"))
@@ -21050,6 +21554,7 @@ class _MoviePanel(tk.Frame):
             self._line(f"{g}  {r.get('movie_name') or r.get('subfolder')}" + (f" ({yr})" if yr and yr != "-" else ""),
                        fg={"ok": C_OK, "warning": C_WARN, "error": C_ERR}.get(r.get("health_status"), C_TEXT))
         iss = [x for x in ctx_fix_issues(rows, SETTINGS) if x[0].startswith("collection")]
+        # v0.20.1 SN1: the set.nfo warning's Fix sits beside the warning (card above), not repeated here
         if iss:
             self._section(T("panel.fixes"))
             for k, lbl, irows in iss:
@@ -21066,7 +21571,8 @@ class _MoviePanel(tk.Frame):
                                        (_tmdb_b, lambda: open_url_with_browser(collection_tmdb_url(cid, name))),
                                        ("🗂 " + T("panel.coll.rename_join"), lambda: app._set_collection_for(rows)),
                                        ### NEW v0.20.1 L4 — set.nfo for THIS collection (the Tools entry does all of them) ###
-                                       ("📄 " + T("act.set_nfo"), (lambda: app._set_nfo_for(key, name, rows)) if _sf is not None else None))):
+                                       ("📄 " + T("act.set_nfo"), (lambda: app._set_nfo_for(key, name, rows)) if _sf is not None else None),
+                                       ("🔄 " + T("sn1.refresh_coll"), lambda: app._refresh_collection(rows)))):   # v0.20.1 SN1
             b = self._button(acts, txt, fn or (lambda: None), primary=(i == 0))
             if fn is None:
                 b.configure(state="disabled")
@@ -21090,8 +21596,16 @@ class _MoviePanel(tk.Frame):
         if not fn:
             b.configure(state="disabled")
             _add_btn_tooltip(b, reason or "")
-        tk.Label(f, text=label, font=("Helvetica", 9), bg=_PANEL_BG, fg=C_WARN, anchor="w", justify="left",
-                 wraplength=px(PANEL_W) - px(80)).pack(side="left", fill="x", expand=True)
+        lab = tk.Label(f, text=label, font=("Helvetica", 9), bg=_PANEL_BG, fg=C_WARN, anchor="w", justify="left",
+                       wraplength=px(PANEL_W) - px(80))
+        lab.pack(side="left", fill="x", expand=True)
+        if key == "auto":                                         ### NEW v0.20.1 AR2 — each step it runs ###
+            try:
+                tip = ctx_fix_tip(rows, SETTINGS)
+                if tip:
+                    _add_btn_tooltip(lab, tip); _add_btn_tooltip(b, tip)
+            except Exception as ex:
+                logger.debug(f"Auto Repair tooltip: {ex}")
 
     def _all_actions_button(self, rows, iids):
         b = self._button(self._body, _i18n.t("panel.all_actions"), None, primary=True)
@@ -21156,10 +21670,93 @@ class _MoviePanel(tk.Frame):
             if im is None:
                 self._poster.configure(text=_i18n.t("panel.poster.not_readable"))
                 return
+            self._poster_pil = im                                # v0.20.1 SN3: the overlay draws on it
             self._ph = _PILImageTk.PhotoImage(im)
             self._poster.configure(image=self._ph, text="", width=im.width, height=im.height)   # no "loading…" on the poster
+            if getattr(self, "_act_on", False):                  # SN3: the poster arrived while the ring turns
+                self._act_on = False
+                self._act_render()
         except tk.TclError:
             pass
+
+    # ── v0.20.1 SN3: the activity overlay on the poster ──
+    def act_item(self):
+        """("movie" | "coll", {folder keys}, collection key) of what the panel shows, or None (nothing / several)."""
+        return getattr(self, "_act_item", None)
+
+    def act_show(self, vis, lines, angle):
+        """Tk thread (the App's ticker): draw the ring / ✓ / ! on the poster and grey the panel's buttons while busy;
+        put everything back when idle. Survives a rebuild of the panel (the ticker calls it again)."""
+        self._act_vis, self._act_lines, self._act_angle = vis, list(lines), angle
+        if vis in ("idle", "wait"):
+            if getattr(self, "_act_on", False):
+                self._act_off()
+            return
+        self._act_render()
+
+    def _act_render(self):
+        p = getattr(self, "_poster", None)
+        if p is None:
+            return
+        try:
+            if not p.winfo_exists():
+                return
+            if not getattr(self, "_act_on", False):
+                self._act_saved_text = p.cget("text")
+                self._act_on = True
+            vis = getattr(self, "_act_vis", "busy")
+            if _PIL_AVAILABLE:
+                base = getattr(self, "_poster_pil", None) if getattr(self, "_ph", None) is not None else None
+                if base is None:
+                    base = _ACT_CACHE.get(("card", self.POSTER))
+                    if base is None:
+                        base = _ACT_CACHE[("card", self.POSTER)] = _PILImage.new(
+                            "RGB", self.POSTER, tuple(int(_PANEL_CARD.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4)))
+                im = act_poster_frame(base, vis, getattr(self, "_act_angle", 0) if vis == "busy" else 0,
+                                      getattr(self, "_act_lines", []), scale=_UI_SCALE)
+                self._act_ph = _PILImageTk.PhotoImage(im)
+                p.configure(image=self._act_ph, text="", width=im.width, height=im.height)
+            else:                                                # no Pillow: the words alone
+                mark = {"busy": "⟳", "done": "✓", "error": "!"}.get(vis, "")
+                p.configure(text=mark + "  " + "\n".join(getattr(self, "_act_lines", [])))
+            self._act_buttons(vis == "busy")
+        except tk.TclError:
+            pass
+
+    def _act_off(self):
+        self._act_on = False
+        p = getattr(self, "_poster", None)
+        try:
+            if p is not None and p.winfo_exists():
+                img = getattr(self, "_ph", None) or getattr(self, "_blank", None)
+                p.configure(image=img or "", text=getattr(self, "_act_saved_text", ""))
+        except tk.TclError:
+            pass
+        self._act_buttons(False)
+
+    def _act_buttons(self, grey):
+        """Grey the panel's buttons while the shown item is busy; give back each one's own state after."""
+        saved = getattr(self, "_act_btn_state", None)
+        if saved is None:
+            saved = self._act_btn_state = {}
+        stack = list(self._body.winfo_children())
+        while stack:
+            w = stack.pop()
+            try:
+                stack.extend(w.winfo_children())
+                if not isinstance(w, tk.Button):
+                    continue
+                k = str(w)
+                if grey:
+                    if k not in saved:
+                        saved[k] = str(w.cget("state"))
+                        w.configure(state="disabled")
+                elif k in saved:
+                    w.configure(state=saved.pop(k))
+            except tk.TclError:
+                continue
+        if not grey:
+            saved.clear()
 
 
 class App(tk.Tk):
@@ -21209,6 +21806,7 @@ class App(tk.Tk):
         self.bind("<Map>", self._on_root_map, add="+")
         self.after(8000, self._auto_update_check)              ### NEW v0.19.2 B50 — off by default; status-bar link only ###
         self.bind_class("Toplevel", "<Map>", self._on_toplevel_map, add="+")
+        self.bind_class("Toplevel", "<Configure>", _aw_on_configure, add="+")   ### NEW v0.20.1 SN2 — dialogs wrap long lines ###
         self._apply_column_visibility()                        ### NEW v0.18.4 ###
         self._restore_column_widths()                          ### FIXED v0.18.3 — always, not only with a saved session ###
         _remember_window(self, "App", resizable=True)          ### NEW v0.19.0 — size/position/zoomed memory ###
@@ -21540,6 +22138,19 @@ class App(tk.Tk):
         self._sb_action  = tk.Label(sb_frame, text="", font=("Helvetica",9,"italic"),
                                     bg=C_ROW_ALT, fg=C_ACCENT, anchor="w")
         self._sb_action.pack(side="left", padx=(16,0))
+        ### NEW v0.20.1 SN3 — the activity line (its own label: _sb_action has many other writers) and the thin bar
+        # centred in the gap between the filter row and the counters (placed: the table never moves) ###
+        self._sb_activity = tk.Label(sb_frame, text="", font=("Helvetica", 9), bg=C_ROW_ALT, fg=C_ACCENT, anchor="w")
+        self._sb_activity.pack(side="left", padx=(16, 0))
+        self._act_bar = tk.Canvas(_mt, height=3, bg=C_BG, highlightthickness=0, bd=0)
+        self._act_bar_ph = None
+        self._act_g, self._act_p, self._act_p_item = {}, {}, None
+        self._act_after = None
+        self._act_frame = 0
+        self._rf_batch_keys = set()
+        self._act_eseq = _ACT.last_eseq()                         # jobs of an earlier window are not ours
+        _ACT.waker = self._act_wake
+        self.after(4000, lambda: self._act_warm(0))               # the ring's images, a little at a time, once
         self._sb_sort    = tk.Label(sb_frame, text="", font=("Helvetica",9),
                                     bg=C_ROW_ALT, fg=C_DIM, anchor="e")
         self._sb_sort.pack(side="right", padx=(0,12))
@@ -23777,6 +24388,12 @@ class App(tk.Tk):
             if len(_ks) == 1:
                 _r0 = next(r for r in rows if _cr.group_key(r))
                 return (lambda d, s, i: self._collection_art_for(_cr.group_key(_r0), collection_name(_r0))), None
+        if key == "collection_setnfo":                           ### NEW v0.20.1 SN1 — the collection panel's set.nfo Fix ###
+            _ks = {_cr.group_key(r) for r in rows if _cr.group_key(r)}
+            if len(_ks) == 1:
+                _r0 = next(r for r in rows if _cr.group_key(r))
+                return (lambda d, s, i: self._set_nfo_for(_cr.group_key(_r0), collection_name(_r0), rows)), None
+            return None, _i18n.t("ctx.not_yet")
         if key == "collection_old":                              ### NEW v0.19.4 fix 15 ###
             return (lambda d, s, i: self._import_old_coll_folder_for(rows)), None
         if key == "collection_xml":                              ### NEW v0.19.4 fix 6 ###
@@ -23979,7 +24596,8 @@ class App(tk.Tk):
             if prog:
                 prog.close()
             ui_post(lambda: self._genres_tmdb_review(items, errors, _done[0], bool(prog and prog.cancelled)))
-        _AppJobThread(self, target=_work).start()
+        _AppJobThread(self, target=_work, act_text=act_label(GENRES_TMDB_ACTION),           # v0.20.1 SN3
+                      act_paths=act_targets(rows)[0], act_keys=act_targets(rows)[1]).start()
         return rows
 
     def _genres_tmdb_review(self, items, errors, checked, cancelled=False):   ### NEW v0.20.0 I36 — Tk thread ###
@@ -24481,7 +25099,8 @@ class App(tk.Tk):
                 logger.error(f"Update (no FFprobe) failed for {sn}: {ex}")
                 st, r = "error", None
             ui_post(lambda: self._reval_no_ffmpeg_done(iid, data, st, r))
-        _AppJobThread(self, target=_work, name="update-one").start()   # v0.20.0 RV3: a scan / close waits for it
+        _AppJobThread(self, target=_work, name="update-one", act_text=act_label(_i18n.t("act.update_no_ff")),
+                      act_paths=(data.get("subfolder_path"),)).start()   # v0.20.0 RV3: a scan / close waits for it; SN3
 
     def _reval_no_ffmpeg_done(self, iid, data, st, r):            ### NEW v0.20.0 AU20 — Tk thread ###
         try:
@@ -24531,7 +25150,8 @@ class App(tk.Tk):
 
         def _worker():
             try:
-                r = self._rescan_row(data, force_ffprobe=True)   ### MODIFIED v0.18.4 ###
+                with _activity(UPDATE_FF_TEXT, (sp,)):           # v0.20.1 SN3
+                    r = self._rescan_row(data, force_ffprobe=True)   ### MODIFIED v0.18.4 ###
                 def _apply():
                     for i, o in enumerate(self._results):
                         if o["subfolder_path"] == sp:
@@ -24679,7 +25299,7 @@ class App(tk.Tk):
         if len(data_list) >= _PROGRESS_MIN:                     ### MODIFIED v0.19.1 — was 10 ###
             prog = _BatchProgressDialog(self, _i18n.t("uf.processing_movies_ratings_sync_d0ad"),
                                         total=len(data_list))
-        _AppJobThread(self, target=self._sync_ratings_worker,
+        _AppJobThread(self, target=self._sync_ratings_worker, act_paths=act_targets(data_list)[0],   # v0.20.1 SN3
                          args=(data_list, tmdb_key, omdb_key, prog, preview), daemon=True).start()
 
     # ── Worker-thread dialog helper (v0.19.0) ─────────────────────────────────
@@ -25039,6 +25659,8 @@ class App(tk.Tk):
             self._rf_pending[k] = bool(self._rf_pending.get(k)) or bool(need_ffprobe)
         if self._rf_pending and self._rf_timer is None and not self._rf_running:
             self._rf_timer = self.after(self._RF_DELAY_MS, self._run_refresh)
+        if self._rf_pending:
+            self._act_wake()                                       # v0.20.1 SN3
 
     def _refresh_idle(self):                                       ### NEW v0.19.0 ###
         return not getattr(self, "_rf_posted", 0) and not self._rf_pending and self._rf_timer is None and not self._rf_running
@@ -25060,6 +25682,8 @@ class App(tk.Tk):
         if not jobs:
             return
         self._rf_running = True
+        self._rf_batch_keys = {_pkey(d.get("subfolder_path", "")) for d, _ff in jobs}   # v0.20.1 SN3: the indicator
+        self._act_wake()
 
         def _worker():
             out = []; gone = []                                  ### v0.19.1 ###
@@ -25076,6 +25700,13 @@ class App(tk.Tk):
             def _apply():
                 try:
                     self._apply_rescanned_rows(out)                  ### MODIFIED v0.19.4 P6 (E11) ###
+                    ### NEW v0.20.1 SN1 — a movie now in a collection whose folder was never read (a fix renamed it):
+                    # read the collection folders again, so the panel and the "⚠ set.nfo" mark show the new state ###
+                    try:
+                        if _coll_root() and any(_cr.group_key(r) and _cr.group_key(r) not in COLL_FOLDERS for r in out):
+                            self._read_collection_folders()
+                    except Exception as _ex:
+                        logger.warning(f"collection folders not re-read after the refresh: {_ex}")
                     if gone:                                     ### NEW v0.19.1 ###
                         self._remove_rows(gone)
                     self._update_stats()
@@ -25084,6 +25715,7 @@ class App(tk.Tk):
                                 + (" (with FFprobe)" if any(ff for _d, ff in jobs) else " (no FFprobe)"))
                 finally:
                     self._rf_running = False
+                    self._rf_batch_keys = set()                  # v0.20.1 SN3
                     self._rf_runs += 1
                     if self._rf_pending and self._rf_timer is None:
                         self._rf_timer = self.after(self._RF_DELAY_MS, self._run_refresh)
@@ -25400,7 +26032,7 @@ class App(tk.Tk):
             prog = _BatchProgressDialog(self, _i18n.t("uf.processing_movies_normalize_genres_bcf1"),
                                         total=len(data_list))
         _AppJobThread(
-            self, target=self._normalize_genres_worker,
+            self, target=self._normalize_genres_worker, act_paths=act_targets(data_list)[0],   # v0.20.1 SN3
             args=(list(data_list), prog),                      ### NEW v0.17.0 ###
             daemon=True).start()
 
@@ -25623,7 +26255,7 @@ class App(tk.Tk):
         prog = _BatchProgressDialog(self, _i18n.t("uf.hard_coded_subtitles_5e0e"), total=len(rows)) \
                if len(rows) >= _PROGRESS_MIN else None
         _AppJobThread(self, target=self._hardsubs_worker, args=(list(rows), list(codes), prog),
-                         daemon=True).start()
+                         act_paths=act_targets(rows)[0], daemon=True).start()   # v0.20.1 SN3
 
     @_labelled_backups("Hard-coded subtitles")                               ### NEW v0.19.1 I1 ###
     def _hardsubs_worker(self, rows, codes, prog=None):           ### NEW v0.19.1 B15 ###
@@ -25937,7 +26569,7 @@ class App(tk.Tk):
             prog = _BatchProgressDialog(self, _i18n.t("uf.processing_movies_normalize_sources_f1bb"),
                                         total=len(data_list))
         _AppJobThread(
-            self, target=self._normalize_sources_worker,
+            self, target=self._normalize_sources_worker, act_paths=act_targets(data_list)[0],   # v0.20.1 SN3
             args=(list(data_list), prog),                     ### NEW v0.17.0 ###
             daemon=True).start()
 
@@ -26070,7 +26702,7 @@ class App(tk.Tk):
         prog = _BatchProgressDialog(self, _i18n.t("au.prog.search_tmdb"), total=len(data_list)) \
                if len(data_list) >= _PROGRESS_MIN else None           ### NEW v0.19.1 ###
         _AppJobThread(
-            self, target=self._search_sources_worker,
+            self, target=self._search_sources_worker, act_paths=act_targets(data_list)[0],   # v0.20.1 SN3
             args=(list(data_list), tmdb_key, False, prog),
             daemon=True).start()
 
@@ -26153,7 +26785,7 @@ class App(tk.Tk):
                 _i18n.t("mc.no_tmdb_api_key_6e12"), parent=self); return
         prog = _BatchProgressDialog(self, _i18n.t("uf.verifying_imdb_tmdb_ids_04a4"), total=len(data_list)) \
                if len(data_list) >= 3 else None
-        _AppJobThread(self, target=self._verify_ids_worker,
+        _AppJobThread(self, target=self._verify_ids_worker, act_paths=act_targets(data_list)[0],   # v0.20.1 SN3
                          args=(list(data_list), tmdb_key, prog), daemon=True).start()
 
     # ── v0.19.4 B110b: Check Collections Online ──
@@ -26220,24 +26852,58 @@ class App(tk.Tk):
             return None
         rows = collection_siblings(list(rows), self._results)     ### NEW v0.19.4 fix 5 — the whole collection, one name ###
         items, skipped = collection_fix_items(rows, None, self._lib_lang())
+        ### NEW v0.20.1 SN1 — Fix Collection also fixes the collection's set.nfo (the user, 2026-11-20: the panel showed
+        # "no set.nfo", Fix Collection wrote only the names, and a second Fix said "Nothing to change"). The set.nfo
+        # step runs after the names are written and the collection folder is read again (a rename moves the folder).
+        targets = collection_fix_targets(rows, items)
         if not items:
-            messagebox.showinfo(title, _i18n.t("mc.nothing_to_change_6e7b", join="\n".join(f"{k} — {why}" for why, k in sorted(skipped.items()))),
-                                parent=self)
-            return None
+            nothing = _i18n.t("mc.nothing_to_change_6e7b", join="\n".join(f"{_n(k, 'movie')} — {why}" for why, k in sorted(skipped.items())))
+            return self._coll_set_nfo_fix(targets, nothing_msg=(title, nothing))
         if preview and (len(items) > 1 or skipped):
-            pv = _PreviewRunDialog(self, FIX_COLL_LABEL.rstrip("…") + " — " + _i18n.t("f3r.preview"), collection_fix_text(items, skipped),
+            pv = _PreviewRunDialog(self, FIX_COLL_LABEL.rstrip("…") + " — " + _i18n.t("f3r.preview"),
+                                   collection_fix_text(items, skipped) + "\n\n" + _i18n.t("sn1.preview_note"),
                                    file_stem="collection_fix_preview", run_label=_i18n.t("mc.write_collections_87e1"))
             self._coll_fix_preview = pv
             self.wait_window(pv)
             if not pv.run:
                 return None
-        return self._write_collections(items, title)
+        return self._write_collections(items, title, then=lambda job: self._coll_set_nfo_fix(targets))
+
+    def _coll_set_nfo_fix(self, targets, nothing_msg=None):        ### NEW v0.20.1 SN1 ###
+        """Read the collection folders again (with the names just written), then write / complete the set.nfo of each
+        target collection that has a mistake. A text that differs asks first (the CF2 choice "Use TMDB's").
+        *nothing_msg* = (title, text) shown when neither the names nor any set.nfo needed a change."""
+        self._cf_extra_names = {nm for _k, nm, _rs in targets}
+
+        def _then():
+            groups = []
+            for key, name, rs in targets:
+                f = collection_set_nfo_findings(key, name, rs)
+                if f is not None and f["mistakes"]:
+                    groups.append((key, name, rs, f))
+            self._coll_set_nfo_groups = groups                    # read by the self-test
+            if not groups:
+                if nothing_msg:
+                    messagebox.showinfo(nothing_msg[0], nothing_msg[1], parent=self)
+                return None
+            use = set()
+            if any({"title_differs", "other_language"} & set(g[3]["mistakes"]) for g in groups):
+                dlg = _SetNfoDialog(self, groups)
+                self.wait_window(dlg)
+                if dlg.result is None:
+                    return None
+                use = dlg.result
+            return self._set_nfo_run(groups, use)
+        self._read_collection_folders(then=_then)
+        return None
 
     # ── v0.19.4 B110g: the collection folder ──
     def _read_collection_folders(self, then=None):                 ### NEW v0.19.4 B110g ###
         """Worker: list the set folders; Tk thread: health + table.  Nothing while the setting is empty."""
         root = _coll_root()                                       ### v0.19.4 fix 2e ###
-        names = sorted({collection_name(r) for r in self._results if collection_name(r)})
+        ### MODIFIED v0.20.1 SN1 — also the names a fix just wrote (the rows are re-read later, in the background) ###
+        _extra, self._cf_extra_names = set(getattr(self, "_cf_extra_names", None) or ()), set()
+        names = sorted({collection_name(r) for r in self._results if collection_name(r)} | {n for n in _extra if n})
         aliases = collection_aliases(self._results)              ### NEW v0.19.4 fix 15 ###
         if not root:
             if COLL_FOLDERS:                                        ### MODIFIED v0.19.4 P1 (B15) — re-check the rows ###
@@ -26252,6 +26918,7 @@ class App(tk.Tk):
         ### applied (an older one finishing later on the share can't overwrite it), then every waiting "then" ###
         self._cf_gen = gen = getattr(self, "_cf_gen", 0) + 1
         self._cf_thens = list(getattr(self, "_cf_thens", None) or []) + ([then] if then else [])
+        _tok = _ACT.begin(_i18n.t("sn3.reading_coll"), (root,), ("*",))   # v0.20.1 SN3: every collection panel
 
         def work():
             try:
@@ -26262,9 +26929,15 @@ class App(tk.Tk):
             try:
                 ui_post(lambda r=res: apply(r))
             except (RuntimeError, tk.TclError):
-                pass
+                _ACT.end(_tok)
 
         def apply(res):
+            try:
+                _apply_cf(res)
+            finally:
+                _ACT.end(_tok)                                 # after the panel shows the new state
+
+        def _apply_cf(res):
             if gen != self._cf_gen:                            # a newer read is on its way
                 return
             thens, self._cf_thens = self._cf_thens, []
@@ -26301,6 +26974,24 @@ class App(tk.Tk):
             return None
         return self._set_nfo_run(groups, dlg.result)
 
+    def _refresh_collection(self, rows):                           ### NEW v0.20.1 SN1 — the user, 2026-11-20 ###
+        """Refresh a collection: its folder (artwork, set.nfo) is read again, and its movies are re-read in the
+        background (no FFprobe), like Update on a movie. The panel and the table follow."""
+        if self._busy():
+            return None
+        rows = [r for r in rows if r]
+        self._cf_extra_names = {collection_name(r) for r in rows if collection_name(r)}
+        self._read_collection_folders()
+        paths = [r.get("subfolder_path") for r in rows if r.get("subfolder_path")]
+        if paths:
+            self._schedule_refresh(paths, need_ffprobe=False)
+            try:
+                self._sb_action.configure(text=_i18n.t("mc.updating_in_the_background_88de", n=_n(len(paths), 'movie')))
+            except (AttributeError, tk.TclError):
+                pass
+        self._coll_refreshed = len(paths)                          # read by the self-test
+        return None
+
     def _set_nfo_for(self, key, name, rows):                       ### NEW v0.20.1 L4 — one collection (its panel) ###
         if self._busy(SET_NFO_ACTION):
             return None
@@ -26322,7 +27013,7 @@ class App(tk.Tk):
         def _step(job, g):
             key, name, rows, f = g
             path = f["path"]
-            if f["existing"] is None:
+            if f["existing"] is None and not os.path.exists(path):   # v0.20.1 SN1: a file made meanwhile is filled, never overwritten
                 write_set_nfo(path, _sn.build(name, f["want_overview"]))
                 _sc.note_created(_BACKUP_ROOT, name, job.ref, path, None, logger=logger)
                 return True
@@ -26341,12 +27032,19 @@ class App(tk.Tk):
             return True
 
         def _finish(job):
+            ### NEW v0.20.1 SN1 — the result is checked on disk: a set.nfo that is still not there is an error, never "done" ###
+            for _g in todo:
+                if not os.path.isfile(_g[3]["path"]) and not any(_g[1] in e for e in job.errors):
+                    job.errors.append(f"{_g[1]}: {_i18n.t('sn1.not_on_disk', p=_g[3]['path'])}")
             msg = _i18n.t("cf2.done", n=_n(job.done, "collection"))
             if job.errors:
                 msg += _i18n.t("bf.failed", join="\n".join(job.errors[:8]))
             msg += ("\n\n" + UNDO_HINT) if job.done else ""
             self._last_set_nfo = (job.done, list(job.errors))                 # read by the self-test
             (messagebox.showwarning if job.errors else messagebox.showinfo)(shown_action(SET_NFO_ACTION), msg, parent=self)
+            ### MODIFIED v0.20.1 SN1 — the folders of the collections just written are read too (their movies may still
+            # carry the old name until the background re-read; without this the panel lost the folder: "not checked") ###
+            self._cf_extra_names = set(getattr(self, "_cf_extra_names", None) or ()) | {g[1] for g in todo}
             self._read_collection_folders()
 
         job = _BatchJob(self, todo, SET_NFO_ACTION, progress_title=_i18n.t("cf2.progress"), name_of=lambda g: g[1])
@@ -27046,7 +27744,8 @@ class App(tk.Tk):
             if not pv.run:
                 return
         prog = _BatchProgressDialog(self, _i18n.t("au.prog.auto_repair"), total=len(data_list)) if len(data_list) >= 3 else None
-        _AppJobThread(self, target=self._auto_repair_worker, args=(list(data_list), opts, prog)).start()
+        _AppJobThread(self, target=self._auto_repair_worker, args=(list(data_list), opts, prog),
+                      act_paths=act_targets(data_list)[0]).start()   # v0.20.1 SN3
 
     def _auto_repair_all(self):                                    ### NEW v0.19.0 ###
         if self._busy("Auto Repair"):                            ### NEW v0.19.4 B91 — first ###
@@ -27825,7 +28524,7 @@ class App(tk.Tk):
             except Exception as ex:
                 logger.error(f"Fix IDs: {ex}")
                 ui_post(lambda m=_tmdb_error_message(ex): messagebox.showerror(_i18n.t("mc.fix_ids_101e"), m, parent=self))
-        _AppJobThread(self, target=_worker).start()              # v0.20.0 AU11: a scan / close waits for it (was a plain thread)
+        _AppJobThread(self, target=_worker, act_paths=(row.get("subfolder_path"),)).start()   # v0.20.0 AU11; v0.20.1 SN3
 
     def _fetch_poster_folder(self, data_list):                 ### NEW v0.16.0 ###
         """Launch Fetch Poster/Folder dialog for each movie in data_list."""
@@ -28237,7 +28936,8 @@ class App(tk.Tk):
 
             ui_post(_finish)
 
-        _AppJobThread(self, target=lambda: _with_backup_action("Replace All Backdrops", _worker)).start()   ### I1; P2 ###
+        _AppJobThread(self, target=lambda: _with_backup_action("Replace All Backdrops", _worker),
+                      act_paths=(d.get("subfolder_path"),)).start()   ### I1; P2; v0.20.1 SN3 ###
 
     def _open_fanart_tv(self, d):                              ### NEW v0.18.0 ###
         """Open the selected movie's Fanart.tv page using its TMDB ID."""
@@ -28838,6 +29538,228 @@ class App(tk.Tk):
 
     def _bg_done(self):                                           ### NEW v0.19.4 P2 ###
         self._bg_running = max(0, getattr(self, "_bg_running", 0) - 1)
+
+    # ── v0.20.1 SN3: the activity indicator (Tk thread). One ticker, running only while something is busy or a
+    # ✓ / ! is still shown; the timings are visual only (they never feed _busy() or _refresh_idle()). ──
+    _ACT_TICK_MS = 40
+    _ACT_SPIN = "◐◓◑◒"
+
+    def _act_wake(self):
+        if getattr(self, "_act_after", None) is not None or APP_CLOSING.is_set():
+            return
+        try:
+            self._act_after = self.after(15, self._act_tick)
+        except (tk.TclError, RuntimeError, AttributeError):
+            self._act_after = None
+
+    def _act_warm(self, i):
+        """Draw the 24 ring positions and load the fonts ahead (one step per 60 ms): the first frame has no stall."""
+        if APP_CLOSING.is_set() or not _PIL_AVAILABLE:
+            return
+        try:
+            base = _ACT_CACHE.get(("warm",))
+            if base is None:
+                base = _ACT_CACHE[("warm",)] = _PILImage.new("RGB", _MoviePanel.POSTER, (40, 40, 60))
+            if i < 24:
+                act_poster_frame(base, "busy", i * 15 - 90, ["…"] if i == 0 else [], scale=_UI_SCALE)
+            else:
+                act_poster_frame(base, "done", 0, [], scale=_UI_SCALE)
+                act_poster_frame(base, "error", 0, [], scale=_UI_SCALE)
+                return
+            self.after(60, lambda: self._act_warm(i + 1))
+        except (tk.TclError, RuntimeError):
+            pass
+        except Exception as ex:
+            logger.debug(f"activity warm-up: {ex}")
+
+    def _act_now(self):
+        """(live entries, movie folders queued / being re-read, a re-read on its way with no folder yet)."""
+        live = _ACT.live()
+        rf = set(getattr(self, "_rf_pending", None) or {}) | set(getattr(self, "_rf_batch_keys", None) or ())
+        return live, rf, bool(getattr(self, "_rf_posted", 0))
+
+    @staticmethod
+    def _act_involves(item, e):
+        """True when entry *e* (a job / read) touches the panel's *item* ("movie"|"coll", folders, collection key)."""
+        kind, pks, key = item
+        if pks & e.get("paths", set()):
+            return True
+        return kind == "coll" and bool(key) and (key in e.get("keys", set()) or "*" in e.get("keys", set()))
+
+    def _act_tick(self):
+        self._act_after = None
+        if APP_CLOSING.is_set():
+            return
+        try:
+            if not self.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        T = _i18n.t
+        now = time.monotonic()
+        self._act_frame = (self._act_frame + 1) % 10_000
+        live, rf, posted = self._act_now()
+        # the jobs that ended since the last tick count as busy now (a quick one can start and end in between)
+        fresh = _ACT.ended_after(getattr(self, "_act_eseq", 0))
+        if fresh:
+            self._act_eseq = max(e["eseq"] for e in fresh)
+        seen = live + fresh
+        # ── the whole app: bar + status line ──
+        g = self._act_g
+        busy = bool(seen or rf or posted)
+        if busy and g.get("since") is None and g.get("until") is None:
+            g.pop("job", None); g.pop("text", None)                # a new span: no text of the last one
+        jobs = []
+        if busy:
+            jobs = [e for e in seen if "*" not in e["keys"]]
+            cur = max(jobs or seen, key=lambda e: e["t"]) if seen else None
+            g["text"] = cur["text"] if cur else T("sn3.refreshing", movies=_n(max(1, len(rf)), "movie"))
+            if jobs:
+                g["job"] = max(jobs, key=lambda e: e["t"])["text"]
+        vis = act_visual(busy, now, g, job=bool(jobs))
+        bad = [e for e in fresh if e.get("error")]
+        if bad:                                                    # after act_visual: a new span clears "err"
+            g["err"] = (bad[-1]["text"], bad[-1]["error"])
+        self._act_show_global(vis, g)
+        # ── the panel: the shown movie / collection ──
+        vis_p = "idle"
+        panel = getattr(self, "_movie_panel", None)
+        item = None
+        try:
+            item = panel.act_item() if panel is not None and self._panel_shown() else None
+        except Exception:
+            item = None
+        # the same movies = the same item (a collection keeps its state through a rename of its key)
+        if (item[:2] if item else None) != (self._act_p_item[:2] if self._act_p_item else None):
+            self._act_p = {}
+        self._act_p_item = item
+        if item is not None:
+            p = self._act_p
+            hit = [e for e in seen if self._act_involves(item, e)]
+            rf_hit = bool(item[1] & rf)
+            pbusy = bool(hit or rf_hit)
+            if pbusy and p.get("since") is None and p.get("until") is None:
+                for _k in ("job", "text", "net"):
+                    p.pop(_k, None)
+            jobs = []
+            if pbusy:
+                jobs = [e for e in hit if "*" not in e["keys"]]
+                if jobs:
+                    p["job"] = max(jobs, key=lambda e: e["t"])["text"]
+                p["text"] = (max(jobs or hit, key=lambda e: e["t"])["text"] if hit else T("sn3.refresh_short"))
+                paths = set().union(*[e["paths"] for e in hit]) if hit else set()
+                p["net"] = any(is_network_path(x) for x in (list(paths) or list(item[1]))[:5])
+            vis_p = act_visual(pbusy, now, p, job=bool(jobs))
+            bad = [e for e in fresh if e.get("error") and self._act_involves(item, e)]
+            if bad:
+                p["err"] = bad[-1]["error"]
+            if vis_p == "busy":
+                lines = [p.get("text", "") + "…", T("sn3.on_nas") if p.get("net") else T("sn3.on_disk")]
+            elif vis_p == "done":
+                lines = [T("sn3.done"), p.get("job") or p.get("text", "")]
+            elif vis_p == "error":
+                lines = [T("sn3.failed"), str(p.get("err") or "")[:80]]
+            else:
+                lines = []
+            try:
+                panel.act_show(vis_p, lines, (self._act_frame * 15) % 360 - 90)
+            except Exception as ex:
+                logger.debug(f"activity overlay: {ex}")
+        elif panel is not None:
+            try:
+                panel.act_show("idle", [], 0)
+            except Exception:
+                pass
+        if vis != "idle" or vis_p != "idle":
+            try:
+                self._act_after = self.after(self._ACT_TICK_MS, self._act_tick)
+            except (tk.TclError, RuntimeError):
+                self._act_after = None
+
+    def _act_show_global(self, vis, g):
+        """The thin bar above the table (not during a scan: the scan has its own bar) and the status-bar line."""
+        T = _i18n.t
+        lbl = getattr(self, "_sb_activity", None)
+        if lbl is not None:
+            if vis == "busy":
+                txt = f"{self._ACT_SPIN[(self._act_frame // 4) % 4]}  {g.get('text', '')}…"
+                fg = C_ACCENT
+            elif vis == "done":
+                txt, fg = "✓  " + T("sn3.st_done", text=g.get("job") or g.get("text", "")), C_OK
+            elif vis == "error":
+                _t, _e = g.get("err") or ("", "")
+                txt, fg = "!  " + T("sn3.st_failed", text=_t, err=str(_e)[:120]), C_ERR
+            else:
+                txt, fg = "", C_ACCENT
+            try:
+                if lbl.cget("text") != txt or str(lbl.cget("fg")) != fg:
+                    lbl.configure(text=txt, fg=fg)
+            except tk.TclError:
+                pass
+        bar = getattr(self, "_act_bar", None)
+        if bar is None:
+            return
+        try:
+            if vis in ("idle", "wait") or self._scanning:
+                if bar.winfo_ismapped():
+                    bar.place_forget()
+                return
+            y, x, w = self._act_bar_geometry()
+            bar.place(x=x, y=y, width=w, height=3)
+            bar.delete("all")
+            bar.create_rectangle(0, 0, w, 3, fill=C_SURFACE, width=0)
+            if vis == "busy":
+                seg = max(60, int(w * 0.28))
+                pos = (self._act_frame * self._ACT_TICK_MS / 1000.0 * 0.55) % 1.0
+                sx = int(pos * (w + seg)) - seg
+                imgs = self.__dict__.setdefault("_act_bar_imgs", {})   # Tk images live with the window
+                key = ("bar", seg)
+                ph = imgs.get(key)
+                if ph is None and _PIL_AVAILABLE:
+                    from PIL import Image
+                    acc = tuple(int(C_ACCENT.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+                    im = Image.new("RGBA", (seg, 3))
+                    for xx in range(seg):
+                        a = int(255 * math.sin(math.pi * xx / (seg - 1)) ** 0.8)
+                        for yy in range(3):
+                            im.putpixel((xx, yy), acc + (a,))
+                    ph = imgs[key] = _PILImageTk.PhotoImage(im)
+                if ph is not None:
+                    bar.create_image(sx, 0, image=ph, anchor="nw")
+                else:
+                    bar.create_rectangle(sx, 0, sx + seg, 3, fill=C_ACCENT, width=0)
+            else:
+                bar.create_rectangle(0, 0, w, 3, fill=C_OK if vis == "done" else C_ERR, width=0)
+        except tk.TclError:
+            pass
+
+    def _act_bar_geometry(self):
+        """(y, x, width) of the 3 px bar: centred between the filter row and what follows the progress frame (the user,
+        2026-11-20: "distance above and below shall be the same" — measured to the TEXT of the counters line, not to
+        its label's box: the box has a border, padding and the font's leading above the letters)."""
+        pf = self.progress_frame
+        top = self._filter_row.winfo_y() + self._filter_row.winfo_height()
+        below = None
+        try:
+            sl = pf.master.pack_slaves()
+            i = sl.index(pf)
+            for w in sl[i + 1:]:
+                if w.winfo_ismapped():
+                    below = w.winfo_y()
+                    if w.winfo_class() == "Label":               # where its letters start (once per label and font)
+                        ck = (str(w), str(w.cget("font")), str(w.cget("bd")), str(w.cget("pady")))
+                        if getattr(self, "_act_inset_key", None) != ck:
+                            asc = int(tk_font.Font(font=w.cget("font")).metrics("ascent"))
+                            self._act_inset = (int(w.winfo_fpixels(w.cget("bd"))) + int(w.winfo_fpixels(w.cget("pady")))
+                                               + max(0, asc - int(round(asc * 0.75))))
+                            self._act_inset_key = ck
+                        below += self._act_inset
+                    break
+        except (ValueError, tk.TclError):
+            below = None
+        if below is None or below <= top:
+            below = pf.winfo_y() + pf.winfo_height() + B70_GAP - 1
+        return top + max(0, (below - top - 3) // 2), pf.winfo_x(), max(40, pf.winfo_width())
 
     def _bg_wait_note(self, title):                               ### NEW v0.19.4 P2 (E15) ###
         """True (and a message) while a long action still runs: a scan would replace the rows it updates."""
@@ -30057,6 +30979,13 @@ class App(tk.Tk):
         # process ends after mainloop (see __main__) so no SMB handle on the NAS outlives the window ###
         APP_CLOSING.set()
         self._cancel_scan = True
+        _ACT.waker = None                                          # v0.20.1 SN3: no new ticks
+        if getattr(self, "_act_after", None):
+            try:
+                self.tk.call("after", "cancel", self._act_after)   # CLAUDE.md §4: cancel in Tcl
+            except tk.TclError:
+                pass
+            self._act_after = None
         self.destroy()
 
     ### NEW v0.10.0 — Richer status bar update ###
@@ -30239,6 +31168,11 @@ class App(tk.Tk):
         m.add_command(label="🌐  " + (T("ctx.open_coll_tmdb") if cid else T("ctx.search_coll_tmdb")),
                       command=lambda: open_url_with_browser(collection_tmdb_url(cid, name)))
         m.add_command(label=CHECK_COLL_ONE_LABEL, command=lambda: self._check_collections(rows))
+        ### NEW v0.20.1 SN1 — set.nfo and Refresh on the collection row too ###
+        _sfm = collection_set_nfo_findings(key, name, rows)
+        m.add_command(label="📄  " + T("act.set_nfo"), command=lambda: self._set_nfo_for(key, name, rows),
+                      state="normal" if _sfm is not None else "disabled")
+        m.add_command(label="🔄  " + T("sn1.refresh_coll"), command=lambda: self._refresh_collection(rows))
         m.add_separator()
         m.add_command(label=T("ctx.coll.expand_all"), command=lambda: self._coll_all(True))
         m.add_command(label=T("ctx.coll.collapse_all"), command=lambda: self._coll_all(False))

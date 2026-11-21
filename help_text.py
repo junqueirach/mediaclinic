@@ -368,7 +368,9 @@ With several movies selected, each line says how many movies have the problem, a
 | Required subtitle missing | find subtitles (OpenSubtitles)…
 | Subtitles burned into the picture | Hard-coded subtitles…
 | Required audio language missing | needs another copy of the video (no automatic fix)
-| Auto Repair can fix more | Auto Repair
+| Several of the fixes above, or one only Auto Repair does | Auto Repair
+
+The Auto Repair line says how much it does: "Fix all 3 at once" or "Fix 3 of 5 at once" (it never changes images), with the fixes in brackets and each step in its tooltip; with several movies "Auto Repair — 5 fixes on 3 movies". It is first in the list. When it would only do the one fix already listed, it is not shown.
 
 ## The right-click menu
 Right-click a row, or press [[Shift+F10]] or the Menu key at the selected row. An action that does not apply stays in its place, greyed, with the reason ("missing", "one movie only" …).
@@ -774,7 +776,8 @@ Right-click a collection row, or use **All actions ▾** in its panel:
 | Open Collection Folder | opens the collection's folder
 | Open Collection on TMDB | the collection's page (**Search Collection on TMDB** when the collection's TMDB ID is not known)
 | Check Collection Online | asks TMDB about this collection's movies
-The panel shows the collection: its poster (from the collection folder), TMDB ID, years, folder, artwork, overview, its movies and the fixes. Its buttons: **Artwork…**, **Fix Collection…**, **Open Poster**, **Open Fanart**, **Open Folder**, **TMDB** (the collection's page with its movies, or a TMDB search for the name), **Rename / Join…** and **Write set.nfo**.
+The panel shows the collection: its poster (from the collection folder), TMDB ID, years, folder, artwork, overview, its movies and the fixes. Its buttons: **Artwork…**, **Fix Collection…**, **Open Poster**, **Open Fanart**, **Open Folder**, **TMDB** (the collection's page with its movies, or a TMDB search for the name), **Rename / Join…**, **Write set.nfo** and **Refresh Collection** (reads the collection folder and its movies again, like Update on a movie).
+While the app writes or reads files again, a ring turns on the poster of the movie or collection it is working on, a thin bar moves above the table and the status bar says what it does. It ends with **✓ Done** once the panel shows the new state, or **! Not done** with the reason. The panel's buttons are grey in the meantime.
 
 ## One collection, one name
 Kodi shows one set per name, so a TMDB collection gets ONE name for all its movies.
@@ -807,6 +810,7 @@ Three rules in Settings → Health Rules, all warnings:
 Each collection's folder should hold a set.nfo: title = the collection name in the NFOs, overview in the app's TMDB language.
 - A collection whose set.nfo is missing or has a mistake (no title, no overview although TMDB has one, a title other than the name in the NFOs, an overview in another language) shows "⚠ set.nfo" on its row (Group by collection) and in its panel. The movies' own health is unchanged; the Health report lists these collections.
 - Creating a collection folder writes its set.nfo at once.
+- **Fix Collection…** also takes care of set.nfo: after the names are written it reads the collection folder again and writes a missing set.nfo / fills empty tags. It says "Nothing to change" only when the names and set.nfo are both right. In the collection's panel, the set.nfo warning has a **Fix** button right beside it.
 - **Tools → Collections → Check / Write set.nfo…** (one collection: the **Write set.nfo** button in its panel) writes the missing files and fills empty tags. Where a text differs it shows both, and you tick "Use TMDB's" per collection.
 - A backup comes first, and Backup History / Undo puts the old file back.
 
