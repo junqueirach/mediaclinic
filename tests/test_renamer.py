@@ -8,6 +8,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import renamer as rn  # noqa: E402
 
+
+def P(win):                                                      # v0.20.2: CI runs on Linux
+    """A test path written the Windows way; on Linux the same tree under /m (M:\\Movies\\Old -> /m/Movies/Old)."""
+    return win if os.name == "nt" else "/m/" + win[3:].replace("\\", "/")
+
 F = {"title": "The Matrix", "originaltitle": "The Matrix", "year": "1999", "quality": "1080p", "codec": "HEVC",
      "audio": "DTS", "genre": ["Action", "Sci-Fi"], "imdb": "tt0133093", "tmdb": "603", "hdr": ""}
 
@@ -71,71 +76,71 @@ def test_follows():
 def test_plan_single():
     files = ["the.matrix.1999.mkv", "the.matrix.1999.nfo", "the.matrix.1999-poster.jpg", "poster.jpg", "movie.nfo",
              "the.matrix.1999.pt.srt"]
-    p = rn.plan_movie(r"M:\Movies\the matrix (1999)", files, "the.matrix.1999.mkv", None,
+    p = rn.plan_movie(P(r"M:\Movies\the matrix (1999)"), files, "the.matrix.1999.mkv", None,
                       new_folder="The Matrix (1999)")
     assert p["problem"] is None and p["case_only"]
-    assert p["folder"] == (os.path.join(r"M:\Movies", "the matrix (1999)"), os.path.join(r"M:\Movies", "The Matrix (1999)"))
+    assert p["folder"] == (os.path.join(P(r"M:\Movies"), "the matrix (1999)"), os.path.join(P(r"M:\Movies"), "The Matrix (1999)"))
     assert dict(p["files"]) == {"the.matrix.1999.mkv": "The Matrix (1999).mkv",
                                 "the.matrix.1999.nfo": "The Matrix (1999).nfo",
                                 "the.matrix.1999-poster.jpg": "The Matrix (1999)-poster.jpg",
                                 "the.matrix.1999.pt.srt": "The Matrix (1999).pt.srt"}
     # an NFO named after the old folder AND one after the video would both become "The Matrix (1999).nfo"
-    p = rn.plan_movie(r"M:\Movies\the matrix (1999)", files + ["the matrix (1999).nfo"], "the.matrix.1999.mkv", None,
+    p = rn.plan_movie(P(r"M:\Movies\the matrix (1999)"), files + ["the matrix (1999).nfo"], "the.matrix.1999.mkv", None,
                       new_folder="The Matrix (1999)")
     assert p["problem"] == "same_target" and p["folder"] is None
 
 
 def test_plan_same_target_and_exists():
     # two NFOs (video name and old folder name) would get the same new name → the movie is skipped
-    p = rn.plan_movie(r"M:\M\Old", ["vid.mkv", "vid.nfo", "Old.nfo"], "vid.mkv", None, new_folder="New (2000)")
+    p = rn.plan_movie(P(r"M:\M\Old"), ["vid.mkv", "vid.nfo", "Old.nfo"], "vid.mkv", None, new_folder="New (2000)")
     assert p["problem"] == "same_target" and p["folder"] is None
-    p = rn.plan_movie(r"M:\M\Old", ["vid.mkv"], "vid.mkv", None, new_folder="Taken",
+    p = rn.plan_movie(P(r"M:\M\Old"), ["vid.mkv"], "vid.mkv", None, new_folder="Taken",
                       exists=lambda path: path.endswith("Taken"))
     assert p["problem"] == "exists"
     # a case-sensitive NAS: "The Matrix (1999)" exists next to "the matrix (1999)" → a conflict, not a case-only rename
-    p = rn.plan_movie(r"M:\M\the matrix (1999)", ["v.mkv"], "v.mkv", None, new_folder="The Matrix (1999)",
+    p = rn.plan_movie(P(r"M:\M\the matrix (1999)"), ["v.mkv"], "v.mkv", None, new_folder="The Matrix (1999)",
                       siblings=["the matrix (1999)", "The Matrix (1999)"])
     assert p["problem"] == "exists"
-    p = rn.plan_movie(r"M:\M\the matrix (1999)", ["v.mkv"], "v.mkv", None, new_folder="The Matrix (1999)",
+    p = rn.plan_movie(P(r"M:\M\the matrix (1999)"), ["v.mkv"], "v.mkv", None, new_folder="The Matrix (1999)",
                       siblings=["the matrix (1999)"])
     assert p["problem"] is None and p["case_only"]
     # a file that does not move already has the new name
-    p = rn.plan_movie(r"M:\M\Old", ["vid.mkv", "New (2000).mkv"], "vid.mkv", None, new_folder="New (2000)")
+    p = rn.plan_movie(P(r"M:\M\Old"), ["vid.mkv", "New (2000).mkv"], "vid.mkv", None, new_folder="New (2000)")
     assert p["problem"] == "file_exists"
-    p = rn.plan_movie(r"M:\M\Same (1999)", ["Same (1999).mkv"], "Same (1999).mkv", None, new_folder="Same (1999)")
+    p = rn.plan_movie(P(r"M:\M\Same (1999)"), ["Same (1999).mkv"], "Same (1999).mkv", None, new_folder="Same (1999)")
     assert p["problem"] == "nothing"
-    p = rn.plan_movie(r"M:\M\Old", ["vid.mkv"], "vid.mkv", None, new_folder="N" * 300)
+    p = rn.plan_movie(P(r"M:\M\Old"), ["vid.mkv"], "vid.mkv", None, new_folder="N" * 300)
     assert p["problem"] == "too_long"
 
 
 def test_plan_stack_versions_disc():
-    p = rn.plan_movie(r"M:\M\Old", ["Old-cd1.mkv", "Old-cd2.mkv", "Old-poster.jpg", "Old.nfo"], "Old-cd1.mkv",
+    p = rn.plan_movie(P(r"M:\M\Old"), ["Old-cd1.mkv", "Old-cd2.mkv", "Old-poster.jpg", "Old.nfo"], "Old-cd1.mkv",
                       "stack", new_folder="New (2000)", stack_title="Old")
     assert dict(p["files"]) == {"Old-cd1.mkv": "New (2000)-cd1.mkv", "Old-cd2.mkv": "New (2000)-cd2.mkv",
                                 "Old-poster.jpg": "New (2000)-poster.jpg", "Old.nfo": "New (2000).nfo"}
-    p = rn.plan_movie(r"M:\M\Movie (2021)", ["Movie (2021) - 1080p.mkv", "Movie (2021) - 720p.mkv", "movie.nfo"],
+    p = rn.plan_movie(P(r"M:\M\Movie (2021)"), ["Movie (2021) - 1080p.mkv", "Movie (2021) - 720p.mkv", "movie.nfo"],
                       "Movie (2021) - 1080p.mkv", "versions", new_folder="Movie (2021) [tmdb-1]")
     assert dict(p["files"]) == {"Movie (2021) - 1080p.mkv": "Movie (2021) [tmdb-1] - 1080p.mkv",
                                 "Movie (2021) - 720p.mkv": "Movie (2021) [tmdb-1] - 720p.mkv"}
-    p = rn.plan_movie(r"M:\M\old dvd", ["old dvd.nfo", "poster.jpg"], None, None, new_folder="New (1990)", disc=True)
+    p = rn.plan_movie(P(r"M:\M\old dvd"), ["old dvd.nfo", "poster.jpg"], None, None, new_folder="New (1990)", disc=True)
     assert p["folder"] and dict(p["files"]) == {"old dvd.nfo": "New (1990).nfo"}
 
 
 def test_files_only_and_batch():
-    p = rn.plan_movie(r"M:\M\Heat (1995)", ["heat.mkv", "heat.nfo"], "heat.mkv", None, new_folder="X",
+    p = rn.plan_movie(P(r"M:\M\Heat (1995)"), ["heat.mkv", "heat.nfo"], "heat.mkv", None, new_folder="X",
                       rename_folder=False)
     assert p["folder"] is None and dict(p["files"]) == {"heat.mkv": "Heat (1995).mkv", "heat.nfo": "Heat (1995).nfo"}
-    a = {"folder": ("M:\\a", "M:\\Same (2000)")}
-    b = {"folder": ("M:\\b", "M:\\same (2000)")}
+    a = {"folder": (P("M:\\a"), P("M:\\Same (2000)"))}
+    b = {"folder": (P("M:\\b"), P("M:\\same (2000)"))}
     assert rn.batch_conflicts([a, None, b]) == {0: "same_folder", 2: "same_folder"}
 
 
 def test_repath():
-    row = {"subfolder_path": r"M:\Movies\Old", "subfolder": "Old", "nfo_path": r"M:\Movies\Old\a.nfo",
-           "backdrop_paths": [r"M:\Movies\Old\extrafanart\f1.jpg"], "library_root": r"M:\Movies",
-           "x": r"M:\Movies\Older\a.nfo", "n": 3}
-    out = rn.repath(row, r"M:\Movies\Old", r"M:\Movies\New (2000)")
-    assert out["subfolder_path"] == os.path.normpath(r"M:\Movies\New (2000)")
-    assert out["nfo_path"] == os.path.join(os.path.normpath(r"M:\Movies\New (2000)"), "a.nfo")
+    row = {"subfolder_path": P(r"M:\Movies\Old"), "subfolder": "Old", "nfo_path": P(r"M:\Movies\Old\a.nfo"),
+           "backdrop_paths": [P(r"M:\Movies\Old\extrafanart\f1.jpg")], "library_root": P(r"M:\Movies"),
+           "x": P(r"M:\Movies\Older\a.nfo"), "n": 3}
+    out = rn.repath(row, P(r"M:\Movies\Old"), P(r"M:\Movies\New (2000)"))
+    assert out["subfolder_path"] == os.path.normpath(P(r"M:\Movies\New (2000)"))
+    assert out["nfo_path"] == os.path.join(os.path.normpath(P(r"M:\Movies\New (2000)")), "a.nfo")
     assert out["backdrop_paths"][0].endswith(os.path.join("New (2000)", "extrafanart", "f1.jpg"))
-    assert out["library_root"] == r"M:\Movies" and out["x"] == r"M:\Movies\Older\a.nfo" and out["n"] == 3
+    assert out["library_root"] == P(r"M:\Movies") and out["x"] == P(r"M:\Movies\Older\a.nfo") and out["n"] == 3
