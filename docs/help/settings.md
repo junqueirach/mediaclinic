@@ -18,7 +18,7 @@
 | Health Rules | **Health preset**, **Which programs play your movies?**, the rules in four sections and **Reset to defaults** (details below the table)
 | Backup | the size limit, automatic deletion of the oldest backups, **Delete all backup folders**
 Health Rules in detail:
-- **Health preset** — Easy / Medium / Tight sets every rule at once; Custom after your own changes. A new user starts with Tight, and choosing a preset after your own changes asks first.
+- **Health preset** — Easy / Medium / Tight sets every rule at once; Custom after your own changes. A new user starts with Medium, and choosing a preset after your own changes asks first.
 - **Which programs play your movies?** — tick every program you use. The ticks set the health mode: NFO only, NFO and movie.xml, or movie.xml only. A change between NFO and movie.xml offers a new scan.
 - The rules are in four sections — **General**, **NFO**, **movie.xml** and **NFO ↔ movie.xml comparisons** — each rule with its tick box, threshold and level (error / warning).
 - The sections the health mode does not use stay visible but greyed and cannot be changed; their settings are kept for when you switch back.

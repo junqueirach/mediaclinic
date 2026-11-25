@@ -8,6 +8,15 @@
 TAB_01 = """
 # Primeros pasos
 
+## Novedades de la v0.20.2
+- **Renombrar carpeta y archivos…**: carpetas de películas nombradas según un patrón, los archivos las siguen, Deshacer renombra de vuelta (pestaña Calificaciones, géneros e IDs).
+- **Clasificaciones por edad…**: la clasificación de sus países en su orden, escrita en cada etiqueta de clasificación que tienen sus archivos (pestaña Calificaciones, géneros e IDs).
+- Colecciones: **Crear / editar set.nfo…** (Kodi 22 y posteriores) y **Huecos en las colecciones…**, las películas de una colección que faltan en su biblioteca (pestaña Colecciones).
+- Emby y Jellyfin: los videos de tema en la carpeta backdrops cuentan como fondos, y las advertencias solo de Kodi (fotos de los actores, votos, imágenes de la colección) quedan desactivadas cuando Kodi no está marcado.
+- Las filas de una biblioteca que no se puede alcanzar se ven en gris.
+- Sin ningún programa marcado, la app pregunta una vez qué programas usa; un usuario nuevo empieza con el ajuste de estado Medio.
+- **Ayuda → Copiar información de diagnóstico…** para informar un error, sin rutas ni nombres de películas (pestaña Solución de problemas).
+
 ## Novedades de la v0.20.1
 - El menú Herramientas está agrupado en submenús (pestaña Herramientas y Reparación automática).
 - Pósteres: Reemplazar pósteres de baja resolución, Revisar pósteres uno a uno y un ajuste de idioma de las imágenes (pestaña Imágenes).
@@ -45,7 +54,7 @@ La pestaña Servidores multimedia lista todos los nombres que leen los servidore
 En el primer inicio una ventana pregunta cinco cosas. Solo **Empezar** guarda las respuestas; cerrar la ventana la hace volver en el siguiente inicio.
 | Idioma | elíjalo primero: **Reiniciar ahora** muestra la ventana otra vez en ese idioma
 | Carpeta de películas | agréguela ahora, o después con **Examinar…** o **Bibliotecas…**
-| ¿Qué programas reproducen sus películas? | marque todos los que usa (no marcar ninguno también vale)
+| ¿Qué programas reproducen sus películas? | marque todos los que usa. Sin ninguno marcado se aplican todas las reglas, también las que solo Kodi necesita: Empezar pregunta una vez (**Marcar mis programas** / **Empezar de todos modos**). Quien no tiene nada marcado ve esta pregunta una vez más en la v0.20.2
 | Exigencia | Estricto, Medio o Fácil
 | FFprobe | opcional: no viene incluido ni se descarga por usted; **Elegir carpeta…** o **Página de descarga**
 Quien actualiza desde una versión anterior ve solo la pregunta de los programas, una vez, con **Ahora no**.
@@ -73,7 +82,7 @@ En el modo **NFO y movie.xml**, una biblioteca en la que ninguna película tiene
 - **Configuración → Editor y FFmpeg**: indique la carpeta de FFmpeg (análisis de video y extracción de imágenes de fondo).
 - **Configuración → Claves de API**: agregue las claves de TMDB y OMDb (calificaciones, búsqueda y revisión de IDs, imágenes); una clave de fanart.tv agrega más pósteres e imágenes de fondo.
 - **Configuración → Idioma**: el idioma de destino de la columna Idioma (por defecto PT). El idioma de la propia app está en **Configuración → Interfaz → Idioma de la interfaz** (English, Português (Brasil), Español o Igual que Windows; **Reiniciar ahora** reinicia en él).
-- **Configuración → Reglas de estado**: elija qué cuenta como error o como advertencia. Un **Perfil de estado** (Fácil / Medio / Estricto) las define todas a la vez; un usuario nuevo empieza con Estricto.
+- **Configuración → Reglas de estado**: elija qué cuenta como error o como advertencia. Un **Perfil de estado** (Fácil / Medio / Estricto) las define todas a la vez; un usuario nuevo empieza con Medio.
 - Para priorizar: ordene por **Estado** (Errores primero), haga clic en el contador **Errores** o marque **Solo problemas**.
 
 ## Íconos de estado
@@ -186,7 +195,7 @@ Puede hacer el scan de varias carpetas raíz.
 - La parte de la carpeta de colecciones fija la carpeta de la que Kodi lee el arte de las colecciones: **Elegir…**, **Crear…** (crea "Sets" junto a la primera biblioteca, tras un sí) o **Quitar**. Los scans nunca la listan como película ni como carpeta ignorada.
 - Todas las bibliotecas comparten una tabla; la columna **Biblioteca** y la descripción emergente de Película muestran dónde está una película.
 - El cuadro de bibliotecas elige qué muestra la tabla y qué cubren los scans ("Todas las bibliotecas" o una de ellas).
-- Una biblioteca a la que no se puede acceder (una carpeta de red desconectada) conserva su último scan, los scans la omiten y se muestra como "(sin conexión)". Una carpeta de película que no se puede leer por un momento conserva su fila, marcada "(no leído)".
+- Una biblioteca a la que no se puede acceder (una carpeta de red desconectada) conserva su último scan, los scans la omiten y se muestra como "(sin conexión)", con sus películas en gris. Una carpeta de película que no se puede leer por un momento conserva su fila, marcada "(no leído)".
 - Los duplicados se buscan entre bibliotecas.
 - Las películas pueden estar más adentro: se busca en una carpeta que solo contiene otras carpetas (Single Movies / HD / <movie>, Boxsets / <saga> / <movie>), hasta 5 niveles por debajo de la biblioteca. Cada película conserva su biblioteca en la columna Biblioteca.
 
@@ -281,7 +290,7 @@ Haga clic derecho en una fila, o pulse [[Shift+F10]] o la tecla Menú en la fila
 -- Para Kodi: **Descargar fotos de los actores…**; **Renombrar fotos de los actores para Kodi**, **Renombrar el arte extra para Kodi** y **Convertir extrafanart → fanart1, 2…** solo se muestran cuando la película tiene esos archivos.
 - **Metadatos**
 -- Archivos: **Abrir .nfo**, **Abrir movie.xml**, **[!] Errores en el NFO** / **[!] Errores en el XML**.
--- Nombres: **Igualar los títulos (NFO ↔ XML)…**, **Renombrar NFO para Kodi…**, **Renombrar archivos para mis programas…** (con programas marcados), **Convertir movie.xml → NFO…** (una película con movie.xml y sin NFO), **Quitar los enlaces de arte en línea del NFO…**.
+-- Nombres: **Igualar los títulos (NFO ↔ XML)…**, **Renombrar NFO para Kodi…**, **Renombrar archivos para mis programas…** (con programas marcados), **Renombrar carpeta y archivos…**, **Convertir movie.xml → NFO…** (una película con movie.xml y sin NFO), **Quitar los enlaces de arte en línea del NFO…**.
 -- **Colección ▸** (pestaña Colecciones).
 -- Calificaciones y géneros: **Sincronizar calificaciones de IMDb / TMDB**, **Normalizar géneros**, **Comparar géneros con TMDB…**, **Agregar género(s) personalizado(s) a la configuración**.
 - **IDs y fuentes**: **Buscar fuentes**, **Verificar IDs de IMDb/TMDB**, **Normalizar fuentes**, **Corregir IDs erróneos de IMDb / TMDB…**, **Añadir <uniqueid> para Kodi**, **Copiar el nombre de la película**.
@@ -371,7 +380,7 @@ TAB_05 = """
 | Extraer imagen(es) de fondo | cuadros de FFmpeg repartidos a lo largo de la película
 | Obtener imágenes de fondo | elegir imágenes de fondo de TMDB / fanart.tv; reemplazar un archivo o guardar uno nuevo
 | Reemplazar todas las imágenes de fondo | elegir la fuente y cuántas (empieza en el número que tiene); primero la resolución más alta, una descarga fallida se reemplaza por la imagen siguiente; antes, una copia de seguridad
-**Herramientas → Imágenes → Eliminar subcarpetas extrafanart…** elimina las carpetas extrafanart (antes, una copia de seguridad). Jellyfin y Emby las usan como imágenes de fondo adicionales; Kodi y Plex no las leen. Las reglas de estado señalan las imágenes de fondo demasiado pocas y las muy pequeñas.
+**Herramientas → Imágenes → Eliminar subcarpetas extrafanart…** elimina las carpetas extrafanart (antes, una copia de seguridad). Jellyfin y Emby las usan como imágenes de fondo adicionales; Kodi y Plex no las leen. Las reglas de estado señalan las imágenes de fondo demasiado pocas (el fanart principal cuenta como una) y las muy pequeñas. Con Emby o Jellyfin marcado, una película con videos en una carpeta backdrops (videos de tema, que muestran como fondo en movimiento) no se señala por tener pocas imágenes de fondo.
 
 ## Cuadros de la película
 Obtener fanart y Obtener imágenes de fondo tienen un botón **🎞 Cuadros de la película** (con FFmpeg configurado y un video en la carpeta).
@@ -447,7 +456,9 @@ La columna **Actores** muestra dónde están las fotos de los actores de una pel
 - **Descargar fotos de los actores…** (**Herramientas → Imágenes** para todas las películas, Clic derecho → Imágenes para las seleccionadas) guarda las fotos enlazadas en tamaño completo en .actors (creada oculta, como lo hace Kodi). Una foto existente nunca se reemplaza y el NFO no cambia.
 - Una foto que Kodi no reconocería ("Tom Hanks.jpg" en vez de "Tom_Hanks.jpg", otras mayúsculas, una grafía parecida) queda marcada con ⓘ. Clic derecho → Imágenes → **Renombrar fotos de los actores para Kodi** corrige los nombres (Deshacer los devuelve).
 - Las fotos que no corresponden a ningún actor solo se listan en la descripción emergente.
-- La regla de estado "Sin información de actores" es una advertencia, activada solo en el perfil Estricto.
+- La regla de estado "Sin información de actores" es una advertencia, activada solo en el perfil Estricto. Los actores sin ninguna foto se señalan solo con Kodi marcado: Emby, Jellyfin y Plex descargan las fotos por su cuenta.
+- Las comprobaciones de votos ("Faltan los votos" y los demás avisos de votos) se omiten, y la Reparación automática no toca los votos, cuando los únicos programas marcados son Emby, Jellyfin o Plex: ninguno de ellos usa el número de votos.
+- La regla de arte de las colecciones solo se aplica con Kodi marcado (o ningún programa): solo Kodi lee el arte de una carpeta de colecciones.
 - La columna se ve desde el inicio solo cuando Kodi está marcado (Herramientas → Elegir columnas…).
 
 ## Arte extra
@@ -487,6 +498,24 @@ Los valores por defecto de las casillas: Configuración → Calificaciones.
 - Nada viene marcado: cada archivo conserva sus géneros, salvo que usted marque la película.
 - Las marcadas reciben los géneros de TMDB (antes una copia de seguridad, Deshacer).
 - Necesita una clave de la API de TMDB.
+
+## Renombrar carpetas y archivos de las películas
+> Nuevo en v0.20.2. Botón derecho → Metadatos → **Renombrar carpeta y archivos…** (una película o una selección) y Herramientas → NFO y nombres de archivo → **Renombrar carpetas y archivos de las películas — Todas las películas…**.
+La ventana muestra sus opciones y cinco ejemplos; se guardan (también en Configuración → NFO / XML → Renombrador). **Vista previa de todas…** lista cada "antiguo → nuevo" antes; nada se renombra antes de hacer clic en **Renombrar**.
+- **Solo la carpeta tiene un patrón:** Título (Año) (por defecto), Título (Año) [Calidad], Título (Año) [Calidad] [Género], Título (Año) [ID de IMDb], Título (Año) [ID de TMDB], Título (Año) [Calidad Códec Audio], o el suyo con campos como {title} ({year}) [{quality}]. Un grupo entre corchetes con un campo vacío desaparece. Opciones: el título original, "Matrix, The", puntos en vez de espacios.
+- **Los archivos siguen la carpeta:** el vídeo y cada archivo con su nombre (NFO, <vídeo>-poster.jpg, subtítulos, tráiler) reciben el nombre de la carpeta; las partes mantienen "-cd1", las versiones " - 1080p". movie.nfo, poster.jpg, .actors, extrafanart y las subcarpetas se quedan; dentro de una carpeta de DVD / Blu-ray no se renombra nada.
+- El patrón de TMDB escribe [tmdb-603]: Jellyfin, Emby y Plex identifican la película por él (probado el 23/11/2026; Plex ignora [tmdbid-603]). Kodi usa el NFO y encuentra también nombres con texto entre corchetes.
+- No renombradas, con el motivo: un nombre ya usado, dos archivos que tendrían el mismo nombre, un nombre reservado por Windows, una ruta demasiado larga, una carpeta con varias películas, una película cuyo ID marcó Verificar ID (en los patrones con ID).
+- **Estado de visto:** Plex, Emby y Jellyfin lo mantienen tras renombrar. **Kodi pierde las marcas de visto y los puntos de reanudación de las películas renombradas** (y las muestra dos veces hasta Limpiar biblioteca): expórtelos antes (Kodi: Ajustes → Medios → Biblioteca → Exportar biblioteca). La vista previa lo avisa para sus programas.
+- No se copia nada. Historial de copias / Deshacer renombra cada carpeta y archivo de vuelta; una película se renombra entera o no se renombra.
+
+## Clasificaciones por edad
+> Nuevo en v0.20.2. Configuración → Calificaciones → Clasificaciones por edad: sus países en orden (por defecto: el país del idioma de la app y EE. UU.) y el máximo de valores en una lista (por defecto 3).
+Botón derecho → Metadatos → **Clasificaciones por edad…** (una película o una selección) y Herramientas → Calificaciones y géneros → **Aplicar mi configuración de clasificaciones — Todas las películas…** mantienen solo las clasificaciones de sus países, en su orden. Antes se muestra una vista previa y se hace una copia de seguridad; Historial de copias / Deshacer devuelve los archivos.
+- Cada etiqueta de clasificación de sus archivos se escribe en su propio estilo: <mpaa>, <ContentRating> y <MPAARating> de movie.xml reciben UN valor (Jellyfin y Emby leen uno; de una lista Jellyfin usa solo el primero), <FullCertifications> / <FormalMPAA> una lista hasta su máximo, <certification> como está ahora. Los valores de otros países se quitan.
+- Un valor que falta en sus archivos viene de TMDB (primero el estreno en cines), el de EE. UU. también de OMDb. Cuando ninguno de sus países tiene uno, se usa la clasificación de EE. UU. y la vista previa lo dice. Una etiqueta que falta solo se añade donde los programas la leen: <mpaa> en el NFO y <ContentRating> en movie.xml, escrita como "ES:12".
+- Sin clasificación en TMDB ni en IMDb: la etiqueta queda en blanco y la vista previa lista la película. Solo clasificaciones de países que no acepta y nada en línea: usted elige por película (o para todas) mantener el valor del archivo o dejar la etiqueta en blanco.
+- La regla de estado (activada en el perfil Estricto) avisa de un país que no acepta, más valores que su máximo o varios valores en <mpaa>. Una clasificación que falta no es un aviso.
 
 ## IDs de IMDb y TMDB
 Qué herramienta para qué problema:
@@ -550,9 +579,9 @@ TAB_07 = """
 | Reparación automática — Todas las películas… | todas las correcciones seguras de una vez (abajo)
 | Corregir un problema — Todas las películas… | una corrección automática en cada película que la necesita (abajo)
 | IDs ▸ | Corregir IDs erróneos de IMDb / TMDB…, Añadir <uniqueid> para Kodi…, Normalizar fuentes…, Buscar fuentes…, Verificar IDs de IMDb/TMDB…
-| Calificaciones y géneros ▸ | Sincronizar calificaciones en línea…, Normalizar géneros…, Comparar géneros con TMDB…
-| Colecciones ▸ | Verificar todas las colecciones en línea…, Corregir todas las colecciones…, Crear todas las carpetas de colección…, Revisar / escribir set.nfo…
-| NFO y nombres de archivo ▸ | Renombrar NFO para Kodi…, Renombrar archivos para mis programas…, Convertir movie.xml → NFO…, Quitar los enlaces de arte en línea de los NFO…
+| Calificaciones y géneros ▸ | Sincronizar calificaciones en línea…, Normalizar géneros…, Comparar géneros con TMDB…, Aplicar mi configuración de clasificaciones…
+| Colecciones ▸ | Verificar todas las colecciones en línea…, Corregir todas las colecciones…, Crear todas las carpetas de colección…, Revisar / escribir set.nfo…, Crear / editar set.nfo…, Huecos en las colecciones…
+| NFO y nombres de archivo ▸ | Renombrar NFO para Kodi…, Renombrar archivos para mis programas…, Renombrar carpetas y archivos de las películas…, Convertir movie.xml → NFO…, Quitar los enlaces de arte en línea de los NFO…
 | Imágenes ▸ | Corregir proporciones / tamaño de imagen…, Reemplazar pósteres de baja resolución…, Revisar pósteres uno a uno…, Copiar poster.jpg → folder.jpg…, Descargar fotos de los actores…, Convertir extrafanart → fanart1, 2…, Eliminar subcarpetas extrafanart…
 | Copias de seguridad / Deshacer… | cada ejecución que cambió archivos (pestaña Copias de seguridad y deshacer)
 | Resultados del scan ▸ | Guardar resultados del scan…, Abrir resultados del scan…, Recalcular el estado (sin nuevo scan), Actualizar íconos ([[Ctrl+I]])
@@ -568,7 +597,7 @@ Algunas ventanas y mensajes muestran el nombre completo de una herramienta. Son 
 | IDs | Corregir IDs erróneos de IMDb / TMDB — Todas las películas…, Añadir <uniqueid> para Kodi — Todas las películas…, Normalizar fuentes — Todas las películas…, Buscar fuentes — Todas las películas…, Verificar IDs de IMDb/TMDB — Todas las películas…
 | Calificaciones y géneros | Sincronizar calificaciones en línea — Todas las películas…, Normalizar géneros — Todas las películas…, Comparar géneros con TMDB — Todas las películas…
 | Informes | Informe de estado — Todas las películas, Revisar mejoras — Todas las películas…
-| NFO y nombres de archivo | Renombrar NFO para Kodi — Todas las películas con un NFO con el nombre de la carpeta…, Renombrar archivos para mis programas — Todas las películas…, Convertir movie.xml → NFO — Todas las películas sin NFO…, Quitar los enlaces de arte en línea de los NFO — Todas las películas…
+| NFO y nombres de archivo | Renombrar NFO para Kodi — Todas las películas con un NFO con el nombre de la carpeta…, Renombrar archivos para mis programas — Todas las películas…, Renombrar carpetas y archivos de las películas — Todas las películas…, Convertir movie.xml → NFO — Todas las películas sin NFO…, Quitar los enlaces de arte en línea de los NFO — Todas las películas…
 | Imágenes | Corregir proporciones / tamaño de imagen — Todas las películas con advertencias de imagen…, Reemplazar pósteres de baja resolución — Todas las películas…, Copiar poster.jpg → folder.jpg — Todas las películas con diferencias…, Descargar fotos de los actores — Todas las películas…, Convertir extrafanart → fanart1, 2… — Todas las películas…, Eliminar subcarpetas extrafanart — Todas las películas…
 | Resultados del scan | Actualizar íconos — Todas las películas
 
@@ -674,7 +703,7 @@ Haga clic derecho en una fila de colección, o use **Todas las acciones ▾** en
 | Abrir la carpeta de la colección | abre la carpeta de la colección
 | Abrir la colección en TMDB | la página de la colección (**Buscar la colección en TMDB** cuando no se conoce el ID de TMDB de la colección)
 | Verificar colección en línea | pregunta a TMDB por las películas de esta colección
-El panel muestra la colección: su póster (de la carpeta de la colección), ID de TMDB, años, carpeta, imágenes, sinopsis, sus películas y las correcciones. Sus botones: **Imágenes…**, **Corregir colección…**, **Abrir póster**, **Abrir fanart**, **Abrir carpeta**, **TMDB** (la página de la colección con sus películas, o una búsqueda del nombre en TMDB), **Renombrar / unir…**, **Escribir set.nfo** y **Actualizar colección** (lee de nuevo la carpeta de la colección y sus películas, como Actualizar en una película).
+El panel muestra la colección: su póster (de la carpeta de la colección), ID de TMDB, años, carpeta, imágenes, sinopsis, sus películas y las correcciones. Sus botones: **Imágenes…**, **Corregir colección…**, **Abrir póster**, **Abrir fanart**, **Abrir carpeta**, **TMDB** (la página de la colección con sus películas, o una búsqueda del nombre en TMDB), **Renombrar / unir…**, **Escribir set.nfo**, **Editar set.nfo…** (**Crear set.nfo…** para una colección suya) y **Actualizar colección** (lee de nuevo la carpeta de la colección y sus películas, como Actualizar en una película).
 Mientras la app escribe o vuelve a leer archivos, un círculo gira sobre el póster de la película o colección en la que trabaja, una barra fina se mueve encima de la tabla y la barra de estado dice lo que hace. Termina con **✓ Hecho** cuando el panel ya muestra el nuevo estado, o con **! No hecho** y el motivo. Mientras tanto, los botones del panel están en gris.
 
 ## Una colección, un nombre
@@ -710,7 +739,16 @@ La carpeta de cada colección debe tener un set.nfo: título = el nombre de la c
 - Crear una carpeta de colección escribe su set.nfo de inmediato.
 - **Corregir colección…** también se ocupa de set.nfo: después de escribir los nombres lee de nuevo la carpeta de la colección y escribe un set.nfo que falta / completa las etiquetas vacías. Solo dice "Nada que cambiar" cuando los nombres y set.nfo están bien. En el panel de la colección, el aviso de set.nfo tiene un botón **Corregir** justo al lado.
 - **Herramientas → Colecciones → Revisar / escribir set.nfo…** (una colección: el botón **Escribir set.nfo** en su panel) escribe los archivos que faltan y llena las etiquetas vacías. Donde un texto difiere muestra ambos, y usted marca "Usar el de TMDB" por colección.
+- **Crear / editar set.nfo…** (nuevo en v0.20.2; Kodi 22 Piers y posteriores leen set.nfo) abre el set.nfo de una colección en un editor: **Título** (bloqueado: el nombre de la colección en los NFO de sus películas, Kodi une la colección por él), **Título original** y **Sinopsis**; las otras etiquetas del archivo (título de orden, arte) se mantienen. **Editar** está para toda colección que tiene set.nfo. **Crear** se ofrece para sus propias colecciones: aquellas cuyas películas TMDB no pone en ninguna colección, o pone en varias distintas (una colección con una colección de TMDB más películas que TMDB no pone en ninguna sigue siendo esa colección de TMDB). La carpeta de la colección se crea antes cuando todavía no existe. Ábralo desde el panel de la colección (en una colección suya sin set.nfo, el **Crear…** / **Corregir** del panel lo abre), su menú del botón derecho o **Herramientas → Colecciones → Crear / editar set.nfo…** (elija la colección). Una sinopsis que usted escriba nunca se reemplaza con Escribir set.nfo ni Corregir todo.
 - Primero se hace una copia de seguridad, y Copias de seguridad / Deshacer devuelve el archivo anterior.
+
+## Huecos en las colecciones
+> Nuevo en v0.20.2. Herramientas → Colecciones → **Huecos en las colecciones…** (todas las colecciones), o botón derecho en una fila de colección (esa colección, o las filas de colección seleccionadas con ella).
+Para cada colección de TMDB, lista las películas que TMDB tiene y que faltan en su biblioteca: **Faltan** (estrenadas: una fecha de estreno antes de hoy; "Tiene N de M" cuenta estas) y **Anunciadas, aún sin estrenar** (una fecha posterior o ninguna: solo información). Los títulos están en el idioma de TMDB de la app, el título original entre [corchetes], con la fecha de estreno de TMDB. Las películas nunca revisadas en línea se revisan antes, y las listas de películas de las colecciones se leen otra vez cuando tienen más de 30 días (hace falta la clave de TMDB; Cancelar mantiene lo obtenido).
+- Una película que falta se busca en TODA la biblioteca: primero por el ID de TMDB, luego por título + año (±1). La ventana ofrece la corrección que la biblioteca permite: **Añadir a la colección** (ID de TMDB correcto, sin colección), **Mover a esta colección…** (está en otra colección; pregunta antes), **Escribir ID de TMDB + colección…** (hallada por el título: muestra su película y la de TMDB lado a lado y escribe el ID de TMDB, su ID de IMDb y la colección solo después de su OK — un título igual puede ser una nueva versión). Una película sin NFO en uso aparece sin corrección. Antes se hace una copia de seguridad; Historial de copias / Deshacer devuelve los archivos.
+- **No quiero esta** quita una película de las listas y del recuento (guardado en collection_gaps_ignored.json junto a la configuración); **Mostrar ignoradas** las lista con **Mostrarla de nuevo**.
+- Al final, **Colecciones ignoradas (sin ID de TMDB)**: sus propias colecciones, las mixtas (películas de varias colecciones de TMDB), las que ya no existen en TMDB y las no revisadas en línea. Una colección cuyas películas están en una colección de TMDB, más películas que TMDB no pone en ninguna, es esa colección de TMDB.
+- **Guardar como .txt…** guarda el informe ("Collection Gaps <fecha>.txt"). El informe dice con qué bibliotecas comparó: una biblioteca que no se escaneó no se compara, y sus películas aparecerían como faltantes.
 
 ## Corregir colecciones
 Clic derecho → Metadatos → **Colección ▸**:
@@ -823,7 +861,7 @@ TAB_11 = """
 | Reglas de estado | **Perfil de estado**, **¿Qué programas reproducen sus películas?**, las reglas en cuatro secciones y **Restablecer valores** (detalles debajo de la tabla)
 | Copia de seguridad | el límite de tamaño, la eliminación automática de las copias más antiguas, **Eliminar todas las copias**
 Reglas de estado en detalle:
-- **Perfil de estado** — Fácil / Medio / Estricto define todas las reglas a la vez; Personalizado después de sus propios cambios. Un usuario nuevo empieza con Estricto, y elegir un perfil después de sus cambios pregunta antes.
+- **Perfil de estado** — Fácil / Medio / Estricto define todas las reglas a la vez; Personalizado después de sus propios cambios. Un usuario nuevo empieza con Medio, y elegir un perfil después de sus cambios pregunta antes.
 - **¿Qué programas reproducen sus películas?** — marque todos los programas que usa. Las marcas definen el modo de estado: solo NFO, NFO y movie.xml, o solo movie.xml. Cambiar entre NFO y movie.xml ofrece un nuevo scan.
 - Las reglas están en cuatro secciones — **Reglas generales**, **NFO**, **movie.xml** y **Comparaciones NFO ↔ movie.xml** — cada regla con su casilla, umbral y nivel (error / advertencia).
 - Las secciones que el modo de estado no usa siguen visibles, pero en gris y no se pueden cambiar; su configuración se conserva para cuando vuelva a cambiar de modo.
@@ -925,6 +963,7 @@ Nunca se consulta IMDb directamente: las calificaciones de IMDb llegan a través
 
 ## Registros
 **Ayuda → Abrir la carpeta de registros** abre logs\\ con app.log seleccionado. Todo error inesperado se escribe ahí (nunca las claves de API): adjúntelo a un informe de error.
+**Ayuda → Copiar información de diagnóstico…** muestra un informe corto para un informe de error: la versión, el sistema, el ajuste, los programas marcados, cuántas veces aparece cada aviso y los últimos avisos de app.log. No contiene nombres de carpetas ni rutas. Haga clic en **Copiar** y péguelo en su mensaje.
 
 ## Actualizaciones
 **Ayuda → Buscar actualizaciones…** (o el botón en Acerca de) consulta a GitHub la versión más reciente; no se envía nada más.

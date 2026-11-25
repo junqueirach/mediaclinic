@@ -16,9 +16,16 @@
 #       - a backslash (in a string literal or as an operator).
 #     On 3.10 / 3.11 the tokenizer keeps an f-string as one token, so this
 #     layer returns nothing there and compile_errors() does the work.
+#   * newer_syntax_findings() (v0.20.2 B27): statements newer than 3.10 that
+#     the running interpreter parses — except* (3.11), the type statement and
+#     generic parameters def f[T] / class C[T] (3.12), template strings t"…"
+#     and "except A, B:" without brackets (3.14).
+#   * project_modules() (v0.20.2 B27): the app's modules AND the tests and
+#     tools/ (CI runs the tests on 3.10 too).
 # =============================================================================
 from __future__ import annotations
 
+import ast
 import io
 import os
 import sys
@@ -87,26 +94,65 @@ def compile_errors(source: str, path: str = "<source>") -> list[Finding]:
     return []
 
 
+def newer_syntax_findings(source: str, path: str = "<source>") -> list[Finding]:   ### NEW v0.20.2 B27 ###
+    """Statements newer than Python 3.10 that this interpreter parses (so compile_errors() cannot see them):
+    except* (3.11), type X = … and def f[T] / class C[T] (3.12), t-strings and except A, B: (3.14)."""
+    try:
+        tree = ast.parse(source, path)
+    except SyntaxError:
+        return []                              # compile_errors() reports it
+    out: list[Finding] = []
+    try_star = getattr(ast, "TryStar", None)
+    type_alias = getattr(ast, "TypeAlias", None)
+    template = getattr(ast, "TemplateStr", None)
+    for node in ast.walk(tree):
+        line = getattr(node, "lineno", 0) or 0
+        if try_star is not None and isinstance(node, try_star):
+            out.append(Finding(path, line, "except* needs Python 3.11"))
+        elif type_alias is not None and isinstance(node, type_alias):
+            out.append(Finding(path, line, "the type statement needs Python 3.12"))
+        elif template is not None and isinstance(node, template):
+            out.append(Finding(path, line, "a template string (t-string) needs Python 3.14"))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and getattr(node, "type_params", None):
+            out.append(Finding(path, line, f"generic parameters on {node.name}[…] need Python 3.12"))
+        elif isinstance(node, ast.ExceptHandler) and isinstance(node.type, ast.Tuple):
+            seg = ast.get_source_segment(source, node.type) or ""
+            if not seg.lstrip().startswith("("):
+                out.append(Finding(path, line, "except A, B: without brackets needs Python 3.14"))
+    return out
+
+
 def app_modules(app_dir: str) -> list[str]:
     """The app's .py files: the top level of *app_dir* (main file and modules), not tests or tools."""
     return sorted(os.path.join(app_dir, f) for f in os.listdir(app_dir)
                   if f.endswith(".py") and not f.startswith(("selftest", "test_", "settings_test_harness")))
 
 
+def project_modules(app_dir: str) -> list[str]:                  ### NEW v0.20.2 B27 ###
+    """Every .py file CI runs: the top level of *app_dir* (app, self-test, tests, harness), tools/ and, in the
+    repository layout, tests/ (v0.20.2: the check found no test there and failed in CI's layout)."""
+    out = [os.path.join(app_dir, f) for f in os.listdir(app_dir) if f.endswith(".py")]
+    for sub in ("tools", "tests"):
+        d = os.path.join(app_dir, sub)
+        if os.path.isdir(d):
+            out += [os.path.join(d, f) for f in os.listdir(d) if f.endswith(".py")]
+    return sorted(out)
+
+
 def scan(paths: Iterable[str]) -> list[Finding]:
-    """Both layers over every file in *paths*."""
+    """The three layers over every file in *paths*."""
     found: list[Finding] = []
     for p in paths:
         with open(p, encoding="utf-8") as f:
             src = f.read()
         name = os.path.basename(p)
-        found += compile_errors(src, name) + pep701_findings(src, name)
+        found += compile_errors(src, name) + pep701_findings(src, name) + newer_syntax_findings(src, name)
     return found
 
 
 if __name__ == "__main__":                       # python tools/pyver_guard.py [app folder]
     _dir = sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _hits = scan(app_modules(_dir))
+    _hits = scan(project_modules(_dir))                       # v0.20.2 B27: the tests and tools too
     for h in _hits:
         print(f"{h.path}:{h.line}: {h.text}")
     print(f"{len(_hits)} finding(s)")

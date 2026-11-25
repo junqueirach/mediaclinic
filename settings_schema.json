@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "mediaclinic-settings-v0.20.1",
+  "$id": "mediaclinic-settings-v0.20.2",
   "title": "MediaClinic Settings",
   "description": "Schema for settings.json written by mediaclinic/settings_controller.py",
   "type": "object",
@@ -177,6 +177,8 @@
                          "description": "v0.20.0 6h: Plex reads no NFO and no collections (tested). With only Plex ticked for a library: 'off' = the NFO and collection checks are off, 'on' = kept, '' = not asked yet (kept); asked once in a pop-up, changed in Settings → Health Rules" },
     "programs_asked": { "type": "boolean", "default": false,
                         "description": "v0.20.0 6g: the first-start question 'Which programs play your movies?' was answered (Start, Save or Not now); closing the window asks again at the next start" },
+    "programs_reasked": { "type": "boolean", "default": false,
+                          "description": "v0.20.2 FB5: an existing user with no program ticked saw the programs window once more after the update; not asked again" },
     "library_inactive": { "type": "object", "default": {},
                           "description": "v0.20.0 5j: {library path key: true} = the library is unticked in Libraries…: not scanned, its rows hidden from the table and the counters but kept" },
     "library_nfo_only": { "type": "object", "default": {},
@@ -220,6 +222,26 @@
       "default": [],
       "description": "v0.20.1 AC1: the columns new in a version whose default visibility was already decided once (the Actors column: visible only with Kodi ticked)"
     },
+    "cert_countries": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[A-Z]{2}$" },
+      "default": [],
+      "description": "v0.20.2 CR: the countries whose age ratings are accepted, in order ([] = the app language's country and US)"
+    },
+    "cert_max": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 3,
+      "description": "v0.20.2 CR: the most age ratings a list tag (movie.xml FullCertifications / FormalMPAA) keeps"
+    },
+    "rn_pattern": { "type": "integer", "minimum": 1, "maximum": 7, "default": 1, "description": "v0.20.2 RN: the renamer's folder pattern (1–6 built in, 7 = rn_custom)" },
+    "rn_custom": { "type": "string", "default": "", "description": "v0.20.2 RN: the custom folder pattern with {tokens}" },
+    "rn_folder": { "type": "boolean", "default": true, "description": "v0.20.2 RN: rename the movie folder" },
+    "rn_files": { "type": "boolean", "default": true, "description": "v0.20.2 RN: the files named after the video follow the folder name" },
+    "rn_title": { "type": "string", "enum": ["local", "original"], "default": "local", "description": "v0.20.2 RN: the title the pattern uses" },
+    "rn_article": { "type": "boolean", "default": false, "description": "v0.20.2 RN: move the leading article to the end (\"Matrix, The\")" },
+    "rn_dots": { "type": "boolean", "default": false, "description": "v0.20.2 RN: dots instead of spaces" },
     "artwork_language": {
       "type": "string",
       "default": "library",
@@ -277,6 +299,7 @@
         "missing_fanart":                  { "type": "boolean", "default": true },
         "profile_names_unread":            { "type": "boolean", "default": true, "description": "v0.20.0 F3c: with programs ticked (Settings → Health Rules), warn when the NFO, poster or fanart has a name a ticked program does not read (e.g. Infuse and poster.jpg); on in every preset" },
         "no_actor_info":                   { "type": "boolean", "default": false, "description": "v0.20.1 AC2: warn when the NFO has no actor information (with Kodi: only web links for the photos); on only in the Tight preset" },
+        "cert_settings":                   { "type": "boolean", "default": false, "description": "v0.20.2 CR: warn when an age rating is of a country not accepted, a list has more than the maximum, or a single-value tag holds several (Settings → Ratings); on only in the Tight preset" },
         "collection_set_nfo":              { "type": "boolean", "default": true, "description": "v0.20.1 CF2: check each collection folder's set.nfo (Kodi); off in the Easy preset" },
         "missing_folder":                  { "type": "boolean", "default": false, "description": "v0.19.2 B35: off by default (no media server needs folder.jpg)" },
         "folder_optional_with_kodi_poster": { "type": "boolean", "default": true, "description": "v0.19.1: no 'Missing folder image' when a Kodi-style poster (<video>-poster.jpg/png, .tbn) exists" },

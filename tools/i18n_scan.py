@@ -18,7 +18,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODULES = ("mediaclinic_v0_20_1.py", "settings_dialog.py", "sort_engine.py", "folder_classifier.py",
+MODULES = ("mediaclinic_v0_20_2.py", "settings_dialog.py", "sort_engine.py", "folder_classifier.py",
            "export_list.py", "settings_controller.py", "help_text.py", "image_fix.py", "collection_rules.py")
 
 TEXT_KW = {"text", "label", "title", "message", "detail"}

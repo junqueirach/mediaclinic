@@ -117,6 +117,15 @@ DEFAULT_SETTINGS = {
     "artwork_language":        "library",   # NEW v0.20.1 TF3: "library" (the Lang OK? language) or an ISO 639-1 code
     "artwork_language_mode":   "prefer",    # NEW v0.20.1 TF3: "prefer" | "only"
     "artwork_textless_backgrounds": True,   # NEW v0.20.1 TF3: fanart / backdrops without text first
+    "cert_countries":          [],          # NEW v0.20.2 CR: the accepted countries in order ([] = the app language's + US)
+    "cert_max":                3,           # NEW v0.20.2 CR: the most values a list tag (FullCertifications …) keeps
+    "rn_pattern":              1,           # NEW v0.20.2 RN: the renamer's folder pattern (1–6 built in, 7 = rn_custom)
+    "rn_custom":               "",          # NEW v0.20.2 RN: the custom pattern ("{title} ({year}) [{quality}]")
+    "rn_folder":               True,        # NEW v0.20.2 RN: rename the movie folder
+    "rn_files":                True,        # NEW v0.20.2 RN: the files named after the video follow the folder
+    "rn_title":                "local",     # NEW v0.20.2 RN: "local" (the movie's title) or "original"
+    "rn_article":              False,       # NEW v0.20.2 RN: "Matrix, The"
+    "rn_dots":                 False,       # NEW v0.20.2 RN: dots instead of spaces
     "image_fix_prefs":         {},       # NEW v0.19.2 F4: last choices of Fix image proportions / size (method per kind, ai_upscale, AI test result)
     "library_kinds":           {},       # NEW v0.19.4 I19: {library path: "movies" | "series"}; absent = "movies" (series from v0.22)
     "health_mode":             "nfo",    # NEW v0.19.6 TR1b: "nfo" (Kodi, Jellyfin, Emby, Plex, Infuse…), "nfo_xml" (+ movie.xml), "xml" (movie.xml only); existing users: "nfo_xml" by a migration
@@ -125,6 +134,7 @@ DEFAULT_SETTINGS = {
     "health_mode_asked":       False,    # NEW v0.19.6 TR1b: the start question (three buttons) was answered
     "first_start_pending":     False,    # NEW v0.20.0 6g (I34): True only for a new user (no settings.json yet) until the first-start window's Start
     "plex_nfo_checks":         "",       # NEW v0.20.0 6h (Plex test 2026-11-17): Plex reads no NFO — with ONLY Plex ticked, "off" switches the NFO / collection checks off, "on" keeps them, "" = not asked yet (they stay on)
+    "programs_reasked":        False,    # NEW v0.20.2 FB5: the programs window seen once more (nothing ticked before v0.20.2)
     "programs_asked":          False,    # NEW v0.20.0 6g: the first-start programs question was answered (Start / Save / Not now); closing it asks again
     "health_preset":           "custom", # NEW v0.20.0 HP1d: "easy" / "medium" / "tight" / "custom"; a new user gets "tight" (settings_controller), an existing one the preset their rules equal
     "library_inactive":        {},       # NEW v0.20.0 5j: {library path key: True} = unticked in Libraries… (not scanned, rows hidden and kept)
@@ -167,6 +177,7 @@ DEFAULT_SETTINGS = {
         "missing_fanart":                  True,
         "profile_names_unread":            True,      ### NEW v0.20.0 F3c — a file in a name a ticked program does not read (only with programs ticked) ###
         "no_actor_info":                   False,     ### NEW v0.20.1 AC2 — no actor information (Tight preset only; a warning) ###
+        "cert_settings":                   False,     ### NEW v0.20.2 CR — age ratings not as in Settings → Ratings (Tight only) ###
         "missing_folder":                  False,     ### MODIFIED v0.19.2 B35 — default OFF: no media server needs folder.jpg ###
         "folder_optional_with_kodi_poster": True,     ### NEW v0.19.1 B23 — no folder.jpg warning when a Kodi "<video>-poster" exists ###
         "xml_tags_old_readers":            True,      ### NEW v0.20.0 KR1.4 — movie.xml: an ID / the votes only in tags the old programs ignore ###
@@ -527,11 +538,12 @@ def fanart_quality_sort_key_missing_last(r, key, high_to_low):
 ### leaves every other key alone (the audio / subtitle language codes, title_sync_default, the KB limits, and a value
 ### key whose rule the preset turns off).  "by_mode": the value depends on the health mode (HEALTH_PRESET_BY_MODE).
 HEALTH_PRESET_IDS = ("easy", "medium", "tight")
-HEALTH_PRESET_DEFAULT = "tight"                 # a new user starts here (the user: "the default is the tight one")
+HEALTH_PRESET_DEFAULT = "medium"                # a new user starts here (v0.20.2 FB1, the user 2026-11-24: Medium — Tight
+                                                # flagged almost every movie of a first tester; was "tight")
 HEALTH_PRESET_BY_MODE = {'missing_folder': {'nfo': False, 'nfo_xml': True, 'xml': True}}
 HEALTH_PRESETS = {
     'easy': {
-        'xml_tags_old_readers': False, 'no_actor_info': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'xml_tags_old_readers': False, 'no_actor_info': False, 'cert_settings': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
         'backdrop_too_small': False, 'collection_artwork': False, 'collection_set_nfo': False, 'collection_mismatch': False,
         'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True, 'corrupt_nfo': True,
         'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True, 'duplicate_movie': False,
@@ -553,7 +565,7 @@ HEALTH_PRESETS = {
         'votes_conflict': False, 'votes_warning': False, 'year_out_of_range': True, 'year_premiered_differ': False,
     },
     'medium': {
-        'xml_tags_old_readers': True, 'no_actor_info': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'xml_tags_old_readers': True, 'no_actor_info': False, 'cert_settings': False, 'nfo_online_art_links': False, 'profile_names_unread': True,
         'backdrop_too_small': False, 'collection_artwork': False, 'collection_set_nfo': True, 'collection_mismatch': False,
         'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True, 'corrupt_nfo': True,
         'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True, 'duplicate_movie': True,
@@ -577,7 +589,7 @@ HEALTH_PRESETS = {
         'votes_warning': True, 'year_out_of_range': True, 'year_premiered_differ': True,
     },
     'tight': {
-        'xml_tags_old_readers': True, 'no_actor_info': True, 'nfo_online_art_links': False, 'profile_names_unread': True,
+        'xml_tags_old_readers': True, 'no_actor_info': True, 'cert_settings': True, 'nfo_online_art_links': False, 'profile_names_unread': True,
         'backdrop_min_avg_kb': 20, 'backdrop_min_count': 5, 'backdrop_too_small': True, 'collection_artwork': True, 'collection_set_nfo': True,
         'collection_mismatch': True, 'corrupt_fanart': True, 'corrupt_folder': True, 'corrupt_imdb_id': True,
         'corrupt_nfo': True, 'corrupt_poster': True, 'corrupt_tmdb_id': True, 'corrupt_xml': True,

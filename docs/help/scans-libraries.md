@@ -21,7 +21,7 @@ You can scan several root folders.
 - The collection folder part sets the one folder Kodi reads collection artwork from: **Choose…**, **Create…** (makes "Sets" next to the first library, after a yes) or **Clear**. Scans never list it as a movie or an ignored folder.
 - All libraries share one table; the **Library** column and the Movie Name tooltip show where a movie lives.
 - The library box chooses what the table shows and what the scans cover ("All libraries" or one of them).
-- A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)". A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
+- A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)", its movies in grey. A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
 - Duplicates are found across libraries.
 - Movies can sit deeper: a folder that holds only other folders (Single Movies / HD / <movie>, Boxsets / <saga> / <movie>) is searched, down to 5 levels below the library. Every movie keeps its library in the Library column.
 

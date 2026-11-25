@@ -191,6 +191,23 @@ def _jpeg_bytes(path, width):
         return None
 
 
+
+IMAGES_MARK = ".mediaclinic_export"                              # v0.20.2 PA9: written into every images folder
+_OUR_IMAGE_RE = re.compile(r"^\d+f?\.(?:jpe?g|png|webp)$", re.I)
+
+
+def images_folder_is_ours(folder):                               ### NEW v0.20.2 PA9 (audit) ###
+    """True when *folder* holds only what an earlier export wrote (its mark, or only N.jpg / Nf.jpg): only such a
+    folder is replaced.  A folder of the user's own with that name is never deleted."""
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return False
+    if IMAGES_MARK in names:
+        return True
+    return all(_OUR_IMAGE_RE.match(n) and os.path.isfile(os.path.join(folder, n)) for n in names)
+
+
 def _image_refs(row, i, mode, facts, img_dir, img_rel):
     """(poster src, fanart src) for one movie in *mode*: a data: URI, a relative path, an https link or ''."""
     if mode == "none":
@@ -329,8 +346,11 @@ def write_export(rows, field_keys, path, prefs=None, progress=None, cancelled=No
         img_rel = os.path.splitext(os.path.basename(path))[0] + "_images"
         img_dir = os.path.join(os.path.dirname(os.path.abspath(path)), img_rel)
         img_tmp = img_dir + ".mctmp"
+        if os.path.exists(img_dir) and not images_folder_is_ours(img_dir):   ### NEW v0.20.2 PA9 (audit) ###
+            raise RuntimeError(_i18n.t("ex.html.images_taken", folder=img_dir))
         shutil.rmtree(img_tmp, ignore_errors=True)
         os.makedirs(img_tmp)
+        open(os.path.join(img_tmp, IMAGES_MARK), "w", encoding="utf-8").write("MediaClinic HTML export images\n")
     with_health = "health" in keys
 
     def records():

@@ -27,6 +27,24 @@ The defaults of the checkboxes: Settings → Ratings.
 - The ticked ones get TMDB's genres (backup first, Undo).
 - It needs a TMDB API key.
 
+## Renaming movie folders and files
+> New in v0.20.2. Right-click → Metadata → **Rename Folder and Files…** (one movie or a selection) and Tools → NFO & File Names → **Rename Movie Folders and Files — All Movies…**.
+The window shows your choices and five examples; they are saved (also in Settings → NFO / XML → Renamer). **Preview all…** lists every "old → new" first; nothing is renamed before you click **Rename**.
+- **Only the folder has a pattern:** Title (Year) (default), Title (Year) [Quality], Title (Year) [Quality] [Genre], Title (Year) [IMDb ID], Title (Year) [TMDB ID], Title (Year) [Quality Codec Audio], or your own with fields like {title} ({year}) [{quality}]. A bracket group with an empty field disappears. Options: the original title, "Matrix, The", dots instead of spaces.
+- **The files follow the folder:** the video and every file named after it (NFO, <video>-poster.jpg, subtitles, trailer) get the folder's name; parts keep "-cd1", versions keep " - 1080p". movie.nfo, poster.jpg, .actors, extrafanart and sub-folders stay; inside a DVD / Blu-ray folder nothing is renamed.
+- The TMDB pattern writes [tmdb-603]: Jellyfin, Emby and Plex all match the movie by it (tested 2026-11-23; Plex ignores [tmdbid-603]). Kodi uses the NFO and finds names with bracket text too.
+- Not renamed, with the reason: a name that is taken, two files that would get one name, a Windows-reserved name, a path that would be too long, a folder with several movies, a movie whose ID Verify IDs flagged (for the ID patterns).
+- **Watched state:** Plex, Emby and Jellyfin keep it after a rename. **Kodi loses watched marks and resume points of renamed movies** (and shows them twice until Clean library): export them first (Kodi: Settings → Media → Library → Export library). The preview says so for your programs.
+- Nothing is copied. Backup History / Undo renames every folder and file back; one movie is renamed completely or not at all.
+
+## Certifications (age ratings)
+> New in v0.20.2. Settings → Ratings → Certifications: your countries in order (default: the app language's country and US) and the most values a list keeps (default 3).
+Right-click → Metadata → **Certifications…** (one movie or a selection) and Tools → Ratings & Genres → **Apply My Certification Settings — All Movies…** keep only your countries' age ratings, in your order. A preview comes first; a backup comes first; Backup History / Undo puts the files back.
+- Every rating tag your files have is written in its own style: <mpaa>, movie.xml <ContentRating> and <MPAARating> get ONE value (Jellyfin and Emby read one; of a list Jellyfin uses only the first), <FullCertifications> / <FormalMPAA> a list up to your maximum, <certification> as it is now. Values of other countries are removed.
+- A value your files lack comes from TMDB (theatrical release first), the US value also from OMDb. When none of your countries has one, the US rating is used and the preview says so. A missing tag is added only where the programs read it: <mpaa> in the NFO and <ContentRating> in movie.xml, written like "BR:12".
+- No rating in TMDB and IMDb: the tag is left blank and the preview lists the movie. Only ratings of countries you don't accept and nothing online: you choose per movie (or for all) to keep the file's value or leave the tag blank.
+- The health rule (on in the Tight preset) warns about a country you don't accept, more values than your maximum, or several values in <mpaa>. A missing rating is not a warning.
+
 ## IMDb and TMDB IDs
 Which tool for which problem:
 | An ID is missing, or is another film's | **Search Sources**

@@ -22,6 +22,10 @@ def _data(page):
     return json.loads(re.search(r'<script type="application/json" id="data">(.*?)</script>', page, re.S).group(1))
 
 
+
+def _imgs(d):                                                      # v0.20.2 PA9: the export's mark is not an image
+    return sorted(n for n in os.listdir(str(d)) if n != hx.IMAGES_MARK)
+
 def test_record_and_page_keep_data_safe_and_private(tmp_path):
     p = str(tmp_path / "list.html")
     assert hx.write_export(_rows(), ["movie_name", "year", "rating"], p, {"theme": "aurora", "title": "Mine"}) == 2
@@ -80,13 +84,13 @@ def test_reexport_replaces_the_images_folder_and_each_export_has_its_own_storage
     d1 = _data(open(p, encoding="utf-8").read())
     assert d1["k"][0] == "movie_name"                              # the title column is always there
     assert d1["m"][0]["pi"] == "h%20%231_images/0.jpg"            # the link is URL-encoded
-    assert sorted(os.listdir(str(tmp_path / "h #1_images"))) == ["0.jpg", "1.jpg"]
+    assert sorted(_imgs(tmp_path / "h #1_images")) == ["0.jpg", "1.jpg"]
     hx.write_export(rows[:1], ["year"], p, {"images": "folder"}, when="2026-11-19 10:05")
     d2 = _data(open(p, encoding="utf-8").read())
-    assert os.listdir(str(tmp_path / "h #1_images")) == ["0.jpg"]  # no image of the earlier export is left
+    assert _imgs(tmp_path / "h #1_images") == ["0.jpg"]  # no image of the earlier export is left
     assert d1["id"] != d2["id"] and not os.path.exists(str(tmp_path / "h #1_images.mctmp"))
     try:
         hx.write_export(rows, ["year"], p, {"images": "folder"}, cancelled=lambda: True)
     except RuntimeError:
         pass
-    assert os.listdir(str(tmp_path / "h #1_images")) == ["0.jpg"] and not os.path.exists(p + ".mctmp")
+    assert _imgs(tmp_path / "h #1_images") == ["0.jpg"] and not os.path.exists(p + ".mctmp")

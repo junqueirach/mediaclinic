@@ -1848,6 +1848,27 @@ class SettingsDialog(DialogBase):
                        selectcolor="#313244", font=("Helvetica", 10) ### NEW v0.15.0 ###
                        ).pack(anchor="w", padx=16, pady=(0, 6))  ### NEW v0.15.0 ###
 
+        ### NEW v0.20.2 CR — Certifications (age ratings): the accepted countries in order and the most values a list keeps ###
+        import certifications as _ce
+        tk.Label(f, text=_i18n.t("cr.set.head"), font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
+                 ).pack(anchor="w", padx=16, pady=(16, 4))
+        tk.Label(f, text=_i18n.t("cr.set.note"), bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9), justify="left",
+                 wraplength=560).pack(anchor="w", padx=16, pady=(0, 6))
+        _cf = tk.Frame(f, bg="#1e1e2e"); _cf.pack(anchor="w", padx=16, pady=(0, 4))
+        tk.Label(_cf, text=_i18n.t("cr.set.countries"), bg="#1e1e2e", fg="#cdd6f4", font=("Helvetica", 10)).grid(row=0, column=0, sticky="w")
+        _cc = _ce.clean_countries(self._s.get("cert_countries") or []) or _ce.default_countries(_i18n.current())
+        self._cert_countries_var = tk.StringVar(value=", ".join(_cc))
+        tk.Entry(_cf, textvariable=self._cert_countries_var, width=28, bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                 relief="flat", font=("Helvetica", 10)).grid(row=0, column=1, sticky="w", padx=(8, 0))
+        tk.Label(_cf, text=_i18n.t("cr.set.max"), bg="#1e1e2e", fg="#cdd6f4", font=("Helvetica", 10)).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        try:
+            _mx = max(1, min(10, int(self._s.get("cert_max", self._defaults.get("cert_max", 3)))))
+        except (TypeError, ValueError):
+            _mx = 3
+        self._cert_max_var = tk.IntVar(value=_mx)
+        tk.Spinbox(_cf, from_=1, to=10, width=4, textvariable=self._cert_max_var, bg="#313244", fg="#cdd6f4",
+                   buttonbackground="#45475a", relief="flat", font=("Helvetica", 10)).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
+
 
     def _build_genres_tab(self, nb, label="Genres"):
         f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
@@ -1880,7 +1901,7 @@ class SettingsDialog(DialogBase):
     # ── Tab 7: NFO-XML Tags ───────────────────────────────────────────────────
 
     def _build_tags_tab(self, nb, label="NFO / XML"):
-        f = tk.Frame(nb, bg="#1e1e2e"); nb.add(f, text=tab_title(label))
+        f = self._scrollable_tab(nb, label)                    ### MODIFIED v0.20.2 RN — scrolls (the Renamer section below) ###
 
         # v0.19.6 TR1b — whether movie.xml is used at all is the health mode (Health Rules tab)
         tk.Label(f, text=_i18n.t("set.movie_xml_is_used_239c", health_mode_path=HEALTH_MODE_PATH),
@@ -1952,6 +1973,43 @@ class SettingsDialog(DialogBase):
         tk.Label(f, text=_i18n.t("set.automatic_the_english_name_2a6c"),
                  font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086", wraplength=720, justify="left"
                  ).pack(anchor="w", padx=16, pady=(0, 10))
+
+        ### NEW v0.20.2 RN — the renamer's choices (the same ones its window shows and saves) ###
+        import renamer as _rn
+        tk.Label(f, text=_i18n.t("rn.set.head"), font=("Helvetica", 12, "bold"), bg="#1e1e2e", fg="#89b4fa"
+                 ).pack(anchor="w", padx=16, pady=(16, 4))
+        tk.Label(f, text=_i18n.t("rn.set.note"), bg="#1e1e2e", fg="#a6adc8", font=("Helvetica", 9), justify="left",
+                 wraplength=560).pack(anchor="w", padx=16, pady=(0, 6))
+        _rf = tk.Frame(f, bg="#1e1e2e"); _rf.pack(anchor="w", padx=16, pady=(0, 4))
+        tk.Label(_rf, text=_i18n.t("rn.f.pattern"), bg="#1e1e2e", fg="#cdd6f4", font=("Helvetica", 10)).grid(row=0, column=0, sticky="w")
+        self._rn_choices = [f"{k}   {_i18n.t('rn.p.' + str(k))}" for k in sorted(_rn.PATTERNS)] + [f"{_rn.CUSTOM}   {_i18n.t('rn.p.7')}"]
+        try:
+            _rp = int(self._s.get("rn_pattern", 1))
+        except (TypeError, ValueError):
+            _rp = 1
+        _rp = _rp if 1 <= _rp <= _rn.CUSTOM else 1
+        self._rn_pattern_var = tk.StringVar(value=self._rn_choices[_rp - 1])
+        ttk.Combobox(_rf, textvariable=self._rn_pattern_var, values=self._rn_choices, state="readonly", width=44
+                     ).grid(row=0, column=1, sticky="w", padx=(8, 0))
+        tk.Label(_rf, text=_i18n.t("rn.f.custom"), bg="#1e1e2e", fg="#cdd6f4", font=("Helvetica", 10)).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self._rn_custom_var = tk.StringVar(value=str(self._s.get("rn_custom") or ""))
+        tk.Entry(_rf, textvariable=self._rn_custom_var, width=46, bg="#313244", fg="#cdd6f4", insertbackground="#cdd6f4",
+                 relief="flat", font=("Consolas", 10)).grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(4, 0))
+        _cb = dict(bg="#1e1e2e", fg="#cdd6f4", activebackground="#1e1e2e", selectcolor="#313244", font=("Helvetica", 10))
+        _r2 = tk.Frame(f, bg="#1e1e2e"); _r2.pack(anchor="w", padx=16)
+        self._rn_folder_var = tk.BooleanVar(value=bool(self._s.get("rn_folder", True)))
+        self._rn_files_var = tk.BooleanVar(value=bool(self._s.get("rn_files", True)))
+        tk.Checkbutton(_r2, text=_i18n.t("rn.f.folder"), variable=self._rn_folder_var, **_cb).pack(side="left")
+        tk.Checkbutton(_r2, text=_i18n.t("rn.f.files"), variable=self._rn_files_var, **_cb).pack(side="left", padx=(12, 0))
+        _r3 = tk.Frame(f, bg="#1e1e2e"); _r3.pack(anchor="w", padx=16, pady=(0, 12))
+        tk.Label(_r3, text=_i18n.t("rn.f.title"), bg="#1e1e2e", fg="#cdd6f4", font=("Helvetica", 10)).pack(side="left")
+        self._rn_title_var = tk.StringVar(value="original" if self._s.get("rn_title") == "original" else "local")
+        for _v in ("local", "original"):
+            tk.Radiobutton(_r3, text=_i18n.t("rn.f.title_" + _v), variable=self._rn_title_var, value=_v, **_cb).pack(side="left", padx=(6, 0))
+        self._rn_article_var = tk.BooleanVar(value=bool(self._s.get("rn_article", False)))
+        self._rn_dots_var = tk.BooleanVar(value=bool(self._s.get("rn_dots", False)))
+        tk.Checkbutton(_r3, text=_i18n.t("rn.f.article"), variable=self._rn_article_var, **_cb).pack(side="left", padx=(12, 0))
+        tk.Checkbutton(_r3, text=_i18n.t("rn.f.dots"), variable=self._rn_dots_var, **_cb).pack(side="left", padx=(12, 0))
 
     def _reset_tags(self):
         self._tags_text.delete("1.0", "end")
@@ -2461,6 +2519,7 @@ class SettingsDialog(DialogBase):
         _check_row("missing_fanart",         _i18n.t("set.missing_fanart_c8a6"))
         _check_row("missing_folder",         _i18n.t("set.missing_folder_image_off_795e"))   # v0.19.2 B35
         _check_row("no_actor_info",          _i18n.t("ac.set.rule"))                         # v0.20.1 AC2
+        _check_row("cert_settings",          _i18n.t("cr.set.rule"))                         # v0.20.2 CR
         _check_row("profile_names_unread",   _i18n.t("f3.set.names_unread"))                 # v0.20.0 F3c
         _check_row("folder_optional_with_kodi_poster",                        # NEW v0.19.1 B23
                    _i18n.t("set.folder_jpg_optional_when_4dbf"))
@@ -3179,6 +3238,26 @@ class SettingsDialog(DialogBase):
                 _s["rating_apply_all_movies"] = self._rating_apply_all_var.get()  ### NEW v0.15.0 ###
             if hasattr(self, "_rating_use_more_votes_var"):                 ### NEW v0.15.0 ###
                 _s["rating_use_more_votes"] = self._rating_use_more_votes_var.get()  ### NEW v0.15.0 ###
+            if hasattr(self, "_rn_pattern_var"):                             ### NEW v0.20.2 RN ###
+                try:
+                    _s["rn_pattern"] = max(1, min(7, int(self._rn_pattern_var.get().split()[0])))
+                except (ValueError, IndexError, tk.TclError):
+                    _s["rn_pattern"] = 1
+                _s["rn_custom"] = self._rn_custom_var.get().strip()
+                _s["rn_folder"] = bool(self._rn_folder_var.get())
+                _s["rn_files"] = bool(self._rn_files_var.get())
+                _s["rn_title"] = self._rn_title_var.get() or "local"
+                _s["rn_article"] = bool(self._rn_article_var.get())
+                _s["rn_dots"] = bool(self._rn_dots_var.get())
+            if hasattr(self, "_cert_countries_var"):                         ### NEW v0.20.2 CR ###
+                import certifications as _ce
+                _cc = _ce.clean_countries(self._cert_countries_var.get())
+                # the language's default stays "not set" ([]): a Save with no change writes nothing new (UI1d)
+                _s["cert_countries"] = [] if _cc == _ce.default_countries(_i18n.current()) else _cc
+                try:
+                    _s["cert_max"] = max(1, min(10, int(self._cert_max_var.get())))
+                except (TypeError, ValueError, tk.TclError):
+                    _s["cert_max"] = 3
 
             # v0.18.2 — write back health rule variables         ### ADDED_BY_CLAUDE_v18.2 ###
             if hasattr(self, "_hr_vars"):

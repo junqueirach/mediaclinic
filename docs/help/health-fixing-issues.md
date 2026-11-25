@@ -63,7 +63,7 @@ Right-click a row, or press `Shift+F10` or the Menu key at the selected row. An 
 -- For Kodi: **Download Actor Photos…**; **Rename actor photos for Kodi**, **Rename extra artwork for Kodi** and **Convert extrafanart → fanart1, 2…** are shown only when the movie has such files.
 - **Metadata**
 -- Files: **Open .nfo**, **Open movie.xml**, **[!] NFO errors** / **[!] XML errors**.
--- Names: **Make titles the same (NFO ↔ XML)…**, **Rename NFO for Kodi…**, **Rename Files for My Programs…** (with programs ticked), **Convert movie.xml → NFO…** (a movie with a movie.xml and no NFO), **Remove online artwork links from the NFO…**.
+-- Names: **Make titles the same (NFO ↔ XML)…**, **Rename NFO for Kodi…**, **Rename Files for My Programs…** (with programs ticked), **Rename Folder and Files…**, **Convert movie.xml → NFO…** (a movie with a movie.xml and no NFO), **Remove online artwork links from the NFO…**.
 -- **Collection ▸** (Collections tab).
 -- Ratings and genres: **Sync Ratings from IMDb / TMDB**, **Normalize Genres**, **Check Genres Against TMDB…**, **Add Custom Genre(s) to Settings**.
 - **IDs & Sources**: **Search Sources**, **Verify IMDb/TMDB IDs**, **Normalize Sources**, **Fix Wrong IMDb / TMDB IDs…**, **Add <uniqueid> for Kodi**, **Copy Movie Name**.

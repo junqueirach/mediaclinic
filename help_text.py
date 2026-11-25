@@ -110,6 +110,15 @@ def format_errors(text):
 TAB_START = """
 # Getting Started
 
+## New in v0.20.2
+- **Rename Folder and Files…**: movie folders named from a pattern, the files follow, Undo renames back (Ratings, Genres & IDs tab).
+- **Certifications…**: the age rating from your countries in your order, written in every rating tag your files have (Ratings, Genres & IDs tab).
+- Collections: **Create / Edit set.nfo…** (Kodi 22 and later) and **Collection Gaps…**, the movies of a collection your library lacks (Collections tab).
+- Emby and Jellyfin: theme videos in the backdrops folder count as backdrops, and the Kodi-only warnings (actor photos, votes, collection artwork) stay off when Kodi is not ticked.
+- The rows of a library that cannot be reached are grey.
+- With no program ticked the app asks once which programs you use; a new user starts with the Medium preset.
+- **Help → Copy Diagnostic Info…** for a bug report, without paths or movie names (Troubleshooting tab).
+
 ## New in v0.20.1
 - The Tools menu is grouped into submenus (Bulk Tools & Auto Repair tab).
 - Posters: Replace Low-Resolution Posters, Review Posters One by One and an artwork language setting (Images tab).
@@ -147,7 +156,7 @@ The Media Servers tab lists every name the servers read.
 At the first start one window asks five things. Only **Start** saves the answers; closing the window brings it back at the next start.
 | Language | pick it first: **Restart now** shows the window again in that language
 | Movies folder | add it now, or later with **Browse…** or **Libraries…**
-| Which programs play your movies? | tick every one you use (nothing ticked is fine too)
+| Which programs play your movies? | tick every one you use. With nothing ticked every rule runs, also the ones only Kodi needs: Start asks once (**Tick my programs** / **Start anyway**). A user with nothing ticked sees this question once more in v0.20.2
 | Strictness | Tight, Medium or Easy
 | FFprobe | optional: nothing is included or downloaded for you; **Choose folder…** or **Download page**
 Someone updating from an older version sees only the programs question once, with **Not now**.
@@ -175,7 +184,7 @@ In the mode **NFO and movie.xml**, a library where no movie has a movie.xml gets
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
 - **Settings → API Keys**: add the TMDB and OMDb keys (ratings, ID search and checks, artwork); a fanart.tv key adds more posters and backdrops.
 - **Settings → Language**: the target language of the Language column (default PT). The language of the app itself is **Settings → User Interface → Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it).
-- **Settings → Health Rules**: choose what counts as an error or a warning. A **Health preset** (Easy / Medium / Tight) sets them all at once; a new user starts with Tight.
+- **Settings → Health Rules**: choose what counts as an error or a warning. A **Health preset** (Easy / Medium / Tight) sets them all at once; a new user starts with Medium.
 - To triage: sort by **Health** (Errors first), click the **Errors** counter, or tick **Problems only**.
 
 ## Status icons
@@ -288,7 +297,7 @@ You can scan several root folders.
 - The collection folder part sets the one folder Kodi reads collection artwork from: **Choose…**, **Create…** (makes "Sets" next to the first library, after a yes) or **Clear**. Scans never list it as a movie or an ignored folder.
 - All libraries share one table; the **Library** column and the Movie Name tooltip show where a movie lives.
 - The library box chooses what the table shows and what the scans cover ("All libraries" or one of them).
-- A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)". A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
+- A library that cannot be reached (an unplugged network share) keeps its last scan, is skipped by scans and is shown as "(offline)", its movies in grey. A movie folder that cannot be read for a moment keeps its row, marked "(not read)".
 - Duplicates are found across libraries.
 - Movies can sit deeper: a folder that holds only other folders (Single Movies / HD / <movie>, Boxsets / <saga> / <movie>) is searched, down to 5 levels below the library. Every movie keeps its library in the Library column.
 
@@ -383,7 +392,7 @@ Right-click a row, or press [[Shift+F10]] or the Menu key at the selected row. A
 -- For Kodi: **Download Actor Photos…**; **Rename actor photos for Kodi**, **Rename extra artwork for Kodi** and **Convert extrafanart → fanart1, 2…** are shown only when the movie has such files.
 - **Metadata**
 -- Files: **Open .nfo**, **Open movie.xml**, **[!] NFO errors** / **[!] XML errors**.
--- Names: **Make titles the same (NFO ↔ XML)…**, **Rename NFO for Kodi…**, **Rename Files for My Programs…** (with programs ticked), **Convert movie.xml → NFO…** (a movie with a movie.xml and no NFO), **Remove online artwork links from the NFO…**.
+-- Names: **Make titles the same (NFO ↔ XML)…**, **Rename NFO for Kodi…**, **Rename Files for My Programs…** (with programs ticked), **Rename Folder and Files…**, **Convert movie.xml → NFO…** (a movie with a movie.xml and no NFO), **Remove online artwork links from the NFO…**.
 -- **Collection ▸** (Collections tab).
 -- Ratings and genres: **Sync Ratings from IMDb / TMDB**, **Normalize Genres**, **Check Genres Against TMDB…**, **Add Custom Genre(s) to Settings**.
 - **IDs & Sources**: **Search Sources**, **Verify IMDb/TMDB IDs**, **Normalize Sources**, **Fix Wrong IMDb / TMDB IDs…**, **Add <uniqueid> for Kodi**, **Copy Movie Name**.
@@ -473,7 +482,7 @@ TAB_IMAGES = """
 | Extract Backdrop(s) | FFmpeg frames spread over the film
 | Fetch Backdrops | pick TMDB / fanart.tv backdrops; replace a file or save a new one
 | Replace All Backdrops | choose the source and how many (it starts at the number you have); the highest resolution first, a failed download is replaced by the next image; a backup first
-**Tools → Artwork → Delete extrafanart Subfolders…** removes the extrafanart folders (a backup first). Jellyfin and Emby use them as extra backdrops; Kodi and Plex do not read them. The health rules flag too few backdrops and very small ones.
+**Tools → Artwork → Delete extrafanart Subfolders…** removes the extrafanart folders (a backup first). Jellyfin and Emby use them as extra backdrops; Kodi and Plex do not read them. The health rules flag too few backdrops (the main fanart counts as one) and very small ones. With Emby or Jellyfin ticked, a movie with videos in a backdrops folder (theme videos, which they play as moving backdrops) is not flagged for too few backdrops.
 
 ## Frames from the movie
 Fetch Fanart and Fetch Backdrops have a **🎞 Frames from movie** button (with FFmpeg set and a video in the folder).
@@ -549,7 +558,9 @@ The **Actors** column shows where a movie's actor photos are:
 - **Download Actor Photos…** (**Tools → Artwork** for all movies, Right-click → Artwork for the selected ones) saves the linked photos at full size into .actors (created hidden, as Kodi does). An existing photo is never replaced and the NFO does not change.
 - A photo Kodi would not match ("Tom Hanks.jpg" instead of "Tom_Hanks.jpg", another case, a near spelling) is marked ⓘ. Right-click → Artwork → **Rename actor photos for Kodi** fixes the names (Undo puts them back).
 - Photos that match no actor are listed in the tooltip only.
-- The Health rule "No actor information" is a warning, on only in the Tight preset.
+- The Health rule "No actor information" is a warning, on only in the Tight preset. Actors without any photo are flagged only when Kodi is ticked: Emby, Jellyfin and Plex download the photos themselves.
+- The votes checks ("Missing votes" and the other votes warnings) are skipped, and Auto Repair leaves the votes alone, when the only programs ticked are Emby, Jellyfin or Plex: none of them uses the vote count.
+- The collection artwork rule runs only when Kodi is ticked (or nothing is): only Kodi reads artwork from a collection folder.
 - The column is visible from the start only when Kodi is ticked (Tools → Choose Columns…).
 
 ## Extra artwork
@@ -589,6 +600,24 @@ The defaults of the checkboxes: Settings → Ratings.
 - Nothing is ticked: each file keeps its genres unless you tick the movie.
 - The ticked ones get TMDB's genres (backup first, Undo).
 - It needs a TMDB API key.
+
+## Renaming movie folders and files
+> New in v0.20.2. Right-click → Metadata → **Rename Folder and Files…** (one movie or a selection) and Tools → NFO & File Names → **Rename Movie Folders and Files — All Movies…**.
+The window shows your choices and five examples; they are saved (also in Settings → NFO / XML → Renamer). **Preview all…** lists every "old → new" first; nothing is renamed before you click **Rename**.
+- **Only the folder has a pattern:** Title (Year) (default), Title (Year) [Quality], Title (Year) [Quality] [Genre], Title (Year) [IMDb ID], Title (Year) [TMDB ID], Title (Year) [Quality Codec Audio], or your own with fields like {title} ({year}) [{quality}]. A bracket group with an empty field disappears. Options: the original title, "Matrix, The", dots instead of spaces.
+- **The files follow the folder:** the video and every file named after it (NFO, <video>-poster.jpg, subtitles, trailer) get the folder's name; parts keep "-cd1", versions keep " - 1080p". movie.nfo, poster.jpg, .actors, extrafanart and sub-folders stay; inside a DVD / Blu-ray folder nothing is renamed.
+- The TMDB pattern writes [tmdb-603]: Jellyfin, Emby and Plex all match the movie by it (tested 2026-11-23; Plex ignores [tmdbid-603]). Kodi uses the NFO and finds names with bracket text too.
+- Not renamed, with the reason: a name that is taken, two files that would get one name, a Windows-reserved name, a path that would be too long, a folder with several movies, a movie whose ID Verify IDs flagged (for the ID patterns).
+- **Watched state:** Plex, Emby and Jellyfin keep it after a rename. **Kodi loses watched marks and resume points of renamed movies** (and shows them twice until Clean library): export them first (Kodi: Settings → Media → Library → Export library). The preview says so for your programs.
+- Nothing is copied. Backup History / Undo renames every folder and file back; one movie is renamed completely or not at all.
+
+## Certifications (age ratings)
+> New in v0.20.2. Settings → Ratings → Certifications: your countries in order (default: the app language's country and US) and the most values a list keeps (default 3).
+Right-click → Metadata → **Certifications…** (one movie or a selection) and Tools → Ratings & Genres → **Apply My Certification Settings — All Movies…** keep only your countries' age ratings, in your order. A preview comes first; a backup comes first; Backup History / Undo puts the files back.
+- Every rating tag your files have is written in its own style: <mpaa>, movie.xml <ContentRating> and <MPAARating> get ONE value (Jellyfin and Emby read one; of a list Jellyfin uses only the first), <FullCertifications> / <FormalMPAA> a list up to your maximum, <certification> as it is now. Values of other countries are removed.
+- A value your files lack comes from TMDB (theatrical release first), the US value also from OMDb. When none of your countries has one, the US rating is used and the preview says so. A missing tag is added only where the programs read it: <mpaa> in the NFO and <ContentRating> in movie.xml, written like "BR:12".
+- No rating in TMDB and IMDb: the tag is left blank and the preview lists the movie. Only ratings of countries you don't accept and nothing online: you choose per movie (or for all) to keep the file's value or leave the tag blank.
+- The health rule (on in the Tight preset) warns about a country you don't accept, more values than your maximum, or several values in <mpaa>. A missing rating is not a warning.
 
 ## IMDb and TMDB IDs
 Which tool for which problem:
@@ -652,9 +681,9 @@ TAB_BULK = """
 | Auto Repair — All Movies… | every safe fix in one go (below)
 | Fix one issue — All Movies… | one automatic fix on every movie that needs it (below)
 | IDs ▸ | Fix Wrong IMDb / TMDB IDs…, Add <uniqueid> for Kodi…, Normalize Sources…, Search Sources…, Verify IMDb/TMDB IDs…
-| Ratings & Genres ▸ | Sync Ratings Online…, Normalize Genres…, Check Genres Against TMDB…
-| Collections ▸ | Check All Collections Online…, Fix All Collections…, Create All Collection Folders…, Check / Write set.nfo…
-| NFO & File Names ▸ | Rename NFOs for Kodi…, Rename Files for My Programs…, Convert movie.xml → NFO…, Remove online artwork links from NFOs…
+| Ratings & Genres ▸ | Sync Ratings Online…, Normalize Genres…, Check Genres Against TMDB…, Apply My Certification Settings…
+| Collections ▸ | Check All Collections Online…, Fix All Collections…, Create All Collection Folders…, Check / Write set.nfo…, Create / Edit set.nfo…, Collection Gaps…
+| NFO & File Names ▸ | Rename NFOs for Kodi…, Rename Files for My Programs…, Rename Movie Folders and Files…, Convert movie.xml → NFO…, Remove online artwork links from NFOs…
 | Artwork ▸ | Fix Image Proportions / Size…, Replace Low-Resolution Posters…, Review Posters One by One…, Copy poster.jpg → folder.jpg…, Download Actor Photos…, Convert extrafanart → fanart1, 2…, Delete extrafanart Subfolders…
 | Backup History / Undo… | every run that changed files (Backups & Undo tab)
 | Scan Results ▸ | Save Scan Results…, Open Scan Results…, Recompute Health Status (no rescan), Refresh Icons ([[Ctrl+I]])
@@ -670,7 +699,7 @@ Some windows and messages show a tool's full name. They are the same tools:
 | IDs | Fix Wrong IMDb / TMDB IDs — All Movies…, Add <uniqueid> for Kodi — All Movies…, Normalize Sources — All Movies…, Search Sources — All Movies…, Verify IMDb/TMDB IDs — All Movies…
 | Ratings & Genres | Sync Ratings Online — All Movies…, Normalize Genres — All Movies…, Check Genres Against TMDB — All Movies…
 | Reports | Health Status Report — All Movies, Run Improvements Check — All Movies…
-| NFO & File Names | Rename NFOs for Kodi — All Movies with a folder-named NFO…, Rename Files for My Programs — All Movies…, Convert movie.xml → NFO — All Movies without an NFO…, Remove online artwork links from NFOs — All Movies…
+| NFO & File Names | Rename NFOs for Kodi — All Movies with a folder-named NFO…, Rename Files for My Programs — All Movies…, Rename Movie Folders and Files — All Movies…, Convert movie.xml → NFO — All Movies without an NFO…, Remove online artwork links from NFOs — All Movies…
 | Artwork | Fix Image Proportions / Size — All Movies with Image Warnings…, Replace Low-Resolution Posters — All Movies…, Copy poster.jpg → folder.jpg — All Movies with Differences…, Download Actor Photos — All Movies…, Convert extrafanart → fanart1, 2… — All Movies…, Delete extrafanart Subfolders — All Movies…
 | Scan Results | Refresh Icons — All Movies
 
@@ -776,7 +805,7 @@ Right-click a collection row, or use **All actions ▾** in its panel:
 | Open Collection Folder | opens the collection's folder
 | Open Collection on TMDB | the collection's page (**Search Collection on TMDB** when the collection's TMDB ID is not known)
 | Check Collection Online | asks TMDB about this collection's movies
-The panel shows the collection: its poster (from the collection folder), TMDB ID, years, folder, artwork, overview, its movies and the fixes. Its buttons: **Artwork…**, **Fix Collection…**, **Open Poster**, **Open Fanart**, **Open Folder**, **TMDB** (the collection's page with its movies, or a TMDB search for the name), **Rename / Join…**, **Write set.nfo** and **Refresh Collection** (reads the collection folder and its movies again, like Update on a movie).
+The panel shows the collection: its poster (from the collection folder), TMDB ID, years, folder, artwork, overview, its movies and the fixes. Its buttons: **Artwork…**, **Fix Collection…**, **Open Poster**, **Open Fanart**, **Open Folder**, **TMDB** (the collection's page with its movies, or a TMDB search for the name), **Rename / Join…**, **Write set.nfo**, **Edit set.nfo…** (**Create set.nfo…** for your own collection) and **Refresh Collection** (reads the collection folder and its movies again, like Update on a movie).
 While the app writes or reads files again, a ring turns on the poster of the movie or collection it is working on, a thin bar moves above the table and the status bar says what it does. It ends with **✓ Done** once the panel shows the new state, or **! Not done** with the reason. The panel's buttons are grey in the meantime.
 
 ## One collection, one name
@@ -798,7 +827,7 @@ Kodi shows one set per name, so a TMDB collection gets ONE name for all its movi
 ## The collection rules
 Three rules in Settings → Health Rules, all warnings:
 | Collection missing or different | TMDB lists a collection the NFO does not have, the NFO names another one, or one collection is written two ways in your library ("written as X here and as Y in 3 other movies — Kodi shows two sets"). On in the Tight preset only.
-| Collection folder / poster / fanart missing | the collection artwork rule: only while a collection folder is set. On in the Tight preset only.
+| Collection folder / poster / fanart missing | the collection artwork rule: only while a collection folder is set and Kodi (or nothing) is ticked. On in the Tight preset only.
 | set.nfo missing or with a mistake | Kodi; only with a collection folder; shown on the collection, not on its movies. On in the Medium and Tight presets.
 - Your own collections ("Disney", "Oscar winners") are never warned about and never removed.
 - A name with no TMDB ID that matches none of TMDB's names counts as yours, also when TMDB lists the movie in a collection; only **Fix Collection…** on that movie, asked by you, replaces it.
@@ -812,7 +841,16 @@ Each collection's folder should hold a set.nfo: title = the collection name in t
 - Creating a collection folder writes its set.nfo at once.
 - **Fix Collection…** also takes care of set.nfo: after the names are written it reads the collection folder again and writes a missing set.nfo / fills empty tags. It says "Nothing to change" only when the names and set.nfo are both right. In the collection's panel, the set.nfo warning has a **Fix** button right beside it.
 - **Tools → Collections → Check / Write set.nfo…** (one collection: the **Write set.nfo** button in its panel) writes the missing files and fills empty tags. Where a text differs it shows both, and you tick "Use TMDB's" per collection.
+- **Create / Edit set.nfo…** (new in v0.20.2; Kodi 22 Piers and later read set.nfo) opens one collection's set.nfo in an editor: **Title** (locked: the collection name in your movies' NFOs, Kodi matches the set by it), **Original title** and **Overview**; other tags in the file (sort title, artwork) are kept. **Edit** is there for every collection that has a set.nfo. **Create** is offered for your own collections: those whose movies TMDB places in no collection, or in several different ones (a collection with one TMDB collection plus movies TMDB lists in none is still that TMDB collection). The collection's folder is made first when it is not there yet. Open it from the collection's panel (for your own collection without set.nfo the panel's **Create…** / **Fix** opens it), its right-click menu, or **Tools → Collections → Create / Edit set.nfo…** (choose the collection). An overview you type is never replaced by Write set.nfo or Fix all.
 - A backup comes first, and Backup History / Undo puts the old file back.
+
+## Collection Gaps
+> New in v0.20.2. Tools → Collections → **Collection Gaps…** (every collection), or right-click a collection row (that collection, or the collection rows selected with it).
+For each TMDB collection it lists the movies TMDB has that your library lacks: **Missing** (released: a release date before today; "You have N of M" counts these) and **Announced, not released yet** (a later date or none: information only). Titles are in the app's TMDB language, the original title in [brackets], with TMDB's release date. Movies never checked online are checked first, and the collections' movie lists are read again when they are older than 30 days (TMDB key needed; Cancel keeps what was fetched).
+- A missing movie is looked for in the WHOLE library: first by TMDB ID, then by title + year (±1). The window offers the fix the library allows: **Add to collection** (right TMDB ID, no collection), **Move to this collection…** (it is in another collection; asks first), **Write TMDB ID + collection…** (found by title: shows your movie and TMDB's side by side and writes the TMDB ID, its IMDb ID and the collection only after your OK — a title match can be a remake). A movie without an NFO in use is shown with no fix. A backup comes first; Backup History / Undo puts the files back.
+- **I don't want this one** leaves a movie out of the lists and the count (saved in collection_gaps_ignored.json next to the settings); **Show ignored** lists them with **Show it again**.
+- At the end, **Ignored Collections (no TMDB ID)**: your own collections, mixed ones (movies of several TMDB collections), collections no longer on TMDB and those not checked online. A collection whose movies are in one TMDB collection, plus movies TMDB lists in none, is that TMDB collection.
+- **Save as .txt…** saves the report ("Collection Gaps <date>.txt"). The report names the libraries it compared: a library that is not scanned is not compared, so its movies would show as missing.
 
 ## Fixing collections
 Right-click → Metadata → **Collection ▸**:
@@ -925,7 +963,7 @@ TAB_SETTINGS = """
 | Health Rules | **Health preset**, **Which programs play your movies?**, the rules in four sections and **Reset to defaults** (details below the table)
 | Backup | the size limit, automatic deletion of the oldest backups, **Delete all backup folders**
 Health Rules in detail:
-- **Health preset** — Easy / Medium / Tight sets every rule at once; Custom after your own changes. A new user starts with Tight, and choosing a preset after your own changes asks first.
+- **Health preset** — Easy / Medium / Tight sets every rule at once; Custom after your own changes. A new user starts with Medium, and choosing a preset after your own changes asks first.
 - **Which programs play your movies?** — tick every program you use. The ticks set the health mode: NFO only, NFO and movie.xml, or movie.xml only. A change between NFO and movie.xml offers a new scan.
 - The rules are in four sections — **General**, **NFO**, **movie.xml** and **NFO ↔ movie.xml comparisons** — each rule with its tick box, threshold and level (error / warning).
 - The sections the health mode does not use stay visible but greyed and cannot be changed; their settings are kept for when you switch back.
@@ -1027,6 +1065,7 @@ IMDb is never asked directly: IMDb ratings come through OMDb, IMDb IDs through T
 
 ## Logs
 **Help → Open Logs Folder** opens logs\\ with app.log selected. Every unexpected error is written there (API keys never): attach it to a bug report.
+**Help → Copy Diagnostic Info…** shows a short report for a bug report: the version, the system, the preset, the programs ticked, the counts of each warning and the last warnings in app.log. It holds no folder names or paths. Click **Copy** and paste it into your message.
 
 ## Updates
 **Help → Check for Updates…** (or the button in About) asks GitHub for the latest release; nothing else is sent.

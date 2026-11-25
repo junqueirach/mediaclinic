@@ -42,7 +42,6 @@ import settings_model as _sm                                      ### NEW v0.20.
 import subprocess
 import threading                                                 ### NEW v0.19.1 I1 ###
 import time                                                      ### NEW v0.19.5 I20 ###
-import time
 import webbrowser
 
 from settings_model import DEFAULT_SETTINGS
@@ -82,42 +81,74 @@ NO_COLL_PATH = os.path.join(get_config_dir(), "no_collection.json")       ### NE
 _NO_COLL_LOCK = threading.Lock()                                            ### NEW v0.19.4 fix 3b ###
 
 
-def load_no_collection(logger=None):                              ### NEW v0.19.4 fix 3b ###
-    """The movies the user marked "not in a collection": [{"path", "tmdb", "name", "when"}] ([] when absent).
-    A file that cannot be read is kept as no_collection.json.corrupt-<date> and the list starts empty."""
-    with _NO_COLL_LOCK:
-        if not os.path.isfile(NO_COLL_PATH):
-            return []
-        try:
-            with open(NO_COLL_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            movies = data.get("movies") if isinstance(data, dict) else None
-            if not isinstance(movies, list):
-                raise ValueError("no 'movies' list")
-            return [m for m in movies if isinstance(m, dict) and (m.get("path") or m.get("tmdb"))]
-        except Exception as e:
-            dst = f"{NO_COLL_PATH}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+_LIST_SAVE_BLOCKED = set()                                      # v0.20.2 PA18: a list file that could not be read
+
+
+def _load_list_file(path, lock, clean, empty, label, what, logger=None):   ### NEW v0.20.2 PA18 (audit) ###
+    """One loader for the small list files (no_collection, not_duplicates, collection_gaps_ignored).  A file another
+    program holds for a moment (antivirus, backup tool) is retried as settings.json is (SH-E1); a file that cannot be
+    read is copied aside as <name>.corrupt-<date> and the list starts empty — and when it could not be READ at all, or
+    the copy failed, saving is blocked for this run, so the user's marks are never overwritten by one new entry."""
+    with lock:
+        if not os.path.isfile(path):
+            _LIST_SAVE_BLOCKED.discard(path)
+            return empty()
+        err = None
+        for _try in range(10):
             try:
-                shutil.copy2(NO_COLL_PATH, dst)
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                _LIST_SAVE_BLOCKED.discard(path)
+                return clean(data)
+            except PermissionError as e:
+                err = e
+                time.sleep(0.2)
+                continue
+            except Exception as e:
+                err = e
+                break
+        blocked = isinstance(err, PermissionError)
+        dst = f"{path}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+        if not blocked:
+            try:
+                shutil.copy2(path, dst)
             except Exception:
-                pass
-            if logger:
-                logger.warning(f"no_collection.json could not be read ({e}) — kept as {os.path.basename(dst)}; "
-                               "the 'not in a collection' marks start empty")
-            return []
+                blocked = True
+        if blocked:
+            _LIST_SAVE_BLOCKED.add(path)
+        if logger:
+            logger.warning(f"{label} could not be read ({err}) — "
+                           + ("not saved in this run, the file stays as it is; " if blocked else f"kept as {os.path.basename(dst)}; ")
+                           + what)
+        return empty()
 
 
-def save_no_collection(movies):                                    ### NEW v0.19.4 fix 3b ###
-    """Write the marks atomically (temp file + os.replace) under a lock."""
-    with _NO_COLL_LOCK:
+def _save_list_file(path, lock, payload):                       ### NEW v0.20.2 PA18 (audit) ###
+    """Atomic save of a list file (a temp file per thread, removed on failure); False when blocked or failed."""
+    with lock:
+        if path in _LIST_SAVE_BLOCKED:
+            return False
         try:
-            tmp = NO_COLL_PATH + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({"version": 1, "movies": list(movies)}, f, ensure_ascii=False, indent=1)
-            _replace_retry(tmp, NO_COLL_PATH)
+            _save_json_atomic(path, payload, ensure_ascii=False, indent=1)
             return True
         except Exception:
             return False
+
+
+def load_no_collection(logger=None):                              ### NEW v0.19.4 fix 3b; v0.20.2 PA18 ###
+    """The movies the user marked "not in a collection": [{"path", "tmdb", "name", "when"}] ([] when absent)."""
+    def _clean(data):
+        movies = data.get("movies") if isinstance(data, dict) else None
+        if not isinstance(movies, list):
+            raise ValueError("no 'movies' list")
+        return [m for m in movies if isinstance(m, dict) and (m.get("path") or m.get("tmdb"))]
+    return _load_list_file(NO_COLL_PATH, _NO_COLL_LOCK, _clean, list, "no_collection.json",
+                           "the 'not in a collection' marks start empty", logger)
+
+
+def save_no_collection(movies):                                    ### NEW v0.19.4 fix 3b; v0.20.2 PA18 ###
+    """Write the marks atomically under a lock."""
+    return _save_list_file(NO_COLL_PATH, _NO_COLL_LOCK, {"version": 1, "movies": list(movies)})
 _COLL_LOCK = threading.Lock()                                               ### NEW v0.19.4 B110b ###
 
 
@@ -401,7 +432,7 @@ def reset_wrong_types(merged):
 _MIGRATIONS = ("b35_folder_rules_off", "b55_library_filter_reset", "b110_collection_column_hidden",
                "tr1_xml_integration_kept", "tr1b_health_mode",  # v0.19.6 TR1, TR1b
                "hp1_health_preset",                                  # v0.20.0 HP1d
-               "v0201_new_rules")                                    # v0.20.1 (checkup)
+               "v0201_new_rules", "v0202_new_rules")                                    # v0.20.1 (checkup)
 SETTINGS_MIGRATION_NOTICES = []                                  # one message box each (B35)
 SETTINGS_MIGRATION_STATUS = []                                   # one status-bar line each (B55)
 B55_STATUS = "Library filter reset to 'All libraries' — every library is shown again"
@@ -473,6 +504,12 @@ def _run_settings_migrations(merged):
                 for k in ("no_actor_info", "collection_set_nfo"):
                     hr[k] = _sm.HEALTH_PRESETS[pre][k]
                 _log.info(f"Settings migration v0201_new_rules: the two new rules follow the {pre} preset")
+    if "v0202_new_rules" in todo:                                ### NEW v0.20.2 CR — the certification rule follows the preset ###
+        hr = merged.get("health_rules")
+        pre = merged.get("health_preset")
+        if isinstance(hr, dict) and pre in _sm.HEALTH_PRESETS:
+            hr["cert_settings"] = _sm.HEALTH_PRESETS[pre]["cert_settings"]
+            _log.info(f"Settings migration v0202_new_rules: the certification rule follows the {pre} preset")
     merged["settings_migrations"] = done + todo
     save_settings(merged)                                        # once: the markers are on disk now
 
@@ -703,8 +740,11 @@ def _save_json_atomic(path, data, **dump_kw):                   ### NEW v0.19.4 
     with _JSON_SAVE_LOCK:
         tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
         try:
+            # v0.20.2 PA2 (audit): json.dumps = the C encoder (json.dump walks the rows in Python: several times slower,
+            # and a worker that adds a key to a row meanwhile made the save fail with "dictionary changed size")
+            text = json.dumps(data, **dump_kw)
             with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(data, f, **dump_kw)
+                f.write(text)
             _replace_retry(tmp, path)                            # MODIFIED v0.19.5 I20
         finally:
             try:
@@ -749,43 +789,45 @@ def save_ignored(data):                                          ### NEW v0.19.2
         return False
 
 
-def load_not_duplicates(logger=None):                             ### NEW v0.19.3 B64 ###
-    """The user's "not a duplicate" pairs ([] when absent).  A file that cannot
-    be read is kept as not_duplicates.json.corrupt-<date> and the list starts
-    empty (logged), like settings.json (B36)."""
-    with _NOT_DUP_LOCK:
-        if not os.path.isfile(NOT_DUP_PATH):
-            return []
-        try:
-            with open(NOT_DUP_PATH, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            pairs = data.get("pairs") if isinstance(data, dict) else None
-            if not isinstance(pairs, list):
-                raise ValueError("no 'pairs' list")
-            return [p for p in pairs if isinstance(p, dict) and p.get("a") and p.get("b")]
-        except Exception as e:
-            dst = f"{NOT_DUP_PATH}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
-            try:
-                shutil.copy2(NOT_DUP_PATH, dst)
-            except Exception:
-                pass
-            if logger:
-                logger.warning(f"not_duplicates.json could not be read ({e}) — kept as {os.path.basename(dst)}; "
-                               "the 'not a duplicate' marks start empty")
-            return []
+def load_not_duplicates(logger=None):                             ### NEW v0.19.3 B64; v0.20.2 PA18 ###
+    """The user's "not a duplicate" pairs ([] when absent)."""
+    def _clean(data):
+        pairs = data.get("pairs") if isinstance(data, dict) else None
+        if not isinstance(pairs, list):
+            raise ValueError("no 'pairs' list")
+        return [p for p in pairs if isinstance(p, dict) and p.get("a") and p.get("b")]
+    return _load_list_file(NOT_DUP_PATH, _NOT_DUP_LOCK, _clean, list, "not_duplicates.json",
+                           "the 'not a duplicate' marks start empty", logger)
 
 
-def save_not_duplicates(pairs):                                  ### NEW v0.19.3 B64 ###
-    """Write the pairs atomically (temp file + os.replace) under a lock."""
-    with _NOT_DUP_LOCK:
-        try:
-            tmp = NOT_DUP_PATH + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump({"version": 1, "pairs": list(pairs)}, f, ensure_ascii=False, indent=1)
-            _replace_retry(tmp, NOT_DUP_PATH)
-            return True
-        except Exception:
-            return False
+def save_not_duplicates(pairs):                                  ### NEW v0.19.3 B64; v0.20.2 PA18 ###
+    """Write the pairs atomically under a lock."""
+    return _save_list_file(NOT_DUP_PATH, _NOT_DUP_LOCK, {"version": 1, "pairs": list(pairs)})
+
+
+GAPS_IGNORE_PATH = os.path.join(get_config_dir(), "collection_gaps_ignored.json")   ### NEW v0.20.2 CG ###
+_GAPS_LOCK = threading.Lock()
+
+
+def load_gaps_ignored(logger=None):                               ### NEW v0.20.2 CG; PA18 ###
+    """Collection Gaps' "I don't want this one" list: {"<collection id>": [movie ids]} ({} when absent)."""
+    def _clean(data):
+        ign = data.get("ignored") if isinstance(data, dict) else None
+        if not isinstance(ign, dict):
+            raise ValueError("no 'ignored' object")
+        out = {}
+        for k, v in ign.items():
+            ids = sorted({int(x) for x in (v if isinstance(v, list) else []) if str(x).isdigit()})
+            if str(k).isdigit() and ids:
+                out[str(int(k))] = ids
+        return out
+    return _load_list_file(GAPS_IGNORE_PATH, _GAPS_LOCK, _clean, dict, "collection_gaps_ignored.json",
+                           "the Collection Gaps ignore list starts empty", logger)
+
+
+def save_gaps_ignored(data):                                     ### NEW v0.20.2 CG; PA18 ###
+    """Write the ignore list atomically under a lock. True when written."""
+    return _save_list_file(GAPS_IGNORE_PATH, _GAPS_LOCK, {"version": 1, "ignored": dict(data or {})})
 
 
 def migrate_results_from_settings(settings):
@@ -1239,7 +1281,7 @@ def _manifest_add(folder, original, backup_path, logger=None):  ### NEW v0.19.1 
     try:
         with _MF_LOCK:
             m = _OPEN_MANIFESTS.get(folder) or read_manifest(folder) or {
-                "version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "t": time.time(),   # t: v0.20.2 RN (order)
                 "action": current_backup_action(),
                 "run_id": getattr(_BK_CTX, "run_id", None) or os.path.basename(folder),
                 "files": []}
@@ -1269,7 +1311,7 @@ def note_created(backup_root, movie_name, backup_folder_ref, path, made_dir=None
         os.makedirs(folder, exist_ok=True)
         with _MF_LOCK:
             m = _OPEN_MANIFESTS.get(folder) or read_manifest(folder) or {
-                "version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "t": time.time(),   # t: v0.20.2 RN (order)
                 "action": current_backup_action(),
                 "run_id": getattr(_BK_CTX, "run_id", None) or os.path.basename(folder),
                 "files": []}
@@ -1289,6 +1331,91 @@ def note_created(backup_root, movie_name, backup_folder_ref, path, made_dir=None
         if logger:
             logger.error(f"Backup manifest: created file not recorded ({path}): {e}")
         return False
+
+
+def note_moved(backup_root, movie_name, backup_folder_ref, old, new, logger=None):   ### NEW v0.20.2 RN ###
+    """A rename the run made WITHOUT a copy (Rename Movie Folders and Files: a video is GBs, a folder holds them):
+    the run's manifest lists it IN ORDER ("moved_to"); Undo renames it back in reverse order, with no safety copy
+    and without touching the file times (the programs take the date added from them).  True when recorded."""
+    try:
+        if backup_folder_ref[0] is None:
+            os.makedirs(backup_root, exist_ok=True)
+            backup_folder_ref[0] = _make_backup_folder_path(backup_root, movie_name, fallback="batch")
+        folder = backup_folder_ref[0]
+        os.makedirs(folder, exist_ok=True)
+        with _MF_LOCK:
+            m = _OPEN_MANIFESTS.get(folder) or read_manifest(folder) or {
+                "version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "t": time.time(),   # t: v0.20.2 RN (order)
+                "action": current_backup_action(),
+                "run_id": getattr(_BK_CTX, "run_id", None) or os.path.basename(folder),
+                "files": []}
+            m["files"].append({"original": os.path.abspath(old), "backup": None, "moved_to": os.path.abspath(new),
+                               "dir": os.path.isdir(new), "size": 0, "mtime": 0})
+            _write_manifest(folder, m)
+            _OPEN_MANIFESTS[folder] = m
+        return True
+    except Exception as e:
+        if logger:
+            logger.error(f"Backup manifest: rename not recorded ({old} → {new}): {e}")
+        return False
+
+
+def _same_path(a, b):
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def _move_back(src, dst):                                       ### NEW v0.20.2 RN ###
+    """Rename *src* back to *dst* (a case-only change goes through a temporary name)."""
+    if _same_path(src, dst):
+        tmp = src.rstrip("\\/") + ".mcrename"
+        _replace_retry(src, tmp, op=os.rename)
+        try:
+            _replace_retry(tmp, dst, op=os.rename)
+        except OSError:
+            _replace_retry(tmp, src, op=os.rename)
+            raise
+    else:
+        _replace_retry(src, dst, op=os.rename)
+
+
+def moved_folders_after(backup_root, created, exclude=None, since_t=None):   ### NEW v0.20.2 RN ###
+    """[(old path, new path)] of the renames (folders AND files, in each run's order) recorded by runs made at or
+    after *created* (the time has whole seconds), oldest run first, *exclude* (the run being restored) left out: an
+    older run's paths are followed through them (its movie folder and its NFO may have new names now)."""
+    out = []
+    try:
+        entries = [e for e in os.scandir(backup_root) if e.is_dir() and e.name.startswith("backup_")]
+    except OSError:
+        return out
+    for e in entries:
+        if exclude and _same_path(e.path, exclude):
+            continue
+        m = read_manifest(e.path)
+        if not m:
+            continue
+        mt = m.get("t")
+        if since_t is not None and mt is not None:               # both have the precise time: runs AFTER this one
+            if mt <= since_t:
+                continue
+        elif (m.get("created") or "") < (created or ""):
+            continue
+        for i, f in enumerate(m["files"]):
+            if f.get("moved_to"):
+                out.append((mt if mt is not None else 0.0, m.get("created") or "", e.name, i, f["original"], f["moved_to"]))
+    out.sort(key=lambda t: (t[1], t[0], t[2], t[3]))              # the runs in time order, each run's renames in order
+    return [(o, n) for _t, _c, _n, _i, o, n in out]
+
+
+def follow_moves(path, moves):                                  ### NEW v0.20.2 RN ###
+    """*path* after the folder renames *moves* ([(old, new)], oldest first)."""
+    for old, new in moves:
+        o = os.path.normcase(os.path.abspath(old)).rstrip("\\/")
+        p = os.path.normcase(os.path.abspath(path))
+        if p == o:
+            path = os.path.abspath(new)
+        elif p.startswith(o + os.sep):
+            path = os.path.join(os.path.abspath(new), os.path.abspath(path)[len(o) + 1:])
+    return path
 
 
 def note_written(paths):                                        ### NEW v0.19.1 I1 ###
@@ -1353,13 +1480,27 @@ def note_renamed(original, new_path):                         ### NEW v0.19.3 B7
     return found
 
 
-def file_changed_since_run(entry):                              ### NEW v0.19.1 I1 ###
+# v0.20.2 PA6: the only folders Undo makes again — sub-folders of a movie folder that exists (a run that removed
+# extrafanart, or the actor photos)
+UNDO_SUBDIRS = frozenset({"extrafanart", "extrathumbs", ".actors", "backdrops"})
+
+
+def file_changed_since_run(entry, moves=None):                  ### NEW v0.19.1 I1 ###
     """True / False / None (unknown: the run's result was never recorded).
-    ### v0.19.3 B73 ### a renamed file is checked under its new name."""
+    ### v0.19.3 B73 ### a renamed file is checked under its new name.
+    ### v0.20.2 PA5 ### *moves* (a list, or a function giving it — asked only when needed): a file whose folder was
+    renamed by a later run is checked at its new place (it used to count as "changed since the run")."""
+    if entry.get("moved_to"):                                  ### NEW v0.20.2 RN — a rename only: can it go back? ###
+        if not os.path.exists(entry["moved_to"]):
+            return True
+        return os.path.exists(entry["original"]) and not _same_path(entry["original"], entry["moved_to"])
     if "after_mtime" not in entry:
         return None
+    p = entry.get("renamed_to") or entry["original"]
+    if moves is not None and not os.path.exists(p):              # v0.20.2 PA5
+        p = follow_moves(p, moves() if callable(moves) else moves)
     try:
-        st = os.stat(entry.get("renamed_to") or entry["original"])
+        st = os.stat(p)
     except OSError:
         return True
     return abs(st.st_mtime - entry["after_mtime"]) > 0.001 or st.st_size != entry.get("after_size")
@@ -1419,6 +1560,22 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
     todo = [f for f in m["files"] if f["original"] not in set(skip)]
     ref = [None]
     restored, errors = [], []
+    ### NEW v0.20.2 RN ### renames without a copy go back last, in reverse order; the other entries follow the folder
+    # renames made after this run (else the copy would recreate the old folder name with one file in it)
+    moved = [f for f in todo if f.get("moved_to")]
+    todo = [f for f in todo if not f.get("moved_to")]
+    _later = None
+    for f in todo:
+        if not os.path.exists(f["original"]):   # renamed later (its folder or itself)? v0.20.2 PA5: created files too
+            if _later is None:
+                _later = moved_folders_after(backup_root, m.get("created", ""), exclude=folder, since_t=m.get("t"))
+            _new = follow_moves(f["original"], _later)
+            if not _same_path(_new, f["original"]) and os.path.isdir(os.path.dirname(_new)):
+                if f.get("renamed_to"):
+                    f["renamed_to"] = follow_moves(f["renamed_to"], _later)
+                if f.get("made_dir"):                           # v0.20.2 PA5
+                    f["made_dir"] = follow_moves(f["made_dir"], _later)
+                f["original"] = _new                            # this read of the manifest only (not written back)
     unsafe = set()                                              ### NEW v0.19.4 B80 ###
     with backup_action(f"Before undo — {m.get('action', 'Edit')} ({m.get('created', '')})"):
         for f in todo:
@@ -1433,6 +1590,7 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
                 errors.append(f"{os.path.basename(f['original'])}: not restored — the safety backup of the current file failed")
     todo = [f for f in todo if f["original"] not in unsafe]
     made_dirs = []                                              ### NEW v0.19.4 B110g ###
+    _run_made = any(f.get("created") for f in m.get("files") or ())   # v0.20.2 PA6
     for f in todo:
         dst = f["original"]
         if f.get("created"):                                    ### NEW v0.19.4 B110g — the run made this file: Undo removes it ###
@@ -1447,6 +1605,13 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
             continue
         src = os.path.join(folder, f["backup"])
         tmp = dst + ".mcrestore"
+        _dd = os.path.dirname(dst)                              ### NEW v0.20.2 PA6 (audit) — a movie folder that is gone
+        # (renamed or moved outside MediaClinic) is never made again with one file in it.  A run that MADE files itself
+        # (a collection folder moved to a new name: fix 15 / P3) removed the old folder: Undo makes it again ###
+        if (not os.path.isdir(_dd) and not _run_made
+                and not (os.path.basename(_dd).lower() in UNDO_SUBDIRS and os.path.isdir(os.path.dirname(_dd)))):
+            errors.append(_i18n.t("undo.folder_gone", name=os.path.basename(dst), folder=_dd))
+            continue
         try:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copyfile(src, tmp)           # copyfile: the restored file gets a new mtime
@@ -1465,6 +1630,19 @@ def restore_backup_run(backup_root, folder, skip=(), logger=None):   ### NEW v0.
                     os.remove(tmp)
             except OSError:
                 pass
+    for f in reversed(moved):                                   ### NEW v0.20.2 RN — rename back, newest first ###
+        src, dst = f["moved_to"], f["original"]
+        try:
+            if not os.path.exists(src):
+                raise FileNotFoundError(_i18n.t("rn.undo_gone", name=os.path.basename(src)))
+            if os.path.exists(dst) and not _same_path(src, dst):
+                raise FileExistsError(_i18n.t("rn.undo_taken", name=os.path.basename(dst)))
+            _move_back(src, dst)
+            restored.append(dst)
+            with backup_action(f"Before undo — {m.get('action', 'Edit')} ({m.get('created', '')})"):
+                note_moved(backup_root, "before_undo", ref, src, dst, logger=logger)   # undoing this undo renames again
+        except Exception as e:
+            errors.append(f"{os.path.basename(src)}: {e}")
     for md in sorted(set(made_dirs), key=lambda p: -len(p)):     ### NEW v0.19.4 B110g; P3 — deepest first ###
         try:
             if os.path.isdir(md) and not os.listdir(md):
@@ -1668,8 +1846,22 @@ def backup_run_size_warning(run_bytes, settings):               ### NEW v0.19.4 
     return (_i18n.t("uf.this_run_backs_up_3d31", fmt_mb=_fmt_mb(run_bytes), max_mb=max_mb, backup_protect_days=BACKUP_PROTECT_DAYS))
 
 
-def clean_backup_folder_if_needed(backup_root, settings, active_folder=None,
-                                  logger=None):
+_CLEAN_LOCK = threading.Lock()                                   # v0.20.2 PB13
+
+
+def clean_backup_folder_if_needed(backup_root, settings, active_folder=None, logger=None):   ### v0.20.2 PB13 ###
+    """One cleanup at a time: the start-up cleanup and the first backup's cleanup computed the same oldest runs, and
+    the second one went on deleting past the limit when its folder was already gone.  Busy: None (skipped)."""
+    if not _CLEAN_LOCK.acquire(blocking=False):
+        return None
+    try:
+        return _clean_backup_folder_once(backup_root, settings, active_folder, logger)
+    finally:
+        _CLEAN_LOCK.release()
+
+
+def _clean_backup_folder_once(backup_root, settings, active_folder=None,
+                              logger=None):
     """
     Auto-delete the oldest backup_* runs when the total size exceeds the limit.
     ### MODIFIED v0.19.4 B75 (D2) ### runs from this session and from the last

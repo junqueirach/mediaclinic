@@ -20,7 +20,7 @@
 | Extract Backdrop(s) | FFmpeg frames spread over the film
 | Fetch Backdrops | pick TMDB / fanart.tv backdrops; replace a file or save a new one
 | Replace All Backdrops | choose the source and how many (it starts at the number you have); the highest resolution first, a failed download is replaced by the next image; a backup first
-**Tools → Artwork → Delete extrafanart Subfolders…** removes the extrafanart folders (a backup first). Jellyfin and Emby use them as extra backdrops; Kodi and Plex do not read them. The health rules flag too few backdrops and very small ones.
+**Tools → Artwork → Delete extrafanart Subfolders…** removes the extrafanart folders (a backup first). Jellyfin and Emby use them as extra backdrops; Kodi and Plex do not read them. The health rules flag too few backdrops (the main fanart counts as one) and very small ones. With Emby or Jellyfin ticked, a movie with videos in a backdrops folder (theme videos, which they play as moving backdrops) is not flagged for too few backdrops.
 
 ## Frames from the movie
 Fetch Fanart and Fetch Backdrops have a **🎞 Frames from movie** button (with FFmpeg set and a video in the folder).
@@ -96,7 +96,9 @@ The **Actors** column shows where a movie's actor photos are:
 - **Download Actor Photos…** (**Tools → Artwork** for all movies, Right-click → Artwork for the selected ones) saves the linked photos at full size into .actors (created hidden, as Kodi does). An existing photo is never replaced and the NFO does not change.
 - A photo Kodi would not match ("Tom Hanks.jpg" instead of "Tom_Hanks.jpg", another case, a near spelling) is marked ⓘ. Right-click → Artwork → **Rename actor photos for Kodi** fixes the names (Undo puts them back).
 - Photos that match no actor are listed in the tooltip only.
-- The Health rule "No actor information" is a warning, on only in the Tight preset.
+- The Health rule "No actor information" is a warning, on only in the Tight preset. Actors without any photo are flagged only when Kodi is ticked: Emby, Jellyfin and Plex download the photos themselves.
+- The votes checks ("Missing votes" and the other votes warnings) are skipped, and Auto Repair leaves the votes alone, when the only programs ticked are Emby, Jellyfin or Plex: none of them uses the vote count.
+- The collection artwork rule runs only when Kodi is ticked (or nothing is): only Kodi reads artwork from a collection folder.
 - The column is visible from the start only when Kodi is ticked (Tools → Choose Columns…).
 
 ## Extra artwork

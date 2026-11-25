@@ -11,9 +11,13 @@
 # automatically; for differing text the user chooses "Use TMDB's" per collection. The overview in the app's TMDB
 # language, English when TMDB has none.
 # Series-ready (SR3): a set.nfo is collection-only by nature (movies); nothing here knows rows.
+# v0.20.2 SE (the set.nfo editor): edit() writes the user's title / original title / overview and keeps every other
+# tag (<sorttitle>, <art>) as written; a field left unchanged is not rewritten (its entities / CDATA stay as they are).
+# The Kodi wiki page "NFO files/Movie sets" (set.nfo, Kodi 22 Piers) lists <title>, <originaltitle>, <overview>.
 # =============================================================================
 from __future__ import annotations
 
+import html
 import re
 from typing import Optional
 from xml.sax.saxutils import escape
@@ -39,10 +43,22 @@ def read(text: Optional[str]) -> Optional[dict]:
     out = {}
     for tag in TAGS:
         m = re.search(rf"<{tag}\b[^>]*>(.*?)</{tag}\s*>", text, re.IGNORECASE | re.DOTALL)
-        v = (m.group(1) if m else "").strip()
-        out[tag] = (v.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'")
-                    .replace("&amp;", "&"))
+        out[tag] = _unxml(m.group(1) if m else "").strip()      # MODIFIED v0.20.2 SE: numeric entities, CDATA
     return out
+
+
+_CDATA = re.compile(r"<!\[CDATA\[(.*?)\]\]>", re.DOTALL)
+
+
+def _unxml(v: str) -> str:                                        ### NEW v0.20.2 SE ###
+    """An element's text as Kodi reads it: entities decoded (&amp; &#233; …), CDATA sections taken as written."""
+    out, pos = [], 0
+    for m in _CDATA.finditer(v):
+        out.append(html.unescape(v[pos:m.start()]))
+        out.append(m.group(1))
+        pos = m.end()
+    out.append(html.unescape(v[pos:]))
+    return "".join(out)
 
 
 def check(existing: Optional[dict], name: str, overviews: dict, lang: str) -> dict:
@@ -94,10 +110,53 @@ def fill(text: str, title: str, overview: str) -> str:
 
 def replace_tag(text: str, tag: str, value: str) -> str:
     """"Use TMDB's": the tag's text replaced (the tag added when missing); other text untouched."""
+    return set_tag(text, tag, value)                              # MODIFIED v0.20.2 SE: any tag (was title / overview)
+
+
+def set_tag(text: str, tag: str, value: str) -> str:              ### NEW v0.20.2 SE ###
+    """The first <tag> gets *value* (escaped); <tag/> is opened; a missing tag is added before </set>, indented as
+    <title>. Other text untouched."""
+    v = escape((value or "").strip())
     if re.search(rf"<{tag}\b[^>]*>.*?</{tag}\s*>", text, re.IGNORECASE | re.DOTALL):
-        return re.sub(rf"(<{tag}\b[^>]*>).*?(</{tag}\s*>)", lambda m: m.group(1) + escape(value.strip()) + m.group(2),
+        return re.sub(rf"(<{tag}\b[^>]*>).*?(</{tag}\s*>)", lambda m: m.group(1) + v + m.group(2),
                       text, count=1, flags=re.IGNORECASE | re.DOTALL)
-    return fill(text, value if tag == "title" else "", value if tag == "overview" else "")
+    if re.search(rf"<{tag}\b[^>]*/>", text, re.IGNORECASE):
+        return re.sub(rf"<{tag}\b[^>]*/>", lambda m: f"<{tag}>{v}</{tag}>", text, count=1, flags=re.IGNORECASE)
+    ind = re.search(r"\n([ \t]*)<title\b", text, re.IGNORECASE)
+    ind = ind.group(1) if ind else "  "
+    return re.sub(r"(\s*)</set\s*>", lambda m: f"\n{ind}<{tag}>{v}</{tag}>{m.group(1)}</set>", text, count=1,
+                  flags=re.IGNORECASE)
+
+
+def remove_tag(text: str, tag: str) -> str:                       ### NEW v0.20.2 SE ###
+    """Every <tag>…</tag> / <tag/> removed, with its line when it stands alone on it."""
+    pat = rf"(?:<{tag}\b[^>]*/>|<{tag}\b[^>]*>.*?</{tag}\s*>)"
+    text = re.sub(rf"\n[ \t]*{pat}[ \t]*(?=\n)", "", text, flags=re.IGNORECASE | re.DOTALL)
+    return re.sub(pat, "", text, flags=re.IGNORECASE | re.DOTALL)
+
+
+EDIT_TAGS = ("title", "originaltitle", "overview")               ### NEW v0.20.2 SE — the editor's fields ###
+
+
+def edit(text: str, title: str, originaltitle: str = "", overview: str = "") -> str:   ### NEW v0.20.2 SE ###
+    """The set.nfo *text* with the editor's fields: a changed field is written, an emptied one removed, an unchanged
+    one left as written; every other tag (<sorttitle>, <art>) stays. ValueError when *text* is not a <set>."""
+    cur = read(text)
+    if cur is None:
+        raise ValueError("not a <set> document")
+    out = text
+    for tag, val in zip(EDIT_TAGS, (title, originaltitle, overview)):
+        val = (val or "").strip()
+        if val == (cur.get(tag) or ""):
+            continue
+        out = set_tag(out, tag, val) if val else remove_tag(out, tag)
+    return out
+
+
+def values(text: Optional[str]) -> Optional[dict]:                ### NEW v0.20.2 SE ###
+    """{"title", "originaltitle", "overview"} for the editor; None when *text* is not a <set>."""
+    cur = read(text)
+    return None if cur is None else {t: cur.get(t) or "" for t in EDIT_TAGS}
 
 
 def _norm(s: str) -> str:

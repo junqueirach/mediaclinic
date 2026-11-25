@@ -19,7 +19,6 @@ _SET_RE = re.compile(r"<set(\s[^>]*?)?(\s*/>|>(.*?)</set\s*>)", re.S | re.I)   #
 _ATTR_RE = re.compile(r"""tmdbcolid\s*=\s*["']\s*(\d+)\s*["']""", re.I)
 _NAME_RE = re.compile(r"<name(?:\s[^>]*)?>(.*?)</name\s*>", re.S | re.I)
 _OVER_RE = re.compile(r"<overview(?:\s[^>]*)?>(.*?)</overview\s*>", re.S | re.I)
-XML_COLLECTION_TAGS = ()      # (unused) — movie.xml collections: XML_ID_TAGS / XML_NAME_TAGS below (fix 6)
 
 
 def _text(s):
@@ -217,6 +216,51 @@ def id_flagged(row):                                              ### NEW v0.19.
     return bool(res) and not res.startswith("OK")
 
 
+KINDS_OWN = ("user", "mixed", "gone")                             ### NEW v0.20.2 SE / CG — the user's own collections ###
+
+
+def _int_or_none(v):
+    try:
+        return int(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def collection_kind(rows, coll_cache=None):                       ### NEW v0.20.2 SE / CG ###
+    """(kind, TMDB collection ID or None) of ONE collection's rows (the user, 2026-11-22):
+    "tmdb"      — every movie TMDB places in a collection points to the same one; a movie TMDB lists in no
+                  collection is an extra the user added (3 movies of a saga + a spin-off stay the saga);
+    "mixed"     — its movies point to two or more TMDB collections (a collection of the user's own);
+    "user"      — checked online, and TMDB places none of its movies in a collection;
+    "gone"      — as "user", and an NFO still links a TMDB collection ID (no longer on TMDB);
+    "unchecked" — no movie checked online and no NFO linking a TMDB collection.
+    Left out like the collection rule does: a movie Verify IDs flagged (its TMDB data may be another film's). A saga the
+    user renamed (an NFO name TMDB doesn't use, no tmdbcolid — own_collection()) is still that TMDB collection (the
+    user, 2026-11-22). Without a movie checked online the NFOs' tmdbcolid decide."""
+    ids, nfo_ids, checked, linked = set(), set(), False, False
+    for r in rows or ():
+        nfo = r.get("coll_nfo") or None
+        tm = None if id_flagged(r) else r.get("coll_tmdb")
+        n_id = _int_or_none((nfo or {}).get("tmdbcolid"))
+        linked = linked or bool(n_id)
+        if isinstance(tm, dict):
+            checked = True
+            t_id = _int_or_none(tm.get("id"))
+            if t_id:
+                ids.add(t_id)
+        elif n_id:
+            nfo_ids.add(n_id)
+    if not ids:
+        ids = nfo_ids
+    if len(ids) == 1:
+        return "tmdb", next(iter(ids))
+    if ids:
+        return "mixed", None
+    if checked:
+        return ("gone" if linked else "user"), None
+    return "unchecked", None
+
+
 # ── the collection rule (B110.6) ──────────────────────────────────────────────
 def mismatch_reasons(row, coll_cache=None, spellings=None, chosen=None):
     """The 'Collection: …' warnings of one row (rule collection_mismatch).
@@ -343,7 +387,36 @@ def coll_cache_entry(main, translations, lang, when):
     if lg0 and (main.get("overview") or "").strip():
         overviews[lg0] = main["overview"].strip()
     parts = sorted(int(p["id"]) for p in (main.get("parts") or []) if isinstance(p, dict) and p.get("id"))
-    return {"names": names, "overviews": overviews, "parts": parts, "when": when}
+    ### MODIFIED v0.20.2 CG — each part's title / original title / date (same answer, no extra request) + the language ###
+    return {"names": names, "overviews": overviews, "parts": parts, "when": when,
+            "part_info": part_info_from(main), "lang": lang or ""}
+
+
+def part_info_from(main):                                         ### NEW v0.20.2 CG ###
+    """[{"id", "title", "original_title", "date"}] of a /collection/{id} answer's parts, by date (none last), title."""
+    out = []
+    for p in (main or {}).get("parts") or []:
+        if not isinstance(p, dict) or not p.get("id"):
+            continue
+        try:
+            pid = int(p["id"])
+        except (TypeError, ValueError):
+            continue
+        out.append({"id": pid, "title": (p.get("title") or p.get("original_title") or "").strip(),
+                    "original_title": (p.get("original_title") or "").strip(),
+                    "date": (p.get("release_date") or "").strip()[:10]})
+    out.sort(key=lambda d: (d["date"] or "9999", d["title"].casefold()))
+    return out
+
+
+def gaps_entry_stale(entry, lang, now, days=CHECK_MAX_AGE_DAYS):  ### NEW v0.20.2 CG ###
+    """True when a collections_cache entry must be fetched again for Collection Gaps: no part data (cached before
+    v0.20.2, or a stub Set Collection made), no time, older than *days*, or in another language."""
+    if not isinstance(entry, dict) or "part_info" not in entry or not entry.get("when"):
+        return True
+    if (now - float(entry.get("when") or 0)) > days * 86400:
+        return True
+    return (entry.get("lang") or "").split("-")[0].lower() != (lang or "").split("-")[0].lower()
 
 
 def needs_check(row, now, days=CHECK_MAX_AGE_DAYS):

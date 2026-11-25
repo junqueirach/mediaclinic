@@ -26,6 +26,15 @@ import os
 import re
 import mc_i18n as _i18n                                           ### NEW v0.20.0 UI1d — headings and cell words (UI-D2) ###
 
+
+def _backdrop_total(r):                       # v0.20.2 FB1 — as backdrop_total() in the app
+    n = int(r.get("backdrop_count") or 0)
+    fp = r.get("fanart_path")
+    if r.get("fanart_exists") and fp and os.path.normcase(fp) not in {os.path.normcase(x) for x in r.get("backdrop_paths") or ()}:
+        n += 1
+    return n
+
+
 # Status symbols (must match STATUS_* in the main script)
 _STATUS_TEXT = {"⬤": "OK", "◐": "Warning", "○": "Missing", "✕": "Error"}
 
@@ -155,7 +164,7 @@ EXPORT_FIELDS = [
     ("poster",        "Poster",         lambda r: _img_cell(r, "poster")),
     ("folder_img",    "Folder",         lambda r: _img_cell(r, "folder")),
     ("fanart",        "Fanart",         lambda r: _img_cell(r, "fanart")),
-    ("backdrops",     "Backdrops",      lambda r: str(r.get("backdrop_count", 0))),
+    ("backdrops",     "Backdrops",      lambda r: str(_backdrop_total(r))),   # v0.20.2 FB1: + the main fanart
     ("extra_art",     "Extra art",      lambda r: _extra_art_count(r)),                                   # v0.20.1 EA4
     ("actors",        "Actors",         lambda r: _actors_text(r)),                                       # v0.20.1 AC1
     ("nfo",           "NFO",            lambda r: _file_status(r, "nfo")),

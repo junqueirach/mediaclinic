@@ -372,7 +372,8 @@ def run_all():
                   "duplicate_single_tag", "empty_required_tag", "unexpected_root",
                   "id_not_kodi", "xml_tags_old_readers",                              # v0.20.0 KR1.1 / KR1.4
                   "nfo_online_art_links", "no_actor_info",                            # v0.20.0 RD9; v0.20.1 AC2 (RD8 removed, EA6)
-                  "profile_names_unread")                                             # v0.20.0 F3c
+                  "profile_names_unread",                                             # v0.20.0 F3c
+                  "cert_settings")                                                    # v0.20.2 CR
     try:
         dlg14 = _in_loop(lambda: SettingsDialog(root, tab=10, ctx=ctx))
         missing = [k for k in _NEW_RULES if k not in dlg14._hr_vars]

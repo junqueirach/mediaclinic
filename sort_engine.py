@@ -56,7 +56,7 @@ COLUMNS = [
     ("subs", "Subtitles", "presence"),
     ("library", "Library", "text"),
     ("collection", "Collection", "text"),                            # v0.19.4 B110a
-    ("actors", "Actors", "text"),                                    # v0.20.1 AC1
+    ("actors", "Actors", "presence"),                                # v0.20.1 AC1; v0.20.2 B25: state, then counts
     ("extra_art", "Extra art", "count"),                             # v0.20.1 EA4
 ]
 MORE = [

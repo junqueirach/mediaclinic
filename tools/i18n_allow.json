@@ -2,451 +2,451 @@
  "_about": "v0.20.0 UI1f — English sentences in function bodies that stay English by design: they are also written to app.log, to a file, to settings or the results cache, or are stored reasons / backup labels (translated where shown), or are not language. The self-test fails on any other.",
  "allow": [
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "check_latest_release",
    "text": "GitHub answered HTTP {}",
    "why": "stays English: both: rel['error'] logged by _show_update_result (logger.info) and shown in UpdateDialog"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "check_latest_release",
    "text": "unexpected release tag {}",
    "why": "stays English: both: rel['error'] logged by _show_update_result (logger.info) and shown in UpdateDialog"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "test_upscaler",
    "text": "the test did not finish in {} s",
    "why": "stays English: both: stored in settings.json image_fix_prefs.ai_test, shown in warning box / upscaler_state"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "test_upscaler",
    "text": "no usable Vulkan GPU (exit code {})",
    "why": "stays English: both: stored in settings.json image_fix_prefs.ai_test, shown in warning box / upscaler_state"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "test_upscaler",
    "text": "no usable Vulkan GPU (no output)",
    "why": "stays English: both: stored in settings.json image_fix_prefs.ai_test, shown in warning box / upscaler_state"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "test_upscaler",
    "text": "unexpected output size {}×{}",
    "why": "stays English: both: stored in settings.json image_fix_prefs.ai_test, shown in warning box / upscaler_state"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "too_deep_reason",
    "text": "Too deep: this folder is {} levels below the library and hol",
    "why": "stays English: ignored-folder reason, saved in last_ignored.json; shown in Ignored folders"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "derive_language",
    "text": "movie.xml <Language>",
    "why": "stays English: row['language_src'] stored in results cache; shown in Language tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "derive_language",
    "text": "the NFO's <language>",
    "why": "stays English: row['language_src'] stored in results cache; shown in Language tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "derive_language",
    "text": "the first audio track ({})",
    "why": "stays English: row['language_src'] stored in results cache; shown in Language tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "derive_language",
    "text": "the first audio track (the NFO's streamdetails)",
    "why": "stays English: row['language_src'] stored in results cache; shown in Language tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_fast_precheck_xml",
    "text": "File not found",
    "why": "stays English: nfo_errors/xml_errors in row (results cache); shown in health/report"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_fast_precheck_xml",
    "text": "File is empty (0 bytes)",
    "why": "stays English: nfo_errors/xml_errors in row (results cache); shown in health/report"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_fast_precheck_xml",
    "text": "File does not appear to be XML (no < found near start)",
    "why": "stays English: nfo_errors/xml_errors in row (results cache); shown in health/report"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "validate_xml_file",
    "text": "Cannot read file",
    "why": "stays English: nfo_errors/xml_errors in row (results cache); also written to Improvements report file"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "validate_xml_file",
    "text": "File is empty",
    "why": "stays English: nfo_errors/xml_errors in row (results cache); also written to Improvements report file"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "migrate_collection_folder",
    "text": "'{}': empty old folder removed",
    "why": "stays English: both: note logged (logger.info 'Collection folder: ...') and shown in summary"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "migrate_collection_folder",
    "text": ", {} of the new folder kept in replaced\\",
    "why": "stays English: both: note logged (logger.info 'Collection folder: ...') and shown in summary"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "migrate_collection_folder",
    "text": " (the old folder still holds something and was kept)",
    "why": "stays English: both: note logged (logger.info 'Collection folder: ...') and shown in summary"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "api_failure_message",
    "text": " TMDB ratings still work.",
    "why": "stays English: both: used inside logged API error messages and service summaries"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_api_error_message",
    "text": "OMDb returned HTTP {}: {}",
    "why": "stays English: both: logged by rating fetchers (logger.warning) and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_api_error_message",
    "text": "Unexpected OMDb error: {}: {}",
    "why": "stays English: both: logged by rating fetchers (logger.warning) and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_error_message_raw",
    "text": "Movie not found on TMDB (HTTP 404).\nThe TMDB ID in your file",
    "why": "stays English: both: _tmdb_error_message logged in many places (Search Sources, image download) and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_error_message_raw",
    "text": "TMDB returned HTTP {}: {}",
    "why": "stays English: both: _tmdb_error_message logged in many places (Search Sources, image download) and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_error_message_raw",
    "text": "Network error: SSL certificate problem — check your internet",
    "why": "stays English: both: _tmdb_error_message logged in many places (Search Sources, image download) and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_download_image",
    "text": "The server did not send an image ({} bytes) — the old file w",
    "why": "stays English: both: returned via _save_image_from; logged by Replace All Backdrops / FetchImageDialog"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_download_image",
    "text": "HTTP {} from TMDB (will retry)",
    "why": "stays English: both: last_err logged (logger.warning/error) and returned to dialogs / logged by Replace All Backdrops"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_download_image",
    "text": "Connection reset by TMDB server (will retry): {}",
    "why": "stays English: both: last_err logged (logger.warning/error) and returned to dialogs / logged by Replace All Backdrops"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_download_image",
    "text": "Connection reset (WinError): {}",
    "why": "stays English: both: last_err logged (logger.warning/error) and returned to dialogs / logged by Replace All Backdrops"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_download_image",
    "text": "File write error: {}",
    "why": "stays English: both: last_err logged (logger.warning/error) and returned to dialogs / logged by Replace All Backdrops"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_tmdb_download_image",
    "text": "Unexpected download error: {}: {}",
    "why": "stays English: both: last_err logged (logger.warning/error) and returned to dialogs / logged by Replace All Backdrops"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "ratings_skip_reason",
    "text": "no IMDb or TMDB ID in the files (Search Sources… finds it)",
    "why": "stays English: both: logged 'Ratings sync skipped ...' and shown in sync summary / Auto Repair summary"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "ratings_skip_reason",
    "text": "OMDb needs the IMDb ID: add it (Search Sources…), or set a T",
    "why": "stays English: both: logged 'Ratings sync skipped ...' and shown in sync summary / Auto Repair summary"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "write_rating_to_files",
    "text": "no NFO or XML to write the rating to",
    "why": "stays English: both: logged 'Ratings not written: ...' and shown in sync summary"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_set_rating_entry",
    "text": " name=\"{}\" max=\"10\" default=\"true\"",
    "why": "stays English: XML attribute fragment written to the NFO"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "extract_single_frame",
    "text": "FFmpeg not found",
    "why": "stays English: both: becomes extract_movie_frames error, logged as 'FetchImageDialog: ...'; Extract Backdrops error box"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_export",
    "text": "MediaClinic ignored folders {}.txt",
    "why": "stays English: default file name in Save dialog (file-name pattern)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_fanarttv_error_message",
    "text": "fanart.tv error: {}: {}",
    "why": "stays English: both: errs logged 'FetchImageDialog: ...' and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "fanarttv_fetch",
    "text": "No fanart.tv API key — Settings → API Keys.",
    "why": "stays English: both: errs logged 'FetchImageDialog: ...' and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "fanarttv_fetch",
    "text": "The movie has no TMDB or IMDb ID — fanart.tv cannot be asked",
    "why": "stays English: both: errs logged 'FetchImageDialog: ...' and shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "extract_movie_frames",
    "text": "The running time of the video cannot be read (FFprobe).",
    "why": "stays English: both: errs logged 'FetchImageDialog: ...' and shown in fetch dialog"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "extract_movie_frames",
    "text": "FFmpeg could not extract frames: ",
    "why": "stays English: both: errs logged 'FetchImageDialog: ...' and shown in fetch dialog"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "extract_movie_frames",
    "text": "every frame was black or flat",
    "why": "stays English: both: errs logged 'FetchImageDialog: ...' and shown in fetch dialog"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_imdb_only_check",
    "text": "Confirmed by you: this film is not on TMDB",
    "why": "stays English: id_check['detail'] stored in row (results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "Different IDs in the NFO/XML tags: ",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "No IMDb or TMDB ID in the NFO or XML",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "Not a valid ID: ",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "IMDb only — still not on TMDB (confirmed by you)",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": " — TMDB has no IMDb link (IMDb {} not checked)",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "Not found on TMDB: ",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "IMDb {} is TMDB {} '{}' ({}); TMDB {} is '{}' ({})",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "TMDB says '{}' ({}); local '{}' ({}): ",
    "why": "stays English: id_check['detail'] stored in row (results cache); shown in reports/tooltips"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_confirm_imdb",
    "text": "Confirmed by you in Search Sources: not on TMDB",
    "why": "stays English: id_check detail stored in row (results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_worker",
    "text": "Search Sources — empty tags",
    "why": "stays English: backup action label (_sc.backup_action)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "keep_unreadable_row",
    "text": "Could not be read",
    "why": "stays English: row['read_error'] stored in results cache"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_apply_image",
    "text": "Fetch Poster/Folder",
    "why": "stays English: backup action label (_sc.backup_action(_label))"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_build_ui",
    "text": "Segoe UI Emoji",
    "why": "stays English: font family name"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_remove_rows",
    "text": "no longer exists",
    "why": "stays English: both: txt logged (logger.info) and shown in status bar"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_remove_rows",
    "text": "Removed {} whose folder {}: {}{}",
    "why": "stays English: both: txt logged (logger.info) and shown in status bar"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_auto_by_votes",
    "text": "TMDB+OMDb average",
    "why": "stays English: both: source label logged 'Ratings written (...)' and shown in summary"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_worker",
    "text": "[NFO error] Line {}: {}",
    "why": "stays English: issue lines written to the Improvements report file on disk"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_worker",
    "text": "[XML error] Line {}: {}",
    "why": "stays English: issue lines written to the Improvements report file on disk"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_worker",
    "text": "[NFO info] Line {}: {}",
    "why": "stays English: issue lines written to the Improvements report file on disk"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_worker",
    "text": "[XML info] Line {}: {}",
    "why": "stays English: issue lines written to the Improvements report file on disk"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_worker",
    "text": "Improvements check failed:\n{}",
    "why": "stays English: issue lines written to the Improvements report file on disk"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hardsubs_worker",
    "text": "Hard-coded subtitles",
    "why": "stays English: backup action label (@_labelled_backups)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_import_old_coll_folder_for",
    "text": "Move to the Collection Folder",
    "why": "stays English: both: title is also the _BatchJob label -> backup action label; shown as message box title"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_ar_fix_ids",
    "text": "Confirmed in Auto Repair (Enter ID…): not on TMDB",
    "why": "stays English: id_check detail via _imdb_only_check, stored in row (results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_ar_fix_ids",
    "text": "Set by Auto Repair: '{}' ({})",
    "why": "stays English: id_check['detail'] stored in row (results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_worker",
    "text": "Set to TMDB {} (re-check failed: {})",
    "why": "stays English: id_check['detail'] stored in row (results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "worker",
    "text": "Quick Scan — {} changed, {} removed",
    "why": "stays English: both: phase label logged by _run_phase on a skipped entry, shown in progress label"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "title_mismatch_reason",
    "text": "Title mismatch: NFO <title> \"{}\" vs XML <LocalTitle> \"{}\"",
    "why": "stays English: health warning reason stored in row (warning_reasons, results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "title_mismatch_reason",
    "text": "the XML title is the original title — the local title is pro",
    "why": "stays English: health warning reason stored in row (warning_reasons, results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "title_mismatch_reason",
    "text": "the NFO title is the original title — the local title is pro",
    "why": "stays English: health warning reason stored in row (warning_reasons, results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "title_mismatch_reason",
    "text": "they differ only in accents / punctuation",
    "why": "stays English: health warning reason stored in row (warning_reasons, results cache)"
@@ -536,193 +536,193 @@
    "why": "stays English: health warning reasons stored in row (results cache)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_read_text",
    "text": "Not UTF-8 (byte 0x{}) — MediaClinic will not change this fil",
    "why": "stays English: not-UTF-8 info note -> validate_xml_file infos -> row nfo_infos/xml_infos (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "File is empty (0 bytes)",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "Not a recognised image file (no JPEG / PNG / GIF / BMP / Web",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "File size {} KB is below the {} KB minimum",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "Resolution {}×{} ({}) is below the minimum quality '{}'",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "Proportions {}×{} ({}) — expected 2:3 (≈0.67) or 3:4 (≈0.75)",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "Proportions {}×{} ({}) — expected 2:3 portrait (≈0.67)",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "Proportions {}×{} ({}) — expected 16:9 (≈1.78) or 3:2 (≈1.50",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "evaluate_image",
    "text": "Proportions {}×{} ({}) — expected 16:9 landscape (≈1.78)",
    "why": "stays English: evaluate_image reasons -> row <key>_desc (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "__init__",
    "text": "stopped — nothing was changed",
    "why": "stays English: ImageFixStopped message: str(ex) logged 'Fix image failed: ...' and shown as err (both)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "walk_container",
    "text": "Could not be read: {}",
    "why": "stays English: ignored_item reason (Ignored folders report, saved as JSON); both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "scan_xml_structure",
    "text": "`&` not escaped (Kodi accepts it, Emby may not)",
    "why": "stays English: scan_xml_structure errors/infos -> row nfo_errors/xml_errors/infos (last_results.json); both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "scan_xml_structure",
    "text": "text after the root element `</{}>`",
    "why": "stays English: scan_xml_structure errors/infos -> row nfo_errors/xml_errors/infos (last_results.json); both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "scan_xml_structure",
    "text": "`<` that does not start a tag (write `&lt;` in text)",
    "why": "stays English: scan_xml_structure errors/infos -> row nfo_errors/xml_errors/infos (last_results.json); both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "scan_xml_structure",
    "text": "closing `</{}>` without an opening tag",
    "why": "stays English: scan_xml_structure errors/infos -> row nfo_errors/xml_errors/infos (last_results.json); both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "scan_xml_structure",
    "text": "`<{}>` opened here is never closed (expected `</{}>` before ",
    "why": "stays English: scan_xml_structure errors/infos -> row nfo_errors/xml_errors/infos (last_results.json); both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "scan_xml_structure",
    "text": "closing `</{}>` does not match the open `<{}>` (line {})",
    "why": "stays English: scan_xml_structure errors/infos -> row nfo_errors/xml_errors/infos (last_results.json); both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "write_rating_to_files",
    "text": "NFO write error: {}",
    "why": "stays English: write_rating_to_files errors -> logger.warning 'Ratings not written' and Auto Repair 'ratings:' detail; both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "write_rating_to_files",
    "text": "XML write error: {}",
    "why": "stays English: write_rating_to_files errors -> logger.warning 'Ratings not written' and Auto Repair 'ratings:' detail; both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_duplicate_groups",
    "text": "Same title and year: {} ({})",
    "why": "stays English: duplicate group 'why': logic key (_dup_pair_ok startswith 'Same title and year') and split(':')[0] stored as 'why' in the not-duplicate marks; al"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "load_online_images",
    "text": "No TMDB API key.",
    "why": "stays English: load_online_images errs -> logger.warning FetchImageDialog/FetchBackdropDialog; also shown in status/messagebox"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "load_online_images",
    "text": "No TMDB ID.",
    "why": "stays English: load_online_images errs -> logger.warning FetchImageDialog/FetchBackdropDialog; also shown in status/messagebox"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "best title similarity {} ('{}')",
    "why": "stays English: verify_movie_ids res['detail'] -> row id_check (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "verify_movie_ids",
    "text": "year {} vs TMDB {}",
    "why": "stays English: verify_movie_ids res['detail'] -> row id_check (last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "structure_check",
    "text": "NFO: the root element is <{}>, not <movie>",
    "why": "stays English: structure_check issues -> row struct_issues (last_results.json); also shown in tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "structure_check",
    "text": "XML: the root element is <{}>, not <Item> or <Title>",
    "why": "stays English: structure_check issues -> row struct_issues (last_results.json); also shown in tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "structure_check",
    "text": "IMDb ID (tt + 7–9 digits)",
    "why": "stays English: structure_check issues -> row struct_issues (last_results.json); also shown in tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "structure_check",
    "text": "TMDB ID (digits only)",
    "why": "stays English: structure_check issues -> row struct_issues (last_results.json); also shown in tooltip"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_build_ui",
    "text": "Segoe UI Semibold",
    "why": "stays English: font name"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_remove_from_list",
    "text": "was removed from the list",
    "why": "stays English: _remove_rows why -> logger.info 'Removed N movies whose folder ...' and status bar; both"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_replace_all_backdrops",
    "text": "Replace All Backdrops",
    "why": "stays English: backup action label (_with_backup_action) -> backup manifest"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_copy_poster_to_folder",
    "text": "Copy poster → folder",
    "why": "stays English: _BatchJob action label -> backup manifest"
@@ -800,151 +800,151 @@
    "why": "stays English: collection warning reasons -> health warning_reasons (row health_reasons, last_results.json); also shown"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_video_file",
    "text": "Missing video file",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_corrupt_nfo",
    "text": "Corrupt NFO file (XML error)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_nfo",
    "text": "Missing NFO file",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_corrupt_xml",
    "text": "Corrupt XML file (XML error)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_xml",
    "text": "Missing XML file",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_corrupt_images",
    "text": "Corrupt {} image (cannot be decoded)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_ids",
    "text": "Missing {} ID (empty tags ready to fill)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_ids",
    "text": "Missing {} ID (tag present but empty)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_ids",
    "text": "Missing {} ID (the tag holds '{}', not a valid ID)",
    "why": "stays English: a stored health reason, shown through reason_text() (reason.missing_id_invalid, v0.20.0 RD11)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_ids",
    "text": "{} ID conflict between tags: '{}' is not a valid ID",
    "why": "stays English: a stored health reason, shown through reason_text() (reason.id_conflict_invalid, v0.20.0 RD11)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_rating_conflict",
    "text": "Rating conflict between NFO and XML (values differ)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_rating_conflict",
    "text": "Rating conflict inside movie.xml (its ratings differ)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_rating_conflict",
    "text": "Rating conflict inside the NFO (<rating> and <ratings> diffe",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_votes_conflict",
    "text": "Votes conflict between NFO <votes> and XML <Votes>",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_votes_conflict",
    "text": "Votes conflict inside movie.xml (<Votes> and <VoteCount> dif",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_genre_missing",
    "text": "Missing genre information",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_movie_year",
    "text": "Missing movie year in NFO/XML",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_no_audio_tracks",
    "text": "No audio tracks detected",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_video_quality_minimum",
    "text": "Video quality below minimum ({} < {})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_multiple_video_files",
    "text": "Multiple video files in same folder",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_poster",
    "text": "Missing poster (only folder.jpg)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_multiple_nfo_files",
    "text": " — delete the one you do not need (Kodi, Jellyfin and Emby r",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_folder",
    "text": "Missing folder image",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_logo_disc",
    "text": "Missing clear logo",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_logo_disc",
    "text": "Missing disc art",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
@@ -956,244 +956,268 @@
    "why": "not language: HTML markup of the poster thumbnail (v0.20.0 I38)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_nfo_online_art_links",
    "text": "NFO has online artwork links for artwork you have locally ({",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_nfo_name_not_kodi",
    "text": "NFO named after the folder and not the only NFO — Kodi reads",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_nfo_unescaped_amp",
    "text": "NFO has an unescaped '&' — Jellyfin may ignore the whole NFO",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_poster_proportion",
    "text": "Poster has wrong proportions",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_poster_proportion",
    "text": "Fanart has wrong proportions",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_poster_proportion",
    "text": "Folder image has wrong proportions",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_poster_folder_quality_minimum",
    "text": "Poster/folder quality below minimum ({} < {})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_fanart_quality_minimum",
    "text": "Fanart quality below minimum ({} < {})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_poster_folder_identical",
    "text": "Poster and folder image are different (different file sizes)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_insufficient_backdrops",
    "text": "Too few backdrops ({} of {} required)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_backdrop_too_small",
    "text": "Backdrop images suspiciously small (avg {} KB)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_rating_warning",
    "text": "Rating tag unreadable (non-numeric value)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_suspicious_rating",
    "text": "Suspicious rating value ({})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_genre_only_in_xml",
    "text": "NFO has no <genre> tags (genres only in XML)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_genre_only_in_nfo",
    "text": "XML has no <Genre> tags (genres only in NFO)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_genre_nfo_wrong_tags",
    "text": "NFO uses non-Kodi genre tags (<Genres>/<Genre>)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_genre_warning",
    "text": "Genre issues detected (non-standard genres)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_votes_warning",
    "text": "Votes tag unreadable (non-numeric value)",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_lang_not_ok",
    "text": "Target language not found in audio or subtitles",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_year_premiered",
    "text": "NFO <year> and <premiered> differ ({})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_nfo_xml_too_large",
    "text": "NFO or XML file exceeds maximum size",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_required_audio_language",
    "text": "Required audio language not found ({})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_required_subtitle_language",
    "text": "Required subtitle language not found ({})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_missing_movie_title",
    "text": "Missing movie title in NFO/XML",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_folder_name_mismatch",
    "text": "Folder name doesn't match movie title",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_duplicate_movie",
    "text": "Possible duplicate of: {}",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_sync_collection_xml_for",
    "text": "  {}:  movie.xml ← NFO  '{}'",
    "why": "not language: a movie name, an arrow between file names and a collection name"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_sync_collection_xml_for",
    "text": "  {}:  NFO ← movie.xml  '{}'",
    "why": "not language: a movie name, an arrow between file names and a collection name"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "version_line",
    "text": "running from source",
    "why": "stays English: the version line is copied into bug reports (UI1e decision)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_id_not_kodi",
    "text": "{} ID only in <imdbid> / <tmdbid> — Kodi reads <uniqueid> (F",
    "why": "stays English: a stored health reason, shown through reason_text() (reason.id_not_kodi)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_profile_names_unread",
    "text": "Not read by {}: {} (needs {})",
    "why": "stays English: a stored health reason, shown through reason_text() (reason.profile_names)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "movie_xml_to_nfo",
    "text": "    <rating name=\"imdb\" max=\"10\" default=\"true\">",
    "why": "not language: NFO content written to the file (v0.20.0 F3d)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "movie_xml_to_nfo",
    "text": "  <set>\n    <name>{}</name>\n  </set>",
    "why": "not language: NFO content written to the file (v0.20.0 F3d)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_no_actor_info",
    "text": "No actor information in the NFO",
    "why": "stays English: a stored health reason (v0.20.1 AC2), shown through reason_text in the interface language"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_no_actor_info",
    "text": "Actor photos only as web links — Kodi shows them from .actor",
    "why": "stays English: a stored health reason (v0.20.1 AC2), shown through reason_text in the interface language"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_year_premiered",
    "text": "NFO <year> and <premiered> differ ({}) — Edit NFO so both gi",
    "why": "stays English: a stored health reason (the cache, comparisons, app.log); shown translated through its _REASON_TEMPLATES entry (v0.20.1 L6)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_nfo_xml_too_large",
    "text": "The NFO is {} KB, over the {} KB limit (Settings → Health Ru",
    "why": "stays English: a stored health reason (the cache, comparisons, app.log); shown translated through its _REASON_TEMPLATES entry (v0.20.1 L6)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_nfo_xml_too_large",
    "text": "movie.xml is {} KB, over the {} KB limit (Settings → Health ",
    "why": "stays English: a stored health reason (the cache, comparisons, app.log); shown translated through its _REASON_TEMPLATES entry (v0.20.1 L6)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_folder_name_mismatch",
    "text": "Folder name doesn't match movie title — rename the folder or",
    "why": "stays English: a stored health reason (the cache, comparisons, app.log); shown translated through its _REASON_TEMPLATES entry (v0.20.1 L6)"
   },
   {
-   "module": "mediaclinic_v0_20_1.py",
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_no_actor_info",
    "text": "The actors in the NFO have no photos (no links, no local pho",
    "why": "stays English: a stored health reason; shown translated through its _REASON_TEMPLATES entry (v0.20.1 checkup)"
+  },
+  {
+   "module": "mediaclinic_v0_20_2.py",
+   "func": "_hr_cert_settings",
+   "text": "Age rating of a country you don't accept ({}) in <{}> — Cert",
+   "why": "stays English: a stored health reason (v0.20.2 CR); shown translated through its _REASON_TEMPLATES entry"
+  },
+  {
+   "module": "settings_controller.py",
+   "func": "load_no_collection",
+   "text": "the 'not in a collection' marks start empty",
+   "why": "stays English: written to app.log only (v0.20.2 PA18 shared list loader)"
+  },
+  {
+   "module": "settings_controller.py",
+   "func": "load_not_duplicates",
+   "text": "the 'not a duplicate' marks start empty",
+   "why": "stays English: written to app.log only (v0.20.2 PA18 shared list loader)"
+  },
+  {
+   "module": "settings_controller.py",
+   "func": "load_gaps_ignored",
+   "text": "the Collection Gaps ignore list starts empty",
+   "why": "stays English: written to app.log only (v0.20.2 PA18 shared list loader)"
   }
  ]
 }

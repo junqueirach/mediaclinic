@@ -1,5 +1,5 @@
 # =============================================================================
-# selftest_v0_20_1.py
+# selftest_v0_20_2.py
 # Metadata & MediaClinic — v0.19.4 self-test
 # Author:  Luiz Junqueira & Claude AI
 #
@@ -10,7 +10,7 @@
 # your real settings.json is never touched.
 #
 # RUN (from the v.0.20.0 folder):
-#   python selftest_v0_20_1.py
+#   python selftest_v0_20_2.py
 # Exit code 0 = all tests passed.  A real FFmpeg install is used when found
 # (video/audio tests are skipped otherwise).  The main window stays hidden;
 # a few dialogs may flash briefly.
@@ -32,7 +32,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 # named mediaclinic.py on GitHub or mediaclinic_v0_18_3.py locally.
 _APP_DIR = _HERE
 for _cand in (_HERE, os.path.dirname(_HERE)):
-    if any(os.path.isfile(os.path.join(_cand, n)) for n in ("mediaclinic.py", "mediaclinic_v0_20_1.py")):
+    if any(os.path.isfile(os.path.join(_cand, n)) for n in ("mediaclinic.py", "mediaclinic_v0_20_2.py")):
         _APP_DIR = _cand; break
 os.chdir(_APP_DIR)
 sys.path.insert(0, _APP_DIR)
@@ -72,7 +72,7 @@ with open(os.path.join(os.environ["MEDIACLINIC_CONFIG_DIR"], "settings.json"), "
 try:
     import mediaclinic as mc                     # GitHub layout
 except ImportError:
-    import mediaclinic_v0_20_1 as mc             # local versioned copy
+    import mediaclinic_v0_20_2 as mc             # local versioned copy
 # the ID-writer checks (B13, B14, B125 …) were written for "every tag style"; RD12's check covers both modes and
 # the v0.20.1 default ("<uniqueid> only")
 mc.SETTINGS.setdefault("health_rules", {})["nfo_id_tags"] = "all"
@@ -82,6 +82,7 @@ mc.IGNORED_REPORT_AUTO = False      # ### NEW v0.19.2 B53 ### the Ignored folder
 mc.NFO_ONLY_ASK_AUTO = False        # ### NEW v0.19.6 TR1 ### the 'NFO-only library?' question opens only where a test asks
 mc.HEALTH_MODE_ASK_AUTO = False     # ### NEW v0.19.6 TR1 / TR1b ### the start question too
 mc.COLL_FOLDER_ASK_AUTO = False     # ### NEW v0.20.0 CF1 ### the 'Collection folder needed' prompt: only where a test asks
+mc.NO_PROGRAMS_ASK_AUTO = False     # ### NEW v0.20.2 FB5 ### the 'No program ticked' question: only where a test asks
 mc.PLEX_NFO_ASK_AUTO = False        # ### NEW v0.20.0 6h ### the 'Plex reads no NFO' pop-up: only where a test asks
 from settings_model import DEFAULT_SETTINGS
 import tkinter as tk
@@ -103,6 +104,14 @@ mc.logger.addHandler(_UNH)
 _UNH_PROVOKED = []
 
 PASS, FAIL = [], []
+
+def _has_mctmp(path):                                             # v0.20.2 PA15: "<file>.<n>.mctmp"
+    d, b = os.path.split(str(path))
+    try:
+        return any(n.startswith(b + ".") and n.endswith(".mctmp") for n in os.listdir(d or "."))
+    except OSError:
+        return False
+
 
 def check(name, cond, detail=""):
     (PASS if cond else FAIL).append(name)
@@ -301,7 +310,7 @@ check("last_results migrated out of settings.json", mc.SETTINGS.get("last_result
 check("cache file holds migrated row", sc.load_results_cache() and sc.load_results_cache()[0]["subfolder"] == "OldRow")
 _cfg = json.load(open(sc.CONFIG_PATH, encoding="utf-8"))
 check("settings.json no longer contains rows", _cfg.get("last_results") == [])
-check("APP_VERSION", mc.APP_VERSION == "0.20.1")
+check("APP_VERSION", mc.APP_VERSION == "0.20.2")
 # ### NEW v0.19.2 B35 ### the seeded settings.json has no migration marker → the one-time switch-off ran at import
 check("B35: migration at start: both folder rules OFF, marker saved; no notice (this seed never stored them ON)",
       mc.SETTINGS["health_rules"]["missing_folder"] is False and mc.SETTINGS["health_rules"]["poster_folder_identical"] is False
@@ -525,7 +534,7 @@ try:
         _ok = True
 finally:
     os.replace = _orig_replace
-check("atomic write: failed replace leaves the original intact and no temp file", _ok and io.open(_aw, encoding="utf-8").read() == "first" and not os.path.exists(_aw + ".mctmp"))
+check("atomic write: failed replace leaves the original intact and no temp file", _ok and io.open(_aw, encoding="utf-8").read() == "first" and not _has_mctmp(_aw))
 mc._atomic_write_text(_aw, "second")
 check("atomic write: normal write replaces the content", io.open(_aw, encoding="utf-8").read() == "second")
 _tx = os.path.join(_TMP, "title_root.xml")
@@ -1894,7 +1903,7 @@ if sys.platform == "win32":
     except OSError as _x_b1:
         _e_b1 = str(_x_b1)
     _th_b1.join()
-    check("WR-B1: held longer: the old file stays, no temp file, and the message says what to do", "run the action again" in _e_b1 and "<a/>" in io.open(_f_b1, encoding="utf-8").read() and not os.path.exists(_f_b1 + ".mctmp"), _e_b1)
+    check("WR-B1: held longer: the old file stays, no temp file, and the message says what to do", "run the action again" in _e_b1 and "<a/>" in io.open(_f_b1, encoding="utf-8").read() and not _has_mctmp(_f_b1), _e_b1)
 _rx_a8 = {"subfolder_path": os.path.join(_d_p2, "gone"), "subfolder": "gone", "video_width": 1920, "audio_tracks": [{"language": "POR"}]}
 _ofl_a8 = mc._FolderListing
 class _BadList_a8:
@@ -3392,7 +3401,7 @@ for _body79 in (_html79, b""):
         _e79.append(str(e))
 check("B79: an HTML page or an empty body never replaces a good poster ('not an image'); no temp file left",
       len(_e79) == 2 and all("not an image" in x for x in _e79) and open(_good79, "rb").read() == _gb79
-      and not os.path.exists(_good79 + ".mctmp"), _e79)
+      and not _has_mctmp(_good79), _e79)
 _cut79 = os.path.join(_d79, "cut.jpg"); open(_cut79, "wb").write(_gb79[: len(_gb79) // 2])
 check("B79: a cut-off JPEG fails the check, a whole one passes", not mc.image_file_ok(_cut79) and mc.image_file_ok(_good79))
 import urllib.request
@@ -3435,7 +3444,7 @@ finally:
     shutil.copy2 = _oc79
 check("B79: Copy poster → folder: a poster that is not an image, or a copy cut off midway, leaves folder.jpg as it was",
       "not an image" in _c79 and "network name" in _c79b and open(_fold79, "rb").read() == _fb79
-      and not os.path.exists(_fold79 + ".mctmp"), (_c79, _c79b))
+      and not _has_mctmp(_fold79), (_c79, _c79b))
 
 _d81 = os.path.join(_TMP, "b81"); os.makedirs(_d81, exist_ok=True)
 def _x81(name, text):
@@ -3850,7 +3859,8 @@ check("I13 / TM1: every entry of the old flat Tools menu is still in the grouped
       {a for a in mc.ACTIONS if mc.ACTIONS[a]["label"] in _old13} <= set(mc.tools_menu_ids())
       and _coll13 <= set(mc.tools_menu_ids())
       and set(mc.tools_menu_ids()) - {a for a in mc.ACTIONS if mc.ACTIONS[a]["label"] in _old13} - _coll13
-      <= {"replace_posters_all", "actor_photos_all", "review_posters", "extrafanart_convert_all", "set_nfo_all", "ids_wrong_all"}   # the v0.20.1 additions
+      <= {"replace_posters_all", "actor_photos_all", "review_posters", "extrafanart_convert_all", "set_nfo_all", "ids_wrong_all",
+          "set_nfo_edit_all", "collection_gaps_all", "cert_all", "rn_all"}   # the v0.20.1 additions; v0.20.2 SE, CG, CR, RN (intended)
       and mc.ACTIONS["check_collections_all"]["label"] == "🗂  Check All Collections Online…"
       and mc.ACTIONS["fix_collections_all"]["label"] == "🗂  Fix All Collections…"
       and mc.ACTIONS["create_collection_folders_all"]["label"] == "🗂  Create All Collection Folders…",
@@ -3950,7 +3960,9 @@ _ce110 = _cr.coll_cache_entry({"name": "Harry Potter - Coleção", "overview": "
                                                 {"iso_639_1": "de", "data": {"title": ""}}]}, "pt-BR", 5.0)
 check("B110b: a collection cache entry — names / overviews per language, its parts",
       _ce110 == {"names": {"en": "Harry Potter Collection", "pt": "Harry Potter - Coleção"},
-                 "overviews": {"en": "Ov EN", "pt": "Ov PT"}, "parts": [671, 672], "when": 5.0}, _ce110)
+                 "overviews": {"en": "Ov EN", "pt": "Ov PT"}, "parts": [671, 672], "when": 5.0,
+                 "part_info": [{"id": 671, "title": "", "original_title": "", "date": ""},    # v0.20.2 CG (intended)
+                               {"id": 672, "title": "", "original_title": "", "date": ""}], "lang": "pt-BR"}, _ce110)
 check("B110b: asked again only when missing or older than 30 days",
       _cr.needs_check({}, 1e9) and _cr.needs_check({"coll_tmdb": {"id": 1, "when": 1e9 - 31 * 86400}}, 1e9)
       and not _cr.needs_check({"coll_tmdb": {"id": None, "when": 1e9 - 86400}}, 1e9))
@@ -4853,10 +4865,17 @@ check("6g: a new user (no settings.json) is marked for the full first-start wind
       _new_h.get("first_start_pending") is True and _old_h.get("first_start_pending") is False
       and _old_h.get("programs_asked") is False
       and mc.first_start_kind(_new_h) == "full" and mc.first_start_kind(_old_h) == "programs"
-      and mc.first_start_kind({"programs_asked": True}) is None and mc.first_start_kind({"media_programs": ["kodi"]}) is None
+      and mc.first_start_kind({"programs_asked": True, "programs_reasked": True}) is None
+      and mc.first_start_kind({"media_programs": ["kodi"]}) is None
       and mc.first_start_kind({}) == "programs", (_new_h.get("first_start_pending"), _old_h.get("first_start_pending")))
-check("HP1d: a new user starts with Tight; an existing user gets the preset their rules equal, else 'custom' with the rules unchanged (HP-Q1)",
-      _new_h["health_preset"] == "tight" and _smh.matching_health_preset(_new_h["health_rules"], "nfo") == "tight"
+check("FB5: an existing user with nothing ticked sees the programs window once more in v0.20.2 (not with a program "
+      "ticked in Settings or for a library)",
+      mc.first_start_kind({"programs_asked": True}) == "programs"
+      and mc.first_start_kind({"programs_asked": True, "library_programs": {"x": ["emby"]}}) is None
+      and mc.first_start_kind({"programs_asked": True, "media_programs": ["emby"]}) is None
+      and _new_h.get("programs_reasked") is False)
+check("HP1d / FB1: a new user starts with Medium (the user 2026-11-24; was Tight); an existing user gets the preset their rules equal, else 'custom' with the rules unchanged (HP-Q1)",
+      _new_h["health_preset"] == "medium" and _smh.matching_health_preset(_new_h["health_rules"], "nfo") == "medium"
       and _old_h["health_preset"] == "custom" and _old_h["health_rules"]["video_quality_minimum_level"] == "720p"
       and _oldt_h["health_preset"] == "tight", (_new_h.get("health_preset"), _old_h.get("health_preset"), _oldt_h.get("health_preset")))
 
@@ -5133,7 +5152,7 @@ except Exception as ex:
 _dt1 = time.perf_counter() - _t0_1
 if sys.platform == "win32": check("RD1: writing over a read-only file says it is read-only (not 'another program'), at once, file unchanged, no temp left",
       isinstance(_e1, mc._sc.ReadOnlyFileError) and "read-only" in str(_e1) and "another program" not in str(_e1)
-      and _e1.filename == _t1 and _dt1 < 0.5 and open(_t1, "rb").read() == b"OLD" and not os.path.exists(_t1 + ".mctmp"),
+      and _e1.filename == _t1 and _dt1 < 0.5 and open(_t1, "rb").read() == b"OLD" and not _has_mctmp(_t1),
       (repr(_e1), round(_dt1, 2)))
 _e1b = None
 try:
@@ -6286,6 +6305,10 @@ def ui_tests():
             check("offline: cached rows of the unreachable library are kept", "Second Lib Movie" in by and "Third In Lib2" in by and len(app._results) == n_lib1 + 3, len(app._results))
             check("offline: marked offline (status bar + tooltip + Library cell)", mc._pkey(LIB2) in app._offline_roots and "Offline" in app._sb_action.cget("text") and "(offline)" in app._rv(by["Second Lib Movie"])[mc.COL_LIBRARY])
             check("offline: results cache still holds its rows", any(r["subfolder"] == "Second Lib Movie" for r in sc.load_results_cache()))
+            _grey = on_ui(lambda: {app._item_map[i]["subfolder"]: "offline" in app.tree.item(i, "tags") for i in app._item_map if app.tree.exists(i)})
+            check("FB3: the offline library's rows are grey (tag 'offline'), the others are not",
+                  _grey.get("Second Lib Movie") is True and _grey.get("Third In Lib2") is True
+                  and sum(_grey.values()) == 3, _grey)
             on_ui(lambda: (app._lib_filter_var.set(LIB2), app._on_library_filter()))
             _boxes.clear(); on_ui(lambda: app._start_scan(app._scope_roots(), use_ff=False))
             wait_for(lambda: not app._scanning and any("offline" in str(b).lower() for b in _boxes), 20)   # P6: listed in a worker
@@ -6295,6 +6318,147 @@ def ui_tests():
             os.rename(LIB2_OFF, LIB2)
         on_ui(lambda: app._start_quick_scan(app._scope_roots())); wait_for(lambda: not app._scanning, 60)
         check("offline: back online → flag cleared", mc._pkey(LIB2) not in app._offline_roots)
+        check("FB3: back online → no row is grey",
+              not any("offline" in on_ui(lambda i=i: app.tree.item(i, "tags")) for i in list(app._item_map) if on_ui(lambda i=i: app.tree.exists(i))))
+        # ── v0.20.2 PA1: a folder of folders (A–Z) — Cancel during its walk, or a letter folder that cannot be read,
+        #    keeps the movies the scan did not reach (they used to leave the table and the cache) ──
+        LIB3 = os.path.join(_TMP, "pa1_lib")
+        for _l, _t in (("A", "Alpha Film (2001)"), ("B", "Beta Film (2002)")):
+            os.makedirs(os.path.join(LIB3, _l, _t), exist_ok=True)
+            open(os.path.join(LIB3, _l, _t, _t + ".mkv"), "wb").write(b"\0" * 4096)
+        _libs_pa1 = on_ui(lambda: app._all_libraries())
+        on_ui(lambda: app._set_libraries(_libs_pa1 + [LIB3], select=""))
+        _k3 = mc._pkey(LIB3) + os.sep
+        def _in3():
+            return sorted(r["subfolder"] for r in app._results if mc._pkey(r.get("subfolder_path") or "").startswith(_k3))
+        def _scan_pa1(quick=False):
+            on_ui(lambda: app._start_quick_scan([LIB3]) if quick else app._start_scan([LIB3], use_ff=False))
+            wait_for(lambda: not app._scanning, 120)
+            return _in3()
+        _pa1_first = _scan_pa1()
+        _owc = mc.walk_container
+        mc.walk_container = lambda *a, **k: (setattr(app, "_cancel_scan", True), ([], [], {}, {}))[1]   # Cancel mid-walk
+        try:
+            _pa1_cancel = _scan_pa1()
+        finally:
+            mc.walk_container = _owc
+        _pa1_cache = sorted(r["subfolder"] for r in sc.load_results_cache()
+                            if mc._pkey(r.get("subfolder_path") or "").startswith(_k3))
+        _ocl = mc.classify_listing
+        mc.classify_listing = lambda l: (("unreadable", "test: share hiccup", "") if os.path.basename(l.path) == "B" else _ocl(l))
+        try:
+            _pa1_unread = _scan_pa1()
+            _pa1_unread_q = _scan_pa1(quick=True)
+        finally:
+            mc.classify_listing = _ocl
+        # ── v0.20.2 test gap 1: a clean Full Scan, then a Quick Scan that cannot read the letter folder B ──
+        _scan_pa1()
+        mc.classify_listing = lambda l: (("unreadable", "test: share hiccup", "") if os.path.basename(l.path) == "B" else _ocl(l))
+        try:
+            _g1_tab = _scan_pa1(quick=True)
+        finally:
+            mc.classify_listing = _ocl
+        _g1_flag = {r["subfolder"]: bool(r.get("read_error")) for r in app._results
+                    if mc._pkey(r.get("subfolder_path") or "").startswith(_k3)}
+        _g1_cache = {r["subfolder"]: bool(r.get("read_error")) for r in sc.load_results_cache()
+                     if mc._pkey(r.get("subfolder_path") or "").startswith(_k3)}
+        _scan_pa1()                                              # clean rows again
+        on_ui(lambda: app._set_libraries(_libs_pa1, select=""))
+        _boxes.clear()
+        check("PA1: Full Scan finds the movies inside letter folders; Cancel during the walk keeps them (table and cache); "
+              "an unreadable letter folder keeps its movies (Full and Quick Scan)",
+              _pa1_first == ["Alpha Film (2001)", "Beta Film (2002)"] == _pa1_cancel == _pa1_cache
+              and _pa1_unread == _pa1_first and _pa1_unread_q == _pa1_first,
+              (_pa1_first, _pa1_cancel, _pa1_cache, _pa1_unread, _pa1_unread_q))
+        check("test gap 1 (PA1): after a clean Full Scan, a Quick Scan that cannot read the letter folder B keeps its "
+              "movie in the table and in the cache, marked 'could not be read'",
+              _g1_tab == _pa1_first and _g1_flag == {"Alpha Film (2001)": False, "Beta Film (2002)": True}
+              and _g1_cache == _g1_flag, (_g1_tab, _g1_flag, _g1_cache))
+        # ── v0.20.2 test gap 4 (PB3): a finished scan that finds nothing ──
+        _c_g4 = sc.load_results_cache(); _prev_g4 = list(app._results)
+        _inact_g4 = len(getattr(app, "_inactive_rows", None) or [])
+        try:
+            app._scan_ignored = None; app._cancel_scan = False; app._scanning = True
+            on_ui(lambda: app._scan_done([]))
+            _a_g4 = len(sc.load_results_cache())
+            sc.save_results_cache(_c_g4)
+            app._scan_ignored = None; app._cancel_scan = True; app._scanning = True
+            on_ui(lambda: app._scan_done([]))
+            _b_g4 = len(sc.load_results_cache())
+        finally:
+            app._cancel_scan = False; app._scanning = False
+            sc.save_results_cache(_c_g4)
+            on_ui(lambda: (setattr(app, "_results", _prev_g4), app._refresh_table(), app._update_stats()))
+        _boxes.clear()
+        check("test gap 4 (PB3): a finished scan that finds nothing saves an empty cache (the old rows no longer come "
+              "back at the next start); a cancelled one leaves the cache as it was",
+              len(_c_g4) > 0 and _a_g4 == _inact_g4 and _b_g4 == len(_c_g4), (len(_c_g4), _a_g4, _inact_g4, _b_g4))
+        # ── v0.20.2 test gap 5 (CC2): the row refresh after a Restore fails ──
+        _d_g5 = os.path.join(_TMP, "gap5", "Heat (1995)"); os.makedirs(_d_g5, exist_ok=True)
+        _f_g5 = os.path.join(_d_g5, "movie.nfo")
+        open(_f_g5, "w", encoding="utf-8").write("<movie><title>Heat</title></movie>\n")
+        _ref_g5 = [None]
+        with sc.backup_action("Test gap 5"):
+            sc.make_batch_backup(mc._BACKUP_ROOT, "Heat", _ref_g5, _f_g5)
+        open(_f_g5, "w", encoding="utf-8").write("<movie><title>Changed</title></movie>\n")
+        _bh_g5 = on_ui(lambda: mc.BackupHistoryDialog(app))
+        on_ui(lambda: _bh_g5.load(sync=True))
+        _i_g5 = on_ui(lambda: next(i for i, r in enumerate(_bh_g5._runs)
+                                   if os.path.normcase(r["folder"]) == os.path.normcase(_ref_g5[0])))
+        _osr_g5 = app._schedule_refresh
+
+        def _boom_g5(*a, **k):
+            raise RuntimeError("test gap 5 refresh failed")
+        app._schedule_refresh = _boom_g5
+        _boxes.clear()
+        try:
+            on_ui(lambda: (_bh_g5._tree.selection_set(str(_i_g5)), _bh_g5._show_files(), _bh_g5._restore(sync=True)))
+        finally:
+            app._schedule_refresh = _osr_g5
+        _r_g5 = (open(_f_g5, encoding="utf-8").read(), bool(getattr(app, "_restoring", False)),
+                 bool(getattr(_bh_g5, "_restoring", False)), any("test gap 5 refresh failed" in str(b) for b in _boxes))
+        time.sleep(1.0); on_ui(lambda: None)                     # the dialog reloads in the background after a restore
+        on_ui(lambda: _bh_g5.destroy())
+        _boxes.clear()
+        check("test gap 5 (CC2): a Restore whose row refresh fails still restores the file, names the error in its "
+              "message, and the next Restore can start",
+              _r_g5 == ("<movie><title>Heat</title></movie>\n", False, False, True), _r_g5)
+        # ── v0.20.2 test gap 6 (PB14): the background write helper ──
+        _t_g6 = []
+
+        def _slow_g6():
+            time.sleep(0.6)
+            return ("done", len(_t_g6))
+
+        def _run_g6():
+            app.after(100, lambda: _t_g6.append(1))
+            return mc._wait_off_tk(app, _slow_g6)
+
+        def _err_g6():
+            def _bad():
+                raise ValueError("gap6")
+            try:
+                mc._wait_off_tk(app, _bad)
+            except ValueError as e:
+                return str(e)
+            return None
+        _a_g6, _b_g6 = on_ui(_run_g6), on_ui(_err_g6)
+        check("test gap 6 (PB14): the background write gives its value back, the window keeps working meanwhile (a "
+              "timer ran during the write), and an error comes back as the same exception",
+              _a_g6 == ("done", 1) and _b_g6 == "gap6", (_a_g6, _b_g6))
+        # ── v0.20.2 PA3: while a scan runs, Libraries… refuses every change (a removed library came back) ──
+        _ld3 = on_ui(lambda: mc._LibrariesDialog(app))
+        app._scanning = True
+        try:
+            on_ui(lambda: (_ld3._lb.selection_set(1), _ld3._remove(), _ld3._ok()))
+            _pa3 = (mc.SETTINGS["library_folders"] == [LIB, LIB2], bool(on_ui(lambda: _ld3.winfo_exists())),
+                    any(b[0] == "info" and mc.SCAN_BUSY_TEXT in str(b[1]) for b in _boxes))
+        finally:
+            app._scanning = False
+            on_ui(lambda: _ld3.destroy() if _ld3.winfo_exists() else None)
+        _boxes.clear()
+        check("PA3: removing a library while a scan runs is refused (nothing stored, the window stays open)",
+              _pa3 == (True, True, True), _pa3)
         # Libraries dialog: remove root 2 → its rows leave the table
         ld = on_ui(lambda: mc._LibrariesDialog(app))
         check("libraries dialog lists both roots", ld._items == [LIB, LIB2])
@@ -6460,6 +6624,27 @@ def ui_tests():
               "(no preset replaces them unasked)",
               _fsc == ("custom", mc._i18n.t("fs.keep_rules_d")) and mc.SETTINGS.get("health_preset") == "custom"
               and (mc.SETTINGS.get("health_rules") or {}) == _hr_before_fs, _fsc)
+        # v0.20.2 FB5: Start with nothing ticked asks once — Tick my programs (main) goes back, Start anyway starts
+        mc.SETTINGS["first_start_pending"] = True; mc.NO_PROGRAMS_ASK_AUTO = True
+        _np_done = []
+        try:
+            _fs = on_ui(lambda: mc.FirstStartDialog(app, True, lambda k, a: _np_done.append((k, a.get("programs")))))
+            _np1 = on_ui(lambda: _fs._finish())
+            _np1i = on_ui(lambda: (isinstance(_np1, mc.NoProgramsDialog), _np1.title(), _np1.main_button.cget("text").strip(),
+                                   [b.cget("text").strip() for b in _np1._btn_row.winfo_children()]))
+            on_ui(lambda: _np1.main_button.invoke())
+            _np_back = on_ui(lambda: (bool(_fs.winfo_exists()), list(_np_done)))
+            _np2 = on_ui(lambda: _fs._finish())
+            on_ui(lambda: _np2._btn_row.winfo_children()[0].invoke())
+            _np_go = on_ui(lambda: list(_np_done))
+        finally:
+            mc.NO_PROGRAMS_ASK_AUTO = False
+            on_ui(lambda: _fs._later() if _fs.winfo_exists() else None)
+        check("FB5: Start with nothing ticked asks 'No program ticked' — 'Tick my programs' (main, Enter) goes back to the "
+              "window with nothing stored; 'Start anyway' starts with no program",
+              _np1i[0] and _np1i[1] == "No program ticked" and _np1i[2] == "Tick my programs"
+              and _np1i[3] == ["Start anyway", "Tick my programs"]
+              and _np_back == (True, []) and _np_go == [("save", ())], (_np1i, _np_back, _np_go))
         mc.SETTINGS["first_start_pending"] = True
         _Lfs = os.path.join(_TMP, "fs_lib"); os.makedirs(_Lfs, exist_ok=True)
         _offer_fs = []
@@ -6496,7 +6681,8 @@ def ui_tests():
                   _fsp == (False, False, ["Not now", "Save"]), _fsp)
             on_ui(lambda: _fs._btn_row.winfo_children()[0].invoke())
             check("6g: Not now — asked once (never again), nothing else changes",
-                  mc.SETTINGS["programs_asked"] is True and mc.SETTINGS["media_programs"] == []
+                  mc.SETTINGS["programs_asked"] is True and mc.SETTINGS["programs_reasked"] is True
+                  and mc.SETTINGS["media_programs"] == []
                   and mc.SETTINGS["health_mode"] == "nfo" and mc.first_start_kind(mc.SETTINGS) is None)
         finally:
             app._offer_library_scan = _orig_offer_fs
@@ -8799,6 +8985,19 @@ def ui_tests():
                 time.sleep(1.5)                                        # a slow network share
             return _sd100(pth)
         _hb100, _stop100 = [], [False]
+        _smp100 = []                                                   ### NEW v0.20.2 — where the Tk thread was (diagnostic) ###
+        _tid100 = threading.main_thread().ident
+        def _sample100():
+            while not _stop100[0]:
+                _f = sys._current_frames().get(_tid100)
+                _st = []
+                while _f is not None and len(_st) < 40:
+                    if _f.f_code.co_filename == mc.__file__:
+                        _st.append(f"{_f.f_code.co_name}:{_f.f_lineno}")
+                    _f = _f.f_back
+                _smp100.append((time.monotonic(), tuple(_st[:4])))
+                time.sleep(0.02)
+        threading.Thread(target=_sample100, daemon=True).start()
         def _beat100():
             _hb100.append(time.monotonic())
             if not _stop100[0]:
@@ -8814,8 +9013,14 @@ def ui_tests():
                            app._refresh_table(), app._update_ignored_link(), app._incremental_save(app._results)))
             sc.save_ignored(_save100[1])
         _gap100 = max((b - a for a, b in zip(_hb100, _hb100[1:])), default=99)
+        _gi100 = max(range(len(_hb100) - 1), key=lambda i: _hb100[i + 1] - _hb100[i]) if len(_hb100) > 1 else 0
+        _in100 = {}
+        for _t, _st in _smp100:
+            if len(_hb100) > 1 and _hb100[_gi100] < _t < _hb100[_gi100 + 1] and _st:
+                _in100[_st] = _in100.get(_st, 0) + 1
+        _top100 = sorted(_in100.items(), key=lambda kv: -kv[1])[:3]
         check("B100: Quick Scan on a slow share (1.5 s listing) — the Tk loop never pauses over 250 ms",
-              len(_hb100) > 20 and _gap100 < 0.25, (len(_hb100), round(_gap100, 3)))
+              len(_hb100) > 20 and _gap100 < 0.25, (len(_hb100), round(_gap100, 3), _top100))
         import inspect as _insp100
         _ai100 = _insp100.getsource(mc._FetchImageDialog._apply_image).split("def _worker", 1)
         _rl100 = _insp100.getsource(mc._FetchBackdropDialog._replace_local)
@@ -9103,6 +9308,17 @@ def ui_tests():
         check("TR8: no xdg-open → a clear message naming xdg-utils (not \"No such file or directory: 'open'\"); found → xdg-open (macOS: open); Linux Open Logs Folder uses it",
               "xdg-utils" in _miss_tr8 and _cmd_tr8 == ("open" if sys.platform == "darwin" else "xdg-open") and not _err_tr8
               and (os.name == "nt" or (len(_calls_tr8) == 1 and _calls_tr8[0][0] == _cmd_tr8)), (_miss_tr8, _cmd_tr8, _calls_tr8, _err_tr8))
+
+        # ── v0.20.2 FB4: Help → Copy Diagnostic Info… opens the report window; Copy puts the shown text on the clipboard ──
+        _dw = on_ui(lambda: mc.show_diagnostic_info(app))
+        try:
+            on_ui(_dw._copy)
+            _dclip = on_ui(lambda: app.clipboard_get())
+        finally:
+            on_ui(_dw.destroy)
+        check("FB4: Copy Diagnostic Info… opens the report and Copy copies exactly what it shows (no library path)",
+              _dclip == _dw._raw and "0.20.2" in _dclip
+              and not any(lib and lib in _dclip for lib in (mc.SETTINGS.get("library_folders") or [])), _dclip[:400])
 
         # ── v0.19.5 B112: another program's PrintWindow can stop Tk's timers; the watchdog wakes the loop ──  ### NEW v0.19.5 B112 ###
         # In a child process with its own App: PrintWindow is run from here, as another program would, and upsets no other test.
@@ -9397,6 +9613,751 @@ def ui_tests():
             mc.COLL_FOLDERS.clear(); mc.COLL_FOLDERS.update(_sn_save[1])
             _boxes.clear()
             shutil.rmtree(_sn_d, ignore_errors=True)
+
+        # ── v0.20.2 SE: the set.nfo editor on temp files (the editor answered by a fake; Undo; the windows ×3) ──  ### NEW v0.20.2 SE ###
+        _se_d = tempfile.mkdtemp(prefix="mc_se_ui_")
+        _se_lib, _se_root = os.path.join(_se_d, "lib"), os.path.join(_se_d, "Collection")
+        os.makedirs(_se_root)
+        _se_own, _se_tm = "Minha Coleção: Favoritos", "Saga Edit Collection"    # ':' → '_' in the folder (Kodi's legal name)
+        _se_tdir = os.path.join(_se_root, _se_tm); os.makedirs(_se_tdir)
+        _se_tfile = os.path.join(_se_tdir, "set.nfo")
+        _se_orig = ('\ufeff<?xml version="1.0" encoding="UTF-8"?>\r\n<set>\r\n  <title>Saga Edit Collection</title>\r\n'
+                    '  <sorttitle>01 Saga</sorttitle>\r\n  <overview>TMDB words.</overview>\r\n  <art>\r\n'
+                    '    <poster>poster.jpg</poster>\r\n  </art>\r\n</set>\r\n').encode("utf-8")
+        open(_se_tfile, "wb").write(_se_orig)
+
+        def _se_row(nm, coll, tm):
+            _p = os.path.join(_se_lib, nm); os.makedirs(_p, exist_ok=True)
+            return {"movie_name": nm, "subfolder": nm, "subfolder_path": _p, "library_root": _se_lib, "nfo_exists": True,
+                    "coll_nfo": {"name": coll}, "coll_tmdb": tm}
+        _se_own_rows = [_se_row("Own One", _se_own, {"id": None, "when": 1}), _se_row("Own Two", _se_own, {"id": None, "when": 1})]
+        _se_mix_rows = [_se_row("Mix One", "Mixed Bag", {"id": 501, "name": "Mixed Bag", "when": 1}),
+                        _se_row("Mix Two", "Mixed Bag", {"id": 502, "name": "Mixed Bag", "when": 1})]
+        _se_tm_rows = [_se_row("Saga A", _se_tm, {"id": 777, "name": _se_tm, "when": 1}),
+                       _se_row("Saga B", _se_tm, {"id": None, "when": 1})]        # + a movie TMDB lists in no collection
+        _se_ko, _se_kt = mc._cr.group_key(_se_own_rows[0]), mc._cr.group_key(_se_tm_rows[0])
+        _se_save = (dict(mc.COLL_CACHE), dict(mc.COLL_FOLDERS), mc.SETTINGS.get("collection_folder"), mc.media_programs,
+                    app._schedule_refresh, mc._SetNfoEditDialog)
+        mc.COLL_CACHE["777"] = {"names": {"en": _se_tm}, "overviews": {"en": "TMDB words."}}
+        mc.SETTINGS["collection_folder"] = _se_root
+        mc.media_programs = lambda *a, **k: ("kodi",)
+        app._schedule_refresh = lambda *a, **k: None
+        _se_seen, _se_answer = [], [None]
+
+        class _SeFake(tk.Toplevel):                                        # the editor, answered with _se_answer
+            def __init__(self, parent, name, state, values=None):
+                super().__init__(parent); self.result = _se_answer[0]
+                _se_seen.append((name, dict(state), values)); self.after(30, self.destroy)
+
+        def _se_reread():                                                 # what the app's own re-read gives for these names
+            wait_for(lambda: getattr(app, "_coll_folders_read", True), 15)
+            mc.COLL_FOLDERS.clear()
+            mc.COLL_FOLDERS.update(mc.read_collection_folders(mc._coll_root(), [_se_own, "Mixed Bag", _se_tm]) or {})
+
+        def _se_run(fn):
+            app._last_set_nfo_edit = None; _boxes.clear()
+            on_ui(fn)
+            wait_for(lambda: app._last_set_nfo_edit is not None or _boxes, 20)
+            return app._last_set_nfo_edit
+        mc._SetNfoEditDialog = _SeFake
+        try:
+            _se_reread()
+            check("SE: which collections are the user's own — no TMDB collection = user, two = mixed; one saga + a movie "
+                  "TMDB lists in none = still the saga (the user, 2026-11-22)",
+                  mc.collection_kind(_se_own_rows) == ("user", None) and mc.collection_kind(_se_mix_rows) == ("mixed", None)
+                  and mc.collection_kind(_se_tm_rows) == ("tmdb", 777) and mc.collection_tmdb_id(_se_mix_rows) == 501,
+                  (mc.collection_kind(_se_own_rows), mc.collection_kind(_se_mix_rows), mc.collection_kind(_se_tm_rows)))
+            _st_o = mc.set_nfo_editor_state(_se_ko, _se_own, _se_own_rows)
+            _st_m = mc.set_nfo_editor_state("mixed bag", "Mixed Bag", _se_mix_rows)
+            _st_t = mc.set_nfo_editor_state(_se_kt, _se_tm, _se_tm_rows)
+            mc.media_programs = lambda *a, **k: ("plex",)
+            _st_x = mc.set_nfo_editor_state(_se_ko, _se_own, _se_own_rows)
+            mc.media_programs = lambda *a, **k: ("kodi",)
+            _se_newdir = os.path.join(_se_root, "Minha Coleção_ Favoritos")
+            check("SE: the editor's state — own / mixed collection without set.nfo → Create (also before its folder exists, "
+                  "named Kodi-legal from the NFO name); a set.nfo there → Edit; Kodi not ticked → not offered",
+                  _st_o["mode"] == "create" and _st_o["make_dir"] and _st_o["dir"] == _se_newdir and _st_m["mode"] == "create"
+                  and _st_t["mode"] == "edit" and not _st_t["make_dir"] and _st_x is None, (_st_o, _st_m, _st_t, _st_x))
+            _se_p = _sn_panel_texts(_se_own_rows)
+            _se_cb = on_ui(lambda: {k: str(b.cget("state")) for k, b in app._movie_panel.coll_buttons.items()})
+            check("SE: the panel of an own collection offers 'Create…' beside 'set.nfo' (no folder yet) and the button "
+                  "'Create set.nfo…'; the TMDB-ID line of a mixed collection says so",
+                  app._movie_panel.setnfo_create_button is not None and mc._i18n.t("se.panel_none_own") in _se_p
+                  and _se_cb.get("📝 " + mc._i18n.t("se.btn_create")) == "normal"
+                  and mc._i18n.t("panel.coll.mixed") in _sn_panel_texts(_se_mix_rows), (_se_p, _se_cb))
+            # create: the folder is made, then the file; Undo removes both
+            _se_answer[0] = {"originaltitle": "My Favourites", "overview": "Filmes & séries <favoritos>\n\nSegunda linha."}
+            _r_c = _se_run(lambda: app._set_nfo_edit_for(_se_ko, _se_own, list(_se_own_rows)))
+            _f_c = os.path.join(_se_newdir, "set.nfo")
+            _v_c = mc._sn.values(open(_f_c, encoding="utf-8").read()) if os.path.isfile(_f_c) else None
+            check("SE: Create makes the collection folder and writes set.nfo (title = the NFO name; the typed original title "
+                  "and overview, escaped, multi-line)",
+                  _r_c is not None and _r_c[:2] == (1, []) and _se_seen and _se_seen[-1][2] is None
+                  and _v_c == {"title": _se_own, "originaltitle": "My Favourites",
+                               "overview": "Filmes & séries <favoritos>\n\nSegunda linha."}, (_r_c, _v_c, _boxes[-2:]))
+            _u_c = mc._sc.restore_backup_run(mc._BACKUP_ROOT, _r_c[2]) if _r_c and _r_c[2] else None
+            check("SE: Undo of Create removes the set.nfo and the folder it made", _u_c is not None
+                  and not os.path.exists(_f_c) and not os.path.isdir(_se_newdir), (_u_c, os.path.exists(_se_newdir)))
+            # edit: only the changed fields; <sorttitle> / <art>, BOM and CRLF kept; Undo gives the exact bytes back
+            _se_reread()
+            _se_answer[0] = {"originaltitle": "Saga Orig", "overview": "My own words."}
+            _r_e = _se_run(lambda: app._set_nfo_edit_for(_se_kt, _se_tm, list(_se_tm_rows)))
+            _b_e = open(_se_tfile, "rb").read()
+            _v_e = mc._sn.values(_b_e.decode("utf-8-sig"))
+            check("SE: Edit opens with the file's texts and writes only the changed fields; <sorttitle>, <art>, BOM and CRLF stay",
+                  _r_e is not None and _r_e[:2] == (1, [])
+                  and _se_seen[-1][2] == {"title": _se_tm, "originaltitle": "", "overview": "TMDB words."}
+                  and _v_e == {"title": _se_tm, "originaltitle": "Saga Orig", "overview": "My own words."}
+                  and _b_e.startswith(b"\xef\xbb\xbf") and b"\n" not in _b_e.replace(b"\r\n", b"")
+                  and b"<sorttitle>01 Saga</sorttitle>" in _b_e and b"<poster>poster.jpg</poster>" in _b_e, (_r_e, _b_e))
+            # Fix all (Write set.nfo, nothing ticked) never replaces the typed overview of a TMDB collection
+            _se_reread()
+            _f_t = mc.collection_set_nfo_findings(_se_kt, _se_tm, _se_tm_rows)
+            app._last_set_nfo = None
+            on_ui(lambda: app._set_nfo_run([(_se_kt, _se_tm, _se_tm_rows, _f_t)], set()))
+            wait_for(lambda: app._last_set_nfo is not None, 20)
+            check("SE: a typed overview of a TMDB collection is shown as 'differs from TMDB' only; Write set.nfo leaves it",
+                  _f_t is not None and _f_t["mistakes"] == [] and _f_t["notes"] == ["overview_differs"]
+                  and b"My own words." in open(_se_tfile, "rb").read(), (_f_t, app._last_set_nfo))
+            # the same texts again → nothing written
+            _se_reread()
+            _r_n = _se_run(lambda: app._set_nfo_edit_for(_se_kt, _se_tm, list(_se_tm_rows)))
+            check("SE: Save with the same texts → 'Nothing changed', nothing written",
+                  _r_n is not None and _r_n[:2] == (0, []) and any(mc._i18n.t("se.nothing") in str(b) for b in _boxes), (_r_n, _boxes[-2:]))
+            _u_e = mc._sc.restore_backup_run(mc._BACKUP_ROOT, _r_e[2]) if _r_e and _r_e[2] else None
+            check("SE: Undo of Edit puts the exact old file back (bytes, BOM, CRLF)", open(_se_tfile, "rb").read() == _se_orig, _u_e)
+            # a file another program changed while the editor was open is left alone
+            _se_reread()
+            _st_e = mc.set_nfo_editor_state(_se_kt, _se_tm, _se_tm_rows)
+            _r_w = _se_run(lambda: app._set_nfo_edit_run(_se_kt, _se_tm, _st_e, "<set><title>other</title></set>",
+                                                          {"originaltitle": "", "overview": "X"}))
+            check("SE: a set.nfo changed meanwhile is never overwritten (an error, the file as it was)",
+                  _r_w is not None and _r_w[0] == 0 and _r_w[1] and open(_se_tfile, "rb").read() == _se_orig, (_r_w, _boxes[-2:]))
+            # a set.nfo that is not UTF-8 is refused before the editor opens
+            open(_se_tfile, "wb").write("<set><title>Saga Edit Collection</title><overview>Ação</overview></set>".encode("cp1252"))
+            _n_seen = len(_se_seen); _boxes.clear()
+            on_ui(lambda: app._set_nfo_edit_for(_se_kt, _se_tm, list(_se_tm_rows)))
+            wait_for(lambda: _boxes, 15)
+            check("SE: a set.nfo that is not UTF-8 → a warning, the editor does not open, nothing written",
+                  len(_se_seen) == _n_seen and any("UTF-8" in str(b) for b in _boxes)
+                  and open(_se_tfile, "rb").read().endswith("</set>".encode()), _boxes[-2:])
+            open(_se_tfile, "wb").write(_se_orig)
+            # an unreachable collection folder: nothing is made anywhere
+            mc.SETTINGS["collection_folder"] = os.path.join(_se_d, "offline", "Collection")
+            mc.COLL_FOLDERS.clear(); _boxes.clear(); _n_seen = len(_se_seen)
+            on_ui(lambda: app._set_nfo_edit_for(_se_ko, _se_own, list(_se_own_rows)))
+            wait_for(lambda: _boxes, 20)
+            check("SE: the collection folder can't be reached → a warning, no folder made, the editor does not open",
+                  len(_se_seen) == _n_seen and not os.path.exists(os.path.join(_se_d, "offline"))
+                  and any(mc._i18n.t("se.root_unreachable", root=mc.SETTINGS["collection_folder"]) == b[1][1] for b in _boxes),   # the text, not repr()
+                  _boxes[-2:])
+            mc.SETTINGS["collection_folder"] = _se_root
+            # the real windows in three languages
+            _se_ok = {}
+            for _lg in ("en", "pt_BR", "es"):
+                mc._i18n.set_language(_lg)
+                try:
+                    _w = on_ui(lambda: _se_save[5](
+                        app, _se_tm, dict(_st_e, kind="tmdb"), {"title": "Old name", "originaltitle": "O", "overview": "Ov."}))
+                    try:
+                        _txt = []
+                        _stk = [_w]
+                        while _stk:
+                            _x = _stk.pop(); _stk.extend(on_ui(lambda x=_x: x.winfo_children()))
+                            try:
+                                _txt.append(str(on_ui(lambda x=_x: x.cget("text"))))
+                            except Exception:
+                                pass
+                        on_ui(lambda: (_w.orig_entry.delete(0, "end"), _w.orig_entry.insert(0, " Typed "),
+                                       _w.overview_text.delete("1.0", "end"), _w.overview_text.insert("1.0", "Line 1\nLine 2")))
+                        _se_ok[_lg] = (on_ui(lambda: _w.title()) == mc._i18n.t("se.title_edit", name=_se_tm)
+                                       and on_ui(lambda: _w.title_entry.get()) == _se_tm
+                                       and str(on_ui(lambda: _w.title_entry.cget("state"))) == "readonly"
+                                       and all(mc._i18n.t(k) in _txt for k in ("se.f_title", "se.f_orig", "se.f_overview",
+                                                                               "se.save", "se.tmdb_note", "se.intro"))
+                                       and mc._i18n.t("se.title_fixed", t="Old name") in _txt
+                                       and on_ui(lambda: _w.fields()) == {"originaltitle": "Typed", "overview": "Line 1\nLine 2"})
+                    finally:
+                        on_ui(lambda: _w.winfo_exists() and _w.destroy())
+                    _pk = on_ui(lambda: mc._SetNfoPickDialog(app, [("a", "Alpha", "edit"), ("b", "Beta", "create")]))
+                    try:
+                        _pl = on_ui(lambda: list(_pk.listbox.get(0, "end")))
+                        on_ui(lambda: (_pk.listbox.selection_clear(0, "end"), _pk.listbox.selection_set(1)))
+                        on_ui(lambda: _pk._ok())
+                        _se_ok[_lg] = _se_ok[_lg] and _pk.result == "b" and _pl == [
+                            "Alpha  —  " + mc._i18n.t("se.pick_edit"), "Beta  —  " + mc._i18n.t("se.pick_create")]
+                    finally:
+                        on_ui(lambda: _pk.winfo_exists() and _pk.destroy())
+                finally:
+                    mc._i18n.set_language("en")
+            check("SE: the editor and the chooser in EN / PT-BR / ES — texts in the language, title locked to the collection "
+                  "name (a different title in the file is named), the typed fields read back trimmed; the chooser's lines",
+                  all(_se_ok.get(_lg) for _lg in ("en", "pt_BR", "es")), _se_ok)
+            check("SE: Tools → Collections → Create / Edit set.nfo… (after Check / Write set.nfo…); the collection's right-click "
+                  "menu and panel open the editor; its backup label is translated",
+                  dict((e[0], e[4]) for e in mc.TOOLS_MENU if isinstance(e, tuple))["collections"][3:5] == ["set_nfo_all", "set_nfo_edit_all"]
+                  and inspect.getsource(mc.App._coll_rclick).count("_set_nfo_edit_for(key, name, rows)") == 1
+                  and mc.shown_action(mc.SET_NFO_EDIT_ACTION) == mc._i18n.t("se.action"))
+        finally:
+            mc.COLL_CACHE.clear(); mc.COLL_CACHE.update(_se_save[0])
+            mc.SETTINGS["collection_folder"] = _se_save[2]; mc.media_programs = _se_save[3]
+            app._schedule_refresh = _se_save[4]; mc._SetNfoEditDialog = _se_save[5]
+            mc._i18n.set_language("en")
+            wait_for(lambda: getattr(app, "_coll_folders_read", True), 10)
+            mc.COLL_FOLDERS.clear(); mc.COLL_FOLDERS.update(_se_save[1])
+            _boxes.clear()
+            shutil.rmtree(_se_d, ignore_errors=True)
+
+        # ── v0.20.2 CG: Collection Gaps on temp files (fake TMDB; the three fixes with Undo; ignore list; .txt; ×3) ──  ### NEW v0.20.2 CG ###
+        _cg_d = tempfile.mkdtemp(prefix="mc_cg_ui_")
+        _cg_lib = os.path.join(_cg_d, "lib")
+
+        def _cg_mk(folder, title, year, tmdb=None, coll=None, colid=None):
+            _p = os.path.join(_cg_lib, folder); os.makedirs(_p)
+            _x = [f"  <title>{title}</title>", f"  <year>{year}</year>"]
+            if tmdb:
+                _x += [f'  <uniqueid type="tmdb" default="true">{tmdb}</uniqueid>', f"  <tmdbid>{tmdb}</tmdbid>"]
+            if coll:
+                _x += [f'  <set{f" tmdbcolid={chr(34)}{colid}{chr(34)}" if colid else ""}>', f"    <name>{coll}</name>", "  </set>"]
+            open(os.path.join(_p, folder + ".nfo"), "w", encoding="utf-8", newline="\n").write(
+                '<?xml version="1.0" encoding="UTF-8"?>\n<movie>\n' + "\n".join(_x) + "\n</movie>\n")
+            return mc.scan_one_subfolder(_p, folder, use_ffprobe=False)
+        _cg_rows = [_cg_mk("Saga One (2001)", "Saga One", 2001, 101, "Gap Saga", 900),
+                    _cg_mk("Saga Seven (2019)", "Saga Seven", 2019, 107, "Gap Saga"),        # never checked online
+                    _cg_mk("Saga Two (2004)", "Saga Two", 2004, 102),                         # (a) right ID, no collection
+                    _cg_mk("Saga Three (2008)", "Saga Three", 2008, 103, "Other Saga"),       # (c) in another collection
+                    _cg_mk("Saga Four (2011)", "Saga Four", 2011),                            # (b) title + year, no ID
+                    _cg_mk("Mine One (1999)", "Mine One", 1999, 501, "My Own")]
+        _cg_rows[0]["coll_tmdb"] = {"id": 900, "name": "Gap Saga", "when": time.time()}
+        _cg_rows[1]["coll_tmdb"] = None
+        _cg_rows[3]["coll_tmdb"] = {"id": None, "when": time.time()}
+        _cg_rows[5]["coll_tmdb"] = {"id": None, "when": time.time()}
+        _cg_parts = [{"id": 101, "title": "Saga Um", "original_title": "Saga One", "release_date": "2001-05-01"},
+                     {"id": 102, "title": "Saga Dois", "original_title": "Saga Two", "release_date": "2004-06-01"},
+                     {"id": 103, "title": "Saga Três", "original_title": "Saga Three", "release_date": "2008-07-01"},
+                     {"id": 104, "title": "Saga Quatro", "original_title": "Saga Four", "release_date": "2010-08-01"},
+                     {"id": 105, "title": "Saga Cinco", "original_title": "Saga Five", "release_date": "2015-01-01"},
+                     {"id": 107, "title": "Saga Sete", "original_title": "Saga Seven", "release_date": "2019-01-01"},
+                     {"id": 106, "title": "Saga Seis", "original_title": "Saga Six", "release_date": "2099-01-01"}]
+        _cg_urls = []
+
+        def _cg_fake(url, timeout=15):
+            _cg_urls.append(url.split("?")[0])
+            if "/collection/900/translations" in url:
+                return {"translations": []}
+            if "/collection/900" in url:
+                return {"id": 900, "name": "Gap Saga", "overview": "Ov.", "parts": _cg_parts}
+            _m = re.search(r"/movie/(\d+)", url)
+            if _m:
+                return {"id": int(_m.group(1)), "title": "x", "external_ids": {"imdb_id": f"tt0000{_m.group(1)}"},
+                        "belongs_to_collection": {"id": 900, "name": "Gap Saga"} if _m.group(1) == "107" else None,
+                        "translations": {"translations": []}}
+            raise RuntimeError("unexpected URL " + url)
+        _cg_save = (app._results, list(getattr(app, "_inactive_rows", None) or []), dict(mc.COLL_CACHE),
+                    mc.SETTINGS.get("tmdb_api_key", ""), app._schedule_refresh, mc.messagebox.askyesno, mc._ChoiceDialog.ask,
+                    getattr(app, "_cg_fetch", None), app._incremental_save)
+        _cg_q = []
+        mc.COLL_CACHE.pop("900", None)
+        mc.COLL_CACHE["900"] = {"names": {"en": "Gap Saga"}, "overviews": {}}          # a Set Collection stub: no movie list
+        mc.SETTINGS["tmdb_api_key"] = "fake-key"
+        app._schedule_refresh = lambda *a, **k: None
+        app._cg_fetch = _cg_fake
+        app._incremental_save = lambda *a, **k: None              # the temp rows never reach last_results.json
+        mc.messagebox.askyesno = lambda *a, **k: True
+        mc._ChoiceDialog.ask = classmethod(lambda cls, parent, title, text, buttons: (_cg_q.append(text), "ok")[1])
+        app._results = _cg_rows
+        app._inactive_rows = []
+        _cg_ign = mc._sc.GAPS_IGNORE_PATH
+        _cg_ign_old = open(_cg_ign, "rb").read() if os.path.isfile(_cg_ign) else None
+        if os.path.isfile(_cg_ign):
+            os.remove(_cg_ign)
+
+        def _cg_nfo(i):
+            return open(_cg_rows[i]["nfo_path"], "rb").read()
+
+        def _cg_open():
+            app._cg_done = None
+            on_ui(lambda: app._collection_gaps(None))
+            wait_for(lambda: app._cg_done is not None, 30)
+            return app._cg_dlg
+        try:
+            _dg = _cg_open()
+            _res = (_dg.results or [None])[0]
+            _st = {it["part"]["id"]: it["status"] for it in (_res or {}).get("missing", [])}
+            check("CG: the movie never checked online is checked first, then the collection's movie list is read "
+                  "(a Set Collection stub has none); the cache keeps each movie's title, original title and date + the language",
+                  "https://api.themoviedb.org/3/movie/107" in _cg_urls and "https://api.themoviedb.org/3/collection/900" in _cg_urls
+                  and _cg_rows[1]["coll_tmdb"]["id"] == 900 and [p["id"] for p in mc.COLL_CACHE["900"].get("part_info", [])][:2] == [101, 102]
+                  and mc.COLL_CACHE["900"]["lang"] == app._lib_lang(), (_cg_urls, mc.COLL_CACHE.get("900")))
+            check("CG: one TMDB collection — You have 2 of 6 (released only); Missing by status (a) right ID / (c) other "
+                  "collection / (b) by title + year / not in the library; the future date under Announced",
+                  _res is not None and _res["cid"] == 900 and (_res["have"], _res["total"]) == (2, 6)
+                  and _st == {102: "no_tag", 103: "other", 104: "title", 105: "absent"}
+                  and [it["part"]["id"] for it in _res["announced"]] == [106], (_res and (_res["have"], _res["total"], _st)))
+            check("CG: Ignored Collections lists the user's own collections with the reason",
+                  sorted(_dg.skipped) == [("My Own", "user"), ("Other Saga", "user")], _dg.skipped)
+            _fb = on_ui(lambda: {k: str(b.cget("text")) for k, b in _dg.fix_buttons.items()})
+            check("CG: the window offers the fix the library allows (none for a movie not in it) and 'I don't want this one'",
+                  _fb == {(900, 102): mc._i18n.t("cg.fix_add"), (900, 103): mc._i18n.t("cg.fix_move"),
+                          (900, 104): mc._i18n.t("cg.fix_title")}
+                  and set(_dg.ignore_buttons) == {(900, 102), (900, 103), (900, 104), (900, 105)}, _fb)
+            _item = lambda pid: next(it for it in _dg.results[0]["missing"] if it["part"]["id"] == pid)
+            # (a) Add to collection
+            _o2 = _cg_nfo(2); app._coll_write_done = None
+            on_ui(lambda: app._cg_fix(_dg, _dg.results[0], _item(102)))
+            wait_for(lambda: (900, 102) in _dg.fixed and (900, 102) not in _dg.fix_buttons, 20)   # write, message, mark, redraw
+            _settle(1)
+            _n2 = _cg_nfo(2)
+            check("CG fix (a): Add to collection writes the collection's name + TMDB collection ID; the line shows 'fixed'",
+                  app._coll_write_done == (1, []) and b"<name>Gap Saga</name>" in _n2 and b'tmdbcolid="900"' in _n2
+                  and (900, 102) in _dg.fixed and (900, 102) not in _dg.fix_buttons, (app._coll_write_done, _n2))
+            mc._sc.restore_backup_run(mc._BACKUP_ROOT, app._coll_write_ref)
+            check("CG fix (a): Undo puts the NFO back", _cg_nfo(2) == _o2)
+            # (c) Move to this collection (asks first)
+            _o3 = _cg_nfo(3); app._coll_write_done = None
+            on_ui(lambda: app._cg_fix(_dg, _dg.results[0], _item(103)))
+            wait_for(lambda: (900, 103) in _dg.fixed, 20)                 # the write, its message, then the window's mark
+            _n3 = _cg_nfo(3)
+            check("CG fix (c): Move to this collection — the movie leaves 'Other Saga' for 'Gap Saga'; Undo puts it back",
+                  app._coll_write_done == (1, []) and b"<name>Gap Saga</name>" in _n3 and b"Other Saga" not in _n3
+                  and mc._sc.restore_backup_run(mc._BACKUP_ROOT, app._coll_write_ref) is not None and _cg_nfo(3) == _o3, _n3)
+            # (b) Write TMDB ID + collection (both films side by side, the IMDb ID fetched first)
+            _o4 = _cg_nfo(4); app._cg_fix_done = None
+            on_ui(lambda: app._cg_fix(_dg, _dg.results[0], _item(104)))
+            wait_for(lambda: app._cg_fix_done is not None and (900, 104) in _dg.fixed, 20)
+            _n4 = _cg_nfo(4)
+            check("CG fix (b): the question shows your movie and TMDB's side by side (IDs, IMDb fetched first); after OK the "
+                  "TMDB ID, the IMDb ID and the collection are written in one backup run",
+                  _cg_q and "Saga Four (2011)" in _cg_q[-1] and "Saga Quatro [Saga Four] (2010-08-01)" in _cg_q[-1]
+                  and "tt0000104" in _cg_q[-1] and app._cg_fix_done[:2] == (1, [])
+                  and b"104" in _n4 and b"tt0000104" in _n4 and b"<name>Gap Saga</name>" in _n4, (_cg_q[-1:], _n4))
+            mc._sc.restore_backup_run(mc._BACKUP_ROOT, app._cg_fix_done[2])
+            check("CG fix (b): one Undo puts the NFO back (IDs and collection)", _cg_nfo(4) == _o4)
+            # the ignore list
+            on_ui(lambda: app._cg_ignore(_dg, 900, 105, True))
+            _ig1 = json.load(open(_cg_ign, encoding="utf-8"))
+            _r1 = _dg.results[0]
+            on_ui(lambda: (_dg._show_ign.set(True), _dg.render()))
+            _ub = set(_dg.unignore_buttons)
+            check("CG: 'I don't want this one' is saved (collection id + movie id), leaves the lists and the count; "
+                  "Show ignored lists it with 'Show it again'",
+                  _ig1 == {"version": 1, "ignored": {"900": [105]}} and 105 not in [it["part"]["id"] for it in _r1["missing"]]
+                  and _r1["total"] == 5 and [it["part"]["id"] for it in _r1["ignored"]] == [105] and _ub == {(900, 105)}, (_ig1, _ub))
+            on_ui(lambda: app._cg_ignore(_dg, 900, 105, False))
+            check("CG: 'Show it again' takes it off the ignore list", json.load(open(_cg_ign, encoding="utf-8"))["ignored"] == {}
+                  and 105 in [it["part"]["id"] for it in _dg.results[0]["missing"]])
+            open(_cg_ign, "w", encoding="utf-8").write("{broken")
+            _ig2 = mc._sc.load_gaps_ignored()
+            check("CG: a broken ignore list is kept as .corrupt-<date> and the list starts empty",
+                  _ig2 == {} and any(f.startswith("collection_gaps_ignored.json.corrupt-") for f in os.listdir(os.path.dirname(_cg_ign))))
+            os.remove(_cg_ign)
+            # Save as .txt
+            _tp = os.path.join(_cg_d, "Collection Gaps.txt")
+            _sv = on_ui(lambda: _dg.save_txt(_tp))
+            _tx = open(_tp, "rb").read().decode("utf-8")
+            check("CG: Save as .txt — the report with the libraries compared, both lists and the ignored collections",
+                  _sv == _tp and "Gap Saga  (TMDB 900)" in _tx and mc._i18n.t("cg.have", have=2, total=6) in _tx
+                  and "Saga Seis [Saga Six] — 2099-01-01" in _tx and mc._i18n.t("cg.skipped_head") in _tx
+                  and _cg_lib in _tx and (sys.platform != "win32" or "\r\n" in _tx), _tx[:400])
+            on_ui(lambda: _dg.destroy())
+            # the window in three languages
+            _cg_ok = {}
+            for _lg in ("en", "pt_BR", "es"):
+                mc._i18n.set_language(_lg)
+                try:
+                    _w = on_ui(lambda: mc._CollectionGapsDialog(app, _dg.results, _dg.skipped, [_cg_lib], 6, [], "2026-11-22"))
+                    try:
+                        _txt, _stk = [], [_w]
+                        while _stk:
+                            _x = _stk.pop(); _stk.extend(on_ui(lambda x=_x: x.winfo_children()))
+                            try:
+                                _txt.append(str(on_ui(lambda x=_x: x.cget("text"))))
+                            except Exception:
+                                pass
+                        _all = "\n".join(_txt)
+                        _cg_ok[_lg] = (on_ui(lambda: _w.title()) == mc._i18n.t("cg.title")
+                                       and all(mc._i18n.t(k) in _all for k in ("cg.missing", "cg.announced", "cg.skipped_head",
+                                                                              "cg.fix_add", "cg.fix_title", "cg.fix_move", "cg.ignore",
+                                                                              "cg.save", "cg.show_ignored", "cg.why.user"))
+                                       and mc._i18n.t("cg.have", have=2, total=6) in _all)
+                    finally:
+                        on_ui(lambda: _w.winfo_exists() and _w.destroy())
+                finally:
+                    mc._i18n.set_language("en")
+            check("CG: the report window in EN / PT-BR / ES (lists, reasons, fix and ignore buttons in the language)",
+                  all(_cg_ok.get(_lg) for _lg in ("en", "pt_BR", "es")), _cg_ok)
+            # no TMDB key: nothing fetched, the collection without a movie list is 'not checked', the report still opens
+            mc.COLL_CACHE["900"] = {"names": {"en": "Gap Saga"}, "overviews": {}}
+            mc.SETTINGS["tmdb_api_key"] = ""
+            _cg_urls.clear()
+            _dg2 = _cg_open()
+            check("CG: without a TMDB key nothing is fetched; the collection is listed as not checked, with the note",
+                  not _cg_urls and _dg2.results == [] and ("Gap Saga", "not_checked") in _dg2.skipped
+                  and mc._i18n.t("cg.no_key_note") in _dg2.notes, (_cg_urls, _dg2.skipped, _dg2.notes))
+            on_ui(lambda: _dg2.destroy())
+            check("CG: Tools → Collections → Collection Gaps… (last); the collection's right-click menu runs it; its backup "
+                  "label is translated",
+                  dict((e[0], e[4]) for e in mc.TOOLS_MENU if isinstance(e, tuple))["collections"][-1] == "collection_gaps_all"
+                  and inspect.getsource(mc.App._coll_rclick).count("self._collection_gaps(self._cg_selected_rows(iid, rows))") == 1
+                  and mc.shown_action(mc.CG_ACTION) == mc._i18n.t("cg.fix_action"))
+        finally:
+            app._results = _cg_save[0]; app._inactive_rows = _cg_save[1]
+            mc.COLL_CACHE.clear(); mc.COLL_CACHE.update(_cg_save[2])
+            mc.SETTINGS["tmdb_api_key"] = _cg_save[3]; app._schedule_refresh = _cg_save[4]
+            mc.messagebox.askyesno = _cg_save[5]; mc._ChoiceDialog.ask = _cg_save[6]; app._cg_fetch = _cg_save[7]
+            mc._i18n.set_language("en")
+            for _f in [f for f in os.listdir(os.path.dirname(_cg_ign)) if f.startswith("collection_gaps_ignored.json")]:
+                os.remove(os.path.join(os.path.dirname(_cg_ign), _f))
+            if _cg_ign_old is not None:
+                open(_cg_ign, "wb").write(_cg_ign_old)
+            try:
+                if getattr(app, "_cg_dlg", None) is not None:
+                    on_ui(lambda: app._cg_dlg.winfo_exists() and app._cg_dlg.destroy())
+            except Exception:
+                pass
+            app._incremental_save = _cg_save[8]
+            on_ui(lambda: app._refresh_table())
+            _boxes.clear()
+            shutil.rmtree(_cg_d, ignore_errors=True)
+
+        # ── v0.20.2 CR: Certifications on temp files (fake TMDB / OMDb; keep / blank; preview; Undo; health rule; ×3) ──  ### NEW v0.20.2 CR ###
+        _cr_d = tempfile.mkdtemp(prefix="mc_cr_ui_")
+        _cr_lib = os.path.join(_cr_d, "lib")
+
+        def _cr_mk(folder, title, tmdb, imdb, extra):
+            _p = os.path.join(_cr_lib, folder); os.makedirs(_p)
+            open(os.path.join(_p, folder + ".nfo"), "w", encoding="utf-8", newline="\n").write(
+                '<?xml version="1.0" encoding="UTF-8"?>\n<movie>\n  <title>' + title + "</title>\n  <year>" + folder[-5:-1]
+                + f'</year>\n  <uniqueid type="tmdb" default="true">{tmdb}</uniqueid>\n  <uniqueid type="imdb">{imdb}</uniqueid>\n'
+                + extra + "</movie>\n")
+            return mc.scan_one_subfolder(_p, folder, use_ffprobe=False)
+        _cr_rows = [_cr_mk("Cert One (2001)", "Cert One", 201, "tt0000201",
+                           "  <mpaa>Rated R</mpaa>\n  <certification>US:R / FR:12</certification>\n"),
+                    _cr_mk("Cert Two (2002)", "Cert Two", 202, "tt0000202", ""),
+                    _cr_mk("Cert Three (2003)", "Cert Three", 203, "tt0000203", ""),
+                    _cr_mk("Cert Four (2004)", "Cert Four", 204, "tt0000204", "  <mpaa>FR:12</mpaa>\n")]
+        _cr_rel = {"201": [{"iso_3166_1": "US", "release_dates": [{"type": 3, "certification": "R", "release_date": "2001-01-01"}]},
+                           {"iso_3166_1": "BR", "release_dates": [{"type": 3, "certification": "16", "release_date": "2001-02-01"}]}],
+                   "202": [{"iso_3166_1": "BR", "release_dates": [{"type": 5, "certification": "14", "release_date": "2003-01-01"},
+                                                                  {"type": 3, "certification": "12", "release_date": "2002-05-01"}]}],
+                   "203": [], "204": []}
+        _cr_urls = []
+
+        def _cr_fake(url, timeout=15):
+            _cr_urls.append(url.split("?")[0] + ("?" + url.split("i=")[1].split("&")[0] if "omdbapi" in url else ""))
+            _m = re.search(r"/movie/(\d+)/release_dates", url)
+            if _m:
+                return {"id": int(_m.group(1)), "results": _cr_rel[_m.group(1)]}
+            if "omdbapi" in url:
+                return {"Response": "True", "Rated": "N/A"}
+            raise RuntimeError("unexpected URL " + url)
+        _cr_ask = []
+
+        class _CrFakeAsk(tk.Toplevel):                                       # the keep / blank window, answered "blank"
+            def __init__(self, parent, items):
+                super().__init__(parent); _cr_ask.append([it["row"]["movie_name"] for it in items])
+                self.result = {id(it): "blank" for it in items}; self.after(30, self.destroy)
+        _cr_save = (mc.SETTINGS.get("cert_countries"), mc.SETTINGS.get("cert_max"), mc.SETTINGS.get("tmdb_api_key", ""),
+                    mc.SETTINGS.get("omdb_api_key", ""), mc._CertAskDialog, getattr(app, "_cert_fetch", None),
+                    app._schedule_refresh, dict(mc.SETTINGS.get("health_rules") or {}))
+        mc.SETTINGS.update(cert_countries=["BR", "US"], cert_max=3, tmdb_api_key="fake-key", omdb_api_key="fake-omdb")
+        _cr_cs = app._confirm_services
+        app._confirm_services = lambda svc: True                          # a pause left by earlier tests would ask (modal)
+        mc._CertAskDialog = _CrFakeAsk
+        app._cert_fetch = _cr_fake
+        app._schedule_refresh = lambda *a, **k: None
+        _cr_nfo = lambda i: open(_cr_rows[i]["nfo_path"], "rb").read()
+        _cr_old = [_cr_nfo(i) for i in range(4)]
+        try:
+            check("CR: the scan reads the age-rating tags (None = the file has no such tag)",
+                  _cr_rows[0]["cert_tags"] == {"nfo:mpaa": "Rated R", "nfo:certification": "US:R / FR:12"}
+                  and _cr_rows[1]["cert_tags"] == {"nfo:mpaa": None, "nfo:certification": None}, _cr_rows[0]["cert_tags"])
+            mc.SETTINGS.setdefault("health_rules", {})["cert_settings"] = True
+            _st, _er, _wr = mc.compute_movie_health_detailed(_cr_rows[0], mc.SETTINGS["health_rules"], mc.SETTINGS)
+            _w4 = mc.compute_movie_health_detailed(_cr_rows[3], mc.SETTINGS["health_rules"], mc.SETTINGS)[2]
+            _w2 = mc.compute_movie_health_detailed(_cr_rows[1], mc.SETTINGS["health_rules"], mc.SETTINGS)[2]
+            mc.SETTINGS["health_rules"]["cert_settings"] = False
+            _w0 = mc.compute_movie_health_detailed(_cr_rows[0], mc.SETTINGS["health_rules"], mc.SETTINGS)[2]
+            check("CR health rule: a country not accepted is a warning, with the Certifications fix; a missing rating is not; "
+                  "the rule off → nothing",
+                  any("(FR) in <certification>" in str(w) for w in _wr) and any("(FR) in <mpaa>" in str(w) for w in _w4)
+                  and not any("age rating" in str(w).lower() for w in _w2) and not any("age rating" in str(w).lower() for w in _w0)
+                  and app._ctx_fix_action("cert", [_cr_rows[0]])[0] is not None, (_wr, _w4, _w2, _w0))
+            # the tool on the four movies
+            app._cert_pv = None; app._cert_done = None; _boxes.clear()
+            on_ui(lambda: app._cert_for(list(_cr_rows)))
+            wait_for(lambda: getattr(app, "_cert_pv", None) is not None, 30)
+            _crt = app._cert_last_text
+            check("CR: the files' values first, TMDB for the rest (theatrical, earliest), OMDb asked only for the US value; "
+                  "the edge case asked (keep / blank), the 'nothing online' movie listed as left blank",
+                  _cr_ask == [["Cert Four"]] and "Cert Three" in _crt.split(mc._i18n.t("cr.pv_none", n=1))[-1]
+                  and "https://api.themoviedb.org/3/movie/202/release_dates" in _cr_urls
+                  and "https://www.omdbapi.com/?tt0000203" in _cr_urls and "https://www.omdbapi.com/?tt0000201" not in _cr_urls,
+                  (_cr_ask, _crt, _cr_urls))
+            on_ui(lambda: app._cert_pv._run())
+            wait_for(lambda: app._cert_done is not None, 30)
+            _n = [_cr_nfo(i).decode("utf-8") for i in range(4)]
+            check("CR: each tag in its own style — 'Rated R' → 'Rated 16' (BR first), the list → 'BR:16 / US:R' (FR gone); a "
+                  "missing <mpaa> added as 'BR:12'; <certification> never added; the chosen 'blank' empties <mpaa>; nothing "
+                  "written for the movie without a rating anywhere",
+                  app._cert_done[:2] == (3, []) and "<mpaa>Rated 16</mpaa>" in _n[0] and "<certification>BR:16 / US:R</certification>" in _n[0]
+                  and "<mpaa>BR:12</mpaa>" in _n[1] and "<certification>" not in _n[1]
+                  and _cr_nfo(2) == _cr_old[2] and "<mpaa></mpaa>" in _n[3], (app._cert_done, _n))
+            mc._sc.restore_backup_run(mc._BACKUP_ROOT, app._cert_done[2])
+            check("CR: one Undo puts every NFO back", [_cr_nfo(i) for i in range(4)] == _cr_old)
+            # a file whose rating tags another program changed after they were read is not written (other changes are kept:
+            # the file is read again just before the write)
+            _it = mc.cert_plan_row(_cr_rows[1], ["BR", "US"], 3, "fake-key", "", _cr_fake)
+            _t1 = open(_cr_rows[1]["nfo_path"], encoding="utf-8").read()
+            open(_cr_rows[1]["nfo_path"], "w", encoding="utf-8", newline="\n").write(_t1.replace("</movie>", "  <mpaa>US:G</mpaa>\n</movie>"))
+            _ch = _cr_nfo(1)
+            app._cert_pv = None; app._cert_done = None
+            mc.ui_post(lambda: app._cert_preview([_it], ["BR", "US"], 3))     # it waits in the preview window: not on_ui
+            wait_for(lambda: getattr(app, "_cert_pv", None) is not None, 15)
+            on_ui(lambda: app._cert_pv._run())
+            wait_for(lambda: app._cert_done is not None, 20)
+            check("CR: a file whose rating tags another program changed after they were read is left alone (an error, not written)",
+                  app._cert_done[0] == 0 and app._cert_done[1] and _cr_nfo(1) == _ch, app._cert_done)
+            # the settings and the menus
+            check("CR: the default countries follow the app language (+ US), max 3; Tools → Ratings & Genres ends with "
+                  "Apply My Certification Settings; the right-click Metadata entry; the backup label is translated",
+                  mc.cert_settings({"cert_countries": [], "cert_max": None}) == (mc._ce.default_countries(mc._i18n.current()), 3)
+                  and dict((e[0], e[4]) for e in mc.TOOLS_MENU if isinstance(e, tuple))["ratings_genres"][-1] == "cert_all"
+                  and "self._cert_for([x for x in s if cert_candidate(x)])" in inspect.getsource(mc.App)
+                  and mc.shown_action(mc.CERT_ACTION) == mc._i18n.t("cr.action")
+                  and mc._sm.HEALTH_PRESETS["tight"]["cert_settings"] is True and mc._sm.HEALTH_PRESETS["easy"]["cert_settings"] is False)
+            # the keep / blank window in three languages
+            _cr_ok = {}
+            _cr_items = [{"row": _cr_rows[3], "tags": {"nfo:mpaa": "FR:12"}, "online": {}, "plan": None}]
+            for _lg in ("en", "pt_BR", "es"):
+                mc._i18n.set_language(_lg)
+                try:
+                    _w = on_ui(lambda: _cr_save[4](app, _cr_items))
+                    try:
+                        _txt, _stk = [], [_w]
+                        while _stk:
+                            _x = _stk.pop(); _stk.extend(on_ui(lambda x=_x: x.winfo_children()))
+                            try:
+                                _txt.append(str(on_ui(lambda x=_x: x.cget("text"))))
+                            except Exception:
+                                pass
+                        on_ui(lambda: (_w.all_var.set("blank"), _w._all()))
+                        on_ui(lambda: _w._ok())
+                        _cr_ok[_lg] = (mc._i18n.t("cr.ask_intro", n=1) in _txt and mc._i18n.t("cr.ask_keep") in _txt
+                                       and mc._i18n.t("cr.ask_all") in _txt and _w.result == {id(_cr_items[0]): "blank"})
+                    finally:
+                        on_ui(lambda: _w.winfo_exists() and _w.destroy())
+                finally:
+                    mc._i18n.set_language("en")
+            check("CR: the keep / blank window in EN / PT-BR / ES ('For all' sets every movie)", all(_cr_ok.get(x) for x in ("en", "pt_BR", "es")), _cr_ok)
+        finally:
+            mc.SETTINGS["cert_countries"], mc.SETTINGS["cert_max"] = _cr_save[0] or [], _cr_save[1] or 3
+            mc.SETTINGS["tmdb_api_key"], mc.SETTINGS["omdb_api_key"] = _cr_save[2], _cr_save[3]
+            mc._CertAskDialog = _cr_save[4]; app._cert_fetch = _cr_save[5]; app._schedule_refresh = _cr_save[6]
+            app._confirm_services = _cr_cs
+            mc.SETTINGS["health_rules"] = _cr_save[7]
+            mc._i18n.set_language("en")
+            try:
+                if getattr(app, "_cert_pv", None) is not None:
+                    on_ui(lambda: app._cert_pv.winfo_exists() and app._cert_pv.destroy())
+            except Exception:
+                pass
+            _boxes.clear()
+            shutil.rmtree(_cr_d, ignore_errors=True)
+
+        # ── v0.20.2 RN: Rename Movie Folders and Files on temp folders (preview, skips, Undo, all-or-nothing, ×3) ──  ### NEW v0.20.2 RN ###
+        _rn_d = tempfile.mkdtemp(prefix="mc_rn_ui_")
+        _rn_lib = os.path.join(_rn_d, "lib")
+
+        def _rn_mk(folder, files, title=None, year=None, tmdb=None, dirs=()):
+            _p = os.path.join(_rn_lib, folder); os.makedirs(_p)
+            for _f in files:
+                with open(os.path.join(_p, _f), "wb") as _fh:
+                    if _f.endswith(".nfo"):
+                        _fh.write(('<?xml version="1.0" encoding="UTF-8"?>\n<movie>\n  <title>' + title + "</title>\n  <year>"
+                                   + str(year) + "</year>\n" + (f'  <uniqueid type="tmdb" default="true">{tmdb}</uniqueid>\n'
+                                                               if tmdb else "") + "</movie>\n").encode("utf-8"))
+                    else:
+                        _fh.write(b"x" * (4000 if _f.endswith(".mkv") else 50))
+            for _x in dirs:
+                os.makedirs(os.path.join(_p, _x))
+                open(os.path.join(_p, _x, "fanart1.jpg"), "wb").write(b"j")
+            return mc.scan_one_subfolder(_p, folder, use_ffprobe=False)
+
+        def _rn_list(p):
+            return sorted(os.listdir(p)) if os.path.isdir(p) else None
+        _rn_rows = [
+            _rn_mk("the matrix (1999)", ["the.matrix.1999.mkv", "the.matrix.1999.nfo", "the.matrix.1999-poster.jpg",
+                                         "the.matrix.1999.pt.srt", "poster.jpg"], "The Matrix", 1999, 603, dirs=("extrafanart",)),
+            _rn_mk("Heat (1995)", ["Heat (1995).mkv", "Heat (1995).nfo"], "Heat", 1995, 949),
+            _rn_mk("heat copy", ["copy.mkv", "copy.nfo"], "Heat", 1995, 949),                   # → "Heat (1995)": taken
+            _rn_mk("Two Movies", ["Alpha.mkv", "Omega.mkv"], None, None),                       # not one movie
+            _rn_mk("Old Name", ["video.mkv", "video.nfo", "video-poster.jpg"], "Psycho", 1960, 539),
+        ]
+        _rn_rows[0].update(ffprobe_ran=True, video_width=1920, video_height=1080, video_quality="1080p",   # as after a probe
+                           audio_tracks=[{"codec": "DTS", "language": "eng", "channels": 6}])
+        _rn_save = (app._results, app._schedule_refresh, {k: mc.SETTINGS.get(k) for k in
+                    ("rn_pattern", "rn_custom", "rn_folder", "rn_files", "rn_title", "rn_article", "rn_dots")},
+                    mc.media_programs)
+        _rn_ref = []
+        app._results = list(_rn_rows)
+        app._schedule_refresh = lambda paths, **k: _rn_ref.append(list(paths))
+        _rn_vid = os.path.join(_rn_lib, "the matrix (1999)", "the.matrix.1999.mkv")
+        os.utime(_rn_vid, (1500000000, 1500000000))
+        _rn_t0 = os.stat(_rn_vid).st_mtime
+        _rn_rows[0]["video_mtime"] = _rn_t0                          # the time set after the scan (the row matches the file)
+        _rn_before = {r["subfolder"]: _rn_list(r["subfolder_path"]) for r in _rn_rows}
+        try:
+            _o = {"pattern": 1, "custom": "", "folder": True, "files": True, "title": "local", "article": False, "dots": False}
+            app._rn_pv = None; app._rn_done = None; _boxes.clear()
+            on_ui(lambda: app._rn_plan(list(_rn_rows), _o))
+            wait_for(lambda: getattr(app, "_rn_pv", None) is not None, 30)
+            _t = app._rn_last_text
+            check("RN preview: the folder from the pattern, the files named after the video follow (NFO, poster, subtitle); "
+                  "poster.jpg stays; an already-matching movie is counted, a taken name and a folder with two movies are "
+                  "listed as not renamed with the reason",
+                  "📁 the matrix (1999)  →  The Matrix (1999)" in _t and "the.matrix.1999.pt.srt  →  The Matrix (1999).pt.srt" in _t
+                  and "the.matrix.1999-poster.jpg  →  The Matrix (1999)-poster.jpg" in _t and "poster.jpg  →" not in _t.replace("-poster.jpg  →", "")
+                  and mc._i18n.t("rn.pv.same", n=mc._n(1, "movie")) in _t
+                  and "Heat: " + mc._i18n.t("rn.why.exists") in _t and mc._i18n.t("rn.why.several") in _t
+                  and "📁 Old Name  →  Psycho (1960)" in _t, _t)
+            on_ui(lambda: app._rn_pv._run())
+            wait_for(lambda: app._rn_done is not None, 30)
+            _new = os.path.join(_rn_lib, "The Matrix (1999)")
+            _bk = app._rn_done[2]
+            check("RN run: the case-only folder rename works on Windows, every file follows, extrafanart / poster.jpg stay, "
+                  "the video's time is unchanged (the programs' date added), nothing is copied into the backup",
+                  app._rn_done[:2] == (2, []) and "The Matrix (1999)" in os.listdir(_rn_lib)
+                  and _rn_list(_new) == sorted(["The Matrix (1999).mkv", "The Matrix (1999).nfo", "The Matrix (1999)-poster.jpg",
+                                                "The Matrix (1999).pt.srt", "poster.jpg", "extrafanart"])
+                  and abs(os.stat(os.path.join(_new, "The Matrix (1999).mkv")).st_mtime - _rn_t0) < 0.01
+                  and _rn_list(_bk) == ["manifest.json"]
+                  and _rn_list(os.path.join(_rn_lib, "Psycho (1960)")) == ["Psycho (1960)-poster.jpg", "Psycho (1960).mkv", "Psycho (1960).nfo"],
+                  (app._rn_done, _rn_list(_rn_lib), _rn_list(_new), _rn_list(_bk)))
+            wait_for(lambda: any(r["subfolder"] == "Psycho (1960)" for r in app._results), 10)
+            _r0 = next(r for r in app._results if r["movie_name"] == "The Matrix")
+            check("RN: the row follows its folder (new paths in place, no 'deleted' row), and the refresh is asked for the new path",
+                  _r0["subfolder_path"] == os.path.normpath(_new) and _r0["subfolder"] == "The Matrix (1999)"
+                  and _r0["nfo_path"].startswith(os.path.normpath(_new)) and len(app._results) == 5
+                  and any(os.path.normpath(_new) in [os.path.normpath(x) for x in p] for p in _rn_ref), (_r0["subfolder_path"], _rn_ref))
+            # the refresh the app runs after the rename (no FFprobe): the renamed video keeps its FFprobe data
+            _r2 = app._rescan_row_no_probe(_r0)
+            check("RN: the refresh after the rename keeps the video's FFprobe data (resolution, audio): the row has the "
+                  "video's new name, so it is 'the same video'",
+                  _r2["video_path"].endswith("The Matrix (1999).mkv") and _r2["video_quality"] == "1080p"
+                  and [t.get("codec") for t in _r2["audio_tracks"]] == ["DTS"], (_r2["video_path"], _r2["video_quality"], _r2["audio_tracks"]))
+            # Undo through Backup History (the window's own path, which moves the rows back)
+            _bh = on_ui(lambda: mc.BackupHistoryDialog(app))
+            try:
+                on_ui(lambda: _bh.load(sync=True))
+                _bi = on_ui(lambda: next(i for i, r in enumerate(_bh._runs) if r["folder"] and os.path.normcase(r["folder"]) == os.path.normcase(_bk)))
+                _shown = on_ui(lambda: (_bh._tree.selection_set(str(_bi)), _bh._show_files(), _bh._files.get("1.0", "end"))[2])
+                on_ui(lambda: _bh._restore(sync=True))
+                wait_for(lambda: [r["subfolder"] for r in _rn_rows] == list(_rn_before), 10)
+                _re = (_bh.last_result or ([], ["no result"], None))[1]
+            finally:
+                on_ui(lambda: _bh.winfo_exists() and _bh.destroy())
+            check("RN Undo (Backup History): one Undo renames every folder and file back (reverse order), file times kept, "
+                  "no error; the rows follow back; the run lists 'renamed from …'",
+                  mc._i18n.t("rn.bh.was", name="the matrix (1999)") in _shown
+                  and not _re and {k: _rn_list(os.path.join(_rn_lib, k)) for k in _rn_before} == _rn_before
+                  and [r["subfolder"] for r in _rn_rows] == list(_rn_before)
+                  and "the matrix (1999)" in os.listdir(_rn_lib)
+                  and abs(os.stat(_rn_vid).st_mtime - _rn_t0) < 0.01, (_re, _rn_list(_rn_lib)))
+            # all or nothing: the 2nd file rename fails → the movie is put back as it was
+            _it = mc.rn_plan_row(_rn_rows[4], _o)
+            _real = mc._sc._replace_retry
+            _cnt = [0]
+
+            def _fail_2nd(a, b, **k):
+                _cnt[0] += 1
+                if _cnt[0] == 3:
+                    raise PermissionError(13, "another program is holding the file", b)
+                return _real(a, b, **k)
+            mc._sc._replace_retry = _fail_2nd
+            try:
+                _err = None
+                try:
+                    mc.apply_rn(_it, [None])
+                except Exception as ex:
+                    _err = ex
+            finally:
+                mc._sc._replace_retry = _real
+            check("RN: a failure in the middle puts the movie back as it was (folder and files; never half-renamed)",
+                  _err is not None and _rn_list(os.path.join(_rn_lib, "Old Name")) == _rn_before["Old Name"]
+                  and not os.path.exists(os.path.join(_rn_lib, "Psycho (1960)")), (_err, _rn_list(_rn_lib)))
+            # an older run (an NFO edit) restored after the folder was renamed: it follows the new folder name
+            _rn_nfo = os.path.join(_rn_lib, "Old Name", "video.nfo")
+            _orig = open(_rn_nfo, "rb").read()
+            with mc._sc.backup_action("Self-test edit"):
+                _ref = [None]
+                mc._sc.make_batch_backup(mc._BACKUP_ROOT, "Psycho", _ref, _rn_nfo)
+            open(_rn_nfo, "ab").write(b"<!-- edited -->\n")
+            with mc._sc.backup_action(mc.RN_ACTION):
+                _ref2 = [None]
+                mc.apply_rn(mc.rn_plan_row(_rn_rows[4], _o), _ref2)
+            _rs2, _re2, _sf2 = mc._sc.restore_backup_run(mc._BACKUP_ROOT, _ref[0])
+            check("RN: Undo of an older edit after a folder rename writes into the renamed folder (the old folder name is "
+                  "not made again)", not _re2 and not os.path.exists(os.path.join(_rn_lib, "Old Name"))
+                  and open(os.path.join(_rn_lib, "Psycho (1960)", "Psycho (1960).nfo"), "rb").read() == _orig, (_re2, _rn_list(_rn_lib)))
+            # the program notes
+            mc.media_programs = lambda *a, **k: ("kodi", "plex", "jellyfin")
+            _pn = mc.rn_programs_notes([_rn_rows[0]], dict(_o, dots=True, pattern=2))
+            check("RN preview notes: Kodi loses watched state (export first), Plex keeps it (⚠ dots), Jellyfin keeps it; "
+                  "{quality} changes over time",
+                  any(mc._i18n.t("rn.pv.kodi") in x for x in _pn) and any(mc._i18n.t("rn.pv.plex_names") in x for x in _pn)
+                  and any(mc._i18n.t("rn.pv.emby_jf") in x for x in _pn) and any("{quality}" in x for x in _pn), _pn)
+            mc.media_programs = _rn_save[3]
+            # menus, settings, label
+            check("RN: Tools → NFO & Names has Rename Movie Folders and Files after Rename Files for My Programs; the right-click "
+                  "Metadata entry; the defaults (pattern 1, folder + files, local title); the backup label is translated",
+                  dict((e[0], e[4]) for e in mc.TOOLS_MENU if isinstance(e, tuple))["nfo_names"][1:3] == ["media_rename_all", "rn_all"]
+                  and "self._rn_for(list(s))" in inspect.getsource(mc.App)
+                  and mc.rn_options(mc._sm.DEFAULT_SETTINGS) == {"pattern": 1, "custom": "", "folder": True, "files": True,
+                                                                 "title": "local", "article": False, "dots": False}
+                  and mc.shown_action(mc.RN_ACTION) == mc._i18n.t("rn.action"))
+            # the window in three languages: examples follow the choices; Preview all saves them
+            _rn_ok = {}
+            for _lg in ("en", "pt_BR", "es"):
+                mc._i18n.set_language(_lg)
+                mc.SETTINGS.update(rn_pattern=1, rn_custom="")              # each window starts from pattern 1
+                try:
+                    _w = on_ui(lambda: mc._RenamerDialog(app, [_rn_rows[0], _rn_rows[4]]))
+                    try:
+                        _ex1 = on_ui(lambda: _w.examples.get("1.0", "end"))
+                        on_ui(lambda: (_w.pattern_var.set(_w._choices[4]), _w._changed()))
+                        _ex5 = on_ui(lambda: _w.examples.get("1.0", "end"))
+                        on_ui(lambda: (_w.pattern_var.set(_w._choices[6]), _w.custom_var.set("{title} {foo}")))
+                        _bad = on_ui(lambda: (_w.warn.cget("text"), str(_w.preview_button.cget("state"))))
+                        on_ui(lambda: (_w.custom_var.set("{title} - {year}")))
+                        on_ui(lambda: _w._ok())
+                        _txt, _stk = [], [_w]
+                        _rn_ok[_lg] = ("the matrix (1999)  →  The Matrix (1999)" in _ex1 and "[tmdb-603]" in _ex5
+                                       and "{foo}" in _bad[0] and _bad[1] == "disabled"
+                                       and _w.result and _w.result["pattern"] == 7 and mc.SETTINGS.get("rn_custom") == "{title} - {year}"
+                                       and mc._i18n.t("rn.f.folder") and mc._i18n.t("rn.p.5") in _w._choices[4])
+                    finally:
+                        on_ui(lambda: _w.winfo_exists() and _w.destroy())
+                finally:
+                    mc._i18n.set_language("en")
+            check("RN window in EN / PT-BR / ES: the examples follow the pattern (5 → [tmdb-603]); an unknown {field} is "
+                  "named and blocks Preview all; Preview all saves the choices", all(_rn_ok.get(x) for x in ("en", "pt_BR", "es")), _rn_ok)
+        finally:
+            app._results, app._schedule_refresh = _rn_save[0], _rn_save[1]
+            mc.media_programs = _rn_save[3]
+            for _k, _v in _rn_save[2].items():
+                if _v is None:
+                    mc.SETTINGS.pop(_k, None)
+                else:
+                    mc.SETTINGS[_k] = _v
+            mc._i18n.set_language("en")
+            try:
+                if getattr(app, "_rn_pv", None) is not None:
+                    on_ui(lambda: app._rn_pv.winfo_exists() and app._rn_pv.destroy())
+            except Exception:
+                pass
+            _boxes.clear()
+            shutil.rmtree(_rn_d, ignore_errors=True)
 
         # ── v0.20.1 SN3: the activity indicator (the user, 2026-11-20: "it takes few seconds until the app refresh ... the
         # user might think it did not solve the problem"; for ALL writes / refreshes) ──  ### NEW v0.20.1 SN3 ###
@@ -11208,7 +12169,7 @@ def ui_tests():
         _now52 = on_ui(lambda: {k.capitalize(): [e for e in _entries52(m) if not (k == "help" and _is_topic52(e[1])) and e[1] not in (mc.CHECK_UPDATES_LABEL, mc.NOT_DUP_MANAGE_LABEL, mc.NFO_RENAME_ALL_LABEL,
                                                                                         getattr(mc, "CHECK_COLL_LABEL", None), getattr(mc, "FIX_COLL_ALL_LABEL", None),
                                                                                         getattr(mc, "CREATE_COLL_ALL_LABEL", None), mc.ART_LINKS_ALL_LABEL, mc.GENRES_TMDB_ALL_LABEL, mc.MEDIA_RENAME_ALL_LABEL, mc.XML2NFO_ALL_LABEL,
-                                                                                        mc.ACTIONS["fix_one_issue_all"]["label"], mc.ACTIONS["uniqueid_kodi_all"]["label"])]   # v0.20.1 BF3 / BF2 (intended); B50, v0.19.3 B64, B73, v0.19.4 B110b, v0.20.0 RD9 add one entry each (intended)
+                                                                                        mc.ACTIONS["fix_one_issue_all"]["label"], mc.ACTIONS["uniqueid_kodi_all"]["label"], mc.DIAG_LABEL)]   # v0.20.2 FB4; v0.20.1 BF3 / BF2 (intended); B50, v0.19.3 B64, B73, v0.19.4 B110b, v0.20.0 RD9 add one entry each (intended)
                                 for k, m in app._menus.items()})
         _before52.pop("Tools", None); _now52.pop("Tools", None)    # v0.20.1 TM1 (intended): the Tools menu is checked by the TM1 checks
         check("B52: Settings / Help keep every entry, label and order (snapshot taken before the change; Tools: TM1)", _now52 == _before52,
@@ -11444,6 +12405,21 @@ def ui_tests():
             check("B60: Apply writes the chosen title into NFO <title> (XML already has it), refresh asked",
                   mc.get_primary_titles(_row60u["nfo_path"], _row60u["xml_path"]) == ("City of God", "City of God")
                   and open(_row60u["xml_path"], "rb").read() == _x60u and _rf60 == [[_row60u["subfolder_path"]]], _rf60)
+            # ── v0.20.2 test gap 6 (CC1): the chooser closed (Esc / X) while its write runs ──
+            _p_g6 = []
+            _o_g6 = (mc._write_local_title, mc._backup_ok, mc.messagebox.showerror)
+            mc._write_local_title = lambda *a, **k: (time.sleep(0.6), (False, "gap 6 write failed"))[1]
+            mc._backup_ok = lambda *a, **k: True
+            mc.messagebox.showerror = lambda *a, **k: _p_g6.append(
+                (str(a[:2]), k.get("parent") is app, bool(k.get("parent").winfo_exists())))
+            try:
+                _dlg_g6 = on_ui(lambda: mc.TitleSyncDialog(app, _row60u))
+                on_ui(lambda: (_dlg_g6._var.set("nfo"), app.after(150, _dlg_g6.destroy), _dlg_g6._apply()))
+            finally:
+                mc._write_local_title, mc._backup_ok, mc.messagebox.showerror = _o_g6
+            check("test gap 6 (CC1): Title Sync closed while its write runs shows the message on the main window "
+                  "(a window that still exists), once",
+                  len(_p_g6) == 1 and _p_g6[0][1:] == (True, True) and "gap 6 write failed" in _p_g6[0][0], _p_g6)
             # several movies: preview, then the run
             _d60m = [os.path.join(_TMP, "b60m", n) for n in ("Alpha One (2001)", "Beta Two (2002)")]
             for _p, (_nt, _xt) in zip(_d60m, (("Alpha One", "Alpha Uno"), ("Beta Dos", "Beta Two"))):
@@ -12658,6 +13634,44 @@ def ui_tests():
         _rh = on_ui(lambda: str(tk.ttk.Style(app).lookup("Treeview", "rowheight")))
         check("compact mode applied to Treeview style", _rh == str(mc.px(20)), _rh)   # px(): the display's scaling
 
+        # ### NEW v0.20.2 row 6 ### B19 / B24 / A24 (the 9h.3 small fixes) in the app window
+        _p19 = on_ui(lambda: mc._BatchProgressDialog(app, "B19", total=4, pausable=True))
+        try:
+            _p19.advance(1)
+            on_ui(_p19._on_pause)                                       # Pause
+            time.sleep(1.2)
+            _p19.advance(2)                                             # the item that was running ends during the pause
+            time.sleep(0.4)
+            _e19 = on_ui(lambda: _p19._eta_var.get())
+            _t19 = _p19._times[-1][1]
+            on_ui(_p19._on_pause)                                       # Resume
+            _r19 = on_ui(lambda: _p19._eta_var.get())
+        finally:
+            _p19.close()
+        check("B19: after Pause the next item keeps 'Paused' shown and its time leaves out the pause; Resume shows the estimate",
+              _e19 == mc._i18n.t("bulk.paused") and _t19 < 0.8 and _r19 != mc._i18n.t("bulk.paused"), (_e19, _t19, _r19))
+        _si24, _info24 = mc.messagebox.showinfo, []
+        mc.messagebox.showinfo = lambda *a, **k: _info24.append(a)
+        _sc24 = app._scanning
+        try:
+            app._scanning = True
+            _a24r = on_ui(lambda: app._actor_rename_for([{"actors_mismatch": [("a b.jpg", "a_b.jpg")], "actors_dir": "X:\\nowhere"}]))
+            _e24r = on_ui(lambda: app._extra_art_rename_for([{"subfolder_path": "X:\\nowhere"}]))
+            _c24 = on_ui(lambda: app._continue_old_reread([{"tags_unread": True}]))
+        finally:
+            app._scanning = _sc24
+            mc.messagebox.showinfo = _si24
+        check("B24: during a scan the two rename tools stop with the scan message (nothing renamed)",
+              _a24r is None and _e24r is None and len(_info24) == 2 and all(mc.SCAN_BUSY_TEXT in a[1] for a in _info24), _info24)
+        check("A24: nothing is re-read while a scan runs", _c24 is None)
+        _r24 = scan(M_OK, use_ffprobe=False)
+        _r24["tags_unread"] = True
+        app._a24_done = None
+        _q24 = on_ui(lambda: app._continue_old_reread([_r24]))
+        wait_for(lambda: app._a24_done is not None, 60)
+        check("A24: after the scan the rows the stopped re-read left are read (the mark goes away)",
+              _q24 == 1 and app._a24_done == 1 and "tags_unread" not in _r24, (_q24, app._a24_done, _r24.get("tags_unread")))
+
         shared["rows"] = len(by)
         check("no error boxes during UI tests", not any(b[0] == "error" for b in _boxes), [b for b in _boxes if b[0] == "error"])
     except Exception:
@@ -12931,7 +13945,7 @@ _scope9 = ["App._build_ui", "_MoviePanel", "App._build_ctx_menu", "App._ctx_add"
            "App._update_stats", "App._update_sel_count", "App._build_series_part", "App._ctx_add_not_dup",
            "App._add_menu_button", "App._draw_ffprobe_switch", "App._update_ignored_link", "App._refresh_pause_indicator",
            "App._update_part_count", "<module>"]
-_left9 = [f for f in _found9 if f[0] == "mediaclinic_v0_20_1.py" and _scan9.in_scope(f, _scope9)]
+_left9 = [f for f in _found9 if f[0] == "mediaclinic_v0_20_2.py" and _scan9.in_scope(f, _scope9)]
 check(f"UI1e: source scan in fail mode — no text shown to the user outside the catalogs ({len(_found9)} found; before UI1c: 915, "
       "after UI1c: 810, after UI1d: 2)", not _found9 and not _left9, _found9[:8])
 _broad9 = _scan9.leftovers(base=_APP_DIR)                         ### NEW v0.20.0 UI1f ###
@@ -13018,7 +14032,7 @@ for _l9, _sc9 in (("pt_BR", 1.0), ("es", 1.0), ("pt_BR", 1.5), ("es", 1.25)):
                 for fr in (app9._header, app9.scan_btn.master, app9._sort_block, app9._filter_row, app9._status_bar):
                     for w, tx in _all_texts(fr, []):
                         if (isinstance(w, (tk.Label, tk.Button, tk.Checkbutton)) and w.winfo_ismapped() and tx.strip()
-                                and w is not app9._folder_lbl and not int(w.cget("wraplength") or 0)
+                                and w is not app9._folder_lbl and not int(w.winfo_fpixels(w.cget("wraplength") or 0))
                                 and w.winfo_width() + 1 < w.winfo_reqwidth()):
                             clip.append((tx, w.winfo_width(), w.winfo_reqwidth()))
                 for cb in app9._sort_levels_fr.winfo_children():
@@ -13092,7 +14106,7 @@ for _l9, _sc9 in (("pt_BR", 1.0), ("es", 1.0), ("pt_BR", 1.5), ("es", 1.25)):
                             if tx.strip():
                                 texts.append(tx)
                                 if (isinstance(c, (tk.Label, tk.Button, tk.Checkbutton, tk.Radiobutton)) and c.winfo_ismapped()
-                                        and not int(c.cget("wraplength") or 0) and c.winfo_width() + 1 < c.winfo_reqwidth()):
+                                        and not int(c.winfo_fpixels(c.cget("wraplength") or 0)) and c.winfo_width() + 1 < c.winfo_reqwidth()):
                                     clip.append((tx[:40], c.winfo_width(), c.winfo_reqwidth()))
                             walk(c)
                     walk(d)
@@ -13351,12 +14365,175 @@ check("UI1d: Export Movie List headings, health and image words follow the langu
       and _ig9["es"][3][1][0][0] == "X", (_ig9["en"][3], _ig9["pt_BR"][3]))
 
 # ### NEW v0.20.1 BF5 ### — Python 3.10 / 3.11 syntax guard (v0.20.0 shipped two f-strings only 3.12+ parses)
+section("9z. Linux: colour fonts skipped where Tk crashes on them (v0.20.2 LX2)")   ### NEW v0.20.2 LX2 ###
+_lx = tempfile.mkdtemp(prefix="mc_lx2_", dir=_TMP)
+_lx_conf = os.path.join(_lx, "fonts.conf")
+open(_lx_conf, "w", encoding="utf-8").write("<fontconfig/>")
+_lx_env = {}
+_lx_f = mc.x11_skip_colour_fonts(environ=_lx_env, platform="linux", patchlevel="8.6.12", system_conf=_lx_conf, folder=_lx)
+_lx_txt = open(_lx_f, encoding="utf-8").read() if _lx_f else ""
+check("LX2: Linux with Tk 8.6.12 → a fontconfig file that includes the system config and rejects colour fonts; "
+      "FONTCONFIG_FILE points to it",
+      bool(_lx_f) and _lx_env.get("FONTCONFIG_FILE") == _lx_f and os.path.dirname(_lx_f) == _lx
+      and f'<include ignore_missing="yes">{_lx_conf}</include>' in _lx_txt
+      and '<patelt name="color"><bool>true</bool></patelt>' in _lx_txt and "<rejectfont>" in _lx_txt, (_lx_f, _lx_txt[:200]))
+_lx_cases = {
+    "windows": mc.x11_skip_colour_fonts(environ={}, platform="win32", patchlevel="8.6.12", system_conf=_lx_conf, folder=_lx),
+    "macos": mc.x11_skip_colour_fonts(environ={}, platform="darwin", patchlevel="8.6.12", system_conf=_lx_conf, folder=_lx),
+    "tk 8.6.13": mc.x11_skip_colour_fonts(environ={}, platform="linux", patchlevel="8.6.13", system_conf=_lx_conf, folder=_lx),
+    "tk 8.6.14": mc.x11_skip_colour_fonts(environ={}, platform="linux", patchlevel="8.6.14", system_conf=_lx_conf, folder=_lx),
+    "tk 9.0.1": mc.x11_skip_colour_fonts(environ={}, platform="linux", patchlevel="9.0.1", system_conf=_lx_conf, folder=_lx),
+    "own FONTCONFIG_FILE": mc.x11_skip_colour_fonts(environ={"FONTCONFIG_FILE": "/home/u/my.conf"}, platform="linux",
+                                                    patchlevel="8.6.12", system_conf=_lx_conf, folder=_lx),
+    "COLOR_EMOJI=1": mc.x11_skip_colour_fonts(environ={"MEDIACLINIC_COLOR_EMOJI": "1"}, platform="linux",
+                                              patchlevel="8.6.12", system_conf=_lx_conf, folder=_lx),
+    "no system config": mc.x11_skip_colour_fonts(environ={}, platform="linux", patchlevel="8.6.12",
+                                                 system_conf=os.path.join(_lx, "missing.conf"), folder=_lx),
+}
+check("LX2: nothing changes on Windows, macOS, Tk 8.6.13 or newer, with the user's own FONTCONFIG_FILE, with "
+      "MEDIACLINIC_COLOR_EMOJI=1, or without a system fonts.conf (no fonts at all would be worse)",
+      not any(_lx_cases.values()), {k: v for k, v in _lx_cases.items() if v})
+_lx_env0 = {"MEDIACLINIC_COLOR_EMOJI": "0"}
+_lx_f0 = mc.x11_skip_colour_fonts(environ=_lx_env0, platform="linux", patchlevel="8.6.14", system_conf=_lx_conf, folder=_lx)
+_lx_env_own = {"FONTCONFIG_FILE": "/home/u/my.conf"}
+mc.x11_skip_colour_fonts(environ=_lx_env_own, platform="linux", patchlevel="8.6.12", system_conf=_lx_conf, folder=_lx)
+check("LX2: MEDIACLINIC_COLOR_EMOJI=0 skips colour fonts on any Tk; the user's own FONTCONFIG_FILE is never replaced",
+      bool(_lx_f0) and _lx_env0.get("FONTCONFIG_FILE") == _lx_f0 and _lx_env_own == {"FONTCONFIG_FILE": "/home/u/my.conf"},
+      (_lx_f0, _lx_env_own))
+check("LX2: version parsing — 8.6.12 < 8.6.13 ≤ 8.6.14; short and beta forms do not raise",
+      mc._tk_version_tuple("8.6.12") == (8, 6, 12) and mc._tk_version_tuple("8.6.14") >= (8, 6, 13)
+      and mc._tk_version_tuple("8.6") == (8, 6, 0) and mc._tk_version_tuple("8.6b1") == (8, 6, 0)
+      and mc._tk_version_tuple("9.0.1") > (8, 6, 13), [mc._tk_version_tuple(x) for x in ("8.6.12", "8.6", "8.6b1")])
+if sys.platform == "win32":
+    check("LX2: on Windows the app changed nothing at import (no font file, FONTCONFIG_FILE untouched)",
+          mc._FC_SKIP_COLOUR_FILE is None and "mediaclinic-fonts-" not in os.environ.get("FONTCONFIG_FILE", ""),
+          mc._FC_SKIP_COLOUR_FILE)
+else:
+    _lx_pl = mc._tk_version_tuple(mc.tk.Tcl().eval("info patchlevel"))
+    _lx_want = _lx_pl < (8, 6, 13) and sys.platform.startswith("linux") and os.path.isfile("/etc/fonts/fonts.conf")
+    _lx_fc = os.environ.get("FONTCONFIG_FILE", "")
+    check(f"LX2: at import on this system (Tk {_lx_pl}) the app skipped colour fonts only where this Tk crashes on them, "
+          "and FONTCONFIG_FILE points to its file then",
+          (not mc._FC_SKIP_COLOUR_FILE or (_lx_want and _lx_fc == mc._FC_SKIP_COLOUR_FILE))
+          and (mc._FC_SKIP_COLOUR_FILE or not _lx_want or (_lx_fc and "mediaclinic-fonts-" not in _lx_fc)
+               or os.environ.get("MEDIACLINIC_COLOR_EMOJI", "") == "1"),
+          (_lx_pl, mc._FC_SKIP_COLOUR_FILE, _lx_fc))
+_lx_src = open(mc.__file__, encoding="utf-8").read()
+check("LX2: the font file is set at import, before the App class (so before any Tk window of the app or the self-test)",
+      0 < _lx_src.find("_FC_SKIP_COLOUR_FILE = x11_skip_colour_fonts()") < _lx_src.find("\nclass App(tk.Tk):"))
+_lx_me = open(__file__, encoding="utf-8").read()
+check("LX2: the self-test reads wraplength through winfo_fpixels (Tk 8.6.12 returns a Tcl object, int() of it failed)",
+      ("int(w.cget(" + '"wraplength"') not in _lx_me and ("int(c.cget(" + '"wraplength"') not in _lx_me)
+
+section("9y. small fixes of Part 9h.3 (v0.20.2 B18, B25, B26, B27, A24, BLD1)")   ### NEW v0.20.2 row 6 ###
+import tempfile as _tf9y
+_d9y = _tf9y.mkdtemp(prefix="mc_9y_")
+open(os.path.join(_d9y, "a.jpg"), "wb").write(b"x")
+_o9y = mc._sc._replace_retry
+def _fail9y(a, b, *k, **kw):                       # the second step (tmp → target) fails, the rest really renames
+    if a.endswith(".mcrename") and not b.endswith("a.jpg"):
+        raise PermissionError(13, "held by another program", b)
+    return _o9y(a, b, *k, **kw)
+mc._sc._replace_retry = _fail9y
+try:
+    try:
+        mc.rename_case_safe(os.path.join(_d9y, "a.jpg"), os.path.join(_d9y, "b.jpg"))
+        _e9y = None
+    except OSError as _ex9y:
+        _e9y = _ex9y
+finally:
+    mc._sc._replace_retry = _o9y
+check("B18: the second rename step fails → the file gets its old name back, no '.mcrename' is left, the error is raised",
+      isinstance(_e9y, OSError) and sorted(os.listdir(_d9y)) == ["a.jpg"], (_e9y, os.listdir(_d9y)))
+mc.rename_case_safe(os.path.join(_d9y, "a.jpg"), os.path.join(_d9y, "A.jpg"))
+check("B18: a case-only rename still works in two steps", sorted(os.listdir(_d9y)) == ["A.jpg"], os.listdir(_d9y))
+_src9y = open(mc.__file__, encoding="utf-8").read()
+check("B18: both two-step renames (Rename NFO for Kodi, actor photos) go through rename_case_safe",
+      _src9y.count('+ ".mcrename"') == 1
+      and _src9y.count("rename_case_safe(src, d") - _src9y.count("def rename_case_safe(src, d") == 2)
+_rows9y = [{"actors_state": "local", "actors_counts": {"local": 9, "total": 10}, "movie_name": "L9"},
+           {"actors_state": "none", "actors_counts": {"total": 0}, "movie_name": "N"},
+           {"actors_state": "local", "actors_counts": {"local": 3, "total": 10}, "movie_name": "L3"},
+           {"actors_state": "links", "actors_counts": {"total": 8}, "movie_name": "K"},
+           {"movie_name": "U"}]
+_k9y = [r["movie_name"] for r in mc._se.sort_rows(_rows9y, [{"key": "actors", "dir": "missing"}], mc.SORT_VALUE_FNS,
+                                                  mc._sort_name_key, mc._sort_year_key)]
+_p9y = [r["movie_name"] for r in mc._se.sort_rows(_rows9y, [{"key": "actors", "dir": "present"}], mc.SORT_VALUE_FNS,
+                                                  mc._sort_name_key, mc._sort_year_key)]
+check("B25: the Actors column sorts by state (no info, links, local photos), then by the counts; not read = last; "
+      "'Missing first' / 'Present first' as the other presence columns",
+      _k9y == ["N", "K", "L3", "L9", "U"] and _p9y == ["L9", "L3", "K", "N", "U"] and mc._se.KIND["actors"] == "presence",
+      (_k9y, _p9y))
+_as9y = {k: mc.SETTINGS.get(k) for k in ("artwork_language", "artwork_language_mode", "artwork_textless_backgrounds")}
+try:
+    mc.SETTINGS.update(artwork_language="pt", artwork_language_mode="only", artwork_textless_backgrounds=True)
+    _of9y = [e["lang"] for e in mc.offered_online_images([{"lang": "en", "width": 9}, {"lang": "pt", "width": 5},
+                                                          {"lang": None, "width": 7}], "fanart")]
+    mc.SETTINGS["artwork_language_mode"] = "prefer"
+    _pr9y = len(mc.offered_online_images([{"lang": "en"}, {"lang": "pt"}], "fanart"))
+finally:
+    for _k, _v in _as9y.items():
+        if _v is None:
+            mc.SETTINGS.pop(_k, None)
+        else:
+            mc.SETTINGS[_k] = _v
+check("B26: Replace All Backdrops' list in mode 'Only': other languages left out, no-text images kept; 'Prefer' keeps all",
+      sorted(_of9y, key=str) == sorted([None, "pt"], key=str) and _pr9y == 2, (_of9y, _pr9y))
+check("B26: Replace All Backdrops filters both online lists, and says so when the language filter left nothing",
+      "offered_online_images(tm_list, \"fanart\"), offered_online_images(fa_list, \"fanart\")" in _src9y
+      and all(mc._i18n.t("art.rab_only_none", movie="M", name="X") != "art.rab_only_none" for _ in [0]))
+_nu9y = mc.nfo_in_use
+_row9y = {"nfo_exists": True, "actors_state": "none", "actors_counts": {"total": 0}, "library_root": _d9y}
+_got9y = {}
+for _use in (True, False):
+    mc.nfo_in_use = (lambda u: (lambda *a, **k: u))(_use)
+    try:
+        _e, _w = [], []
+        mc._hr_no_actor_info(_row9y, {"no_actor_info": True}, mc.SETTINGS, _e, _w)
+        _got9y[_use] = _w
+    finally:
+        mc.nfo_in_use = _nu9y
+check("BLD1: 'No actor information in the NFO' only while the library uses the NFO (not after a switch to movie.xml only)",
+      _got9y[True] == ["No actor information in the NFO"] and _got9y[False] == [], _got9y)
+check("A24: the end of a scan goes on with the start-up re-read it stopped",
+      "self.after(1500, self._continue_old_reread)" in _src9y and "def _continue_old_reread(self, rows=None)" in _src9y)
+check("B24: the extra-artwork rename has its own result text in EN, PT-BR and ES",
+      all(_tx9 and "ea.renamed" not in _tx9 for _tx9 in (mc._i18n.EN.get("ea.renamed"), mc._i18n.PT_BR.get("ea.renamed"),
+                                                           mc._i18n.ES.get("ea.renamed")))
+      and '_i18n.t("ea.renamed", n=done)' in _src9y)
+import shutil as _sh9y
+_sh9y.rmtree(_d9y, ignore_errors=True)
+
 section("10. Python 3.10 / 3.11 syntax guard (v0.20.1 BF5)")
 import pyver_guard as _pg10
-_mods10 = _pg10.app_modules(_APP_DIR)
+_mods10 = _pg10.project_modules(_APP_DIR)                         # v0.20.2 B27: tests and tools/ too
 _hits10 = _pg10.scan(_mods10)
-check(f"BF5: every app module ({len(_mods10)}) compiles on this Python and has no f-string that 3.10 / 3.11 rejects",
-      len(_mods10) >= 15 and not _hits10, [f"{h.path}:{h.line}: {h.text}" for h in _hits10][:10])
+check(f"BF5 / B27: every module, test and tool ({len(_mods10)}) compiles on this Python and uses nothing 3.10 rejects",
+      len(_mods10) >= 30 and any(os.path.basename(p) == "pyver_guard.py" for p in _mods10)
+      and any(os.path.basename(p).startswith("test_") for p in _mods10) and not _hits10,
+      [f"{h.path}:{h.line}: {h.text}" for h in _hits10][:10])
+import settings_model as _sm_sch                                 # v0.20.2: the repository's test_settings_model, here too
+_sch10 = json.load(open(os.path.join(_APP_DIR, "settings_schema.json"), encoding="utf-8"))
+_dk10, _sk10 = set(_sm_sch.DEFAULT_SETTINGS), set(_sch10["properties"]) - {"ui_language"}
+try:
+    import jsonschema as _jss10
+    _jss10.validate(dict(_sm_sch.DEFAULT_SETTINGS), _sch10); _jv10 = ""
+except ImportError:
+    _jv10 = ""                                                   # jsonschema missing: the key check still runs
+except Exception as _je10:
+    _jv10 = str(_je10).splitlines()[0]
+check("settings_schema.json lists every default setting and nothing else, and the defaults validate against it (a new "
+      "key like 'programs_reasked' failed only in the repository's test)", _dk10 == _sk10 and not _jv10,
+      (sorted(_dk10 ^ _sk10), _jv10))
+_new10 = {"except*": "try:\n    pass\nexcept* ValueError:\n    pass\n",
+          "type statement": "type X = int\n",
+          "generic def": "def f[T](x: T) -> T:\n    return x\n",
+          "generic class": "class C[T]:\n    pass\n",
+          "except without brackets": "try:\n    pass\nexcept ValueError, TypeError:\n    pass\n"}
+_seen10 = {k: bool(_pg10.compile_errors(v) or _pg10.newer_syntax_findings(v)) for k, v in _new10.items()}
+_okx10 = _pg10.newer_syntax_findings("try:\n    pass\nexcept (ValueError, TypeError):\n    pass\n")
+check("B27: the guard finds except*, the type statement, generic parameters and 'except A, B:' (on any Python), "
+      "and accepts 'except (A, B):'", all(_seen10.values()) and not _okx10, (_seen10, _okx10))
 _bad10 = {"same quote": 'x = f"{t("key")} done"\n',
           "nested f-string": 'x = f"a {f"b {1}"} c"\n',
           "backslash": "x = f\"{'" + chr(92) + "n'.join(y)}\"\n",
@@ -13469,6 +14646,339 @@ check("AC2: 'No actor information' warns for no actors; with Kodi ticked also fo
       and _w7({"actors_state": "local"}, ("kodi",)) == []
       and __import__("settings_model").HEALTH_PRESETS["tight"]["no_actor_info"] is True and __import__("settings_model").HEALTH_PRESETS["medium"]["no_actor_info"] is False
       and DEFAULT_SETTINGS["health_rules"]["no_actor_info"] is False and "no_actor_info" not in mc._FIX_KEY_BY_CODE)   # v0.20.1 R7: by its text
+# ### NEW v0.20.2 FB1 ### — tester feedback (Emby user): actors without photos only with Kodi; theme videos = backdrops
+check("FB1: 'actors have no photos' only with Kodi ticked (Emby / Jellyfin / Plex / nothing ticked: no warning); "
+      "'No actor information' still for every program",
+      _w7({"actors_state": "none", "actors_counts": {"total": 5}}, ("kodi",)) == ["The actors in the NFO have no photos (no links, no local photos)"]
+      and all(_w7({"actors_state": "none", "actors_counts": {"total": 5}}, p) == [] for p in (("emby",), ("jellyfin",), ("plex",), ()))
+      and _w7({"actors_state": "none", "actors_counts": {"total": 0}}, ("emby",)) == ["No actor information in the NFO"])
+_tf1 = os.path.join(_TMP, "tf1", "Movie (2001)"); os.makedirs(os.path.join(_tf1, "backdrops"), exist_ok=True)
+for _n1 in ("Movie (2001).mkv", "backdrops/theme1.mp4", "backdrops/theme2.mkv", "backdrops/note.txt", "backdrop.jpg"):
+    open(os.path.join(_tf1, _n1), "wb").close()
+_tf1_n = mc.count_backdrop_videos(mc._FolderListing(_tf1))
+_tf1_e = mc.count_backdrop_videos(mc._FolderListing(os.path.join(_TMP, "tf1")))
+def _wb1(row, progs):
+    _o = mc.media_programs
+    mc.media_programs = lambda *a, **k: progs
+    try:
+        _w = []; mc._hr_insufficient_backdrops(dict({"backdrop_count": 1, "subfolder_path": _tf1}, **row),
+                                               {"insufficient_backdrops": True, "backdrop_min_count": 5}, mc.SETTINGS, [], _w); return _w
+    finally:
+        mc.media_programs = _o
+check("FB1: videos in backdrops\\ are counted (not other files); with Emby or Jellyfin ticked they stop 'Too few "
+      "backdrops'; with Kodi / Plex / nothing ticked the warning stays; a row cached before FB1 counts the folder",
+      _tf1_n == 2 and _tf1_e == 0
+      and _wb1({"backdrop_videos": 2}, ("emby",)) == [] and _wb1({"backdrop_videos": 2}, ("jellyfin", "kodi")) == []
+      and len(_wb1({"backdrop_videos": 2}, ("kodi",))) == 1 and len(_wb1({"backdrop_videos": 2}, ())) == 1
+      and len(_wb1({"backdrop_videos": 0}, ("emby",))) == 1
+      and _wb1({"extra_dirs": ["backdrops"]}, ("emby",)) == [] and len(_wb1({"extra_dirs": ["trailers"]}, ("emby",))) == 1
+      and mc.backdrop_videos_of({"backdrop_videos": 0, "extra_dirs": ["backdrops"]}) == 0,
+      (_tf1_n, _tf1_e))
+_bt = os.path.join(_tf1, "fanart.jpg")
+check("FB1: the main fanart counts as one backdrop (once, also when its file is an extra backdrop name); the rule, the "
+      "cell, the sort and the export use the total",
+      mc.backdrop_total({"backdrop_count": 0, "fanart_exists": True, "fanart_path": _bt}) == 1
+      and mc.backdrop_total({"backdrop_count": 2, "fanart_exists": True, "fanart_path": _bt, "backdrop_paths": ["x1", "x2"]}) == 3
+      and mc.backdrop_total({"backdrop_count": 1, "fanart_exists": True, "fanart_path": "B.jpg", "backdrop_paths": ["b.jpg"]}) == (1 if os.name == "nt" else 2)
+      and mc.backdrop_total({"backdrop_count": 0, "fanart_exists": False}) == 0
+      and _wb1({"backdrop_count": 4, "fanart_exists": True, "fanart_path": _bt}, ("kodi",)) == []
+      and _wb1({"backdrop_count": 3, "fanart_exists": True, "fanart_path": _bt}, ("kodi",)) == ["Too few backdrops (4 of 5 required)"]
+      and mc.SORT_VALUE_FNS["backdrops"]({"backdrop_count": 0, "fanart_exists": True, "fanart_path": _bt}, None) == 1
+      and __import__("export_list")._backdrop_total({"backdrop_count": 2, "fanart_exists": True, "fanart_path": _bt}) == 3)
+def _wv1(progs, key="missing_votes", st=mc.STATUS_MISSING, fn=mc._hr_missing_votes):   # FB2: through profile_rules_off
+    _w, _e = [], []
+    fn({"votes_status": st, "nfo_exists": True}, {key: key not in set(mc.profile_rules_off(progs, {}))}, mc.SETTINGS, _e, _w)
+    return _w + _e
+check("FB1: 'Missing votes' is skipped when every ticked program is Emby / Jellyfin / Plex; it stays with Kodi, "
+      "Infuse, MediaBrowser or nothing ticked",
+      _wv1(("emby",)) == [] and _wv1(("jellyfin", "plex")) == [] and _wv1(("emby", "kodi")) == ["Missing votes"]
+      and _wv1(("infuse",)) == ["Missing votes"] and _wv1(("mb_mcm", "emby")) == ["Missing votes"] and _wv1(()) == ["Missing votes"])
+def _ar_votes(progs):
+    _r = {"votes_status": mc.STATUS_MISSING, "rating_status": mc.STATUS_OK, "rating_value": 7.5, "nfo_exists": True,
+          "subfolder_path": _tf1, "library_root": os.path.dirname(_tf1)}
+    return [c for c, _l in mc._auto_repair_plan(_r, {"media_programs": list(progs), "health_mode": "nfo"}, {})]
+check("FB2: the votes rules ('Missing votes', unreadable votes, votes conflict) are off for Emby / Jellyfin / Plex alone, "
+      "on with Kodi, Infuse or nothing ticked; Auto Repair plans no votes fix there",
+      _wv1(("emby",), "votes_warning", mc.STATUS_ERROR, mc._hr_votes_warning) == []
+      and _wv1(("jellyfin",), "votes_conflict", mc.STATUS_WARN, mc._hr_votes_conflict) == []
+      and _wv1(("kodi",), "votes_warning", mc.STATUS_ERROR, mc._hr_votes_warning) != []
+      and _wv1((), "votes_conflict", mc.STATUS_WARN, mc._hr_votes_conflict) != []
+      and "ratings" not in _ar_votes(("emby",)) and "ratings" not in _ar_votes(("jellyfin", "plex"))
+      and "ratings" in _ar_votes(("kodi",)) and "ratings" in _ar_votes(("emby", "infuse")),
+      (_ar_votes(("emby",)), _ar_votes(("kodi",))))
+# ── v0.20.2 PA9–PA13 (audit #9–13) ──
+import html_export as _hx9
+_d9 = os.path.join(_TMP, "pa9"); _own9 = os.path.join(_d9, "List_images"); os.makedirs(_own9, exist_ok=True)
+open(os.path.join(_own9, "my notes.txt"), "w").write("mine")
+try:
+    _hx9.write_export([], ["movie_name"], os.path.join(_d9, "List.html"), {"images": "folder"}); _e9 = ""
+except Exception as _x9:
+    _e9 = str(_x9)
+_old9 = os.path.join(_d9, "Old_images"); os.makedirs(_old9, exist_ok=True); open(os.path.join(_old9, "3f.jpg"), "wb").write(b"x")
+check("PA9: the HTML export never deletes a '<name>_images' folder it did not make (a clear message); an earlier "
+      "export's folder (N.jpg / Nf.jpg, or its mark) is still replaced",
+      os.path.isfile(os.path.join(_own9, "my notes.txt")) and "not made by a MediaClinic export" in _e9
+      and _hx9.images_folder_is_ours(_old9) and not _hx9.images_folder_is_ours(_own9), _e9)
+_r10 = {"source_imdb_all": ["tt0111111", "tt0133093/"], "source_imdb_val": "tt0111111", "source_tmdb_all": ["603"],
+        "source_tmdb_val": "603", "movie_name": "The Matrix", "nfo_title": "The Matrix", "year": "1999", "movie_year": "1999"}
+_o10 = {"pattern": 4, "custom": "", "article": False, "dots": False, "original": False}
+check("PA10: an IMDb ID that differs between the NFO and movie.xml never goes into a folder name ('id_differs'); the "
+      "same ID written two ways ('tt…/' and 'tt…') is not a conflict",
+      mc.rn_name(_r10, _o10)[1] == "id_differs" and mc.rn_fields(_r10, _o10)["imdb"] == ""
+      and not mc.rn_ids_differ({"source_imdb_all": ["tt0133093", "tt0133093/"]}, "imdb"),
+      (mc.rn_name(_r10, _o10), mc.rn_fields(_r10, _o10).get("imdb")))
+_lg11 = mc._i18n.current()
+mc.apply_ui_language("pt_BR")
+try:
+    _a11 = [mc.rn_name({"movie_name": t, "nfo_title": t, "original_title": o, "year": "1997", "movie_year": "1997"},
+                       {"pattern": 1, "custom": "", "article": True, "dots": False, "original": False})[0]
+            for t, o in (("As Good as It Gets", "As Good as It Gets"), ("O Poderoso Chefão", "The Godfather"),
+                         ("The Matrix", "The Matrix"))]
+finally:
+    mc.apply_ui_language(_lg11)
+check("PA11: with a PT-BR interface the Portuguese articles move only in a translated title; an original title keeps "
+      "its first word unless it is an English article",
+      [x.split(" (")[0] for x in _a11] == ["As Good as It Gets", "Poderoso Chefão, O", "Matrix, The"], _a11)
+_t12 = mc.diagnostic_report([{"movie_name": "Secret Movie", "subfolder": "Secret Movie (1999)", "health_status": "ok"}], {},
+                            "2026-11-24 08:59:11  WARNING   Fix image: Secret Movie (1999): poster.webp could not be removed: Z:/x/y\n")
+check("PA12: Copy Diagnostic Info hides a movie named before any path", "Secret" not in _t12 and "Fix image: <movie>:" in _t12, _t12)
+_n13 = os.path.join(_TMP, "pa13.nfo")
+open(_n13, "w", encoding="utf-8", newline="\n").write(
+    "<movie>\n  <title>Combo</title>\n  <uniqueid type=\"imdb\" default=\"true\">tt0133093</uniqueid>\n</movie>\n"
+    "https://www.imdb.com/title/tt0133093/\n")
+mc._cache_forget(_n13)
+_r13 = mc._parse_root(_n13)
+check("PA13: a Kodi combination NFO (XML, then a URL line) parses, has no error, and a writer accepts it",
+      _r13 is not None and _r13.findtext("title") == "Combo" and mc.validate_xml_file(_n13, True) == []
+      and mc._require_xml(open(_n13, encoding="utf-8").read()) is None
+      and mc.cut_url_tail("<movie/>\ntext\n") == "<movie/>\ntext\n", mc.validate_xml_file(_n13, True))
+# ── v0.20.2 PB1–PB15 (audit, smaller findings) ──
+import inspect as _insp_pb
+_src_pb = lambda f: _insp_pb.getsource(f)
+mc.APP_CLOSING.set()
+try:
+    _pb2 = mc._service_run_cancelled()
+finally:
+    mc.APP_CLOSING.clear()
+_n7 = os.path.join(_TMP, "pb7.nfo")
+open(_n7, "w", encoding="utf-8").write('<movie><title>X</title><uniqueid type="imdb" default="true">tt0133093</uniqueid>'
+                                       '<uniqueid type="tmdb">603</uniqueid><plot>a < b</plot></movie>')
+mc._cache_forget(_n7)
+_pb7 = mc._safe_parse_xml(_n7)
+sc._CLEAN_LOCK.acquire()
+try:
+    _pb13 = sc.clean_backup_folder_if_needed(_TMP, {"max_backup_size_mb": 1, "backup_cleanup_enabled": True})
+finally:
+    sc._CLEAN_LOCK.release()
+check("PB1–PB15: summary counts a failed movie once; a closing app stops service runs; Auto Repair saves every 500; "
+      "an empty finished scan is saved; Improvements is a tracked job; set.nfo drops its temp file; a disk error is not "
+      "a network reset; the second ID fallback reads <uniqueid>; the renamer updates the live row; only the newest "
+      "Lang OK change applies; the update close cannot be declined; Quick Scan lists in parallel; grouped totals are "
+      "kept; one backup cleanup at a time; dead code gone",
+      'not e.get("failed")' in _src_pb(mc.format_auto_repair_summary) and _pb2 is True
+      and "% 500 == 0 and repaired" in _src_pb(mc.App._auto_repair_worker_run)
+      and "self._incremental_save([])" in _src_pb(mc.App._scan_done)
+      and "_AppJobThread(self, target=_worker)" in _src_pb(mc.App._run_improvements_batch)
+      and "_drop_tmp(tmp)" in _src_pb(mc.write_set_nfo)
+      and 'getattr(e, "filename", None)' in _src_pb(mc._tmdb_download_image)
+      and _pb7[0] is None and _pb7[1].get("imdbid") == "tt0133093" and _pb7[1].get("tmdbid") == "603"
+      and "self._rn_repath(st))" in _src_pb(mc.App._rn_preview)
+      and "_lang_gen" in _src_pb(mc.App._on_settings_changed)
+      and "_closing_for_update" in _src_pb(mc.App._on_app_close)
+      and "_list5" in _src_pb(mc.App._quick_scan_listed) and "_coll_totals" in _src_pb(mc.App._coll_row_update)
+      and _pb13 is None and not hasattr(mc.App, "_reval") and not hasattr(mc._cr, "XML_COLLECTION_TAGS")
+      and not hasattr(__import__("image_fix"), "INFO_LINE"),
+      (_pb2, _pb7, _pb13))
+# ── v0.20.2 PA14–PA18, PA20, PB14 (audit #14–18, #20; #19 is the B14 decision: Health Rules → single source) ──
+_n17 = os.path.join(_TMP, "pa17.nfo")
+open(_n17, "w", encoding="utf-8").write('<movie><votes>100</votes><ratings><rating name="imdb" default="true"><value>8</value>'
+                                        '<votes>25000</votes></rating></ratings></movie>')
+mc._cache_forget(_n17)
+_v17 = mc.extract_votes_from_files(_n17, None)
+_cp18 = (sc.NOT_DUP_PATH, sc.NO_COLL_PATH)
+sc.NOT_DUP_PATH = os.path.join(_TMP, "pa18_nd.json"); sc.NO_COLL_PATH = os.path.join(_TMP, "pa18_nc.json")
+try:
+    open(sc.NOT_DUP_PATH, "w").write("{broken")
+    _r18a = (sc.load_not_duplicates(), sc.save_not_duplicates([{"a": "x", "b": "y"}]),
+             any(n.startswith("pa18_nd.json.corrupt-") for n in os.listdir(_TMP)))
+    sc.save_no_collection([{"path": "p1"}])
+    import builtins as _bi18
+    _o18 = _bi18.open
+    _bi18.open = lambda f, *a, **k: ((_ for _ in ()).throw(PermissionError("held")) if str(f) == sc.NO_COLL_PATH
+                                     and "r" in (a[0] if a else k.get("mode", "r")) else _o18(f, *a, **k))
+    try:
+        _r18b = sc.load_no_collection()
+    finally:
+        _bi18.open = _o18
+    _r18c = (sc.save_no_collection([{"path": "new"}]), json.load(open(sc.NO_COLL_PATH, encoding="utf-8"))["movies"])
+    sc._LIST_SAVE_BLOCKED.discard(sc.NO_COLL_PATH)
+finally:
+    sc.NOT_DUP_PATH, sc.NO_COLL_PATH = _cp18
+_S14 = lambda f: _insp_pb.getsource(f)
+check("PA14–PA20 / PB14: Kodi's <ratings> votes come first; a list file that cannot be read starts empty but is never "
+      "overwritten while another program holds it; Fix Wrong IDs reads both files first; a failed step still "
+      "refreshes its row; the scan phases use the chunked table fill; the issue menu probes only its movies; Title "
+      "Sync and Search Sources write off the Tk thread; every write has its own temp file",
+      _v17[0] == 25000 and _r18a == ([], True, True) and _r18b == [] and _r18c == (False, [{"path": "p1"}])
+      and "_todo.append((path, new, k))" in _S14(mc.App._ar_ids_wrong)
+      and "if backed[0]:" in _S14(mc.App._run_single_ar_step)
+      and "self._refresh_table()" in _S14(mc.App._phase_update) and "tree.insert" not in _S14(mc.App._phase_update)
+      and "self._reval_rows_ffmpeg(rows)" in _insp_pb.getsource(mc.App)
+      and "_wait_off_tk(app, _bw)" in _S14(mc.TitleSyncDialog._apply)
+      and "_wait_off_tk(self._parent_app, _bw)" in _S14(mc._SearchSourcesResultDialog._apply)
+      and "threading.get_ident()" in _S14(mc._atomic_write_text), (_v17, _r18a, _r18b, _r18c))
+# ── v0.20.2 code check 1 / 2 (after the audit repairs) ──
+class _W1:
+    def __init__(self, v): self.v = v
+    def winfo_exists(self):
+        if self.v is None:
+            raise mc.tk.TclError("gone")
+        return self.v
+_cc1 = [mc._alive_or(_W1(1), "app") is not None and mc._alive_or(_W1(1), "app") != "app",
+        mc._alive_or(_W1(0), "app"), mc._alive_or(_W1(None), "app")]
+check("code check 1: Title Sync / Search Sources closed (Esc, X) while the write runs show their message on the main "
+      "window (no TclError); code check 2: a failure after a Restore never leaves 'one restore at a time' stuck",
+      _cc1 == [True, "app", "app"]
+      and "_alive_or(self, app)" in _S14(mc.TitleSyncDialog._apply) and "parent=self)" not in
+      _S14(mc.TitleSyncDialog._apply).split("_alive_or(self, app)")[1]
+      and "_alive_or(self, self._parent_app)" in _S14(mc._SearchSourcesResultDialog._apply)
+      and "parent=self)" not in _S14(mc._SearchSourcesResultDialog._apply).split("_alive_or(self, self._parent_app)")[1]
+      and "_alive_or(self, app)" in _S14(mc._SearchSourcesResultDialog._confirm_imdb)
+      and "the table was not refreshed" in _insp_pb.getsource(mc.BackupHistoryDialog._restore), _cc1)
+# ── v0.20.2 test gap 2 (PA14): Fix Wrong IDs with a movie.xml that is not UTF-8 ──
+import test_id_repair as _tir_g2
+_d_g2 = os.path.join(_TMP, "gap2", "55 Days at Peking (1963)"); os.makedirs(_d_g2, exist_ok=True)
+_n_g2 = os.path.join(_d_g2, "55 Days at Peking (1963).nfo")
+open(_n_g2, "w", encoding="utf-8", newline="").write(_tir_g2.PEKING)
+_x_g2 = os.path.join(_d_g2, "movie.xml")
+open(_x_g2, "wb").write('<?xml version="1.0" encoding="ISO-8859-1"?>\n<Title>\n  <LocalTitle>55 Dias em Pequim (Amélie)'
+                        '</LocalTitle>\n  <IMDB>27759</IMDB>\n</Title>\n'.encode("latin-1"))
+_nb_g2, _xb_g2, _bk_g2 = open(_n_g2, "rb").read(), open(_x_g2, "rb").read(), []
+try:
+    _r_g2 = mc.App._ar_ids_wrong(None, {"d": {}, "nfo": _n_g2, "xml": _x_g2, "backup": lambda: _bk_g2.append(1)})
+except Exception as _e_g2:
+    _r_g2 = type(_e_g2).__name__
+check("test gap 2 (PA14): Fix Wrong IDs with a movie.xml that is not UTF-8 changes neither file and makes no backup "
+      "(the NFO used to be fixed alone)",
+      open(_n_g2, "rb").read() == _nb_g2 and open(_x_g2, "rb").read() == _xb_g2 and not _bk_g2
+      and _r_g2 == "NotUtf8Error", _r_g2)
+# ── v0.20.2 test gap 3 (PA15): two writes to the same file at the same moment ──
+_d_g3 = os.path.join(_TMP, "gap3"); os.makedirs(_d_g3, exist_ok=True); _p_g3 = os.path.join(_d_g3, "race.xml")
+_A_g3, _B_g3 = "<a>" + "A" * 300000 + "</a>\n", "<b>" + "B" * 300000 + "</b>\n"
+open(_p_g3, "w", encoding="utf-8", newline="\n").write(_A_g3)
+_bad_g3, _err_g3 = [], []
+for _i_g3 in range(25):
+    _bar_g3 = threading.Barrier(2)
+
+    def _w_g3(t, bar=_bar_g3):
+        bar.wait()
+        try:
+            mc._atomic_write_text(_p_g3, t)
+        except Exception as e:
+            _err_g3.append(repr(e))
+    _th_g3 = [threading.Thread(target=_w_g3, args=(t,)) for t in (_A_g3, _B_g3)]
+    for _t in _th_g3: _t.start()
+    for _t in _th_g3: _t.join()
+    _c_g3 = open(_p_g3, encoding="utf-8").read()
+    if _c_g3 not in (_A_g3, _B_g3):
+        _bad_g3.append(len(_c_g3))
+_left_g3 = [n for n in os.listdir(_d_g3) if n != "race.xml"]
+check("test gap 3 (PA15): two writes to one file at the same moment, 25 times: the file is always one whole version, "
+      "never a mix; no error, no temp file left", not _bad_g3 and not _err_g3 and not _left_g3,
+      (_bad_g3, _err_g3[:3], _left_g3))
+import inspect as _insp_pa48
+# ── v0.20.2 PA5 / PA6: Undo after a later folder rename; Undo never makes a missing movie folder again ──
+_bk5 = os.path.join(_TMP, "pa5_bk"); _lib5 = os.path.join(_TMP, "pa5_lib"); _mv5 = os.path.join(_lib5, "Heat")
+os.makedirs(_mv5, exist_ok=True); open(os.path.join(_mv5, "Heat.mkv"), "wb").write(b"0")
+_pos5 = os.path.join(_mv5, "Heat-poster.jpg"); open(_pos5, "wb").write(b"img")
+_r5 = [None]
+with sc.backup_action("Fetch Poster"):
+    sc.note_created(_bk5, "Heat", _r5, _pos5, None)
+sc.note_written([_mv5])
+time.sleep(0.05)
+_new5 = os.path.join(_lib5, "Heat (1995)"); os.rename(_mv5, _new5)
+_r6 = [None]
+with sc.backup_action("Rename movie folders and files"):
+    sc.note_moved(_bk5, "Heat", _r6, _mv5, _new5)
+_f5 = sc.read_manifest(_r5[0])["files"][0]
+_mv5l = lambda: sc.moved_folders_after(_bk5, sc.read_manifest(_r5[0]).get("created", ""), exclude=_r5[0])
+_ch5 = (sc.file_changed_since_run(_f5), sc.file_changed_since_run(_f5, _mv5l))
+_res5, _err5, _s5 = sc.restore_backup_run(_bk5, _r5[0])
+check("PA5: Undo of a run that created a file removes it after a later folder rename (it stayed, reported as done); "
+      "Backup History follows the rename ('changed since the run' only without it)",
+      not os.path.exists(os.path.join(_new5, "Heat-poster.jpg")) and not _err5 and not os.path.isdir(_mv5)
+      and _ch5 == (True, False), (_ch5, _err5, os.listdir(_new5)))
+_mv6 = os.path.join(_lib5, "Alien"); os.makedirs(_mv6, exist_ok=True)
+_n6 = os.path.join(_mv6, "Alien.nfo"); open(_n6, "w", encoding="utf-8").write("<movie><title>Alien</title></movie>\n")
+_r7 = [None]
+with sc.backup_action("Edit NFO"):
+    sc.make_batch_backup(_bk5, "Alien", _r7, _n6)
+os.rename(_mv6, _mv6 + " (1979)")                                # outside MediaClinic: no record
+_res7, _err7, _s7 = sc.restore_backup_run(_bk5, _r7[0])
+check("PA6: Undo does not make a movie folder again that was renamed outside MediaClinic (one clear error instead)",
+      not os.path.isdir(_mv6) and len(_err7) == 1 and "Alien.nfo" in _err7[0] and not _res7, (_err7, _res7))
+# ── v0.20.2 PA7: the closing tag in the original text; a writer never leaves a file that no longer parses ──
+_t7 = "<movie>\n  <title>İstanbul İzmir İ</title>\n</movie>\n"
+_i7 = mc._insert_before_root_close(_t7, "movie", "<votes>5</votes>")
+_d7 = os.path.join(_TMP, "pa7"); os.makedirs(_d7, exist_ok=True)
+_nfo7 = os.path.join(_d7, "x.nfo"); open(_nfo7, "w", encoding="utf-8", newline="\n").write(_t7)
+_e7 = mc.write_rating_to_files(_nfo7, None, 7.5, 1234, backup=False, source="themoviedb")
+_ok7 = mc._parse_root(_nfo7) is not None
+_xml7 = os.path.join(_d7, "movie.xml")
+_x7 = "<Item>\n  <LocalTitle>X</LocalTitle>\n</Item>\n<!-- saved by a tool -->\n"
+open(_xml7, "w", encoding="utf-8", newline="\n").write(_x7)
+_g7 = mc.write_genres_to_xml(_xml7, ["Drama"])
+check("PA7: a Turkish 'İ' no longer moves the inserted tag (the NFO still parses after Sync Ratings); a writer whose "
+      "result would not parse writes nothing and says so",
+      "<votes>5</votes>" in _i7 and _i7.rstrip().endswith("</movie>") and mc.ET.fromstring(_i7.encode("utf-8")) is not None
+      and not _e7 and _ok7 and _g7[0] is False and "not valid XML" in _g7[1]
+      and open(_xml7, encoding="utf-8").read() == _x7, (_i7, _e7, _g7))
+# ── v0.20.2 PA4 / PA8 (code checks: these run inside dialogs with downloads / restores) ──
+_src48 = {n: _insp_pa48.getsource(f) for n, f in (("fetch", mc._FetchImageDialog._apply_image),
+                                                   ("restore", mc.BackupHistoryDialog._restore),
+                                                   ("close", mc.App._on_app_close))}
+check("PA4 / PA8: an old folder.png is removed only when its folder.jpg was written; Restore runs as a tracked app job, "
+      "one at a time in the app; the image fix asks one close question",
+      "_failed_base" in _src48["fetch"] and "_AppJobThread(self._app, target=_work)" in _src48["restore"]
+      and "self._app._restoring = True" in _src48["restore"] and "and not self._busy_fix" in _src48["close"])
+import inspect as _insp_pa2
+check("PA2: the results cache is written with json.dumps (the C encoder, one step), and the close tells workers to "
+      "stop before its save",
+      "json.dumps(data" in _insp_pa2.getsource(sc._save_json_atomic) and "json.dump(data, f" not in _insp_pa2.getsource(sc._save_json_atomic)
+      and _insp_pa2.getsource(mc.App._on_app_close).index("APP_CLOSING.set()") < _insp_pa2.getsource(mc.App._on_app_close).index("save_results_cache"))
+check("FB2: the collection artwork rule runs only with Kodi ticked (or nothing): Emby, Jellyfin and Plex read no "
+      "collection folder",
+      "collection_artwork" in set(mc.profile_rules_off(("emby", "jellyfin"), {}))
+      and "collection_artwork" not in set(mc.profile_rules_off(("kodi", "emby"), {}))
+      and "collection_artwork" not in set(mc.profile_rules_off((), {})))
+_dlog = ("2026-11-24 08:59:10  INFO      === Metadata & MediaClinic v0.20.2 started ===\n"
+         "2026-11-24 08:59:11  WARNING   Library offline (skipped, cached rows kept): \\\\NAS1\\Films Test\\01 Epic\n"
+         "2026-11-24 08:59:12  ERROR     Could not read D:/My Films/Secret Movie (1999)/movie.nfo\n"
+         "2026-11-24 08:59:13  WARNING   TMDB failed api_key=abcd1234 for bob@example.com token 0123456789abcdef0123456789abcdef\n"
+         "2026-11-24 08:59:14  WARNING   Could not open /home/tester/Films/Other Movie\n"
+         "2026-11-24 08:59:15  INFO      Scan finished in C:\\Users\\tester\\Films\n")
+_dres = [{"health_status": "warning", "health_reasons": ["Missing votes", "Too few backdrops (2 of 5 required)"]},
+         {"health_status": "error", "health_reasons": ["3 NFO files: Secret Movie.nfo (used), movie.nfo — delete the one you do not need"]},
+         {"health_status": "ok", "health_reasons": []}]
+_dset = {"media_programs": ["emby", "kodi"], "library_folders": ["X:/Hidden Lib A", "X:/Hidden Lib B"],
+         "library_programs": {"x:/hidden lib b": ["emby"]}, "health_mode": "nfo", "health_rules": {}, "tmdb_api_key": "SECRETKEY999"}
+_dtxt = mc.diagnostic_report(_dres, _dset, _dlog, 1, True, "en", "Windows-11", "3.12.1")
+check("FB4: the diagnostic report holds the version, programs, counts and the warning / error log lines, and no path, "
+      "folder or movie name, key, token or e-mail",
+      all(x in _dtxt for x in ("0.20.2", "kodi, emby", "Libraries: 2 (offline: 1; with their own programs: 1)",
+                               "Movies: 3 — OK 1, warnings 1, errors 1", "Library offline (skipped, cached rows kept): <path>",
+                               "Could not read <path>", "Could not open <path>", "api_key=<hidden>", "<e-mail>"))
+      and not any(x in _dtxt for x in ("NAS1", "Films Test", "Epic", "Secret", "My Films", "tester", "Hidden Lib",
+                                       "abcd1234", "bob@", "0123456789abcdef", "SECRETKEY", "Other Movie", "Scan finished"))
+      and "missing_votes" in _dtxt, _dtxt)
+check("FB4: the report is in the interface language, and Help → Copy Diagnostic Info… is in the menu (×3 labels)",
+      "diag_info" in mc.HELP_MENU_TAIL and mc.ACTIONS["diag_info"]["path"] == "Help"
+      and all(k in d for d in (__import__("mc_i18n").PT_BR, __import__("mc_i18n").ES)
+              for k in ("act.diag", "diag.title", "diag.intro", "diag.log", "diag.reasons")))
+check("FB1: the Backdrops tooltip lines exist in EN / PT-BR / ES",
+      all(k in d and d[k] != __import__("mc_i18n").EN[k] for d in (__import__("mc_i18n").PT_BR, __import__("mc_i18n").ES)
+          for k in ("rp.backdrop_videos", "rp.backdrop_videos_folder", "rp.backdrops_fanart_only", "rp.backdrops_plus_fanart"))
+      and "{n}" in __import__("mc_i18n").ES["rp.backdrop_videos"])
 check("AC2: the reasons are shown in the interface language (templates exist ×3)",
       mc.reason_parts("No actor information in the NFO")[0] == "no_actor_info"
       and mc.reason_parts("Actor photos only as web links — Kodi shows them from .actors (Download Actor Photos)")[0] == "actor_links")

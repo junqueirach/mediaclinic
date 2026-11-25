@@ -26,6 +26,7 @@ IMDb is never asked directly: IMDb ratings come through OMDb, IMDb IDs through T
 
 ## Logs
 **Help → Open Logs Folder** opens logs\ with app.log selected. Every unexpected error is written there (API keys never): attach it to a bug report.
+**Help → Copy Diagnostic Info…** shows a short report for a bug report: the version, the system, the preset, the programs ticked, the counts of each warning and the last warnings in app.log. It holds no folder names or paths. Click **Copy** and paste it into your message.
 
 ## Updates
 **Help → Check for Updates…** (or the button in About) asks GitHub for the latest release; nothing else is sent.

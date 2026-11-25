@@ -24,11 +24,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y python3-tk xvfb ffmpeg
       - name: Python packages
         run: pip install pyinstaller==6.11.1 pillow openpyxl jsonschema pytest
-      - name: Tests from source
-        # The end-to-end self-test (app windows) runs in ci.yml on every push. On this older runner, Python 3.12's Tk
-        # crashes (segmentation fault) when the self-test opens the app window, so it is not run here; the smoke test
-        # below still checks that the built binary starts and keeps running.
-        run: python -m pytest tests -v
+      - name: Tests from source (virtual display)
+        # v0.20.2 LX2: the Tk crash on this runner (Tk 8.6.12 + a colour emoji font) is fixed in the app, so the
+        # end-to-end self-test runs here again (the newest tests/selftest_v*.py, as in ci.yml)
+        run: |
+          python -m pytest tests -v
+          xvfb-run -a python -u "$(ls tests/selftest_v*.py | sort -V | tail -n 1)"
       - name: Version from the source
         id: v
         run: |

@@ -2,6 +2,15 @@
 
 # Getting Started
 
+## New in v0.20.2
+- **Rename Folder and Files…**: movie folders named from a pattern, the files follow, Undo renames back (Ratings, Genres & IDs tab).
+- **Certifications…**: the age rating from your countries in your order, written in every rating tag your files have (Ratings, Genres & IDs tab).
+- Collections: **Create / Edit set.nfo…** (Kodi 22 and later) and **Collection Gaps…**, the movies of a collection your library lacks (Collections tab).
+- Emby and Jellyfin: theme videos in the backdrops folder count as backdrops, and the Kodi-only warnings (actor photos, votes, collection artwork) stay off when Kodi is not ticked.
+- The rows of a library that cannot be reached are grey.
+- With no program ticked the app asks once which programs you use; a new user starts with the Medium preset.
+- **Help → Copy Diagnostic Info…** for a bug report, without paths or movie names (Troubleshooting tab).
+
 ## New in v0.20.1
 - The Tools menu is grouped into submenus (Bulk Tools & Auto Repair tab).
 - Posters: Replace Low-Resolution Posters, Review Posters One by One and an artwork language setting (Images tab).
@@ -39,7 +48,7 @@ The Media Servers tab lists every name the servers read.
 At the first start one window asks five things. Only **Start** saves the answers; closing the window brings it back at the next start.
 | Language | pick it first: **Restart now** shows the window again in that language
 | Movies folder | add it now, or later with **Browse…** or **Libraries…**
-| Which programs play your movies? | tick every one you use (nothing ticked is fine too)
+| Which programs play your movies? | tick every one you use. With nothing ticked every rule runs, also the ones only Kodi needs: Start asks once (**Tick my programs** / **Start anyway**). A user with nothing ticked sees this question once more in v0.20.2
 | Strictness | Tight, Medium or Easy
 | FFprobe | optional: nothing is included or downloaded for you; **Choose folder…** or **Download page**
 Someone updating from an older version sees only the programs question once, with **Not now**.
@@ -67,7 +76,7 @@ In the mode **NFO and movie.xml**, a library where no movie has a movie.xml gets
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
 - **Settings → API Keys**: add the TMDB and OMDb keys (ratings, ID search and checks, artwork); a fanart.tv key adds more posters and backdrops.
 - **Settings → Language**: the target language of the Language column (default PT). The language of the app itself is **Settings → User Interface → Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it).
-- **Settings → Health Rules**: choose what counts as an error or a warning. A **Health preset** (Easy / Medium / Tight) sets them all at once; a new user starts with Tight.
+- **Settings → Health Rules**: choose what counts as an error or a warning. A **Health preset** (Easy / Medium / Tight) sets them all at once; a new user starts with Medium.
 - To triage: sort by **Health** (Errors first), click the **Errors** counter, or tick **Problems only**.
 
 ## Status icons

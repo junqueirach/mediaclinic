@@ -26,7 +26,7 @@ Right-click a collection row, or use **All actions ▾** in its panel:
 | Open Collection Folder | opens the collection's folder
 | Open Collection on TMDB | the collection's page (**Search Collection on TMDB** when the collection's TMDB ID is not known)
 | Check Collection Online | asks TMDB about this collection's movies
-The panel shows the collection: its poster (from the collection folder), TMDB ID, years, folder, artwork, overview, its movies and the fixes. Its buttons: **Artwork…**, **Fix Collection…**, **Open Poster**, **Open Fanart**, **Open Folder**, **TMDB** (the collection's page with its movies, or a TMDB search for the name), **Rename / Join…**, **Write set.nfo** and **Refresh Collection** (reads the collection folder and its movies again, like Update on a movie).
+The panel shows the collection: its poster (from the collection folder), TMDB ID, years, folder, artwork, overview, its movies and the fixes. Its buttons: **Artwork…**, **Fix Collection…**, **Open Poster**, **Open Fanart**, **Open Folder**, **TMDB** (the collection's page with its movies, or a TMDB search for the name), **Rename / Join…**, **Write set.nfo**, **Edit set.nfo…** (**Create set.nfo…** for your own collection) and **Refresh Collection** (reads the collection folder and its movies again, like Update on a movie).
 While the app writes or reads files again, a ring turns on the poster of the movie or collection it is working on, a thin bar moves above the table and the status bar says what it does. It ends with **✓ Done** once the panel shows the new state, or **! Not done** with the reason. The panel's buttons are grey in the meantime.
 
 ## One collection, one name
@@ -48,7 +48,7 @@ Kodi shows one set per name, so a TMDB collection gets ONE name for all its movi
 ## The collection rules
 Three rules in Settings → Health Rules, all warnings:
 | Collection missing or different | TMDB lists a collection the NFO does not have, the NFO names another one, or one collection is written two ways in your library ("written as X here and as Y in 3 other movies — Kodi shows two sets"). On in the Tight preset only.
-| Collection folder / poster / fanart missing | the collection artwork rule: only while a collection folder is set. On in the Tight preset only.
+| Collection folder / poster / fanart missing | the collection artwork rule: only while a collection folder is set and Kodi (or nothing) is ticked. On in the Tight preset only.
 | set.nfo missing or with a mistake | Kodi; only with a collection folder; shown on the collection, not on its movies. On in the Medium and Tight presets.
 - Your own collections ("Disney", "Oscar winners") are never warned about and never removed.
 - A name with no TMDB ID that matches none of TMDB's names counts as yours, also when TMDB lists the movie in a collection; only **Fix Collection…** on that movie, asked by you, replaces it.
@@ -62,7 +62,16 @@ Each collection's folder should hold a set.nfo: title = the collection name in t
 - Creating a collection folder writes its set.nfo at once.
 - **Fix Collection…** also takes care of set.nfo: after the names are written it reads the collection folder again and writes a missing set.nfo / fills empty tags. It says "Nothing to change" only when the names and set.nfo are both right. In the collection's panel, the set.nfo warning has a **Fix** button right beside it.
 - **Tools → Collections → Check / Write set.nfo…** (one collection: the **Write set.nfo** button in its panel) writes the missing files and fills empty tags. Where a text differs it shows both, and you tick "Use TMDB's" per collection.
+- **Create / Edit set.nfo…** (new in v0.20.2; Kodi 22 Piers and later read set.nfo) opens one collection's set.nfo in an editor: **Title** (locked: the collection name in your movies' NFOs, Kodi matches the set by it), **Original title** and **Overview**; other tags in the file (sort title, artwork) are kept. **Edit** is there for every collection that has a set.nfo. **Create** is offered for your own collections: those whose movies TMDB places in no collection, or in several different ones (a collection with one TMDB collection plus movies TMDB lists in none is still that TMDB collection). The collection's folder is made first when it is not there yet. Open it from the collection's panel (for your own collection without set.nfo the panel's **Create…** / **Fix** opens it), its right-click menu, or **Tools → Collections → Create / Edit set.nfo…** (choose the collection). An overview you type is never replaced by Write set.nfo or Fix all.
 - A backup comes first, and Backup History / Undo puts the old file back.
+
+## Collection Gaps
+> New in v0.20.2. Tools → Collections → **Collection Gaps…** (every collection), or right-click a collection row (that collection, or the collection rows selected with it).
+For each TMDB collection it lists the movies TMDB has that your library lacks: **Missing** (released: a release date before today; "You have N of M" counts these) and **Announced, not released yet** (a later date or none: information only). Titles are in the app's TMDB language, the original title in [brackets], with TMDB's release date. Movies never checked online are checked first, and the collections' movie lists are read again when they are older than 30 days (TMDB key needed; Cancel keeps what was fetched).
+- A missing movie is looked for in the WHOLE library: first by TMDB ID, then by title + year (±1). The window offers the fix the library allows: **Add to collection** (right TMDB ID, no collection), **Move to this collection…** (it is in another collection; asks first), **Write TMDB ID + collection…** (found by title: shows your movie and TMDB's side by side and writes the TMDB ID, its IMDb ID and the collection only after your OK — a title match can be a remake). A movie without an NFO in use is shown with no fix. A backup comes first; Backup History / Undo puts the files back.
+- **I don't want this one** leaves a movie out of the lists and the count (saved in collection_gaps_ignored.json next to the settings); **Show ignored** lists them with **Show it again**.
+- At the end, **Ignored Collections (no TMDB ID)**: your own collections, mixed ones (movies of several TMDB collections), collections no longer on TMDB and those not checked online. A collection whose movies are in one TMDB collection, plus movies TMDB lists in none, is that TMDB collection.
+- **Save as .txt…** saves the report ("Collection Gaps <date>.txt"). The report names the libraries it compared: a library that is not scanned is not compared, so its movies would show as missing.
 
 ## Fixing collections
 Right-click → Metadata → **Collection ▸**:

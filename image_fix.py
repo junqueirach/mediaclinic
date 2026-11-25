@@ -49,9 +49,6 @@ def info_line():                                                 ### NEW v0.20.0
 JPEG_QUALITY = 92
 
 MARK = {"ok": "✓", "warn": "⚠", "no": "✕"}
-INFO_LINE = ("Upscaling cannot recover detail that is not in the original. Small enlargements are fine; "
-             "large ones look soft (plain) or artificial (AI). For a much bigger image, use "
-             "\"Find a better one online\".")
 
 
 def tiers(kind):
