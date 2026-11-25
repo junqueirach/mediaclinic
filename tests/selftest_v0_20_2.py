@@ -7147,7 +7147,8 @@ def ui_tests():
         on_ui(lambda: app._start_quick_scan(app._scope_roots())); wait_for(lambda: not app._scanning, 60)
         _by = {r["subfolder"]: r for r in app._results}
         if SAMPLE_VIDEO:
-            check("B15: before marking — 'Required subtitle language not found (POR)'", any("Required subtitle language not found (POR)" in x for x in _by["Hardsub Movie"]["health_reasons"]), _by["Hardsub Movie"]["health_reasons"])
+            # v0.20.2 LW: the strict subtitle rule is off by default now; the main rule ("not in your languages") flags it
+            check("B15: before marking — 'Not in your languages (PT)'", any(x.startswith("Not in your languages (PT") for x in _by["Hardsub Movie"]["health_reasons"]), _by["Hardsub Movie"]["health_reasons"])
         _hd = on_ui(lambda: app._hardsubs_for([_by["Hardsub Movie"]]))
         check("B15: dialog lists the Health Rules languages with checkboxes + Other…", all(c in _hd._vars for c in ("POR", "ENG", "SPA", "FRE", "GER", "ITA")) and not any(v.get() for v in _hd._vars.values()))
         def _hs_wait():
@@ -8282,6 +8283,20 @@ def ui_tests():
         check("B43: Help opened over Settings takes the grab and gives it back to Settings when it closes",
               _g43a == str(_sd43) and _g43b == str(_h43c) and _g43c == str(_sd43), (_g43a, _g43b, _g43c))
         on_ui(_sd43.destroy)
+
+        # ── v0.20.2 LW: Settings → Language — '+ and another language' ──
+        _sd_lw = on_ui(lambda: mc.SettingsDialog(app, tab=0))
+        _lw_main = on_ui(lambda: _sd_lw._lang_var.get().upper())
+        _lw_other = "EN" if _lw_main != "EN" else "ES"
+        on_ui(lambda: (_sd_lw._add_lang_more(_lw_other), _sd_lw._add_lang_more(_lw_main), _sd_lw._add_lang_more(_lw_other),
+                       _sd_lw._add_lang_more("")))
+        _lw_g1 = on_ui(lambda: _sd_lw._lang_more_codes())
+        on_ui(lambda: _sd_lw._lang_more_vars[0][1].winfo_children()[-1].invoke())   # ✕ on the first row
+        _lw_g2 = on_ui(lambda: (_sd_lw._lang_more_codes(), len(_sd_lw._lang_more_vars)))
+        on_ui(_sd_lw.destroy)
+        check("LW: Settings → Language: '+ and another language' adds a row with the 30-language menu; the main language, "
+              "a repeat and an empty row are not saved; ✕ removes a row",
+              _lw_g1 == [_lw_other] and _lw_g2 == ([_lw_other], 3), (_lw_main, _lw_g1, _lw_g2))
 
         # ── v0.19.2 B45: Esc closes every view-only dialog ─────────────────────  ### NEW v0.19.2 B45 ###
         _row45 = dict({r["subfolder"]: r for r in app._results}["Perfect Movie"])
@@ -14886,6 +14901,84 @@ _left_g3 = [n for n in os.listdir(_d_g3) if n != "race.xml"]
 check("test gap 3 (PA15): two writes to one file at the same moment, 25 times: the file is always one whole version, "
       "never a mix; no error, no temp file left", not _bad_g3 and not _err_g3 and not _left_g3,
       (_bad_g3, _err_g3[:3], _left_g3))
+# ── v0.20.2 LW: watchable in your languages (the user, 2026-11-25) ──
+_lw_set = dict(mc.SETTINGS, lang_ok_code="PT", lang_ok_more=["EN", "pt", ""])
+_lw1 = (mc.lang_ok_langs(_lw_set), mc.lang_ok_langs(dict(mc.SETTINGS, lang_ok_code="ES", lang_ok_more=[])),
+        mc.compute_lang_ok("x.mkv", [], [{"lang": "en"}], None, None, iso_code=["PT", "EN"], use_ffprobe=False),
+        mc.compute_lang_ok("x.mkv", [], [{"lang": "en"}], None, None, iso_code="PT", use_ffprobe=False),
+        mc.compute_lang_ok("x.mkv", [], [], None, None, iso_code=["PT", "EN"], use_ffprobe=False, subs_hard=["ENG"]),
+        mc.lang_in_stored_streams({"audio_tracks": [{"language": "por"}]}, ["EN", "PT"]),
+        mc.lang_in_stored_streams({"audio_tracks": [{"language": "por"}]}, ["EN"]))
+check("LW: your languages = the main one + the others (no repeats); audio OR subtitles in ANY of them makes the movie OK "
+      "(an English subtitle with PT + EN, an English hard-coded mark, Portuguese audio)",
+      _lw1 == (["PT", "EN"], ["ES"], "Y", "N", "Y", True, False), _lw1)
+
+
+def _lw_row(audio, lang_ok="N", **kw):
+    r = {"video_count": 1, "ffprobe_ran": True, "video_path": "x.mkv", "audio_tracks": [{"language": a} for a in audio],
+         "subs_internal": [], "subs_external": [], "lang_ok": lang_ok}
+    r.update(kw)
+    return r
+
+
+_lw_rules = {"lang_not_ok": True, "required_subtitle_language": True, "required_subtitle_language_code": "POR"}
+
+
+def _lw_reasons(row, rules=_lw_rules):
+    st, er, wr = mc.compute_movie_health_detailed(row, dict(rules), _lw_set)
+    return [x for x in er + wr if mc.reason_code(x) in ("lang_not_ok", "required_subtitle_language")]
+
+
+_lw_didi = _lw_row(["por"], lang_ok="Y")                          # the three Didi films: Portuguese audio, no subtitles
+_lw2 = (_lw_reasons(_lw_didi, {"lang_not_ok": True, "required_subtitle_language": False}),
+        [str(x) for x in _lw_reasons(_lw_row(["fre"]), {"lang_not_ok": True, "required_subtitle_language": False})],
+        [str(x) for x in _lw_reasons(_lw_row(["und"]), {"lang_not_ok": True, "required_subtitle_language": False})])
+check("LW: a Portuguese film with Portuguese audio is OK (no warning); French audio only = 'Not in your languages "
+      "(PT/EN)'; an untagged audio track = its own 'Audio language not tagged' warning (decision B)",
+      _lw2[0] == [] and _lw2[1] == ["Not in your languages (PT/EN): no audio or subtitles in them"]
+      and _lw2[2] == ["Audio language not tagged — cannot tell if the movie is in your languages (PT/EN)"]
+      and mc.reason_text(_lw2[1][0]) and mc.reason_parts(_lw2[2][0])[0] == "lang_untagged", _lw2)
+_lw_k = lambda row, rules=_lw_rules: mc._fix_issue_keys(dict(row, health_reasons=_lw_reasons(row, rules)))
+_lw3 = (_lw_k(_lw_didi), _lw_k(_lw_row(["eng"], lang_ok="Y")),
+        _lw_k(_lw_row(["fre"]), {"lang_not_ok": True, "required_subtitle_language": False}), _lw_k(_lw_row(["und"]), {"lang_not_ok": True, "required_subtitle_language": False}),
+        mc._fix_issue_keys(dict(_lw_didi, health_reasons=["Required subtitle language not found (POR)"])))
+check("LW: 'Hard-coded subtitles…' only when the movie has no audio in that language — not for the Didi films (POR "
+      "audio, the strict POR subtitle rule on), offered for English audio; 'not in your languages' offers it, 'not "
+      "tagged' does not; the same for a reason read back as plain text",
+      "subs_find" in _lw3[0] and "subs" not in _lw3[0] and {"subs_find", "subs"} <= _lw3[1]
+      and {"audio", "subs"} <= _lw3[2] and "audio" in _lw3[3] and "subs" not in _lw3[3]
+      and "subs_find" in _lw3[4] and "subs" not in _lw3[4], _lw3)
+_lw4 = {p: (mc._sm.HEALTH_PRESETS[p]["lang_not_ok"], mc._sm.HEALTH_PRESETS[p]["required_audio_language"],
+            mc._sm.HEALTH_PRESETS[p]["required_subtitle_language"]) for p in ("easy", "medium", "tight")}
+check("LW: the strict 'always an audio / subtitle in' rules are off in every preset and by default; the main rule is on "
+      "in Tight only", _lw4 == {"easy": (False, False, False), "medium": (False, False, False), "tight": (True, False, False)}
+      and not mc._sm.DEFAULT_SETTINGS["health_rules"]["required_audio_language"]
+      and not mc._sm.DEFAULT_SETTINGS["health_rules"]["required_subtitle_language"], _lw4)
+# the migration (decision A): old Tight → new Tight; hand-edited and Medium unchanged
+_lw_cfg = os.path.join(_TMP, "lw_settings.json")
+_lw_orig = sc.CONFIG_PATH
+_lw_done = [m for m in sc._MIGRATIONS if m != "v0202_lang_rules"]
+_lw_old_tight = dict(mc._sm.apply_health_preset(mc._sm.DEFAULT_SETTINGS["health_rules"], "tight"),
+                     required_audio_language=True, required_subtitle_language=True)
+_lw5 = {}
+try:
+    sc.CONFIG_PATH = _lw_cfg
+    for _nm, _hr in (("old_tight", _lw_old_tight), ("edited", dict(_lw_old_tight, missing_votes=False)),
+                     ("medium", mc._sm.apply_health_preset(mc._sm.DEFAULT_SETTINGS["health_rules"], "medium"))):
+        json.dump({"health_rules": _hr, "health_preset": "custom", "health_mode": "nfo", "settings_migrations": _lw_done},
+                  open(_lw_cfg, "w", encoding="utf-8"))
+        del sc.SETTINGS_MIGRATION_STATUS[:]
+        _m5 = sc.load_settings()
+        _lw5[_nm] = (_m5["health_rules"]["required_audio_language"], _m5["health_rules"]["required_subtitle_language"],
+                     _m5.get("health_preset"), bool(sc.SETTINGS_MIGRATION_STATUS), "v0202_lang_rules" in _m5["settings_migrations"])
+finally:
+    sc.CONFIG_PATH = _lw_orig
+    del sc.SETTINGS_MIGRATION_STATUS[:]
+check("LW (decision A): rules equal to the old Tight move to the new Tight (strict rules off, preset Tight, one status "
+      "line); rules changed by hand keep both strict rules on; Medium is unchanged; the migration runs once",
+      _lw5["old_tight"] == (False, False, "tight", True, True) and _lw5["edited"][:2] == (True, True)
+      and not _lw5["edited"][3] and _lw5["medium"][:2] == (False, False) and not _lw5["medium"][3]
+      and all(v[4] for v in _lw5.values()), _lw5)
 import inspect as _insp_pa48
 # ── v0.20.2 PA5 / PA6: Undo after a later folder rename; Undo never makes a missing movie folder again ──
 _bk5 = os.path.join(_TMP, "pa5_bk"); _lib5 = os.path.join(_TMP, "pa5_lib"); _mv5 = os.path.join(_lib5, "Heat")

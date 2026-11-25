@@ -432,7 +432,8 @@ def reset_wrong_types(merged):
 _MIGRATIONS = ("b35_folder_rules_off", "b55_library_filter_reset", "b110_collection_column_hidden",
                "tr1_xml_integration_kept", "tr1b_health_mode",  # v0.19.6 TR1, TR1b
                "hp1_health_preset",                                  # v0.20.0 HP1d
-               "v0201_new_rules", "v0202_new_rules")                                    # v0.20.1 (checkup)
+               "v0201_new_rules", "v0202_new_rules",                                    # v0.20.1 (checkup)
+               "v0202_lang_rules")                                                      # v0.20.2 LW
 SETTINGS_MIGRATION_NOTICES = []                                  # one message box each (B35)
 SETTINGS_MIGRATION_STATUS = []                                   # one status-bar line each (B55)
 B55_STATUS = "Library filter reset to 'All libraries' — every library is shown again"
@@ -510,6 +511,17 @@ def _run_settings_migrations(merged):
         if isinstance(hr, dict) and pre in _sm.HEALTH_PRESETS:
             hr["cert_settings"] = _sm.HEALTH_PRESETS[pre]["cert_settings"]
             _log.info(f"Settings migration v0202_new_rules: the certification rule follows the {pre} preset")
+    if "v0202_lang_rules" in todo:                               ### NEW v0.20.2 LW (the user's decision A, 2026-11-25) ###
+        # the strict audio / subtitle rules are optional now (off in every preset): rules that equal the old Tight move
+        # to the new Tight; rules a user changed by hand stay as they are (the preset shows Custom, as before)
+        hr = merged.get("health_rules")
+        if isinstance(hr, dict) and (hr.get("required_audio_language") or hr.get("required_subtitle_language")):
+            cand = dict(hr, required_audio_language=False, required_subtitle_language=False)
+            if _sm.matching_health_preset(cand, _mode_of(merged)) == "tight":
+                hr.update(required_audio_language=False, required_subtitle_language=False)
+                merged["health_preset"] = "tight"
+                SETTINGS_MIGRATION_STATUS.append(_i18n.t("uf.m.lw_rules"))
+                _log.info("Settings migration v0202_lang_rules: the strict audio / subtitle rules are off (Tight)")
     merged["settings_migrations"] = done + todo
     save_settings(merged)                                        # once: the markers are on disk now
 

@@ -1517,6 +1517,17 @@ class SettingsDialog(DialogBase):
         self._lang_desc.pack(side="left")
         self._lang_combo.bind("<<ComboboxSelected>>", self._update_lang_desc)
         self._update_lang_desc()
+        ### NEW v0.20.2 LW — the other languages the user watches in: a movie is OK with audio or subtitles in ANY ###
+        tk.Label(f, text=_i18n.t("set.lw.main_note"), font=("Helvetica", 9), bg="#1e1e2e", fg="#6c7086",
+                 justify="left").pack(anchor="w", padx=16, pady=(4, 0))
+        tk.Label(f, text=_i18n.t("set.lw.more_head"), font=("Helvetica", 10), bg="#1e1e2e", fg="#cdd6f4",
+                 justify="left", wraplength=560).pack(anchor="w", padx=16, pady=(10, 2))
+        self._lang_more_box = tk.Frame(f, bg="#1e1e2e"); self._lang_more_box.pack(anchor="w", padx=16)
+        self._lang_more_vars = []
+        for _c in (self._s.get("lang_ok_more") or []):
+            self._add_lang_more(_c)
+        tk.Button(f, text=_i18n.t("set.lw.more_add"), command=self._add_lang_more, font=("Helvetica", 10),
+                  bg="#313244", fg="#cdd6f4", relief="flat", cursor="hand2").pack(anchor="w", padx=16, pady=(4, 10))
 
         tk.Label(f, text=_i18n.t("set.available_languages_ab4e"),
                  font=("Helvetica", 10, "bold"), bg="#1e1e2e", fg="#89b4fa"
@@ -1527,6 +1538,39 @@ class SettingsDialog(DialogBase):
             tk.Label(grid_f, text=f"{iso} — {lang_name(iso, name)}",
                      font=("Consolas", 9), bg="#1e1e2e", fg="#6c7086",
                      anchor="w", width=22).grid(row=r, column=c, sticky="w", pady=1)
+
+    def _add_lang_more(self, code=""):                           ### NEW v0.20.2 LW ###
+        """One "other language" row: a menu of the 30 languages, its name, and ✕ to remove it."""
+        row = tk.Frame(self._lang_more_box, bg="#1e1e2e"); row.pack(anchor="w", pady=1)
+        var = tk.StringVar(value=str(code or "").upper())
+        cb = ttk.Combobox(row, textvariable=var, values=[iso for iso, _ in self._langs], state="readonly", width=8,
+                          font=("Helvetica", 11))
+        cb.pack(side="left")
+        names = {iso: lang_name(iso, name) for iso, name in self._langs}
+        desc = tk.Label(row, text=f"→ {names[var.get()]}" if var.get() in names else "", font=("Helvetica", 10),
+                        bg="#1e1e2e", fg="#a6adc8")
+        desc.pack(side="left", padx=(8, 8))
+        cb.bind("<<ComboboxSelected>>", lambda e: desc.configure(text=f"→ {names.get(var.get(), '')}"))
+        item = (var, row)
+
+        def _remove():
+            if item in self._lang_more_vars:
+                self._lang_more_vars.remove(item)
+            row.destroy()
+        tk.Button(row, text="✕", command=_remove, font=("Helvetica", 9), bg="#1e1e2e", fg="#f38ba8", relief="flat",
+                  cursor="hand2").pack(side="left")
+        self._lang_more_vars.append(item)
+        return var
+
+    def _lang_more_codes(self):                                   ### NEW v0.20.2 LW ###
+        """The other languages as saved: chosen ones only, upper case, no repeats, never the main language."""
+        main = self._lang_var.get().upper() if hasattr(self, "_lang_var") else str(self._s.get("lang_ok_code") or "PT").upper()
+        out = []
+        for var, _row in getattr(self, "_lang_more_vars", []):
+            c = var.get().strip().upper()
+            if c and c != main and c not in out:
+                out.append(c)
+        return out
 
     def _update_lang_desc(self, *_):
         code = self._lang_var.get().upper()
@@ -2469,11 +2513,13 @@ class SettingsDialog(DialogBase):
                          VIDEO_QUALITY_LEVELS, "720p", combo_width=12)
         _level("warning")
         _check_row("multiple_video_files",   _i18n.t("set.multiple_video_files_in_1676"))
+        ### MODIFIED v0.20.2 LW — the main rule first (audio OR subtitles in ANY of your languages), then the two
+        # stricter, optional ones (off in every preset) ###
+        _check_row("lang_not_ok",            _i18n.t("set.lw.rule"))
         _check_lang_row("required_audio_language", "required_audio_language_code",
-                        _i18n.t("set.required_audio_language_missing_abf4"), AUDIO_LANGUAGES, "ENG")
+                        _i18n.t("set.lw.req_audio"), AUDIO_LANGUAGES, "ENG")
         _check_lang_row("required_subtitle_language", "required_subtitle_language_code",
-                        _i18n.t("set.required_subtitle_language_missing_ca1d"), SUBTITLE_LANGUAGES, "POR")
-        _check_row("lang_not_ok",            _i18n.t("set.target_language_not_found_61ca"))
+                        _i18n.t("set.lw.req_subs"), SUBTITLE_LANGUAGES, "POR")
         _sub(_i18n.t("set.movie_ids_imdb_tmdb_4f07"))                                    # v0.19.6 TR1d
         _level("error")
         _check_row("missing_imdb_id",    _i18n.t("set.missing_imdb_id_no_5def"))
@@ -2939,6 +2985,7 @@ class SettingsDialog(DialogBase):
             },
             # Scalar: language code
             "language": s.get("lang_ok_code", "PT"),
+            "language_more": [str(c).upper() for c in (s.get("lang_ok_more") or [])],   # v0.20.2 LW
             # List of genre strings (normalised — no blank lines)
             "genres":   [g.strip() for g in
                          s.get("genre_list", "").splitlines() if g.strip()],
@@ -2989,6 +3036,8 @@ class SettingsDialog(DialogBase):
         lang = False
         if hasattr(self, "_lang_var"):
             lang |= self._lang_var.get().upper() != snap.get("language", "PT").upper()
+        if hasattr(self, "_lang_more_vars"):                     # v0.20.2 LW
+            lang |= self._lang_more_codes() != list(snap.get("language_more") or [])
         changed["language"] = lang
 
         # Genres — compare as sorted lists of stripped strings
@@ -3170,6 +3219,8 @@ class SettingsDialog(DialogBase):
                 _s["fanarttv_client_key"] = self._fanarttv_client_var.get().strip()
             _s["default_browser"]  = self._browser_var.get().strip()
             _s["lang_ok_code"]     = self._lang_var.get().upper()
+            if hasattr(self, "_lang_more_vars"):                    # v0.20.2 LW
+                _s["lang_ok_more"] = self._lang_more_codes()
             _s["improve_checks"]   = {k: v.get() for k, v in self._ic_vars.items()}
             _num = self._num                                               ### v0.18.4 — blank-safe ###
             _s["max_nfo_kb"]       = max(1, _num(self._max_nfo_kb_var, 50))

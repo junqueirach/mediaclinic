@@ -16,6 +16,7 @@ TAB_01 = """
 - Las filas de una biblioteca que no se puede alcanzar se ven en gris.
 - Sin ningún programa marcado, la app pregunta una vez qué programas usa; un usuario nuevo empieza con el ajuste de estado Medio.
 - **Ayuda → Copiar información de diagnóstico…** para informar un error, sin rutas ni nombres de películas (pestaña Solución de problemas).
+- Visible en sus idiomas: una película está OK con audio o subtítulos en cualquiera de sus idiomas (Configuración → Idioma, **+ y otro idioma**); "siempre un audio en" y "siempre un subtítulo en" son opcionales, desactivadas en todos los perfiles de estado.
 
 ## Novedades de la v0.20.1
 - El menú Herramientas está agrupado en submenús (pestaña Herramientas y Reparación automática).
@@ -81,7 +82,7 @@ En el modo **NFO y movie.xml**, una biblioteca en la que ninguna película tiene
 ## Lista de inicio rápido
 - **Configuración → Editor y FFmpeg**: indique la carpeta de FFmpeg (análisis de video y extracción de imágenes de fondo).
 - **Configuración → Claves de API**: agregue las claves de TMDB y OMDb (calificaciones, búsqueda y revisión de IDs, imágenes); una clave de fanart.tv agrega más pósteres e imágenes de fondo.
-- **Configuración → Idioma**: el idioma de destino de la columna Idioma (por defecto PT). El idioma de la propia app está en **Configuración → Interfaz → Idioma de la interfaz** (English, Português (Brasil), Español o Igual que Windows; **Reiniciar ahora** reinicia en él).
+- **Configuración → Idioma**: sus idiomas — el principal (por defecto PT; también el idioma de los títulos y las imágenes de TMDB) y **+ y otro idioma** para cada otro idioma en el que ve películas. El idioma de la propia app está en **Configuración → Interfaz → Idioma de la interfaz** (English, Português (Brasil), Español o Igual que Windows; **Reiniciar ahora** reinicia en él).
 - **Configuración → Reglas de estado**: elija qué cuenta como error o como advertencia. Un **Perfil de estado** (Fácil / Medio / Estricto) las define todas a la vez; un usuario nuevo empieza con Medio.
 - Para priorizar: ordene por **Estado** (Errores primero), haga clic en el contador **Errores** o marque **Solo problemas**.
 
@@ -140,7 +141,7 @@ Seleccione una película y el panel muestra su póster, año, géneros, califica
 | Idioma | el <Language> de nivel superior de movie.xml: el idioma para descargar metadatos. Sin movie.xml: el <language> de nivel superior del NFO (el mismo significado); si no, el idioma de la primera pista de audio. La descripción emergente indica la fuente. Vacío es normal.
 | Video, Tamaño, Calidad | contenedor, tamaño y clase de resolución.
 | Audio | pistas de audio de FFprobe, p. ej. EN (5.1), PT (2.0).
-| ¿Idioma OK? | S / N: el idioma de destino en el audio o los subtítulos (el encabezado muestra el código, p. ej. "¿PT OK?").
+| ¿Idioma OK? | S / N: audio o subtítulos en uno de sus idiomas (el encabezado muestra el código principal, p. ej. "¿PT OK?"; su ayuda emergente los nombra todos).
 | Subtítulos | pistas integradas (FFprobe) y archivos externos.
 | Biblioteca | la biblioteca (carpeta raíz). Oculta por defecto.
 | Colección | la colección de la película (NFO <set>). Oculta por defecto.
@@ -273,7 +274,7 @@ Con varias películas seleccionadas, cada línea dice cuántas películas tienen
 | Póster por debajo del tamaño mínimo | Reemplazar pósteres de baja resolución…
 | Falta el idioma en el audio y los subtítulos | buscar subtítulos (OpenSubtitles)…
 | Falta el subtítulo exigido | buscar subtítulos (OpenSubtitles)…
-| Subtítulos grabados en la imagen | Subtítulos incrustados en la imagen…
+| Subtítulos grabados en la imagen | Subtítulos incrustados en la imagen… (solo cuando la película no tiene audio en ese idioma)
 | Falta el idioma de audio exigido | necesita otra copia del vídeo (sin corrección automática)
 | Varias de las correcciones de arriba, o una que solo hace la Reparación automática | Reparación automática
 
@@ -566,7 +567,7 @@ Cuando NFO <title> y XML <LocalTitle> difieren, Clic derecho → Metadatos → *
 - **Audio**: pistas de FFprobe como IDIOMA (CANALES); pase el puntero para ver el códec y el bitrate. Una pista que FFprobe informa como UND toma el idioma del NFO o del XML cuando corresponde ("POR — from NFO"). No se escribe nada.
 - **Subtítulos**: pistas integradas y archivos externos (p. ej. Movie.pt.srt, también en una carpeta Subs; se leen las marcas forced y SDH). Clic derecho → **Subtítulos…** se abre para cualquier película; **🌐 Abrir en OpenSubtitles.org** lo busca allí.
 - **Subtítulos incrustados en la imagen…** marca los subtítulos grabados en la imagen (no se pueden detectar): marque el/los idioma(s) o escriba un código ISO 639-2. La app escribe <tag>Hardsub POR</tag> en el NFO y <Tags><Tag>Hardsub POR</Tag></Tags> en el XML; la columna muestra "Hard: POR".
-- La columna **¿Idioma OK?** es S cuando el idioma de destino (Configuración → Idioma) está en una pista de audio o en un subtítulo: leído por FFprobe, un archivo de subtítulos, una marca de incrustados, o un stream escrito en el NFO (streamdetails) o en movie.xml (MediaInfo). NFO <language> y XML <Language> / <LanguageCode> de nivel superior no cuentan: son el idioma para descargar metadatos.
+- La columna **¿Idioma OK?** es S cuando uno de sus idiomas (Configuración → Idioma) está en una pista de audio o en un subtítulo: leído por FFprobe, un archivo de subtítulos, una marca de incrustados, o un stream escrito en el NFO (streamdetails) o en movie.xml (MediaInfo). NFO <language> y XML <Language> / <LanguageCode> de nivel superior no cuentan: son el idioma para descargar metadatos. Una pista de audio sin etiqueta de idioma da una advertencia propia, "Idioma del audio sin etiqueta". Las reglas "siempre un audio en" y "siempre un subtítulo en" (Configuración → Reglas de estado) son más estrictas y opcionales: desactivadas en todos los perfiles de estado.
 """
 
 TAB_07 = """
@@ -851,7 +852,7 @@ TAB_11 = """
 | Editor y FFmpeg | editor de texto, carpeta de FFmpeg (**Probar FFmpeg**; se encuentra sola cuando está en el PATH o en una carpeta de instalación habitual), cantidad de cuadros para imágenes de fondo, scan en paralelo (workers; procesos FFprobe), scraper opcional, "Recordar los resultados de FFprobe" (cada video se analiza una vez; un video cambiado se analiza de nuevo)
 | Claves de API | claves de TMDB, OMDb y fanart.tv con botones **Validar** y enlaces para obtenerlas; las claves nunca se escriben en el registro
 | Navegador | el navegador para los enlaces web
-| Idioma | el código ISO 639-1 de la columna ¿Idioma OK? (predeterminado PT)
+| Idioma | sus idiomas: el código ISO 639-1 principal (predeterminado PT) y los otros que añada
 | Mejoras | las revisiones del informe de mejoras y los tamaños máximos de NFO / XML
 | Imágenes y arte | el idioma de las imágenes (Preferir / Solo, imágenes sin texto primero), nivel mínimo de calidad (el mismo valor que en Reglas de estado), aceptación de 3:4 y 3:2, tamaños mínimos de archivo
 | Calificaciones | los valores predeterminados de las casillas de Sincronizar calificaciones

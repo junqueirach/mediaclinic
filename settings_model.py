@@ -40,7 +40,9 @@ DEFAULT_SETTINGS = {
     "sort_presets":       [],                                       ### NEW v0.19.3 B63 — the user's sort presets ###
     "extract_timeout":    60,
     "use_ffprobe":        True,        # ffprobe checkbox
-    "lang_ok_code":       "PT",        # language for "OK?" column
+    "lang_ok_code":       "PT",        # language for "OK?" column (the main language; also the TMDB language)
+    "lang_ok_more":       [],          # NEW v0.20.2 LW: other languages the user watches in (ISO 639-1); a movie is
+                                       # OK with audio or subtitles in ANY of lang_ok_code + these
     # Improvement thresholds
     "improve_checks": {
         "large_xml":      True,
@@ -214,9 +216,9 @@ DEFAULT_SETTINGS = {
         "lang_not_ok":                     True,
         "missing_language_field":          True,
         "nfo_xml_too_large":               True,
-        "required_audio_language":         True,
+        "required_audio_language":         False,     ### MODIFIED v0.20.2 LW — optional, stricter (off in every preset) ###
         "required_audio_language_code":    "ENG",
-        "required_subtitle_language":      True,
+        "required_subtitle_language":      False,     ### MODIFIED v0.20.2 LW ###
         "required_subtitle_language_code": "POR",
         "missing_movie_title":             True,
         "title_mismatch":                  True,
@@ -606,8 +608,8 @@ HEALTH_PRESETS = {
         'nfo_unescaped_amp': True, 'nfo_xml_too_large': True, 'no_audio_tracks': True, 'no_source_level': 'error',
         'numeric_field_invalid': True, 'poster_folder_identical': False, 'poster_folder_quality_level': '1080p',
         'poster_folder_quality_minimum': True, 'poster_missing_with_folder': True, 'poster_proportion': True,
-        'rating_conflict': True, 'rating_warning': True, 'required_audio_language': True,
-        'required_subtitle_language': True, 'single_source_level': 'error', 'suspicious_rating': True,
+        'rating_conflict': True, 'rating_warning': True, 'required_audio_language': False,   # v0.20.2 LW: optional
+        'required_subtitle_language': False, 'single_source_level': 'error', 'suspicious_rating': True,
         'suspicious_rating_threshold': 1.0, 'title_mismatch': True, 'tmdb_id_partial': True, 'unexpected_root': True,
         'video_quality_minimum': True, 'video_quality_minimum_level': '1080p', 'votes_conflict': True,
         'votes_warning': True, 'year_out_of_range': True, 'year_premiered_differ': True,

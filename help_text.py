@@ -118,6 +118,7 @@ TAB_START = """
 - The rows of a library that cannot be reached are grey.
 - With no program ticked the app asks once which programs you use; a new user starts with the Medium preset.
 - **Help → Copy Diagnostic Info…** for a bug report, without paths or movie names (Troubleshooting tab).
+- Watchable in your languages: a movie is OK with audio or subtitles in any of your languages (Settings → Language, **+ and another language**); "always an audio track in" and "always a subtitle in" are optional, off in every preset.
 
 ## New in v0.20.1
 - The Tools menu is grouped into submenus (Bulk Tools & Auto Repair tab).
@@ -183,7 +184,7 @@ In the mode **NFO and movie.xml**, a library where no movie has a movie.xml gets
 ## Quick-start checklist
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
 - **Settings → API Keys**: add the TMDB and OMDb keys (ratings, ID search and checks, artwork); a fanart.tv key adds more posters and backdrops.
-- **Settings → Language**: the target language of the Language column (default PT). The language of the app itself is **Settings → User Interface → Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it).
+- **Settings → Language**: your languages — the main one (default PT; also the language of the titles and artwork from TMDB) and **+ and another language** for each other language you watch in. The language of the app itself is **Settings → User Interface → Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it).
 - **Settings → Health Rules**: choose what counts as an error or a warning. A **Health preset** (Easy / Medium / Tight) sets them all at once; a new user starts with Medium.
 - To triage: sort by **Health** (Errors first), click the **Errors** counter, or tick **Problems only**.
 
@@ -242,7 +243,7 @@ Select one movie and the panel shows its poster, year, genres, rating, library a
 | Language | movie.xml's top-level <Language>: the language for metadata downloads. Without movie.xml: the NFO's top-level <language> (the same meaning), else the language of the first audio track. The tooltip names the source. Empty is normal.
 | Video, Video Size, Quality | container, size and resolution class.
 | Audio | FFprobe audio tracks, e.g. EN (5.1), PT (2.0).
-| Language OK | Y / N: the target language in audio or subtitles (the heading shows the code, e.g. "PT OK?").
+| Language OK | Y / N: audio or subtitles in one of your languages (the heading shows the main code, e.g. "PT OK?"; its tooltip names them all).
 | Subtitles | embedded tracks (FFprobe) and external files.
 | Library | the library (root folder). Hidden by default.
 | Collection | the movie's collection (NFO <set>). Hidden by default.
@@ -375,7 +376,7 @@ With several movies selected, each line says how many movies have the problem, a
 | Poster below the minimum size | Replace Low-Resolution Posters…
 | Language missing in audio and subtitles | find subtitles (OpenSubtitles)…
 | Required subtitle missing | find subtitles (OpenSubtitles)…
-| Subtitles burned into the picture | Hard-coded subtitles…
+| Subtitles burned into the picture | Hard-coded subtitles… (only when the movie has no audio in that language)
 | Required audio language missing | needs another copy of the video (no automatic fix)
 | Several of the fixes above, or one only Auto Repair does | Auto Repair
 
@@ -668,7 +669,7 @@ When NFO <title> and XML <LocalTitle> differ, Right-click → Metadata → **Mak
 - **Audio**: FFprobe tracks as LANGUAGE (CHANNELS); hover for codec and bitrate. A track FFprobe reports as UND takes the language from the NFO or the XML when it fits ("POR — from NFO"). Nothing is written.
 - **Subtitles**: embedded tracks and external files (e.g. Movie.pt.srt, also in a Subs folder; forced and SDH flags are read). Right-click → **Subtitles…** opens for any movie; **🌐 Open on OpenSubtitles.org** searches it there.
 - **Hard-coded subtitles…** marks burned-in subtitles (they cannot be detected): tick the language(s) or type an ISO 639-2 code. The app writes <tag>Hardsub POR</tag> to the NFO and <Tags><Tag>Hardsub POR</Tag></Tags> to the XML; the column shows "Hard: POR".
-- The **Language OK** column is Y when the target language (Settings → Language) is in an audio track or a subtitle: read by FFprobe, a subtitle file, a hard-coded mark, or a stream written in the NFO (streamdetails) or movie.xml (MediaInfo). NFO <language> and XML <Language> / <LanguageCode> at the top level do not count: they are the language for metadata downloads.
+- The **Language OK** column is Y when one of your languages (Settings → Language) is in an audio track or a subtitle: read by FFprobe, a subtitle file, a hard-coded mark, or a stream written in the NFO (streamdetails) or movie.xml (MediaInfo). NFO <language> and XML <Language> / <LanguageCode> at the top level do not count: they are the language for metadata downloads. An audio track without a language tag gives its own warning, "Audio language not tagged". The rules "always an audio track in" and "always a subtitle in" (Settings → Health Rules) are stricter and optional: off in every preset.
 """
 
 TAB_BULK = """
@@ -953,7 +954,7 @@ TAB_SETTINGS = """
 | Editor & FFmpeg | text editor, FFmpeg folder (**Test FFmpeg**; found by itself when it is on the PATH or in a usual install folder), backdrop frame count, parallel scanning (workers; FFprobe processes), optional scraper, "Remember FFprobe results" (each video probed once; a changed video is probed again)
 | API Keys | TMDB, OMDb and fanart.tv keys with **Validate** buttons and links to get them; keys are never written to the log
 | Browser | the browser for web links
-| Language | the ISO 639-1 code of the Language OK column (default PT)
+| Language | your languages: the main ISO 639-1 code (default PT) and the others you add
 | Improvements | the checks of the Improvements report and the NFO / XML maximum sizes
 | Images & Artwork | the artwork language (Prefer / Only, images without text first), minimum quality tier (the same value as Health Rules), 3:4 and 3:2 acceptance, minimum file sizes
 | Ratings | the defaults of the Ratings Sync tick boxes

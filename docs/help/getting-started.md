@@ -10,6 +10,7 @@
 - The rows of a library that cannot be reached are grey.
 - With no program ticked the app asks once which programs you use; a new user starts with the Medium preset.
 - **Help → Copy Diagnostic Info…** for a bug report, without paths or movie names (Troubleshooting tab).
+- Watchable in your languages: a movie is OK with audio or subtitles in any of your languages (Settings → Language, **+ and another language**); "always an audio track in" and "always a subtitle in" are optional, off in every preset.
 
 ## New in v0.20.1
 - The Tools menu is grouped into submenus (Bulk Tools & Auto Repair tab).
@@ -75,7 +76,7 @@ In the mode **NFO and movie.xml**, a library where no movie has a movie.xml gets
 ## Quick-start checklist
 - **Settings → Editor & FFmpeg**: set the FFmpeg folder (video analysis and backdrop extraction).
 - **Settings → API Keys**: add the TMDB and OMDb keys (ratings, ID search and checks, artwork); a fanart.tv key adds more posters and backdrops.
-- **Settings → Language**: the target language of the Language column (default PT). The language of the app itself is **Settings → User Interface → Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it).
+- **Settings → Language**: your languages — the main one (default PT; also the language of the titles and artwork from TMDB) and **+ and another language** for each other language you watch in. The language of the app itself is **Settings → User Interface → Interface language** (English, Português (Brasil), Español or Same as Windows; **Restart now** restarts in it).
 - **Settings → Health Rules**: choose what counts as an error or a warning. A **Health preset** (Easy / Medium / Tight) sets them all at once; a new user starts with Medium.
 - To triage: sort by **Health** (Errors first), click the **Errors** counter, or tick **Problems only**.
 

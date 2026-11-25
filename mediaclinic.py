@@ -40,6 +40,11 @@
 #          NFOs; list files never overwritten after a failed read; tracked jobs for Restore / Image Fix / Title Sync /
 #          Search Sources (_wait_off_tk); APP_CLOSING before the close save. Code check CC1 / CC2 (_alive_or, the
 #          restore flag); behaviour tests TG1–TG6.
+#   - LW watchable in your languages (the user, 2026-11-25): Lang OK = audio OR subtitles in ANY of the user's
+#          languages (lang_ok_code + lang_ok_more, '+ and another language', 30 to choose from; lang_ok_langs());
+#          an untagged audio track = "Audio language not tagged"; the strict always-audio / always-subtitle rules
+#          are optional (off in every preset; migration v0202_lang_rules moves the old Tight to the new one);
+#          'Hard-coded subtitles…' only without audio in that language (hardsub_offer).
 # v0.20.1
 #   - Setup: copied from v0.20.0 (file names _v0_20_1). Plan Part 9g, phases 1–11; series-ready code rule SR0–SR8.
 # v0.20.0                                                   ### NEW v0.20.0 ###
@@ -1367,6 +1372,34 @@ def is_target_lang(tag, iso_code):
         return bool(t) and lang_same(t, iso_code)
     except Exception:
         return False
+
+def lang_ok_langs(settings=None):                                 ### NEW v0.20.2 LW ###
+    """The user's languages for "watchable": the main language (lang_ok_code — also the TMDB language) first, then
+    lang_ok_more; upper-case ISO 639-1, no repeats. Every language check reads this; the TMDB language stays the main one."""
+    s = SETTINGS if settings is None else settings
+    out = []
+    for c in [s.get("lang_ok_code") or "PT"] + list(s.get("lang_ok_more") or []):
+        c = str(c or "").strip().upper()
+        if c and c not in out:
+            out.append(c)
+    return out
+
+
+def is_my_lang(tag, langs):                                       ### NEW v0.20.2 LW ###
+    """True when *tag* is one of *langs* (one ISO 639-1 code or a list of them)."""
+    return any(is_target_lang(tag, c) for c in ([langs] if isinstance(langs, str) else (langs or ())))
+
+
+def audio_untagged(row):                                          ### NEW v0.20.2 LW (the user's decision B) ###
+    """An audio track whose language is still unknown after the NFO / movie.xml fill (B16): 'und', empty or not a
+    language. Such a track may be in the user's language — the movie is "not tagged", not "not in your languages"."""
+    return any(lang_key(t.get("language")) is None for t in (row.get("audio_tracks") or []))
+
+
+def has_audio_in(row, lang):                                      ### NEW v0.20.2 LW ###
+    """The row has an audio track in *lang* (any code form: POR / pt / Portuguese)."""
+    return any(lang_same(t.get("language", ""), lang) for t in (row.get("audio_tracks") or []))
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # COLUMN MODEL  (Phase B — centralized column definitions)
@@ -4896,8 +4929,8 @@ def _refill_audio_row(r):                                       ### NEW v0.19.1 
         return r
     r["audio_tracks"] = fill_audio_lang_from_files(r["audio_tracks"], nfo, xml)
     if r.get("video_path") and r.get("lang_ok") == "N":
-        iso = SETTINGS.get("lang_ok_code", "PT")
-        if any(t.get("language_src") and is_target_lang(t["language"], iso) for t in r["audio_tracks"]):
+        iso = lang_ok_langs()                                     # v0.20.2 LW: any of your languages
+        if any(t.get("language_src") and is_my_lang(t["language"], iso) for t in r["audio_tracks"]):
             r["lang_ok"] = "Y"
     return r
 
@@ -4979,8 +5012,8 @@ def _file_stream_langs(nfo_path, xml_path):                      ### NEW v0.19.5
 def lang_in_stored_streams(row, iso_code):                       ### NEW v0.19.5 AS-A1 ###
     """The target language in the FFprobe data the row kept. A rescan without FFprobe judges from this and the files it read
     now, never from the old Y: a subtitle that was deleted must turn the answer to N."""
-    return (any(is_target_lang(t.get("language", ""), iso_code) for t in (row.get("audio_tracks") or []))
-            or any(is_target_lang(s.get("lang", ""), iso_code) for s in (row.get("subs_internal") or [])))
+    return (any(is_my_lang(t.get("language", ""), iso_code) for t in (row.get("audio_tracks") or []))   # v0.20.2 LW: a list too
+            or any(is_my_lang(s.get("lang", ""), iso_code) for s in (row.get("subs_internal") or [])))
 
 
 def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path,
@@ -4990,13 +5023,14 @@ def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path
     N  — video present but no target language found
     —  — no video file
     subs_hard — hard-coded subtitle codes marked by the user (v0.19.1 B15)
+    ### v0.20.2 LW ### iso_code: one code or the list of the user's languages (lang_ok_langs): ANY of them is enough
     """
     if not video_path:
         return "—"
 
     # 0. Hard-coded subtitles marked by the user (no probe needed) ### NEW v0.19.1 B15 ###
     for c in (subs_hard or []):
-        if is_target_lang(c, iso_code):
+        if is_my_lang(c, iso_code):
             return "Y"
 
     # 1. FFprobe audio streams (the one cached probe — v0.19.1 I5)
@@ -5004,23 +5038,23 @@ def compute_lang_ok(video_path, subs_internal, subs_external, nfo_path, xml_path
         for stream in _probe_streams(video_path, "audio", use_ffprobe):
             tags = stream.get("tags", {})
             lang = tags.get("language") or tags.get("LANGUAGE") or ""
-            if is_target_lang(lang, iso_code):
+            if is_my_lang(lang, iso_code):
                 return "Y"
 
     # 2. Internal subtitles (ffprobe)
     for s in subs_internal:
-        if is_target_lang(s.get("lang", ""), iso_code):
+        if is_my_lang(s.get("lang", ""), iso_code):
             return "Y"
 
     # 3. External subtitle files
     for s in subs_external:
-        if is_target_lang(s.get("lang", ""), iso_code):
+        if is_my_lang(s.get("lang", ""), iso_code):
             return "Y"
 
     # 4. Stream languages written in the files. ### MODIFIED v0.19.5 B121 ### only streams: NFO <language>, XML <Language> and
     # <LanguageCode> at the top level are the language for metadata downloads (Jellyfin, Emby), not the film's language.
     for lang in _file_stream_langs(nfo_path, xml_path):
-        if is_target_lang(lang, iso_code):
+        if is_my_lang(lang, iso_code):
             return "Y"
 
     return "N"
@@ -8719,7 +8753,7 @@ def _scan_one_subfolder(sub_path, sub_name, use_ffprobe=None, force_ffprobe=Fals
     if use_ffprobe and vi["video_path"] and FFPROBE_PATH:
         audio_tracks = scan_audio_tracks(vi["video_path"], use_ffprobe=True)
 
-    iso = SETTINGS.get("lang_ok_code", "PT")
+    iso = lang_ok_langs()                                        # v0.20.2 LW: any of your languages
     subs_hard = get_hardsub_langs(nfo_path if ne else None, xml_path if xe else None)   ### NEW v0.19.1 B15 ###
     if subs_hard:
         si["subs_summary"] = _subs_summary(si["subs_internal"], si["subs_external"], vi["video_path"], subs_hard)
@@ -15801,7 +15835,7 @@ def carry_after_rescan(r, d):                                    ### NEW v0.19.4
                 r[key] = d[key]
         r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"), r.get("subs_hard"))
         _refill_audio_row(r)
-        if r.get("video_path") and lang_in_stored_streams(r, SETTINGS.get("lang_ok_code", "PT")):   # MODIFIED v0.19.5 AS-A1
+        if r.get("video_path") and lang_in_stored_streams(r, lang_ok_langs()):   # MODIFIED v0.19.5 AS-A1; v0.20.2 LW
             r["lang_ok"] = "Y"
     r["duplicate_of"] = list(d.get("duplicate_of") or [])
     carry_id_check(r, d)                                         # and carry_collection_data
@@ -21891,7 +21925,7 @@ _FIX_KEY_BY_CODE = {
     "cert_settings": "cert",                                     # v0.20.2 CR
     "xml_tags_old_readers": "auto",                              # v0.20.0 KR1.4: Auto Repair adds the tags
     # v0.20.1 R7: no_actor_info is mapped by its text (only "links" has a fix: Download Actor Photos)
-    "lang_not_ok": "audio", "required_audio_language": "audio_none",                  # v0.20.1 R7
+    "lang_not_ok": ("audio", "subs"), "required_audio_language": "audio_none",        # v0.20.1 R7; v0.20.2 LW: + subs
     "required_subtitle_language": ("subs_find", "subs"),
     "missing_nfo": "xml2nfo",                                                          # v0.20.1 L1
     "genre_warning": "genres", "genre_only_in_xml": "genres", "genre_only_in_nfo": "genres", "genre_nfo_wrong_tags": "genres",
@@ -21905,16 +21939,31 @@ _FIX_KEY_BY_CODE = {
 }
 
 
+def hardsub_offer(row, reason):                                  ### NEW v0.20.2 LW ###
+    """'Hard-coded subtitles…' makes sense only when the movie has NO audio in that language (the user, 2026-11-25:
+    three films with Portuguese audio were offered Portuguese hard-coded subtitles): for "Required subtitle language
+    not found (X)" none in X; for "not in your languages" always; for "not tagged" never (the track may be in it)."""
+    t = str(reason)
+    if t.startswith("Audio language not tagged") or (row.get("ffprobe_ran") and audio_untagged(row)):
+        return False                                              # an untagged track may be in that language
+    if t.startswith("Required subtitle language"):
+        lang = (reason_parts(reason)[1] or {}).get("lang") or ""
+        return not (lang and has_audio_in(row, lang))
+    return True
+
+
 def _fix_issue_keys(row, settings=None):
     """Pure: the issue keys of one row, from its health reasons and errors."""
     keys = set()
     for r in (row.get("health_reasons") or []):
         _k = _FIX_KEY_BY_CODE.get(reason_code(r), None)          ### NEW v0.20.0 UI1a — the rule's code first ###
         if _k is not None:
-            if _k:
-                keys.update(_k if isinstance(_k, tuple) else (_k,))   # v0.20.1 R7: a reason may have two entries
-            if _k == "xml2nfo" and not row.get("xml_exists"):         # v0.20.1 L1: only with a movie.xml to convert
-                keys.discard("xml2nfo")
+            _ks = set(_k if isinstance(_k, tuple) else (_k,)) if _k else set()   # v0.20.1 R7: a reason may have two entries
+            if "xml2nfo" in _ks and not row.get("xml_exists"):        # v0.20.1 L1: only with a movie.xml to convert
+                _ks.discard("xml2nfo")
+            if "subs" in _ks and not hardsub_offer(row, r):           # v0.20.2 LW: not with audio in that language
+                _ks.discard("subs")
+            keys |= _ks
             continue
         lo = r.lower()
         ### NEW v0.20.1 R7 / L1 — reasons whose fix depends on their text ###
@@ -21951,7 +22000,10 @@ def _fix_issue_keys(row, settings=None):
         if r.startswith("Required audio language"):
             keys.add("audio_none"); continue
         if r.startswith("Required subtitle language"):
-            keys.update(("subs_find", "subs")); continue
+            keys.add("subs_find")
+            if hardsub_offer(row, r):                                 # v0.20.2 LW
+                keys.add("subs")
+            continue
         if "only in <imdbid> / <tmdbid> — Kodi reads <uniqueid>" in r:   ### MODIFIED v0.20.1 BF2 — its own tool ###
             keys.add("uniqueid")
         elif "only in movie.xml tags the old programs ignore" in r:
@@ -23066,7 +23118,7 @@ class App(tk.Tk):
         self._use_ffprobe = tk.BooleanVar(value=SETTINGS.get("use_ffprobe", True))
         ### NEW v0.13.0 — track lang code so _on_settings_changed only re-runs
         # the expensive compute_lang_ok loop when the target language changed.
-        self._last_lang_iso = SETTINGS.get("lang_ok_code", "PT")
+        self._last_lang_iso = tuple(lang_ok_langs())                # v0.20.2 LW: every language, not only the main one
         # FIX v0.16.0 — cache FFmpeg test result so _rclick never blocks the UI.
         # None = not yet tested; (ff_ok, fp_ok) after first async test completes.
         self._ffmpeg_status = None   ### FIX v0.16.0 ###
@@ -24517,9 +24569,10 @@ class App(tk.Tk):
 
         # Capture whether the language code actually changed so we only
         # run the (potentially heavy) compute_lang_ok loop when needed.
-        prev_iso = getattr(self, "_last_lang_iso", iso)
-        lang_changed = (prev_iso != iso)
-        self._last_lang_iso = iso
+        _langs_now = tuple(lang_ok_langs())                         # v0.20.2 LW: adding a language re-checks too
+        prev_iso = getattr(self, "_last_lang_iso", _langs_now)
+        lang_changed = (prev_iso != _langs_now)
+        self._last_lang_iso = _langs_now
 
         # ── Deferred heavy work — runs after the Settings dialog is gone ──
         def _post_save_refresh():
@@ -25081,10 +25134,11 @@ class App(tk.Tk):
     # Lang OK
     def _tip_lang_ok(self, d, iid, ci):   ### v0.19.3 I7 — from _tooltip ###
         v = d.get("lang_ok", "—")
-        iso = SETTINGS.get("lang_ok_code", "PT")
-        lang_name = next((n for c, n in WORLD_LANGUAGES if c == iso), iso)
+        lang_name = " / ".join(next((n for c, n in WORLD_LANGUAGES if c == iso), iso) for iso in lang_ok_langs())   # v0.20.2 LW
         if v == "Y":
             return _i18n.t("rp.y_audio_or_subtitle_4fe6", lang_name=lang_name)
+        if v == "N" and d.get("ffprobe_ran") and audio_untagged(d):   # v0.20.2 LW (decision B)
+            return _i18n.t("rp.lw_untagged", lang_name=lang_name)
         if v == "N":
             return (_i18n.t("rp.n_no_audio_or_e09a", lang_name=lang_name))
         return _i18n.t("rp.no_video_file_cannot_c525")
@@ -32001,7 +32055,7 @@ class App(tk.Tk):
                             r[key] = rd[key]
                     r["subs_summary"] = _subs_summary(r["subs_internal"], r["subs_external"], r.get("video_path"), r.get("subs_hard"))
                     _refill_audio_row(r)                        ### NEW v0.19.1 B16 ###
-                    if r.get("video_path") and lang_in_stored_streams(r, SETTINGS.get("lang_ok_code", "PT")):   # MODIFIED v0.19.5 AS-A1
+                    if r.get("video_path") and lang_in_stored_streams(r, lang_ok_langs()):   # MODIFIED v0.19.5 AS-A1; v0.20.2 LW
                         r["lang_ok"] = "Y"
                 r["duplicate_of"] = list(rd.get("duplicate_of") or []) if rd else []
                 carry_id_check(r, rd)                                   ### NEW v0.19.4 B90 ###
@@ -32433,7 +32487,7 @@ class App(tk.Tk):
                     audio_tracks = row.get("audio_tracks", [])
                     if not si["subs_internal"] and row.get("subs_internal"):
                         si["subs_internal"] = row["subs_internal"]
-                iso = SETTINGS.get("lang_ok_code","PT")
+                iso = lang_ok_langs()                            # v0.20.2 LW
                 nfo_p = row["nfo_path"] if row["nfo_exists"] else None
                 xml_p = row["xml_path"] if row["xml_exists"] else None
                 sh = get_hardsub_langs(nfo_p, xml_p)                     ### NEW v0.19.1 B15 ###
@@ -34942,10 +34996,15 @@ def _hr_votes_warning(row, rules, settings, error_reasons, warning_reasons):
 
 
 def _hr_lang_not_ok(row, rules, settings, error_reasons, warning_reasons):
-    if rules.get("lang_not_ok", True):
-        if row.get("lang_ok") == "N":
-            warning_reasons.append(
-                "Target language not found in audio or subtitles")
+    ### MODIFIED v0.20.2 LW — "watchable in your languages" (the user, 2026-11-25): audio OR subtitles in ANY of the
+    # user's languages (lang_ok, computed with lang_ok_langs). An audio track without a language tag after the NFO / XML
+    # fill makes the answer unknown: its own warning (decision B), never "not in your languages" ###
+    if rules.get("lang_not_ok", True) and row.get("lang_ok") == "N":
+        langs = "/".join(lang_ok_langs(settings if isinstance(settings, dict) and settings.get("lang_ok_code") else None))
+        if row.get("ffprobe_ran") and audio_untagged(row):
+            warning_reasons.append(f"Audio language not tagged — cannot tell if the movie is in your languages ({langs})")
+        else:
+            warning_reasons.append(f"Not in your languages ({langs}): no audio or subtitles in them")
 
 
 def _hr_year_premiered(row, rules, settings, error_reasons, warning_reasons):   ### NEW v0.19.5 B126 ###
@@ -35405,7 +35464,7 @@ def read_old_tag_values(rows, old_cache, progress=None, cancelled=None, workers=
     read next time), several rows at once (a NAS answers much faster in parallel)."""
     todo = old_tag_rows(rows, old_cache)
     roots_ok = {}
-    iso = SETTINGS.get("lang_ok_code", "PT")
+    iso = lang_ok_langs()                                        # v0.20.2 LW: any of your languages
     for r in todo:
         r["tags_unread"] = True                                    # cleared when the row is read
         root = r.get("library_root") or os.path.dirname(r.get("subfolder_path") or "")
@@ -35692,6 +35751,8 @@ _REASON_TEMPLATES = [
     ('missing_votes', 'Missing votes'),
     ('votes_unreadable', 'Votes tag unreadable (non-numeric value)'),
     ('lang_not_ok', 'Target language not found in audio or subtitles'),
+    ('lang_none', 'Not in your languages ({langs}): no audio or subtitles in them'),   # v0.20.2 LW
+    ('lang_untagged', 'Audio language not tagged — cannot tell if the movie is in your languages ({langs})'),
     ('year_premiered', 'NFO <year> and <premiered> differ ({v})'),
     ('too_large', 'NFO or XML file exceeds maximum size'),
     ('req_audio', 'Required audio language not found ({lang})'),

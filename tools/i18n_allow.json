@@ -1071,6 +1071,18 @@
   },
   {
    "module": "mediaclinic_v0_20_2.py",
+   "func": "_hr_lang_not_ok",
+   "text": "Audio language not tagged — cannot tell if the movie is in y",
+   "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
+  },
+  {
+   "module": "mediaclinic_v0_20_2.py",
+   "func": "_hr_lang_not_ok",
+   "text": "Not in your languages ({}): no audio or subtitles in them",
+   "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"
+  },
+  {
+   "module": "mediaclinic_v0_20_2.py",
    "func": "_hr_year_premiered",
    "text": "NFO <year> and <premiered> differ ({})",
    "why": "stays English: a stored health reason, shown through reason_text() (the reason.* templates)"

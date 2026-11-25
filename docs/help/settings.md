@@ -8,7 +8,7 @@
 | Editor & FFmpeg | text editor, FFmpeg folder (**Test FFmpeg**; found by itself when it is on the PATH or in a usual install folder), backdrop frame count, parallel scanning (workers; FFprobe processes), optional scraper, "Remember FFprobe results" (each video probed once; a changed video is probed again)
 | API Keys | TMDB, OMDb and fanart.tv keys with **Validate** buttons and links to get them; keys are never written to the log
 | Browser | the browser for web links
-| Language | the ISO 639-1 code of the Language OK column (default PT)
+| Language | your languages: the main ISO 639-1 code (default PT) and the others you add
 | Improvements | the checks of the Improvements report and the NFO / XML maximum sizes
 | Images & Artwork | the artwork language (Prefer / Only, images without text first), minimum quality tier (the same value as Health Rules), 3:4 and 3:2 acceptance, minimum file sizes
 | Ratings | the defaults of the Ratings Sync tick boxes

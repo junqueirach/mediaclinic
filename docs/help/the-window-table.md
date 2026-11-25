@@ -33,7 +33,7 @@ Select one movie and the panel shows its poster, year, genres, rating, library a
 | Language | movie.xml's top-level <Language>: the language for metadata downloads. Without movie.xml: the NFO's top-level <language> (the same meaning), else the language of the first audio track. The tooltip names the source. Empty is normal.
 | Video, Video Size, Quality | container, size and resolution class.
 | Audio | FFprobe audio tracks, e.g. EN (5.1), PT (2.0).
-| Language OK | Y / N: the target language in audio or subtitles (the heading shows the code, e.g. "PT OK?").
+| Language OK | Y / N: audio or subtitles in one of your languages (the heading shows the main code, e.g. "PT OK?"; its tooltip names them all).
 | Subtitles | embedded tracks (FFprobe) and external files.
 | Library | the library (root folder). Hidden by default.
 | Collection | the movie's collection (NFO <set>). Hidden by default.

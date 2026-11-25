@@ -16,6 +16,7 @@ TAB_01 = """
 - As linhas de uma biblioteca que não pode ser acessada ficam em cinza.
 - Sem nenhum programa marcado, o app pergunta uma vez quais programas você usa; um usuário novo começa com a predefinição Médio.
 - **Ajuda → Copiar informações de diagnóstico…** para relatar um erro, sem caminhos nem nomes de filmes (aba Solução de problemas).
+- Assistível nos seus idiomas: um filme está OK com áudio ou legenda em qualquer um dos seus idiomas (Configurações → Idioma, **+ e outro idioma**); "sempre um áudio em" e "sempre uma legenda em" são opcionais, desligadas em todos os perfis de saúde.
 
 ## Novo na v0.20.1
 - O menu Ferramentas agora é agrupado em submenus (aba Ferramentas e Reparo automático).
@@ -81,7 +82,7 @@ No modo **NFO e movie.xml**, uma biblioteca em que nenhum filme tem movie.xml re
 ## Lista para começar rápido
 - **Configurações → Editor e FFmpeg**: defina a pasta do FFmpeg (análise de vídeo e extração de imagens de fundo).
 - **Configurações → Chaves de API**: adicione as chaves do TMDB e do OMDb (notas, busca e verificação de IDs, imagens); uma chave do fanart.tv traz mais pôsteres e imagens de fundo.
-- **Configurações → Idioma**: o idioma de destino da coluna Idioma (padrão PT). O idioma do próprio app fica em **Configurações → Interface → Idioma da interface** (English, Português (Brasil), Español ou Igual ao Windows; **Reiniciar agora** reinicia nele).
+- **Configurações → Idioma**: os seus idiomas — o principal (padrão PT; também o idioma dos títulos e das imagens do TMDB) e **+ e outro idioma** para cada outro idioma em que você assiste. O idioma do próprio app fica em **Configurações → Interface → Idioma da interface** (English, Português (Brasil), Español ou Igual ao Windows; **Reiniciar agora** reinicia nele).
 - **Configurações → Regras de saúde**: escolha o que conta como erro ou aviso. Um **Perfil de saúde** (Fácil / Médio / Rigoroso) define todas de uma vez; um usuário novo começa com Médio.
 - Para fazer a triagem: ordene por **Saúde** (Erros primeiro), clique no contador **Erros** ou marque **Só problemas**.
 
@@ -140,7 +141,7 @@ Selecione um filme e o painel mostra o pôster, o ano, os gêneros, a nota, a bi
 | Idioma | o <Language> de nível superior do movie.xml: o idioma para baixar metadados. Sem movie.xml: o <language> de nível superior do NFO (o mesmo significado), senão o idioma da primeira faixa de áudio. A dica diz a origem. Vazio é normal.
 | Vídeo, Tamanho, Qualidade | contêiner, tamanho e classe de resolução.
 | Áudio | faixas de áudio do FFprobe, p. ex. EN (5.1), PT (2.0).
-| Idioma OK? | S / N: o idioma de destino no áudio ou nas legendas (o cabeçalho mostra o código, p. ex. "PT OK?").
+| Idioma OK? | S / N: áudio ou legenda em um dos seus idiomas (o cabeçalho mostra o código principal, p. ex. "PT OK?"; a dica mostra todos).
 | Legendas | faixas embutidas (FFprobe) e arquivos externos.
 | Biblioteca | a biblioteca (pasta raiz). Oculta por padrão.
 | Coleção | a coleção do filme (NFO <set>). Oculta por padrão.
@@ -273,7 +274,7 @@ Com vários filmes selecionados, cada linha diz quantos filmes têm o problema, 
 | Pôster abaixo do tamanho mínimo | Substituir pôsteres de baixa resolução…
 | Idioma faltando no áudio e nas legendas | procurar legendas (OpenSubtitles)…
 | Legenda exigida faltando | procurar legendas (OpenSubtitles)…
-| Legendas gravadas na imagem | Legendas embutidas na imagem…
+| Legendas gravadas na imagem | Legendas embutidas na imagem… (só quando o filme não tem áudio nesse idioma)
 | Idioma de áudio exigido faltando | precisa de outra cópia do vídeo (sem correção automática)
 | Várias das correções acima, ou uma que só o Reparo automático faz | Reparo automático
 
@@ -566,7 +567,7 @@ Quando o NFO <title> e o XML <LocalTitle> diferem, Clique direito → Metadados 
 - **Áudio**: faixas do FFprobe como IDIOMA (CANAIS); passe o mouse para ver codec e bitrate. Uma faixa que o FFprobe informa como UND recebe o idioma do NFO ou do XML quando combina ("POR — from NFO"). Nada é gravado.
 - **Legendas**: faixas embutidas e arquivos externos (p. ex. Movie.pt.srt, também numa pasta Subs; as marcas forced e SDH são lidas). Clique direito → **Legendas…** abre para qualquer filme; **🌐 Abrir no OpenSubtitles.org** procura o filme lá.
 - **Legendas embutidas na imagem…** marca legendas gravadas na imagem (elas não podem ser detectadas): marque o(s) idioma(s) ou digite um código ISO 639-2. O app grava <tag>Hardsub POR</tag> no NFO e <Tags><Tag>Hardsub POR</Tag></Tags> no XML; a coluna mostra "Hard: POR".
-- A coluna **Idioma OK?** é S quando o idioma de destino (Configurações → Idioma) está numa faixa de áudio ou numa legenda: lido pelo FFprobe, um arquivo de legenda, uma marca de legenda embutida ou um fluxo escrito no NFO (streamdetails) ou no movie.xml (MediaInfo). O <language> do NFO e o <Language> / <LanguageCode> do XML no nível superior não contam: eles são o idioma para baixar metadados.
+- A coluna **Idioma OK?** é S quando um dos seus idiomas (Configurações → Idioma) está numa faixa de áudio ou numa legenda: lido pelo FFprobe, um arquivo de legenda, uma marca de legenda embutida ou um fluxo escrito no NFO (streamdetails) ou no movie.xml (MediaInfo). O <language> do NFO e o <Language> / <LanguageCode> do XML no nível superior não contam: eles são o idioma para baixar metadados. Uma faixa de áudio sem marcação de idioma dá um aviso próprio, "Idioma do áudio sem marcação". As regras "sempre um áudio em" e "sempre uma legenda em" (Configurações → Regras de saúde) são mais rígidas e opcionais: desligadas em todos os perfis de saúde.
 """
 
 TAB_07 = """
@@ -851,7 +852,7 @@ TAB_11 = """
 | Editor e FFmpeg | editor de texto, pasta do FFmpeg (**Testar FFmpeg**; encontrada sozinha quando está no PATH ou numa pasta de instalação comum), número de quadros para imagens de fundo, scan em paralelo (workers; processos do FFprobe), scraper opcional, "Lembrar os resultados do FFprobe" (cada vídeo é analisado uma vez; um vídeo alterado é analisado de novo)
 | Chaves de API | chaves do TMDB, OMDb e fanart.tv com botões **Validar** e links para obtê-las; as chaves nunca são gravadas no log
 | Navegador | o navegador para links da web
-| Idioma | o código ISO 639-1 da coluna Idioma OK? (padrão PT)
+| Idioma | os seus idiomas: o código ISO 639-1 principal (padrão PT) e os outros que você adicionar
 | Melhorias | as verificações do relatório de Melhorias e os tamanhos máximos de NFO / XML
 | Imagens e artes | o idioma das imagens (Preferir / Só, imagens sem texto primeiro), nível mínimo de qualidade (o mesmo valor de Regras de saúde), aceitação de 3:4 e 3:2, tamanhos mínimos de arquivo
 | Notas | os padrões das caixas de seleção de Sincronizar notas

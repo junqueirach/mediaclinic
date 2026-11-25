@@ -211,7 +211,7 @@ EN.update({
     "col.vid_size.tip": "Video file size on disk.",
     "col.quality.tip": "Video resolution class determined by FFprobe.",
     "col.audio.tip": "Audio tracks detected by FFprobe (language and channel layout). Only populated during FFprobe scans.",
-    "col.lang_ok.tip": "Checks whether the target language audio or subtitle track is present.",
+    'col.lang_ok.tip': 'Audio or subtitles in one of your languages (Settings → Language)',   # v0.20.2 LW
     "col.subs.tip": "Subtitle tracks found, either external .srt files or internal tracks detected by FFprobe.",
     "col.library.tip": "Library (root folder) the movie belongs to. Double-click to open the library folder.",
     "col.collection.tip": "The movie's collection (Kodi movie set) from the NFO <set>. Kodi groups movies by this name.",
@@ -612,7 +612,7 @@ PT_BR.update({
     "col.vid_size.tip": "Tamanho do arquivo de vídeo no disco.",
     "col.quality.tip": "Classe de resolução do vídeo determinada pelo FFprobe.",
     "col.audio.tip": "Faixas de áudio detectadas pelo FFprobe (idioma e canais). Só preenchido em scans com FFprobe.",
-    "col.lang_ok.tip": "Verifica se há faixa de áudio ou legenda no idioma de destino.",
+    'col.lang_ok.tip': 'Áudio ou legenda em um dos seus idiomas (Configurações → Idioma)',   # v0.20.2 LW
     "col.subs.tip": "Legendas encontradas: arquivos .srt externos ou faixas internas detectadas pelo FFprobe.",
     "col.library.tip": "Biblioteca (pasta raiz) a que o filme pertence. Duplo clique abre a pasta da biblioteca.",
     "col.collection.tip": "A coleção do filme (conjunto de filmes do Kodi) do NFO <set>. O Kodi agrupa os filmes por esse nome.",
@@ -1007,7 +1007,7 @@ ES.update({
     "col.vid_size.tip": "Tamaño del archivo de video en el disco.",
     "col.quality.tip": "Clase de resolución del video determinada por FFprobe.",
     "col.audio.tip": "Pistas de audio detectadas por FFprobe (idioma y canales). Solo se llena en scans con FFprobe.",
-    "col.lang_ok.tip": "Revisa si hay una pista de audio o de subtítulos en el idioma de destino.",
+    'col.lang_ok.tip': 'Audio o subtítulos en uno de sus idiomas (Configuración → Idioma)',   # v0.20.2 LW
     "col.subs.tip": "Subtítulos encontrados: archivos .srt externos o pistas internas detectadas por FFprobe.",
     "col.library.tip": "Biblioteca (carpeta raíz) a la que pertenece la película. Doble clic abre la carpeta de la biblioteca.",
     "col.collection.tip": "La colección de la película (conjunto de películas de Kodi) del NFO <set>. Kodi agrupa las películas por este nombre.",
@@ -1332,6 +1332,8 @@ EN.update({
     'reason.missing_votes': 'Missing votes',
     'reason.votes_unreadable': 'Votes tag unreadable (non-numeric value)',
     'reason.lang_not_ok': 'Target language not found in audio or subtitles',
+    'reason.lang_none': 'Not in your languages ({langs}): no audio or subtitles in them',   # v0.20.2 LW
+    'reason.lang_untagged': 'Audio language not tagged — cannot tell if the movie is in your languages ({langs})',   # v0.20.2 LW
     'reason.year_premiered': 'NFO <year> and <premiered> differ ({v})',
     'reason.too_large': 'NFO or XML file exceeds maximum size',
     'reason.req_audio': 'Required audio language not found ({lang})',
@@ -1398,6 +1400,8 @@ PT_BR.update({
     'reason.missing_votes': 'Votos faltando',
     'reason.votes_unreadable': 'Tag de votos ilegível (valor não numérico)',
     'reason.lang_not_ok': 'Idioma de destino não encontrado no áudio nem nas legendas',
+    'reason.lang_none': 'Fora dos seus idiomas ({langs}): nenhum áudio ou legenda neles',   # v0.20.2 LW
+    'reason.lang_untagged': 'Idioma do áudio sem marcação — não dá para saber se o filme está nos seus idiomas ({langs})',   # v0.20.2 LW
     'reason.year_premiered': 'NFO <year> e <premiered> diferem ({v})',
     'reason.too_large': 'Arquivo NFO ou XML excede o tamanho máximo',
     'reason.req_audio': 'Idioma de áudio exigido não encontrado ({lang})',
@@ -1464,6 +1468,8 @@ ES.update({
     'reason.missing_votes': 'Faltan los votos',
     'reason.votes_unreadable': 'Etiqueta de votos ilegible (valor no numérico)',
     'reason.lang_not_ok': 'No se encontró el idioma de destino en el audio ni en los subtítulos',
+    'reason.lang_none': 'Fuera de sus idiomas ({langs}): ningún audio ni subtítulo en ellos',   # v0.20.2 LW
+    'reason.lang_untagged': 'Idioma del audio sin etiqueta — no se puede saber si la película está en sus idiomas ({langs})',   # v0.20.2 LW
     'reason.year_premiered': 'NFO <year> y <premiered> difieren ({v})',
     'reason.too_large': 'El archivo NFO o XML supera el tamaño máximo',
     'reason.req_audio': 'No se encontró el idioma de audio requerido ({lang})',
@@ -2462,6 +2468,7 @@ EN.update({
     'rp.xml_localtitle_f3df': '     XML <LocalTitle>  "{v}"',
     'rp.xml_valid_a412': 'XML valid',
     'rp.y_audio_or_subtitle_4fe6': '[Y] {lang_name} audio or subtitle found',
+    'rp.lw_untagged': "[?] An audio track has no language tag: the app cannot tell if the movie is in {lang_name}\nA subtitle in one of your languages, or the language in the NFO's streamdetails, settles it",   # v0.20.2 LW
     'rp.year_source_nfo_year_49fc': 'Year: {get}\nSource: NFO <year> or XML <ProductionYear>',
     'rp.you_have_offers_replacing_13ba': 'You have {n}. {source} offers {online_n}.\nReplacing would leave you with {online_n2} ({v} fewer).',
     'rp.you_have_offers_replacing_4645': 'You have {n}. {source} offers {online_n}.\nReplacing gives you {online_n2}{extra}.',
@@ -2686,6 +2693,12 @@ EN.update({
     'set.system_default_750a': 'System Default',
     'set.table_appearance_ae18': 'Table Appearance',
     'set.target_language_not_found_61ca': 'Target language not found (Lang OK? column)',
+    'set.lw.rule': 'Not watchable in your languages (no audio or subtitles in any of them — Language tab)',   # v0.20.2 LW
+    'set.lw.req_audio': 'Stricter, optional — always an audio track in:',   # v0.20.2 LW
+    'set.lw.req_subs': 'Stricter, optional — always a subtitle in:',   # v0.20.2 LW
+    'set.lw.more_head': 'Other languages you watch in — a movie is OK with audio or subtitles in any of your languages:',   # v0.20.2 LW
+    'set.lw.more_add': '+ and another language',   # v0.20.2 LW
+    'set.lw.main_note': 'The main language also sets the language of the titles and artwork from TMDB.',   # v0.20.2 LW
     'set.tbl.pixels': 'Total Pixels',
     'set.tbl.quality': 'Quality',
     'set.tbl.resolution': 'Resolution',
@@ -3727,6 +3740,7 @@ PT_BR.update({
     'rp.xml_localtitle_f3df': '     XML <LocalTitle>  "{v}"',
     'rp.xml_valid_a412': 'XML válido',
     'rp.y_audio_or_subtitle_4fe6': '[S] Áudio ou legenda em {lang_name} encontrado',
+    'rp.lw_untagged': '[?] Uma faixa de áudio não tem marcação de idioma: o app não sabe se o filme está em {lang_name}\nUma legenda num dos seus idiomas, ou o idioma no streamdetails do NFO, resolve',   # v0.20.2 LW
     'rp.year_source_nfo_year_49fc': 'Ano: {get}\nFonte: NFO <year> ou XML <ProductionYear>',
     'rp.you_have_offers_replacing_13ba': 'Você tem {n}. {source} oferece {online_n}.\nSubstituir deixaria você com {online_n2} ({v} a menos).',
     'rp.you_have_offers_replacing_4645': 'Você tem {n}. {source} oferece {online_n}.\nSubstituir dá a você {online_n2}{extra}.',
@@ -3951,6 +3965,12 @@ PT_BR.update({
     'set.system_default_750a': 'Padrão do sistema',
     'set.table_appearance_ae18': 'Aparência da tabela',
     'set.target_language_not_found_61ca': 'Idioma de destino não encontrado (coluna Idioma OK?)',
+    'set.lw.rule': 'Não assistível nos seus idiomas (nenhum áudio ou legenda em nenhum deles — aba Idioma)',   # v0.20.2 LW
+    'set.lw.req_audio': 'Mais rígido, opcional — sempre um áudio em:',   # v0.20.2 LW
+    'set.lw.req_subs': 'Mais rígido, opcional — sempre uma legenda em:',   # v0.20.2 LW
+    'set.lw.more_head': 'Outros idiomas em que você assiste — um filme está OK com áudio ou legenda em qualquer um dos seus idiomas:',   # v0.20.2 LW
+    'set.lw.more_add': '+ e outro idioma',   # v0.20.2 LW
+    'set.lw.main_note': 'O idioma principal também define o idioma dos títulos e das imagens do TMDB.',   # v0.20.2 LW
     'set.tbl.pixels': 'Pixels',
     'set.tbl.quality': 'Qualidade',
     'set.tbl.resolution': 'Resolução',
@@ -4989,6 +5009,7 @@ ES.update({
     'rp.xml_localtitle_f3df': '     XML <LocalTitle>  "{v}"',
     'rp.xml_valid_a412': 'XML válido',
     'rp.y_audio_or_subtitle_4fe6': '[S] Se encontró audio o subtítulo en {lang_name}',
+    'rp.lw_untagged': '[?] Una pista de audio no tiene etiqueta de idioma: la app no sabe si la película está en {lang_name}\nUn subtítulo en uno de sus idiomas, o el idioma en el streamdetails del NFO, lo resuelve',   # v0.20.2 LW
     'rp.year_source_nfo_year_49fc': 'Año: {get}\nFuente: NFO <year> o XML <ProductionYear>',
     'rp.you_have_offers_replacing_13ba': 'Usted tiene {n}. {source} ofrece {online_n}.\nAl reemplazar le quedarían {online_n2} ({v} menos).',
     'rp.you_have_offers_replacing_4645': 'Usted tiene {n}. {source} ofrece {online_n}.\nAl reemplazar obtiene {online_n2}{extra}.',
@@ -5213,6 +5234,12 @@ ES.update({
     'set.system_default_750a': 'Predeterminado del sistema',
     'set.table_appearance_ae18': 'Apariencia de la tabla',
     'set.target_language_not_found_61ca': 'No se encontró el idioma de destino (columna ¿Idioma OK?)',
+    'set.lw.rule': 'No se puede ver en sus idiomas (ningún audio ni subtítulo en ninguno de ellos — pestaña Idioma)',   # v0.20.2 LW
+    'set.lw.req_audio': 'Más estricto, opcional — siempre un audio en:',   # v0.20.2 LW
+    'set.lw.req_subs': 'Más estricto, opcional — siempre un subtítulo en:',   # v0.20.2 LW
+    'set.lw.more_head': 'Otros idiomas en los que ve películas — una película está OK con audio o subtítulos en cualquiera de sus idiomas:',   # v0.20.2 LW
+    'set.lw.more_add': '+ y otro idioma',   # v0.20.2 LW
+    'set.lw.main_note': 'El idioma principal también define el idioma de los títulos y las imágenes de TMDB.',   # v0.20.2 LW
     'set.tbl.pixels': 'Píxeles',
     'set.tbl.quality': 'Calidad',
     'set.tbl.resolution': 'Resolución',
@@ -5719,6 +5746,7 @@ EN.update({
     'uf.m.preview_closed': {'one': '\n\nThe preview was closed: nothing was written ({movies} was ready).', 'other': '\n\nThe preview was closed: nothing was written ({movies} were ready).'},
     'uf.m.run_auto_repair': '  ▶ Run Auto Repair  ',
     'uf.m.settings_reset': {'one': 'Settings: {n} value of the wrong type reset to the default ({names}) — see logs\\app.log', 'other': 'Settings: {n} values of the wrong type reset to the default ({names}) — see logs\\app.log'},
+    'uf.m.lw_rules': "Health rules: 'always an audio track in' and 'always a subtitle in' are now optional (off in Tight); a movie is OK with audio or subtitles in any of your languages",   # v0.20.2 LW
     'uf.m.xml_no_title': 'movie.xml has no </Title>',
     'uf.mediaclinic_improvements_report_9283': 'MediaClinic Improvements Report — {n}\n',
     'uf.mediaclinic_search_sources_results_156d': 'MediaClinic — Search Sources Results\n',
@@ -5987,6 +6015,7 @@ PT_BR.update({
     'uf.m.preview_closed': {'one': '\n\nA prévia foi fechada: nada foi gravado ({movies} estava pronto).', 'other': '\n\nA prévia foi fechada: nada foi gravado ({movies} estavam prontos).'},
     'uf.m.run_auto_repair': '  ▶ Executar o Reparo automático  ',
     'uf.m.settings_reset': {'one': 'Configurações: {n} valor de tipo errado voltou ao padrão ({names}) — veja logs\\app.log', 'other': 'Configurações: {n} valores de tipo errado voltaram ao padrão ({names}) — veja logs\\app.log'},
+    'uf.m.lw_rules': "Regras de saúde: 'sempre um áudio em' e 'sempre uma legenda em' agora são opcionais (desligadas no Rigoroso); um filme está OK com áudio ou legenda em qualquer um dos seus idiomas",   # v0.20.2 LW
     'uf.m.xml_no_title': 'o movie.xml não tem </Title>',
     'uf.mediaclinic_improvements_report_9283': 'MediaClinic — Relatório de melhorias — {n}\n',
     'uf.mediaclinic_search_sources_results_156d': 'MediaClinic — Procurar fontes — Resultados\n',
@@ -6255,6 +6284,7 @@ ES.update({
     'uf.m.preview_closed': {'one': '\n\nSe cerró la vista previa: no se escribió nada ({movies} estaba lista).', 'other': '\n\nSe cerró la vista previa: no se escribió nada ({movies} estaban listas).'},
     'uf.m.run_auto_repair': '  ▶ Ejecutar la Reparación automática  ',
     'uf.m.settings_reset': {'one': 'Configuración: {n} valor de tipo incorrecto volvió al predeterminado ({names}) — vea logs\\app.log', 'other': 'Configuración: {n} valores de tipo incorrecto volvieron al predeterminado ({names}) — vea logs\\app.log'},
+    'uf.m.lw_rules': "Reglas de estado: 'siempre un audio en' y 'siempre un subtítulo en' ahora son opcionales (desactivadas en Estricto); una película está OK con audio o subtítulos en cualquiera de sus idiomas",   # v0.20.2 LW
     'uf.m.xml_no_title': 'movie.xml no tiene </Title>',
     'uf.mediaclinic_improvements_report_9283': 'MediaClinic Informe de mejoras — {n}\n',
     'uf.mediaclinic_search_sources_results_156d': 'MediaClinic — Resultados de Buscar fuentes\n',
