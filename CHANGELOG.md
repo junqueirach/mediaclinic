@@ -2,6 +2,89 @@
 
 All notable changes to MediaClinic. Dates are release dates. Earlier versions are kept as complete files in `archive/versions/`; their notes are in the `CHANGELOG` block at the top of `mediaclinic.py`.
 
+## v0.20.2 — 2026-11-26
+
+Windows build and source. Four new tools, the reports of the v0.20.1 testers (an Emby user, a NAS that was off), the
+Linux start-up crash, and a full code audit.
+
+### Added
+- **Rename Folder and Files** (right-click → Metadata, or *Tools → NFO & File Names → Rename Movie Folders and Files —
+  All Movies*): the movie folder from a pattern — Title (Year), with the IMDb or TMDB ID, or your own — and the NFO,
+  images, subtitles, parts and versions named after the video follow. Pattern 5 puts `[tmdb-N]` in the name, which
+  Jellyfin, Emby and Plex all read (tested on the three servers). The preview says what each ticked program does with
+  the watched state (Kodi: export it first). Nothing is copied; Undo renames back. A folder with several movies, a
+  name already taken, or an ID that differs between the NFO and `movie.xml` is skipped with the reason.
+- **Certifications** (right-click → Metadata → *Certifications…*, *Tools → Ratings & Genres → Apply My Certification
+  Settings — All Movies…*): your countries in order and a maximum (*Settings → Ratings*); every rating tag your files
+  have is written in its own style (`<mpaa>` one value); TMDB and OMDb fill what the files lack, the US rating as a
+  fallback. With nothing online the tag stays blank and you are told; a value only from a country you did not choose
+  asks keep / blank. A health rule in the Tight preset.
+- **set.nfo editor** for Kodi 22 and later (*Create / Edit set.nfo…* in the collection panel, the right-click menu and
+  *Tools → Collections*): title (locked to the collection name Kodi matches), original title and overview; other tags
+  are kept; the folder of your own collection is made first. Backup and Undo.
+- **Collection Gaps** (*Tools → Collections*): for each TMDB collection, the released movies your library lacks and the
+  announced ones, "You have N of M", and the collections it could not check with the reason. Fixes in the report: add
+  a movie you have to the collection, move it from another one, or write the TMDB ID and collection to a movie found by
+  title (both films shown first). "I don't want this one" with an ignore list; save as .txt.
+- **Help → Copy Diagnostic Info…**: a short report for a bug report (version, system, preset, programs, counts, the
+  last warnings and errors) without paths, movie names, keys or e-mail addresses.
+
+### Changed
+- **Watchable in your languages:** the language check now asks one question — can you watch the movie? It is OK
+  with an audio track **or** subtitles (in the folder, inside the video, or marked hard-coded) in **any** of your
+  languages: the main one (*Settings → Language*, also the TMDB language) and every language you add with
+  **+ and another language** (30 to choose from). On in the Tight preset. An audio track without a language tag
+  gets its own warning, "Audio language not tagged". The rules "always an audio track in" and "always a subtitle
+  in" stay as stricter options, off in every preset: a Portuguese film with Portuguese audio is no longer flagged
+  for missing Portuguese subtitles. If your rules were the old Tight, they become the new Tight once; rules you
+  changed by hand stay as they are.
+- **Hard-coded subtitles…** is offered only when the movie has no audio in that language.
+- **Emby and Jellyfin** (a tester's report): theme videos in `backdrops\` count as backdrops when Emby or Jellyfin is
+  ticked, and the main fanart counts as one backdrop. "Actors have no photos" only with Kodi ticked. The votes rules are
+  off when only Emby, Jellyfin or Plex is ticked (none of them shows votes), and Auto Repair no longer plans a votes
+  fix there. The collection artwork rule only with Kodi (or no program) ticked.
+- **New users start with the Medium preset** (it was Tight). Your own preset stays.
+- **No program ticked:** Start or Save with nothing ticked asks first ("Tick my programs" / "Start anyway"); with
+  nothing ticked every rule runs, the Kodi-only ones too. If you have nothing ticked, the programs window opens once
+  more after the update.
+- **An offline library is shown in grey**, and the messages say in plain words to check the drive or NAS, that nothing
+  changed and that the last scan is shown.
+- The **Votes** column reads Kodi's `<ratings>` block first.
+- In Portuguese or Spanish, the article option of the renamer moves the local article only in a translated title.
+- The Help has "New in v0.20.2" and sections for the new tools, in all three languages.
+
+### Fixed
+- **Linux:** the app crashed at start on Ubuntu 22.04 (Tk before 8.6.13 with a colour emoji font). Colour fonts are now
+  skipped there; emoji without a black-and-white font show as boxes (install `fonts-symbola`).
+- **Scans:** a cancelled or crashed Full Scan keeps the movies it did not reach; a letter folder (`A\`, `B\` …) that
+  cannot be read for a moment keeps its movies, in Full and Quick Scan; a scan that finds nothing is saved (the old
+  rows came back at the next start); a library removed while a scan ran came back (now refused during a scan); the
+  table no longer freezes between the scan phases, and a filter typed during a scan no longer shows movies twice;
+  Quick Scan lists the folders in parallel.
+- **Undo:** a file the run created is removed also after a later folder rename; Undo never makes a movie folder again
+  that was renamed or moved outside MediaClinic (one clear message instead); only one restore runs at a time.
+- **Writes:** two actions on the same movie no longer share one temporary file; a write that would leave an NFO that no
+  longer parses writes nothing and says so; a Turkish "İ" no longer moves an inserted rating block; Fix Wrong IDs reads
+  both files before it writes (a `movie.xml` that is not UTF-8 left the NFO changed alone); a fix that fails half-way
+  refreshes the movie's row; Title Sync and Search Sources write in the background, so the window keeps drawing on a
+  sleeping NAS.
+- A Kodi "combination NFO" (the XML, then IMDb / TMDB link lines) is no longer "corrupt" and can be written.
+- An ID that differs between the NFO and `movie.xml` never goes into a folder name.
+- The HTML export replaces only its own `<name>_images` folder (a folder of yours is never deleted).
+- Closing the app stops Auto Repair and the other runs at once; the results are saved first. Installing an update
+  closes the old window without questions.
+- The lists "not a duplicate", "not in a collection" and the Collection Gaps ignore list are never overwritten after a
+  read that failed (another program held the file).
+- Fetch Poster removes an old `folder.png` only when the new `folder.jpg` was written.
+- The "Update (with FFprobe)" entry of an issue menu probes only that issue's movies.
+- Small fixes: a two-step rename that fails puts the old name back; Pause → Resume keeps the estimate right; the actor /
+  extra-artwork renames wait for a running scan; the Actors column sorts by state; Replace All Backdrops honours "Only
+  this language"; no "No actor information" with `movie.xml` only.
+
+### Build
+- Compiled with Nuitka. Self-test about 1,900 checks; 76 unit tests; CI on Python 3.10 and 3.12, and the Linux build
+  on Ubuntu 22.04 and 24.04.
+
 ## v0.20.1 — 2026-11-21
 
 Windows build and source. What the testers of v0.20.0 asked for: better tools for posters and IDs, a grouped Tools
